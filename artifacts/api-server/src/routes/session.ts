@@ -89,7 +89,7 @@ router.post("/admin/login", authRateLimit, async (req, res): Promise<void> => {
  }
 
 
- const envCode = process.env.ADMIN_ACCESS_CODE?.trim();
+ const envCode = (process.env.ADMIN_ACCESS_KEY ?? process.env.ADMIN_ACCESS_CODE)?.trim();
  if (envCode) {
      if (code !== envCode) {
       res.status(401).json({ error: "Invalid admin code" });
