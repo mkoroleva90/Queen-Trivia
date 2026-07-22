@@ -1,6 +1,13 @@
-# [Project name]
+# Trivia Night
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A multiplayer pub-quiz web app: players enter with an access code, join live games, answer timed questions (multiple choice, true/false, matching, image, write-in), and see live leaderboards; admins manage games, questions (with Gemini AI generation/fact-check and OpenTDB import), and settings.
+
+## Product notes
+
+- Restored from a PDF code export (attached_assets/Trivia_Night2_*.pdf).
+- Access codes live in the `admin_settings` table (single row). Seeded defaults: player `PLAY2026`, admin `ADMIN2026` — changeable in the admin Settings page.
+- Real-time updates use Socket.IO at path `/api/socket.io` (routed under the existing `/api` proxy path).
+- AI question generation (`gemini.ts` routes) requires the `GOOGLE_API_KEY` env var; the rest of the app works without it.
 
 ## Run & Operate
 

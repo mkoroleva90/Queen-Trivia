@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "Trivia Night"
+version = "1.0.0"
+id = "artifacts/trivia-game"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23114
+
+[services.development]
+run = "pnpm --filter @workspace/trivia-game run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/trivia-game", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/trivia-game/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23114"
+BASE_PATH = "/"

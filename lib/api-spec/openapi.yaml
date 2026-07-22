@@ -3,13 +3,25 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Trivia game API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Access code verification
+  - name: users
+    description: Player management
+  - name: games
+    description: Game management
+  - name: questions
+    description: Question management
+  - name: play
+    description: Gameplay operations
+  - name: stats
+    description: Aggregate statistics
 paths:
   /healthz:
     get:
@@ -24,6 +36,477 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/verify:
+    post:
+      operationId: verifyAccessCode
+      tags: [auth]
+      summary: Verify a trivia or admin access code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessCodeInput"
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessCodeResult"
+  /users:
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create a player by name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+  /users/{userId}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get a player
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: Not found
+  /games:
+    get:
+      operationId: listGames
+      tags: [games]
+      summary: List games, optionally by status
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [waiting, active, completed]
+      responses:
+        "200":
+          description: Games
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Game"
+    post:
+      operationId: createGame
+      tags: [games]
+      summary: Create a game (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GameInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Game"
+  /games/{gameId}:
+    get:
+      operationId: getGame
+      tags: [games]
+      summary: Get a game with participant and question counts
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The game
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameDetail"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateGame
+      tags: [games]
+      summary: Update a game (status, topic, difficulty)
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GameUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Game"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteGame
+      tags: [games]
+      summary: Delete a game
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+  /games/{gameId}/questions/import-opentdb:
+    post:
+      operationId: importOpenTdbQuestions
+      tags: [questions]
+      summary: Import questions from Open Trivia Database (admin)
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenTdbImportInput"
+      responses:
+        "200":
+          description: Questions imported successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenTdbImportResult"
+        "404":
+          description: Game not found
+        "429":
+          description: Rate limited by OpenTDB
+  /games/{gameId}/questions/generate-gemini:
+    post:
+      operationId: generateGeminiQuestions
+      tags: [questions]
+      summary: Generate questions via Google Gemini for custom topics (admin)
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GeminiGenerateInput"
+      responses:
+        "200":
+          description: Questions generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenTdbImportResult"
+        "404":
+          description: Game not found
+        "503":
+          description: Gemini API unavailable or key missing
+  /games/{gameId}/questions/{questionId}/regenerate:
+    post:
+      operationId: regenerateQuestion
+      tags: [questions]
+      summary: Regenerate a single AI question preview using Gemini (not saved)
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: questionId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegenerateQuestionInput"
+      responses:
+        "200":
+          description: New question preview (not yet saved to DB)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegenerateQuestionPreview"
+        "404":
+          description: Question or game not found
+        "503":
+          description: Gemini unavailable or key missing
+  /games/{gameId}/questions/{questionId}/enhance:
+    post:
+      operationId: enhanceQuestion
+      tags: [questions]
+      summary: Analyze a question and suggest improvements using Gemini
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: questionId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Enhancement suggestions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnhanceQuestionResult"
+        "404":
+          description: Not found
+        "503":
+          description: Gemini unavailable
+  /games/{gameId}/questions/{questionId}/fact-check:
+    post:
+      operationId: factCheckQuestion
+      tags: [questions]
+      summary: Fact-check a single question using Gemini
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: questionId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Fact check result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FactCheckSingleResult"
+        "404":
+          description: Not found
+        "503":
+          description: Gemini unavailable
+  /games/{gameId}/questions:
+    get:
+      operationId: listGameQuestions
+      tags: [questions]
+      summary: List questions of a game ordered by order_index
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Questions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Question"
+    post:
+      operationId: createQuestion
+      tags: [questions]
+      summary: Add a question to a game (admin)
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuestionInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Question"
+  /questions/{questionId}:
+    patch:
+      operationId: updateQuestion
+      tags: [questions]
+      summary: Update a question (admin)
+      parameters:
+        - name: questionId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuestionUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Question"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteQuestion
+      tags: [questions]
+      summary: Delete a question (admin)
+      parameters:
+        - name: questionId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+  /games/{gameId}/join:
+    post:
+      operationId: joinGame
+      tags: [play]
+      summary: Join a game as a participant
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JoinGameInput"
+      responses:
+        "201":
+          description: Joined (or already joined)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Participant"
+        "404":
+          description: Game not found
+  /games/{gameId}/participants:
+    get:
+      operationId: listGameParticipants
+      tags: [play]
+      summary: Leaderboard - participants with scores, sorted descending
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Participants with names and scores
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ParticipantWithUser"
+  /games/{gameId}/answers:
+    post:
+      operationId: submitAnswer
+      tags: [play]
+      summary: Submit an answer to a question
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnswerInput"
+      responses:
+        "201":
+          description: Answer graded and recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnswerResult"
+        "404":
+          description: Game or question not found
+        "409":
+          description: Already answered this question
+  /games/{gameId}/users/{userId}/answers:
+    get:
+      operationId: listUserAnswers
+      tags: [play]
+      summary: List a user's answers for a game
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Answers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Answer"
+  /stats/summary:
+    get:
+      operationId: getStatsSummary
+      tags: [stats]
+      summary: Aggregate stats for dashboard
+      responses:
+        "200":
+          description: Summary counts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsSummary"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +516,281 @@ components:
           type: string
       required:
         - status
-
+    AccessCodeInput:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, minLength: 1 }
+    AccessCodeResult:
+      type: object
+      required: [valid, role]
+      properties:
+        valid: { type: boolean }
+        role:
+          type: string
+          enum: [player, admin, none]
+    UserInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+    User:
+      type: object
+      required: [id, name, createdAt]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        createdAt: { type: string }
+    GameInput:
+      type: object
+      required: [topic, difficulty]
+      properties:
+        topic: { type: string, minLength: 1 }
+        difficulty:
+          type: string
+          enum: [easy, medium, hard]
+        createdByAdmin: { type: boolean }
+    GameUpdate:
+      type: object
+      properties:
+        topic: { type: string, minLength: 1 }
+        difficulty:
+          type: string
+          enum: [easy, medium, hard]
+        status:
+          type: string
+          enum: [waiting, active, completed]
+    Game:
+      type: object
+      required: [id, topic, difficulty, questionCount, status, createdAt, createdByAdmin]
+      properties:
+        id: { type: integer }
+        topic: { type: string }
+        difficulty:
+          type: string
+          enum: [easy, medium, hard]
+        questionCount: { type: integer }
+        status:
+          type: string
+          enum: [waiting, active, completed]
+        createdAt: { type: string }
+        createdByAdmin: { type: boolean }
+    GameDetail:
+      type: object
+      required: [id, topic, difficulty, questionCount, status, createdAt, createdByAdmin,participantCount]
+      properties:
+        id: { type: integer }
+        topic: { type: string }
+        difficulty:
+          type: string
+          enum: [easy, medium, hard]
+        questionCount: { type: integer }
+        status:
+          type: string
+          enum: [waiting, active, completed]
+        createdAt: { type: string }
+        createdByAdmin: { type: boolean }
+        participantCount: { type: integer }
+    QuestionInput:
+      type: object
+      required: [questionText, questionType, correctAnswer, points, orderIndex]
+      properties:
+        questionText: { type: string, minLength: 1 }
+        questionType:
+          type: string
+          enum: [multiple_choice, write_in, matching, image_recognition, true_false]
+        correctAnswer: { type: string, minLength: 1 }
+        options:
+          type: ["object", "null"]
+          additionalProperties: true
+        imageUrl: { type: ["string", "null"] }
+        points: { type: integer, minimum: 1 }
+        orderIndex: { type: integer, minimum: 0 }
+        source: { type: ["string", "null"] }
+        factCheckUrl: { type: ["string", "null"] }
+        verifiedByAdmin: { type: boolean }
+        aiGenerated: { type: boolean }
+    QuestionUpdate:
+      type: object
+      properties:
+        questionText: { type: string, minLength: 1 }
+        questionType:
+          type: string
+          enum: [multiple_choice, write_in, matching, image_recognition, true_false]
+        correctAnswer: { type: string, minLength: 1 }
+        options:
+          type: ["object", "null"]
+          additionalProperties: true
+        imageUrl: { type: ["string", "null"] }
+        points: { type: integer, minimum: 1 }
+        orderIndex: { type: integer, minimum: 0 }
+        source: { type: ["string", "null"] }
+        factCheckUrl: { type: ["string", "null"] }
+        verifiedByAdmin: { type: boolean }
+    RegenerateQuestionInput:
+      type: object
+      properties:
+        difficulty:
+          type: string
+          enum: [easy, medium, hard]
+        questionType:
+          type: string
+          enum: [multiple_choice, true_false, write_in]
+    RegenerateQuestionPreview:
+      type: object
+      required: [questionType, questionText, correctAnswer, points, source]
+      properties:
+        questionType: { type: string }
+        questionText: { type: string }
+        correctAnswer: { type: string }
+        options:
+          type: array
+          nullable: true
+          items: { type: string }
+        points: { type: integer }
+        source: { type: string }
+    EnhanceQuestionResult:
+      type: object
+      required: [improvedQuestionText, factCheckResult, factCheckNotes, suggestedSource,suggestions]
+      properties:
+        improvedQuestionText: { type: string }
+        improvedOptions:
+          type: array
+          nullable: true
+          items: { type: string }
+        factCheckResult:
+          type: string
+          enum: [VERIFIED, UNCERTAIN, LIKELY_INCORRECT]
+        factCheckNotes: { type: string }
+        suggestedSource: { type: string }
+        suggestions: { type: string }
+    FactCheckSingleResult:
+      type: object
+      required: [verdict, confidence, explanation]
+      properties:
+        verdict:
+          type: string
+          enum: [CORRECT, INCORRECT, UNCERTAIN]
+        confidence:
+          type: string
+          enum: [HIGH, MEDIUM, LOW]
+        explanation: { type: string }
+        correctAnswerIfWrong:
+          type: string
+          nullable: true
+    GeminiGenerateInput:
+      type: object
+      required: [topic, difficulty, amount]
+      properties:
+        topic: { type: string, minLength: 1 }
+        difficulty:
+          type: string
+          enum: [easy, medium, hard]
+        amount:
+          type: integer
+          minimum: 1
+          maximum: 20
+        existingQuestions:
+          type: array
+          items: { type: string }
+    OpenTdbImportInput:
+      type: object
+      required: [categoryId, difficulty, amount]
+      properties:
+        categoryId: { type: integer }
+        difficulty:
+          type: string
+          enum: [easy, medium, hard]
+        amount:
+          type: integer
+          minimum: 1
+          maximum: 50
+    OpenTdbImportResult:
+      type: object
+      required: [imported, total]
+      properties:
+        imported: { type: integer }
+        total: { type: integer }
+    Question:
+      type: object
+      required: [id, gameId, questionText, questionType, options, imageUrl, points, orderIndex,verifiedByAdmin, aiGenerated]
+      properties:
+        id: { type: integer }
+        gameId: { type: integer }
+        questionText: { type: string }
+        questionType:
+          type: string
+          enum: [multiple_choice, write_in, matching, image_recognition, true_false]
+        correctAnswer: { type: string }
+        options:
+          type: ["object", "null"]
+          additionalProperties: true
+        imageUrl: { type: ["string", "null"] }
+        points: { type: integer }
+        orderIndex: { type: integer }
+        source: { type: ["string", "null"] }
+        factCheckUrl: { type: ["string", "null"] }
+        verifiedByAdmin: { type: boolean }
+        aiGenerated: { type: boolean }
+    JoinGameInput:
+      type: object
+      additionalProperties: false
+    Participant:
+      type: object
+      required: [id, gameId, userId, totalScore, joinedAt]
+      properties:
+        id: { type: integer }
+        gameId: { type: integer }
+        userId: { type: integer }
+        totalScore: { type: integer }
+        joinedAt: { type: string }
+    ParticipantWithUser:
+      type: object
+      required: [id, gameId, userId, userName, totalScore, joinedAt]
+      properties:
+        id: { type: integer }
+        gameId: { type: integer }
+        userId: { type: integer }
+        userName: { type: string }
+        totalScore: { type: integer }
+        joinedAt: { type: string }
+    AnswerInput:
+      type: object
+      required: [questionId, userAnswer]
+      properties:
+        questionId: { type: integer }
+        userAnswer: { type: string }
+    Answer:
+      type: object
+      required: [id, userId, gameId, questionId, userAnswer, isCorrect, pointsEarned,answeredAt]
+      properties:
+        id: { type: integer }
+        userId: { type: integer }
+        gameId: { type: integer }
+        questionId: { type: integer }
+        userAnswer: { type: string }
+        isCorrect: { type: boolean }
+        pointsEarned: { type: integer }
+        answeredAt: { type: string }
+        correctAnswer: { type: string }
+    AnswerResult:
+      type: object
+      required: [id, userId, gameId, questionId, userAnswer, isCorrect, answeredAt,pointsEarned, totalScore]
+      properties:
+        id: { type: integer }
+        userId: { type: integer }
+        gameId: { type: integer }
+        questionId: { type: integer }
+        userAnswer: { type: string }
+        isCorrect: { type: boolean }
+        answeredAt: { type: string }
+        pointsEarned: { type: integer }
+        totalScore: { type: integer }
+    StatsSummary:
+      type: object
+      required: [totalGames, activeGames, totalPlayers, totalAnswers]
+      properties:
+        totalGames: { type: integer }
+        activeGames: { type: integer }
+        totalPlayers: { type: integer }
+        totalAnswers: { type: integer }
