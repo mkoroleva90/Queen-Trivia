@@ -7,6 +7,7 @@ import { eq, and } from "drizzle-orm";
 import { db, gameParticipantsTable } from "@workspace/db";
 import { logger } from "./logger";
 import { sessionMiddleware } from "./session";
+import { corsOrigin, isOriginAllowed } from "./cors";
 
 
 // ── Typed event maps ─────────────────────────────────────────────────────────
@@ -47,7 +48,18 @@ let io: IO | null = null;
 export function initSocket(server: HTTPServer): IO {
  io = new SocketIOServer<ClientToServerEvents, ServerToClientEvents>(server, {
      path: "/api/socket.io",
-     cors: { origin: true, credentials: true },
+     cors: { origin: corsOrigin, credentials: true },
+     // Reject handshakes from untrusted origins outright (not just omit CORS
+     // headers) so no authenticated socket channel exists cross-origin.
+     allowRequest: (req, callback) => {
+         const origin = req.headers.origin;
+         if (!isOriginAllowed(origin)) {
+             logger.debug({ origin }, "Socket handshake rejected: disallowed origin");
+             callback("Origin not allowed", false);
+             return;
+         }
+         callback(null, true);
+     },
      transports: ["polling", "websocket"],
 });
 

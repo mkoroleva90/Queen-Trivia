@@ -5,6 +5,7 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { sessionMiddleware } from "./lib/session";
+import { corsOrigin } from "./lib/cors";
 
 
 const app: Express = express();
@@ -33,7 +34,10 @@ app.use(
      },
  }),
 );
-app.use(cors({ origin: true, credentials: true }));
+// Restrict CORS to this app's own origins only. Reflecting arbitrary origins
+// with credentials enabled would let any malicious site make authenticated
+// requests using a visitor's session cookie.
+app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(sessionMiddleware);
