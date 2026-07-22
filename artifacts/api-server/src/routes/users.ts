@@ -9,12 +9,13 @@ import {
  GetUserResponse,
 } from "@workspace/api-zod";
 import { toJsonSafe } from "../lib/serialize";
+import { requireAdmin } from "../middleware/requireAdmin";
 
 
 const router: IRouter = Router();
 
 
-router.post("/users", async (req, res): Promise<void> => {
+router.post("/users", requireAdmin, async (req, res): Promise<void> => {
  const parsed = CreateUserBody.safeParse(req.body);
  if (!parsed.success) {
      res.status(400).json({ error: parsed.error.message });
@@ -30,7 +31,7 @@ router.post("/users", async (req, res): Promise<void> => {
 });
 
 
-router.get("/users/:userId", async (req, res): Promise<void> => {
+router.get("/users/:userId", requireAdmin, async (req, res): Promise<void> => {
  const params = GetUserParams.safeParse(req.params);
  if (!params.success) {
      res.status(400).json({ error: params.error.message });
