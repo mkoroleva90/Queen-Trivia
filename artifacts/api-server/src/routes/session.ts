@@ -49,14 +49,21 @@ if (!isGlobalCode && !matchedGame) {
 // Reusing an existing row by name would let any caller impersonate another
 // player just by knowing their display name.
 const [user] = await db.insert(usersTable).values({ name }).returning();
- req.session.userId = user!.id;
- req.session.userName = user!.name;
- req.session.isAdmin = false;
- // Per-game code: bind this session to that game only
- req.session.allowedGameId = matchedGame?.id;
 
+ // Regenerate the session ID on login to prevent session fixation attacks.
+ req.session.regenerate((err) => {
+     if (err) {
+         res.status(500).json({ error: "Failed to establish session" });
+         return;
+     }
+     req.session.userId = user!.id;
+     req.session.userName = user!.name;
+     req.session.isAdmin = false;
+     // Per-game code: bind this session to that game only
+     req.session.allowedGameId = matchedGame?.id;
 
- res.json(toJsonSafe({ id: user!.id, name: user!.name, gameId: matchedGame?.id ?? null }));
+     res.json(toJsonSafe({ id: user!.id, name: user!.name, gameId: matchedGame?.id ?? null }));
+ });
 });
 
 
@@ -119,12 +126,18 @@ router.post("/admin/login", authRateLimit, async (req, res): Promise<void> => {
  }
 
 
- req.session.isAdmin = true;
- req.session.userId = undefined;
- req.session.userName = undefined;
+ // Regenerate the session ID on login to prevent session fixation attacks.
+ req.session.regenerate((err) => {
+     if (err) {
+         res.status(500).json({ error: "Failed to establish session" });
+         return;
+     }
+     req.session.isAdmin = true;
+     req.session.userId = undefined;
+     req.session.userName = undefined;
 
-
- res.json({ ok: true });
+     res.json({ ok: true });
+ });
 });
 
 
