@@ -106,7 +106,7 @@ export default function Results() {
     const [expandedQ, setExpandedQ] = useState<Set<number>>(new Set());
 
 
-    const { data: results, isLoading: resultsLoading } = useQuery<GameResults>({
+    const { data: results, isLoading: resultsLoading, error: resultsError } = useQuery<GameResults>({
      queryKey: ["game-results", gameId],
      queryFn: async () => {
       const r = await fetch(`/api/games/${gameId}/results`);
@@ -115,6 +115,7 @@ export default function Results() {
      },
      enabled: !!gameId,
      refetchInterval: 10000,
+     retry: 3,
     });
 
 
@@ -214,6 +215,19 @@ const toggleQ = (id: number) => {
     });
 };
 
+
+if (resultsError) {
+    return (
+        <div className="min-h-[100dvh] flex items-center justify-center">
+         <div className="text-center space-y-3">
+          <Trophy className="mx-auto h-12 w-12 text-destructive/40" />
+          <p className="text-muted-foreground">Could not load results.</p>
+          <p className="text-xs text-muted-foreground/60">{String(resultsError)}</p>
+          <button className="text-sm text-primary underline" onClick={() => window.location.reload()}>Try again</button>
+         </div>
+        </div>
+    );
+}
 
 if (resultsLoading || !results) {
     return (

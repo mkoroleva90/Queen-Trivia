@@ -50,7 +50,7 @@ const answerStats = await db
  .select({
   userId: answersTable.userId,
   totalAnswered: sql<number>`count(*)::int`,
-  correctCount: sql<number>`sum(case when ${answersTable.isCorrect} then 1 else 0end)::int`,
+  correctCount: sql<number>`sum(case when ${answersTable.isCorrect} then 1 else 0 end)::int`,
  })
  .from(answersTable)
  .where(eq(answersTable.gameId, gameId))
@@ -108,7 +108,7 @@ const answerStats = await db
  .select({
   questionId: answersTable.questionId,
   totalAnswered: sql<number>`count(*)::int`,
-  correctCount: sql<number>`sum(case when ${answersTable.isCorrect} then 1 else 0end)::int`,
+  correctCount: sql<number>`sum(case when ${answersTable.isCorrect} then 1 else 0 end)::int`,
  })
  .from(answersTable)
  .where(eq(answersTable.gameId, gameId))
@@ -164,7 +164,7 @@ const answerStats = await db
  .select({
   userId: answersTable.userId,
   totalAnswered: sql<number>`count(*)::int`,
-  correctCount: sql<number>`sum(case when ${answersTable.isCorrect} then 1 else 0end)::int`,
+  correctCount: sql<number>`sum(case when ${answersTable.isCorrect} then 1 else 0 end)::int`,
  })
  .from(answersTable)
  .where(eq(answersTable.gameId, gameId))
