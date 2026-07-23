@@ -14,7 +14,10 @@ export const sessionMiddleware = session({
     store: new PgSession({
         pool: pool,
         tableName: "sessions",
-        createTableIfMissing: true,
+        // NOTE: createTableIfMissing reads table.sql from the package dir,
+        // which breaks in the esbuild bundle. The table is managed in the
+        // drizzle schema (lib/db) instead.
+        createTableIfMissing: false,
     }),
     secret: SESSION_SECRET,
     resave: false,
