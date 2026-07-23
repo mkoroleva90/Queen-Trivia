@@ -225,11 +225,20 @@ const questionType =
     (question.questionType as "multiple_choice" | "true_false" | "write_in");
 
 
+const allQuestions = await db
+    .select({ questionText: questionsTable.questionText })
+    .from(questionsTable)
+    .where(eq(questionsTable.gameId, params.data.gameId));
+
+const avoidTexts = allQuestions
+    .map((q) => q.questionText)
+    .filter((t): t is string => typeof t === "string" && t.length > 0);
+
 const result = await regenerateSingleQuestion({
     topic: game.topic,
          difficulty,
          questionType,
-         avoidText: question.questionText,
+         avoidTexts,
          points: question.points,
      });
 

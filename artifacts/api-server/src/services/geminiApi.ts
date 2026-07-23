@@ -564,7 +564,7 @@ export interface RegenerateOpts {
     topic: string;
     difficulty: "easy" | "medium" | "hard";
     questionType: "multiple_choice" | "true_false" | "write_in";
-    avoidText: string;
+    avoidTexts: string[];
     points: number;
 }
 
@@ -587,18 +587,21 @@ export async function regenerateSingleQuestion(opts: RegenerateOpts):Promise<Reg
     if (!apiKey) return { ok: false, error: { code: "no_api_key" } };
 
 
- const prompt = `Generate exactly 1 trivia question about "${opts.topic}" at${opts.difficulty} difficulty level.
+    const avoidList = opts.avoidTexts
+        .map((t, i) => `  ${i + 1}. "${t}"`)
+        .join("\n");
 
+    const prompt = `Generate exactly 1 trivia question about "${opts.topic}" at ${opts.difficulty} difficulty level.
 
 The question type must be: ${opts.questionType}
-
 
 CRITICAL RULES:
 1. The question and answer MUST be based on verifiable, real-world facts
 2. Include the factual source for the answer
 3. Do not invent any facts, statistics, dates, names, or events
-4. Make sure this question is DIFFERENT from: "${opts.avoidText}"
-
+4. The following questions already exist in this game — you MUST NOT duplicate or rephrase any of them:
+${avoidList}
+5. Pick a DIFFERENT subtopic, fact, or angle about "${opts.topic}" that NONE of the above questions cover. Do not reword any of them — choose an entirely new aspect.
 
 Return ONLY valid JSON with no other text:
 {
@@ -610,12 +613,11 @@ Return ONLY valid JSON with no other text:
     "source": "Source name"
 }
 
-
 For true_false, options should be ["true", "false"].
 For write_in, options should be an empty array [].`;
 
 
-    const raw = await callGeminiRaw(apiKey, GEMINI_MODELS[0]!, prompt, 0.5, 2048);
+    const raw = await callGeminiRaw(apiKey, GEMINI_MODELS[0]!, prompt, 0.9, 2048);
     if (!raw.ok) return raw;
 
 
