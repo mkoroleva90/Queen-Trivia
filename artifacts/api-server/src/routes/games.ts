@@ -22,6 +22,7 @@ import {
 import { toJsonSafe } from "../lib/serialize";
 import { requireAdmin } from "../middleware/requireAdmin";
 import { requireAuth } from "../middleware/requireAuth";
+import { generateAccessCode } from "../lib/bootstrapAccessCodes";
 
 
 const router: IRouter = Router();
@@ -53,14 +54,10 @@ router.get("/games", requireAuth, async (req, res): Promise<void> => {
 });
 
 
-// Unambiguous alphabet (no 0/O, 1/I/L) for game access codes
-const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+// Game access codes use the shared CSPRNG-backed generator (crypto.randomBytes)
+// with an unambiguous alphabet; 10 chars of a 31-char alphabet ≈ 49 bits entropy.
 function randomAccessCode(): string {
- let out = "";
- for (let i = 0; i < 6; i++) {
-  out += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
- }
- return out;
+ return generateAccessCode(10);
 }
 
 router.post("/games", requireAdmin, async (req, res): Promise<void> => {
