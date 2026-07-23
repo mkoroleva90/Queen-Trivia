@@ -880,6 +880,32 @@ const { data: questions } = useListGameQuestions(game.id, {
 const createQuestion = useCreateQuestion();
 const updateQuestion = useUpdateQuestion();
 const deleteQuestion = useDeleteQuestion();
+const generateQuestions = useGenerateGeminiQuestions();
+
+// AI generate dialog state
+const [genOpen, setGenOpen] = useState(false);
+const [genCount, setGenCount] = useState(5);
+const [genDiff, setGenDiff] = useState<"easy" | "medium" | "hard" | "same">("same");
+const [genAvoid, setGenAvoid] = useState(true);
+
+const handleGenerate = async () => {
+ const difficulty =
+  genDiff === "same"
+   ? ((game.difficulty ?? "medium") as "easy" | "medium" | "hard")
+   : genDiff;
+ const existingQs = genAvoid ? (questions ?? []).map((q) => q.questionText) : undefined;
+ try {
+  const result = await generateQuestions.mutateAsync({
+   gameId: game.id,
+   data: { topic: game.topic, difficulty, amount: genCount, existingQuestions: existingQs },
+  });
+  invalidate();
+  setGenOpen(false);
+  toast({ title: `Added ${result.imported} AI-generated questions` });
+ } catch {
+  toast({ variant: "destructive", title: "Generation failed. Please try again." });
+ }
+};
 
 
 const sorted = useMemo(
@@ -972,7 +998,11 @@ return (
        )}
     </div>
    </div>
-   <Dialog
+   <div className="flex items-center gap-2">
+    <Button variant="outline" className="font-semibold" onClick={() => setGenOpen(true)}>
+     <Sparkles className="mr-1.5 h-4 w-4 text-purple-400" /> Generate with AI
+    </Button>
+    <Dialog
     open={dialogOpen}
     onOpenChange={(open) => {
        setDialogOpen(open);
@@ -1036,17 +1066,78 @@ return (
 />
 </DialogContent>
  </Dialog>
-</div>
+</div>{/* end flex gap-2 */}
+</div>{/* end header flex */}
+
+
+{/* AI Generate dialog */}
+<Dialog open={genOpen} onOpenChange={(open) => { if (!generateQuestions.isPending) setGenOpen(open); }}>
+ <DialogContent className="sm:max-w-sm">
+  <DialogHeader>
+   <DialogTitle className="flex items-center gap-2">
+    <Sparkles className="h-4 w-4 text-purple-400" /> Generate Questions with AI
+   </DialogTitle>
+  </DialogHeader>
+  <div className="space-y-4">
+   <p className="text-sm text-muted-foreground">
+    Gemini AI will generate questions for{" "}
+    <span className="font-medium text-foreground">{game.topic}</span>. Review them before going live.
+   </p>
+   <div className="space-y-1.5">
+    <Label>Number of questions (1–20)</Label>
+    <Input
+     type="number"
+     min={1}
+     max={20}
+     value={genCount}
+     onChange={(e) => setGenCount(Math.max(1, Math.min(20, Number(e.target.value))))}
+     className="h-9"
+    />
+   </div>
+   <div className="space-y-1.5">
+    <Label>Difficulty</Label>
+    <Select value={genDiff} onValueChange={(v) => setGenDiff(v as typeof genDiff)}>
+     <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+     <SelectContent>
+      <SelectItem value="same">Same as game setting</SelectItem>
+      <SelectItem value="easy">Easy</SelectItem>
+      <SelectItem value="medium">Medium</SelectItem>
+      <SelectItem value="hard">Hard</SelectItem>
+     </SelectContent>
+    </Select>
+   </div>
+   <label className="flex items-center gap-2.5 cursor-pointer">
+    <input
+     type="checkbox"
+     className="accent-primary"
+     checked={genAvoid}
+     onChange={(e) => setGenAvoid(e.target.checked)}
+    />
+    <span className="text-sm text-muted-foreground">Avoid duplicating existing questions</span>
+   </label>
+   <Button className="w-full" onClick={handleGenerate} disabled={generateQuestions.isPending}>
+    {generateQuestions.isPending ? (
+     <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating…</>
+    ) : (
+     <><Sparkles className="mr-2 h-4 w-4" />Generate {genCount} Questions</>
+    )}
+   </Button>
+   {generateQuestions.isPending && (
+    <p className="text-xs text-center text-muted-foreground">This may take 10–20 seconds…</p>
+   )}
+  </div>
+ </DialogContent>
+</Dialog>
 
 
 {/* Question list */}
 {localOrder.length === 0 ? (
  <Card className="border-dashed border-primary/30 bg-card/30">
-  <CardContent className="py-12 text-center space-y-2">
+  <CardContent className="py-12 text-center space-y-3">
    <HelpCircle className="mx-auto h-10 w-10 text-primary/40" />
    <p className="font-semibold">No questions yet</p>
    <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-      Click "Add Question" to write your first verified question for this game.
+    Write questions one at a time with <span className="font-medium text-foreground">Add Question</span>, or let Gemini AI generate a full set instantly with <span className="font-medium text-foreground">Generate with AI</span>.
    </p>
   </CardContent>
  </Card>
