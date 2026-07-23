@@ -529,6 +529,8 @@ components:
         role:
           type: string
           enum: [player, admin, none]
+        gameId: { type: ["integer", "null"] }
+        gameTopic: { type: ["string", "null"] }
     UserInput:
       type: object
       required: [name]
@@ -575,6 +577,7 @@ components:
           enum: [waiting, active, completed]
         createdAt: { type: string }
         createdByAdmin: { type: boolean }
+        accessCode: { type: ["string", "null"] }
     GameDetail:
       type: object
       required: [id, topic, difficulty, questionCount, status, createdAt, createdByAdmin,participantCount]
@@ -591,6 +594,7 @@ components:
         createdAt: { type: string }
         createdByAdmin: { type: boolean }
         participantCount: { type: integer }
+        accessCode: { type: ["string", "null"] }
     QuestionInput:
       type: object
       required: [questionText, questionType, correctAnswer, points, orderIndex]

@@ -17,4 +17,5 @@ export interface GameDetail {
   createdAt: string;
   createdByAdmin: boolean;
   participantCount: number;
+  accessCode?: string | null;
 }

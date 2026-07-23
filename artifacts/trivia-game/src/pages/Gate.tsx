@@ -88,6 +88,23 @@ const handleNameSubmit = async (e: React.FormEvent) => {
      }
      const user = await res.json();
      loginUser({ id: user.id, name: user.name });
+     // Game-specific access code: auto-join that game and go straight to it
+     if (user.gameId) {
+      try {
+       const joinRes = await fetch(`/api/games/${user.gameId}/join`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({}),
+       });
+       if (joinRes.ok || joinRes.status === 409) {
+        setLocation(`/game/${user.gameId}`);
+        return;
+       }
+      } catch {
+       // fall through to lobby
+      }
+     }
      setLocation("/lobby");
  } catch {
      toast({ variant: "destructive", title: "Connection error — please retry" });

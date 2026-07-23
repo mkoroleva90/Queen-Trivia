@@ -95,6 +95,7 @@ Eye,
 EyeOff,
 Crown,
 AlertTriangle,
+ KeyRound,
 ChevronRight,
 Trophy,
 CheckCircle2,
@@ -1898,8 +1899,6 @@ function ManageGamesSection({
  const [checking, setChecking] = useState<number | null>(null);
  const updateGame = useUpdateGame();
  const deleteGame = useDeleteGame();
- const hasActive = games.some((g) => g.status === "active");
-
 
  const invalidate = () => {
   queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
@@ -2023,18 +2022,26 @@ return (
              Game #{game.id} · {game.questionCount}{" "}
              {game.questionCount === 1 ? "question" : "questions"}
              </p>
+             {game.accessCode && (
+              <button
+               type="button"
+               onClick={() => {
+                navigator.clipboard?.writeText(game.accessCode!);
+                toast({ title: `Code ${game.accessCode} copied` });
+               }}
+               className="inline-flex items-center gap-1.5 rounded-md border border-secondary/40 bg-secondary/10 px-2 py-1 text-xs font-bold tracking-widest text-secondary hover:bg-secondary/20 transition-colors"
+               title="Click to copy access code"
+              >
+               <KeyRound className="h-3 w-3" />
+               {game.accessCode}
+              </button>
+             )}
          </div>
         </div>
         {isWaiting && noQuestions && (
          <div className="flex items-center gap-2 rounded-md bg-destructive/10 borderborder-destructive/20 px-3 py-2 text-sm text-destructive">
              <AlertTriangle className="h-4 w-4 shrink-0" />
              No questions added — add questions before going live
-         </div>
-        )}
-        {isWaiting && hasActive && (
-         <div className="flex items-center gap-2 rounded-md bg-accent/10 borderborder-accent/20 px-3 py-2 text-sm text-accent">
-             <AlertTriangle className="h-4 w-4 shrink-0" />
-             Another game is already live — end it first
          </div>
         )}
         <div className="flex items-center gap-2 flex-wrap">
@@ -2050,7 +2057,7 @@ return (
              <Button
               size="sm"
               className="font-bold"
-              disabled={updateGame.isPending || checking === game.id || noQuestions ||hasActive}
+              disabled={updateGame.isPending || checking === game.id || noQuestions}
               onClick={() => handleGoLive(game)}
              >
               {checking === game.id ? (

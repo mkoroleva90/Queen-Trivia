@@ -29,7 +29,9 @@ export const VerifyAccessCodeBody = zod.object({
 
 export const VerifyAccessCodeResponse = zod.object({
   "valid": zod.boolean(),
-  "role": zod.enum(['player', 'admin', 'none'])
+  "role": zod.enum(['player', 'admin', 'none']),
+  "gameId": zod.number().nullish(),
+  "gameTopic": zod.string().nullish()
 })
 
 
@@ -79,7 +81,8 @@ export const ListGamesResponseItem = zod.object({
   "questionCount": zod.number(),
   "status": zod.enum(['waiting', 'active', 'completed']),
   "createdAt": zod.string(),
-  "createdByAdmin": zod.boolean()
+  "createdByAdmin": zod.boolean(),
+  "accessCode": zod.string().nullish()
 })
 export const ListGamesResponse = zod.array(ListGamesResponseItem)
 
@@ -103,7 +106,8 @@ export const CreateGameResponse = zod.object({
   "questionCount": zod.number(),
   "status": zod.enum(['waiting', 'active', 'completed']),
   "createdAt": zod.string(),
-  "createdByAdmin": zod.boolean()
+  "createdByAdmin": zod.boolean(),
+  "accessCode": zod.string().nullish()
 })
 
 
@@ -122,7 +126,8 @@ export const GetGameResponse = zod.object({
   "status": zod.enum(['waiting', 'active', 'completed']),
   "createdAt": zod.string(),
   "createdByAdmin": zod.boolean(),
-  "participantCount": zod.number()
+  "participantCount": zod.number(),
+  "accessCode": zod.string().nullish()
 })
 
 

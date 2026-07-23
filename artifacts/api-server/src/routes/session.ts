@@ -1,7 +1,7 @@
 
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, adminSettingsTable, usersTable } from "@workspace/db";
+import { and, eq, ne } from "drizzle-orm";
+import { db, adminSettingsTable, usersTable, gamesTable } from "@workspace/db";
 import { toJsonSafe } from "../lib/serialize";
 import { authRateLimit } from "../middleware/authRateLimit";
 
@@ -26,7 +26,20 @@ if (name.length > 50) {
 
 
 const [settings] = await db.select().from(adminSettingsTable).limit(1);
-if (!settings || code !== settings.triviaAccessCode) {
+const isGlobalCode = !!settings && code === settings.triviaAccessCode;
+
+// Per-game access codes: a code tied to a specific (non-completed) game
+let matchedGame: { id: number } | undefined;
+if (!isGlobalCode) {
+    const [game] = await db
+        .select({ id: gamesTable.id })
+        .from(gamesTable)
+        .where(and(eq(gamesTable.accessCode, code), ne(gamesTable.status, "completed")))
+        .limit(1);
+    matchedGame = game;
+}
+
+if (!isGlobalCode && !matchedGame) {
     res.status(401).json({ error: "Invalid access code" });
     return;
 }
@@ -39,9 +52,11 @@ const [user] = await db.insert(usersTable).values({ name }).returning();
  req.session.userId = user!.id;
  req.session.userName = user!.name;
  req.session.isAdmin = false;
+ // Per-game code: bind this session to that game only
+ req.session.allowedGameId = matchedGame?.id;
 
 
- res.json(toJsonSafe({ id: user!.id, name: user!.name }));
+ res.json(toJsonSafe({ id: user!.id, name: user!.name, gameId: matchedGame?.id ?? null }));
 });
 
 

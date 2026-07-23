@@ -16,4 +16,5 @@ export interface Game {
   status: GameStatus;
   createdAt: string;
   createdByAdmin: boolean;
+  accessCode?: string | null;
 }

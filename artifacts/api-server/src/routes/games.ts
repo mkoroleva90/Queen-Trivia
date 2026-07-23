@@ -45,9 +45,23 @@ router.get("/games", requireAuth, async (req, res): Promise<void> => {
      : await db.select().from(gamesTable).orderBy(desc(gamesTable.createdAt));
 
 
- res.json(ListGamesResponse.parse(toJsonSafe(games)));
+ // Access codes are admin-only — never expose them to players
+ const sanitized = req.session.isAdmin === true
+     ? games
+     : games.map((g) => ({ ...g, accessCode: null }));
+ res.json(ListGamesResponse.parse(toJsonSafe(sanitized)));
 });
 
+
+// Unambiguous alphabet (no 0/O, 1/I/L) for game access codes
+const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+function randomAccessCode(): string {
+ let out = "";
+ for (let i = 0; i < 6; i++) {
+  out += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+ }
+ return out;
+}
 
 router.post("/games", requireAdmin, async (req, res): Promise<void> => {
  const parsed = CreateGameBody.safeParse(req.body);
@@ -57,14 +71,25 @@ router.post("/games", requireAdmin, async (req, res): Promise<void> => {
  }
 
 
- const [game] = await db
-     .insert(gamesTable)
-     .values({
-      topic: parsed.data.topic.trim(),
-      difficulty: parsed.data.difficulty,
-      createdByAdmin: parsed.data.createdByAdmin ?? true,
-     })
-     .returning();
+ // Retry on the (rare) unique-constraint collision
+ let game;
+ for (let attempt = 0; attempt < 5; attempt++) {
+  try {
+   [game] = await db
+    .insert(gamesTable)
+    .values({
+     topic: parsed.data.topic.trim(),
+     difficulty: parsed.data.difficulty,
+     createdByAdmin: parsed.data.createdByAdmin ?? true,
+     accessCode: randomAccessCode(),
+    })
+    .returning();
+   break;
+  } catch (err) {
+   const code = (err as { code?: string }).code;
+   if (code !== "23505" || attempt === 4) throw err;
+  }
+ }
 
 
  res.status(201).json(CreateGameResponse.parse(toJsonSafe(game)));
@@ -100,6 +125,7 @@ const [participants] = await db
 res.json(
     GetGameResponse.parse(toJsonSafe({
      ...game,
+     accessCode: req.session.isAdmin === true ? game.accessCode : null,
      participantCount: participants?.value ?? 0,
     })),
 );

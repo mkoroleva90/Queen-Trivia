@@ -26,6 +26,8 @@ export const AccessCodeResultRole = {
 export interface AccessCodeResult {
   valid: boolean;
   role: AccessCodeResultRole;
+  gameId?: number | null;
+  gameTopic?: string | null;
 }
 
 export interface UserInput {
@@ -109,6 +111,7 @@ export interface Game {
   status: GameStatus;
   createdAt: string;
   createdByAdmin: boolean;
+  accessCode?: string | null;
 }
 
 export type GameDetailDifficulty = typeof GameDetailDifficulty[keyof typeof GameDetailDifficulty];
@@ -138,6 +141,7 @@ export interface GameDetail {
   createdAt: string;
   createdByAdmin: boolean;
   participantCount: number;
+  accessCode?: string | null;
 }
 
 export type QuestionInputQuestionType = typeof QuestionInputQuestionType[keyof typeof QuestionInputQuestionType];

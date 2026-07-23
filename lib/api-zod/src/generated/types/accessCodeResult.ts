@@ -10,4 +10,6 @@ import type { AccessCodeResultRole } from './accessCodeResultRole';
 export interface AccessCodeResult {
   valid: boolean;
   role: AccessCodeResultRole;
+  gameId?: number | null;
+  gameTopic?: string | null;
 }

@@ -95,6 +95,15 @@ router.post("/games/:gameId/join", requireUser, async (req, res): Promise<void> 
 
     const sessionUserId = req.session.userId!;
 
+    // Sessions created with a per-game access code may only join that game
+    if (
+        typeof req.session.allowedGameId === "number" &&
+        req.session.allowedGameId !== params.data.gameId
+    ) {
+        res.status(403).json({ error: "Your access code is only valid for a different game" });
+        return;
+    }
+
 
     const [game] = await db
         .select()

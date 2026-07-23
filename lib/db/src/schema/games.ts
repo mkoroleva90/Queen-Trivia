@@ -21,6 +21,7 @@ export const gamesTable = pgTable("games", {
  status: text("status", { enum: ["waiting", "active", "completed"] })
   .notNull()
   .default("waiting"),
+ accessCode: text("access_code").unique(),
  createdAt: timestamp("created_at", { withTimezone: true })
   .notNull()
   .defaultNow(),

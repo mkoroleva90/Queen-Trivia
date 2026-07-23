@@ -1,6 +1,7 @@
 
 import { Router, type IRouter } from "express";
-import { db, adminSettingsTable } from "@workspace/db";
+import { and, eq, ne } from "drizzle-orm";
+import { db, adminSettingsTable, gamesTable } from "@workspace/db";
 import {
  VerifyAccessCodeBody,
 VerifyAccessCodeResponse,
@@ -37,6 +38,25 @@ if (code === settings.adminAccessCode) {
 }
  if (code === settings.triviaAccessCode) {
      res.json(VerifyAccessCodeResponse.parse({ valid: true, role: "player" }));
+     return;
+ }
+
+
+ // Per-game access codes: match a non-completed game's code
+ const [game] = await db
+     .select()
+     .from(gamesTable)
+     .where(and(eq(gamesTable.accessCode, code), ne(gamesTable.status, "completed")))
+     .limit(1);
+ if (game) {
+     res.json(
+      VerifyAccessCodeResponse.parse({
+       valid: true,
+       role: "player",
+       gameId: game.id,
+       gameTopic: game.topic,
+      }),
+     );
      return;
  }
 
