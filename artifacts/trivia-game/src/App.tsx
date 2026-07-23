@@ -11,57 +11,79 @@ import Lobby from "./pages/Lobby";
 import GamePlay from "./pages/GamePlay";
 import Results from "./pages/Results";
 import Admin from "./pages/Admin";
-const queryClient = new QueryClient();
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error) => {
+        // Don't retry on auth errors — they need a fresh login
+        const status = (error as { status?: number })?.status;
+        if (status === 401 || status === 403) return false;
+        return failureCount < 2;
+      },
+    },
+  },
+});
 
 
 function PlayerRoute({
-    component: Component,
+  component: Component,
 }: {
-    component: () => React.JSX.Element | null;
+  component: () => React.JSX.Element | null;
 }) {
-    const { user } = useAuth();
-    if (!user) return <Redirect to="/" />;
-    return <Component />;
+  const { user, authReady } = useAuth();
+  if (!authReady) return null; // wait for session verification
+  if (!user) return <Redirect to="/" />;
+  return <Component />;
+}
+
+
+function AdminRoute() {
+  const { isAdmin, authReady, clearAdmin } = useAuth();
+  if (!authReady) return null;
+  if (!isAdmin) {
+    clearAdmin();
+    return <Redirect to="/admin-login" />;
+  }
+  return <Admin />;
 }
 
 
 function Router() {
-    return (
-     <Switch>
-       <Route path="/" component={Gate} />
-       <Route path="/admin-login" component={AdminLogin} />
-       <Route path="/lobby">
-       <PlayerRoute component={Lobby} />
-       </Route>
-       <Route path="/game/:id">
-       <PlayerRoute component={GamePlay} />
-       </Route>
-       <Route path="/results/:gameId">
-       <PlayerRoute component={Results} />
-         </Route>
-         <Route path="/admin" component={Admin} />
-         <Route component={NotFound} />
-     </Switch>
-    );
+  return (
+    <Switch>
+      <Route path="/" component={Gate} />
+      <Route path="/admin-login" component={AdminLogin} />
+      <Route path="/lobby">
+        <PlayerRoute component={Lobby} />
+      </Route>
+      <Route path="/game/:id">
+        <PlayerRoute component={GamePlay} />
+      </Route>
+      <Route path="/results/:gameId">
+        <PlayerRoute component={Results} />
+      </Route>
+      <Route path="/admin" component={AdminRoute} />
+      <Route component={NotFound} />
+    </Switch>
+  );
 }
 
 
 function App() {
-    return (
-     <QueryClientProvider client={queryClient}>
-         <AuthProvider>
-         <TooltipProvider>
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-           <Router />
+            <Router />
           </WouterRouter>
           <Toaster />
-         </TooltipProvider>
-         </AuthProvider>
-     </QueryClientProvider>
-    );
+        </TooltipProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  );
 }
 
 
 export default App;
-
-
