@@ -2571,16 +2571,29 @@ const handleGenerateMore = async () => {
   if (!game) return;
   setRegenAllRunning(true);
   try {
-    // 1. Delete all existing questions
-    await Promise.allSettled(rawQuestions.map((q) => deleteQuestion.mutateAsync({ questionId: q.id })));
-    // 2. Generate fresh questions via Gemini
+    // Capture old question texts BEFORE deleting so Gemini can avoid rewriting them
+    const oldTexts = rawQuestions
+      .map((q) => q.questionText)
+      .filter((t): t is string => typeof t === "string" && t.length > 0);
+    // 1. Delete all existing questions — abort if any deletion fails
+    const deleteResults = await Promise.allSettled(rawQuestions.map((q) => deleteQuestion.mutateAsync({ questionId: q.id })));
+    const failedDeletes = deleteResults.filter((r) => r.status === "rejected").length;
+    if (failedDeletes > 0) {
+      invalidate();
+      toast({
+        variant: "destructive",
+        title: `Could not delete ${failedDeletes} existing question${failedDeletes === 1 ? "" : "s"}. Regeneration cancelled — please try again.`,
+      });
+      return;
+    }
+    // 2. Generate fresh questions via Gemini, avoiding the old ones
     const difficulty =
       regenAllDiff === "same"
         ? ((game.difficulty ?? "medium") as "easy" | "medium" | "hard")
         : regenAllDiff;
     const result = await generateMore.mutateAsync({
       gameId: selectedGameId,
-      data: { topic: game.topic, difficulty, amount: regenAllCount },
+      data: { topic: game.topic, difficulty, amount: regenAllCount, existingQuestions: oldTexts },
     });
     invalidate();
     setRegenAllOpen(false);

@@ -210,7 +210,7 @@ const VALID_TYPES = new Set([
 function buildBulkPrompt(opts: GeminiGenerateOptions): string {
     const avoid =
      opts.existingQuestions && opts.existingQuestions.length > 0
-   ? `\nAVOID duplicating these existing questiontopics:\n${opts.existingQuestions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`
+   ? `\nThe following questions have ALREADY been used. You MUST NOT duplicate, reword, or rephrase ANY of them — do not ask about the same fact, person, event, or statistic even with different wording. Every question you write must cover a genuinely different subtopic or angle:\n${opts.existingQuestions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`
      : "";
 
 
