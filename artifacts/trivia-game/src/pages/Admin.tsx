@@ -351,16 +351,32 @@ function QuestionForm({
  onSubmit,
  pending,
  submitLabel,
+ onFillWithAi,
 }: {
  initial: QuestionFormState;
  onSubmit: (form: QuestionFormState) => void;
  pending: boolean;
  submitLabel: string;
+ onFillWithAi?: (type: QuestionType) => Promise<QuestionFormState | null>;
 }) {
  const [form, setForm] = useState<QuestionFormState>(initial);
+ const [aiLoading, setAiLoading] = useState(false);
  const { toast } = useToast();
  const set = <K extends keyof QuestionFormState>(k: K, v: QuestionFormState[K]) =>
   setForm((f) => ({ ...f, [k]: v }));
+
+ const handleFillWithAi = async () => {
+  if (!onFillWithAi) return;
+  setAiLoading(true);
+  try {
+   const filled = await onFillWithAi(form.questionType);
+   if (filled) setForm(filled);
+  } catch {
+   toast({ variant: "destructive", title: "AI generation failed. Please try again." });
+  } finally {
+   setAiLoading(false);
+  }
+ };
 
 
  const handleTypeChange = (v: QuestionType) => {
@@ -399,8 +415,24 @@ return (
       </button>
       );
   })}
- </div>
-</div>
+    </div>
+    {onFillWithAi && (
+     <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="w-full gap-1.5 text-purple-400 border-purple-500/30 hover:bg-purple-500/10 hover:text-purple-300"
+      onClick={handleFillWithAi}
+      disabled={aiLoading || pending}
+     >
+      {aiLoading ? (
+       <><Loader2 className="h-3.5 w-3.5 animate-spin" />Generating…</>
+      ) : (
+       <><Sparkles className="h-3.5 w-3.5" />Fill with AI</>
+      )}
+     </Button>
+    )}
+   </div>
 
 
 {/* Question text */}
@@ -1023,6 +1055,31 @@ return (
  initial={editing ? formFromQuestion(editing) : emptyForm}
  pending={createQuestion.isPending || updateQuestion.isPending}
  submitLabel={editing ? "Save Changes" : "Add Question"}
+ onFillWithAi={editing ? undefined : async (type) => {
+  const res = await fetch(`/api/games/${game.id}/questions/generate-preview`, {
+   method: "POST",
+   headers: { "Content-Type": "application/json" },
+   credentials: "include",
+   body: JSON.stringify({ questionType: type, difficulty: game.difficulty ?? "medium" }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const preview = await res.json() as {
+   questionType: string; questionText: string; correctAnswer: string;
+   options: string[] | null; points: number; source: string;
+  };
+  return {
+   questionType: preview.questionType as QuestionType,
+   questionText: preview.questionText,
+   correctAnswer: preview.correctAnswer,
+   choices: preview.options && preview.options.length > 0 ? preview.options : ["", "", "", ""],
+   pairs: [{ left: "", right: "" }, { left: "", right: "" }, { left: "", right: "" }, { left: "", right: "" }],
+   imageUrl: "",
+   points: String(preview.points),
+   alternateAnswers: "",
+   source: preview.source,
+   factCheckUrl: "",
+  };
+ }}
  onSubmit={(form) => {
   if (editing) {
    updateQuestion.mutate(

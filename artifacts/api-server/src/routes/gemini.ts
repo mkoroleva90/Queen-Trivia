@@ -167,6 +167,69 @@ if (!result.ok) {
 );
 
 
+// ── Preview-generate one question for the Add dialog (not saved) ─────────────
+router.post(
+    "/games/:gameId/questions/generate-preview",
+    requireAdmin,
+    geminiOperationRateLimit,
+    async (req, res): Promise<void> => {
+        const gameId = Number(req.params.gameId);
+        if (!Number.isFinite(gameId)) {
+            res.status(400).json({ error: "Invalid game ID" });
+            return;
+        }
+
+        const [game] = await db.select().from(gamesTable).where(eq(gamesTable.id, gameId));
+        if (!game) { res.status(404).json({ error: "Game not found" }); return; }
+
+        const validTypes = ["multiple_choice", "true_false", "write_in"];
+        const validDiffs = ["easy", "medium", "hard"];
+        const questionType = (req.body.questionType ?? "multiple_choice") as string;
+        const difficulty = (req.body.difficulty ?? game.difficulty ?? "medium") as string;
+
+        if (!validTypes.includes(questionType)) {
+            res.status(400).json({ error: "Invalid question type" }); return;
+        }
+        if (!validDiffs.includes(difficulty)) {
+            res.status(400).json({ error: "Invalid difficulty" }); return;
+        }
+
+        const allQuestions = await db
+            .select({ questionText: questionsTable.questionText })
+            .from(questionsTable)
+            .where(eq(questionsTable.gameId, gameId));
+        const avoidTexts = allQuestions
+            .map((q) => q.questionText)
+            .filter((t): t is string => typeof t === "string" && t.length > 0);
+
+        const points = difficulty === "easy" ? 5 : difficulty === "hard" ? 15 : 10;
+
+        const result = await regenerateSingleQuestion({
+            topic: game.topic,
+            difficulty: difficulty as "easy" | "medium" | "hard",
+            questionType: questionType as "multiple_choice" | "true_false" | "write_in",
+            avoidTexts,
+            points,
+        });
+
+        if (!result.ok) {
+            logger.warn({ error: result.error }, "Gemini preview-generate failed");
+            geminiErrorResponse(res, result.error);
+            return;
+        }
+
+        res.json({
+            questionType: result.question.questionType,
+            questionText: result.question.questionText,
+            correctAnswer: result.question.correctAnswer,
+            options: result.question.options,
+            points: result.question.points,
+            source: result.question.source,
+        });
+    },
+);
+
+
 // ── Regenerate single question (preview only, not saved) ──────────────────────
 router.post(
 "/games/:gameId/questions/:questionId/regenerate",
