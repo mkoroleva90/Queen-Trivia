@@ -1,5 +1,5 @@
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Footer } from "@/components/Footer";
@@ -12,12 +12,18 @@ import {
  useListGameParticipants,
  getListGameParticipantsQueryKey,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../lib/auth";
 import { useLobbySocket } from "../hooks/useGameSocket";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+ Dialog,
+ DialogContent,
+ DialogHeader,
+ DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
  Trophy,
@@ -31,8 +37,143 @@ import {
  Crown,
  Clock,
  PlayCircle,
+ CheckCircle2,
+ Loader2,
 } from "lucide-react";
 
+
+// ─── Players modal ──────────────────────────────────────────────────────────
+
+interface GameResults {
+ game: { id: number; topic: string; questionCount: number };
+ participants: {
+  id: number;
+  userId: number;
+  userName: string;
+  totalScore: number;
+  rank: number;
+  totalAnswered: number;
+  correctCount: number;
+ }[];
+ totalQuestions: number;
+}
+
+function useGameResults(gameId: number, enabled: boolean) {
+ return useQuery<GameResults>({
+  queryKey: ["game-results", gameId],
+  queryFn: async () => {
+   const r = await fetch(`/api/games/${gameId}/results`, { credentials: "include" });
+   if (!r.ok) throw new Error("Failed to fetch results");
+   return r.json();
+  },
+  enabled,
+  refetchInterval: enabled ? 5000 : false,
+ });
+}
+
+function PlayersModal({
+ open,
+ onClose,
+ activeGames,
+}: {
+ open: boolean;
+ onClose: () => void;
+ activeGames: { id: number; topic: string; questionCount: number }[];
+}) {
+ const results = activeGames.map((g) => ({
+  gameId: g.id,
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  query: useGameResults(g.id, open && activeGames.length > 0),
+ }));
+
+ const loading = results.some((r) => r.query.isLoading);
+ const allParticipants = results.flatMap((r) => {
+  if (!r.query.data) return [];
+  const { participants, totalQuestions, game } = r.query.data;
+  return participants.map((p) => ({
+   ...p,
+   gameTopic: game.topic,
+   gameId: game.id,
+   totalQuestions,
+   done: p.totalAnswered >= totalQuestions && totalQuestions > 0,
+  }));
+ });
+
+ // Sort: done first (by score), then in-progress (by score)
+ const sorted = [...allParticipants].sort((a, b) => {
+  if (a.done !== b.done) return a.done ? -1 : 1;
+  return b.totalScore - a.totalScore;
+ });
+
+ return (
+  <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+   <DialogContent className="max-w-sm w-full p-0 overflow-hidden">
+    <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/50">
+     <DialogTitle className="flex items-center gap-2 text-base font-bold tracking-tight">
+      <Users className="h-4 w-4 text-accent" />
+      Players
+     </DialogTitle>
+    </DialogHeader>
+
+    <div className="max-h-[60vh] overflow-y-auto px-4 py-3 space-y-1.5">
+     {loading ? (
+      <div className="flex items-center justify-center py-10 text-muted-foreground gap-2">
+       <Loader2 className="h-4 w-4 animate-spin" />
+       <span className="text-sm">Loading players…</span>
+      </div>
+     ) : sorted.length === 0 ? (
+      <p className="text-center text-sm text-muted-foreground py-10">
+       No players yet — be the first to join!
+      </p>
+     ) : (
+      sorted.map((p, i) => (
+       <div
+        key={`${p.gameId}-${p.userId}`}
+        className="flex items-center gap-3 rounded-lg px-3 py-2.5 bg-card/60 border border-border/40"
+       >
+        {/* Rank */}
+        <span className="w-5 text-center text-xs font-bold tabular-nums text-muted-foreground shrink-0">
+         {i === 0 ? <Crown className="h-3.5 w-3.5 text-accent mx-auto" /> : i + 1}
+        </span>
+
+        {/* Name + game label if multiple games */}
+        <div className="min-w-0 flex-1">
+         <p className="font-semibold truncate text-sm">{p.userName}</p>
+         {activeGames.length > 1 && (
+          <p className="text-[10px] text-muted-foreground truncate">{p.gameTopic}</p>
+         )}
+        </div>
+
+        {/* Completion badge */}
+        {p.done ? (
+         <div className="flex items-center gap-1 text-secondary text-xs font-medium shrink-0">
+          <CheckCircle2 className="h-3.5 w-3.5" />
+          Done
+         </div>
+        ) : (
+         <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+          {p.totalAnswered}/{p.totalQuestions}
+         </span>
+        )}
+
+        {/* Score */}
+        <span className="font-bold tabular-nums text-sm text-accent shrink-0 w-10 text-right">
+         {p.totalScore}
+        </span>
+       </div>
+      ))
+     )}
+    </div>
+
+    {sorted.length > 0 && (
+     <div className="px-5 pb-4 pt-1 text-center text-[10px] text-muted-foreground">
+      {sorted.filter((p) => p.done).length} of {sorted.length} player{sorted.length !== 1 ? "s" : ""} finished
+     </div>
+    )}
+   </DialogContent>
+  </Dialog>
+ );
+}
 
 const difficultyColors: Record<string, string> = {
  easy: "bg-secondary/15 text-secondary border-secondary/40",
@@ -168,6 +309,7 @@ export default function Lobby() {
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const userId = user?.id ?? 0;
+    const [showPlayers, setShowPlayers] = useState(false);
 
 
     const { data: games, isLoading } = useListGames(undefined, {
@@ -232,6 +374,7 @@ const statCards = [
 
 if (!user) return null;
 return (
+ <>
  <div className="min-h-[100dvh] p-4 md:p-8">
   <div className="mx-auto max-w-4xl space-y-8">
    {/* Header */}
@@ -260,26 +403,36 @@ return (
 
 {/* Stat strip */}
 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
- {statCards.map((s, i) => (
+ {statCards.map((s, i) => {
+  const isPlayers = s.label === "Players";
+  const hasActive = activeGames.length > 0;
+  return (
   <motion.div
    key={s.label}
    initial={{ opacity: 0, y: 12 }}
    animate={{ opacity: 1, y: 0 }}
    transition={{ delay: i * 0.07 }}
   >
-   <Card className="border-card-border bg-card/60 backdrop-blur">
+   <Card
+    className={`border-card-border bg-card/60 backdrop-blur transition-colors ${isPlayers && hasActive ? "cursor-pointer hover:bg-card/90 hover:border-accent/40 active:scale-95" : ""}`}
+    onClick={isPlayers && hasActive ? () => setShowPlayers(true) : undefined}
+   >
        <CardContent className="p-4 flex items-center gap-3">
        <s.icon className={`h-6 w-6 shrink-0 ${s.color}`} />
-       <div>
+       <div className="min-w-0">
         <div className="text-2xl font-bold tabular-nums">{s.value}</div>
-        <div className="text-xs uppercase tracking-widest text-muted-foreground">
+        <div className="text-xs uppercase tracking-widest text-muted-foreground flex items-center gap-1">
          {s.label}
+         {isPlayers && hasActive && (
+          <ChevronRight className="h-3 w-3 opacity-60" />
+         )}
         </div>
        </div>
        </CardContent>
    </Card>
   </motion.div>
- ))}
+ );
+ })}
 </div>
    {/* Main game area */}
    <AnimatePresence mode="wait">
@@ -402,6 +555,17 @@ return (
          </div>
          <Footer />
      </div>
+
+     <PlayersModal
+      open={showPlayers}
+      onClose={() => setShowPlayers(false)}
+      activeGames={activeGames.map((g) => ({
+       id: g.id,
+       topic: g.topic,
+       questionCount: g.questionCount,
+      }))}
+     />
+ </>
     );
 }
 
