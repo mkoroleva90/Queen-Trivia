@@ -41,16 +41,16 @@ router.patch("/settings", requireAdmin, async (req, res): Promise<void> => {
       : null;
 
 
- if (triviaCode !== null && triviaCode.length < 4) {
+ if (triviaCode !== null && triviaCode.length < 8) {
      res
       .status(400)
-      .json({ error: "Trivia access code must be at least 4 characters" });
+      .json({ error: "Trivia access code must be at least 8 characters" });
     return;
 }
-if (adminCode !== null && adminCode.length < 4) {
+if (adminCode !== null && adminCode.length < 8) {
     res
      .status(400)
-     .json({ error: "Admin access code must be at least 4 characters" });
+     .json({ error: "Admin access code must be at least 8 characters" });
     return;
 }
 if (triviaCode !== null && adminCode !== null && triviaCode === adminCode) {

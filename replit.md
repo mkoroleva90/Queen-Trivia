@@ -5,7 +5,7 @@ A multiplayer pub-quiz web app: players enter with an access code, join live gam
 ## Product notes
 
 - Restored from a PDF code export (attached_assets/Trivia_Night2_*.pdf).
-- Access codes live in the `admin_settings` table (single row). Seeded defaults: player `PLAY2026`, admin `ADMIN2026` — changeable in the admin Settings page.
+- Access codes live in the `admin_settings` table (single row). Random codes are generated at first boot (logged once to the server console) and are changeable in the admin Settings page (minimum 8 characters). Do not document actual code values in the repo.
 - Real-time updates use Socket.IO at path `/api/socket.io` (routed under the existing `/api` proxy path).
 - AI question generation (`gemini.ts` routes) requires the `GOOGLE_API_KEY` env var; the rest of the app works without it.
 

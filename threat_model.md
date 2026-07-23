@@ -37,14 +37,12 @@ Trivia Night is a multiplayer pub-quiz web application. Players join live games 
 
 ### Spoofing
 
-Players and admins authenticate with shared access codes. There is no per-user password or MFA. Anyone who learns the admin access code can gain full admin access.
-
-**Active concern:** The default codes (`PLAY2026` / `ADMIN2026`) are documented in `replit.md`. If the app is deployed with defaults unchanged, source code readers gain admin access. See vulnerability `trivia-default-admin-credentials-in-source`.
+Players and admins authenticate with shared access codes. There is no per-user password or MFA. Anyone who learns the admin access code can gain full admin access. Codes are randomly generated at first boot (no documented defaults); any legacy publicly documented default codes (`trivia-default-admin-credentials-in-source`) are automatically rotated at boot.
 
 **Required guarantees:**
-- Default access codes MUST be changed before or immediately after public deployment.
+- Access codes MUST NOT be documented in the repository; random codes are seeded at first boot and rotated if legacy defaults are detected.
 - Sessions MUST be tied to httpOnly, Secure, SameSite cookies — currently implemented correctly.
-- Admin and player codes MUST remain distinct — enforced by settings PATCH validation.
+- Admin and player codes MUST remain distinct — enforced by settings PATCH validation (minimum 8 characters).
 - Auth endpoints are rate-limited (10 req / 15 min per IP) — correctly implemented.
 
 ### Tampering

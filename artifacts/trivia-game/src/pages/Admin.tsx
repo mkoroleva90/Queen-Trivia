@@ -3603,8 +3603,8 @@ function SettingsSection() {
   e.preventDefault();
   const t = triviaCode.trim();
   const a = adminCode.trim();
-  if (t.length < 4) { toast({ variant: "destructive", title: "Trivia code must be at least 4characters" }); return; }
-  if (a.length < 4) { toast({ variant: "destructive", title: "Admin code must be at least 4characters" }); return; }
+  if (t.length < 8) { toast({ variant: "destructive", title: "Trivia code must be at least 8 characters" }); return; }
+  if (a.length < 8) { toast({ variant: "destructive", title: "Admin code must be at least 8 characters" }); return; }
    if (t === a) { toast({ variant: "destructive", title: "Trivia and admin codes must be different"}); return; }
   setSaving(true);
   try {

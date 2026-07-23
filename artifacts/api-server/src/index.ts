@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import app from "./app";
 import { initSocket } from "./lib/socket";
 import { logger } from "./lib/logger";
+import { bootstrapAccessCodes } from "./lib/bootstrapAccessCodes";
 
 
 const rawPort = process.env["PORT"];
@@ -35,8 +36,18 @@ httpServer.on("error", (err) => {
 });
 
 
-httpServer.listen(port, () => {
- logger.info({ port }, "Server listening");
+// Seed/rotate access codes BEFORE accepting any traffic, so there is no
+// window where publicly documented default codes can authenticate.
+async function start(): Promise<void> {
+	await bootstrapAccessCodes();
+	httpServer.listen(port, () => {
+		logger.info({ port }, "Server listening");
+	});
+}
+
+start().catch((err) => {
+	logger.error({ err }, "Failed to bootstrap access codes");
+	process.exit(1);
 });
 
 
