@@ -2141,6 +2141,12 @@ const [genMoreCount, setGenMoreCount] = useState(5);
  const [genMoreDiff, setGenMoreDiff] = useState<"easy" | "medium" | "hard" |"same">("same");
 const [genMoreAvoid, setGenMoreAvoid] = useState(true);
 
+// Regenerate All modal state
+const [regenAllOpen, setRegenAllOpen] = useState(false);
+const [regenAllCount, setRegenAllCount] = useState(10);
+const [regenAllDiff, setRegenAllDiff] = useState<"easy" | "medium" | "hard" | "same">("same");
+const [regenAllRunning, setRegenAllRunning] = useState(false);
+
 
 // Fact check state
  type FcResult = { question: Question; verdict: string; confidence: string; explanation:string; correctAnswerIfWrong: string | null };
@@ -2411,6 +2417,33 @@ const handleGenerateMore = async () => {
  };
 
 
+ const handleRegenAll = async () => {
+  if (!selectedGameId) return;
+  const game = games.find((g) => g.id === selectedGameId);
+  if (!game) return;
+  setRegenAllRunning(true);
+  try {
+    // 1. Delete all existing questions
+    await Promise.allSettled(rawQuestions.map((q) => deleteQuestion.mutateAsync({ questionId: q.id })));
+    // 2. Generate fresh questions via Gemini
+    const difficulty =
+      regenAllDiff === "same"
+        ? ((game.difficulty ?? "medium") as "easy" | "medium" | "hard")
+        : regenAllDiff;
+    const result = await generateMore.mutateAsync({
+      gameId: selectedGameId,
+      data: { topic: game.topic, difficulty, amount: regenAllCount },
+    });
+    invalidate();
+    setRegenAllOpen(false);
+    toast({ title: `Regenerated ${result.imported} questions for "${game.topic}"` });
+  } catch {
+    toast({ variant: "destructive", title: "Regeneration failed. Please try again." });
+  } finally {
+    setRegenAllRunning(false);
+  }
+};
+
  const handleFactCheckAll = async () => {
   if (!selectedGameId) return;
   const toCheck = rawQuestions.filter((q) => !q.verifiedByAdmin);
@@ -2601,16 +2634,25 @@ return (
         variant="ghost"
         className="h-7 px-2 text-xs gap-1"
         onClick={() => setGenMoreOpen(true)}
-        disabled={fcState?.running}
+        disabled={fcState?.running || regenAllRunning}
        >
         <Sparkles className="h-3 w-3" /> Generate More
        </Button>
        <Button
         size="sm"
         variant="ghost"
+        className="h-7 px-2 text-xs gap-1 text-destructive hover:text-destructive"
+        onClick={() => setRegenAllOpen(true)}
+        disabled={fcState?.running || regenAllRunning || rawQuestions.length === 0}
+       >
+        <RefreshCw className="h-3 w-3" /> Regenerate All
+       </Button>
+       <Button
+        size="sm"
+        variant="ghost"
         className="h-7 px-2 text-xs gap-1"
         onClick={handleFactCheckAll}
-              disabled={fcState?.running || rawQuestions.length === 0}
+              disabled={fcState?.running || regenAllRunning || rawQuestions.length === 0}
           >
               <FlaskConical className="h-3 w-3" /> Fact Check All
           </Button>
@@ -3253,6 +3295,67 @@ disabled={updateQuestion.isPending}
        <p className="text-xs text-center text-muted-foreground">This may take 10–20seconds…</p>
         )}
         </div>
+     </DialogContent>
+    </Dialog>
+
+
+    {/* Regenerate All dialog */}
+    <Dialog open={regenAllOpen} onOpenChange={(open) => { if (!regenAllRunning) setRegenAllOpen(open); }}>
+     <DialogContent className="sm:max-w-sm">
+      <DialogHeader>
+       <DialogTitle className="flex items-center gap-2">
+        <RefreshCw className="h-4 w-4 text-destructive" /> Regenerate All Questions
+       </DialogTitle>
+      </DialogHeader>
+      <div className="space-y-4">
+       {selectedGameId !== null && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
+         This will <span className="font-semibold">permanently delete</span> all {rawQuestions.length} existing question{rawQuestions.length !== 1 ? "s" : ""} for{" "}
+         <span className="font-medium text-foreground">
+          {games.find((g) => g.id === selectedGameId)?.topic}
+         </span>{" "}
+         and replace them with new Gemini AI questions.
+        </div>
+       )}
+       <div className="space-y-1.5">
+        <Label>Number of new questions</Label>
+        <Input
+         type="number"
+         min={1}
+         max={20}
+         value={regenAllCount}
+         onChange={(e) => setRegenAllCount(Math.max(1, Math.min(20, Number(e.target.value))))}
+         className="h-9"
+        />
+       </div>
+       <div className="space-y-1.5">
+        <Label>Difficulty</Label>
+        <Select value={regenAllDiff} onValueChange={(v) => setRegenAllDiff(v as typeof regenAllDiff)}>
+         <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+         <SelectContent>
+          <SelectItem value="same">Same as game setting</SelectItem>
+          <SelectItem value="easy">Easy</SelectItem>
+          <SelectItem value="medium">Medium</SelectItem>
+          <SelectItem value="hard">Hard</SelectItem>
+         </SelectContent>
+        </Select>
+       </div>
+       <Button
+        className="w-full"
+        variant="destructive"
+        onClick={handleRegenAll}
+        disabled={regenAllRunning}
+       >
+        {regenAllRunning ? (
+         <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Regenerating…</>
+        ) : (
+         <><RefreshCw className="mr-2 h-4 w-4" />Delete &amp; Regenerate {regenAllCount} Questions</>
+        )}
+       </Button>
+       {regenAllRunning && (
+        <p className="text-xs text-center text-muted-foreground">Deleting old questions then generating new ones… this may take 15–30 seconds.</p>
+       )}
+      </div>
      </DialogContent>
     </Dialog>
 
