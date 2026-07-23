@@ -27,7 +27,7 @@ Trivia Night is a multiplayer pub-quiz web application. Players join live games 
 ## Scan Anchors
 
 - **Entry points:** `artifacts/api-server/src/routes/` (all route files), `artifacts/api-server/src/app.ts` (Express setup and CORS)
-- **Highest-risk areas:** Admin session logic in `routes/session.ts`; access code comparison in `routes/session.ts` and `routes/auth.ts`; default credential documentation in `replit.md`
+- **Highest-risk areas:** Admin session logic in `routes/session.ts`; access code comparison in `routes/session.ts` and `routes/auth.ts`; per-game access code generation in `routes/games.ts` (uses `Math.random()` — open finding); session regeneration missing on login in `routes/session.ts` (open finding)
 - **Public surface:** `/api/health`, `/api/auth/verify`, `/api/auth/login`, `/api/admin/login`, `/api/auth/me`, `/api/admin/me`
 - **Admin surface:** `/api/settings`, `/api/games` (POST/PATCH/DELETE), `/api/questions` (POST/PATCH/DELETE), `/api/stats/summary`, Gemini and OpenTDB import routes, `/api/games/:id/results/export.csv`
 - **Player surface:** `/api/games` (GET), `/api/games/:id/join`, `/api/games/:id/answers`, `/api/games/:id/results`
@@ -44,6 +44,8 @@ Players and admins authenticate with shared access codes. There is no per-user p
 - Sessions MUST be tied to httpOnly, Secure, SameSite cookies — currently implemented correctly.
 - Admin and player codes MUST remain distinct — enforced by settings PATCH validation (minimum 8 characters).
 - Auth endpoints are rate-limited (10 req / 15 min per IP) — correctly implemented.
+- **Session IDs MUST be regenerated on login** — currently missing (`req.session.regenerate()` not called on player or admin login paths). ⚠️ Open finding.
+- **Per-game access codes MUST use a CSPRNG** — currently `routes/games.ts` uses `Math.random()`. ⚠️ Open finding.
 
 ### Tampering
 
