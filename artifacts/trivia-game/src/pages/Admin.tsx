@@ -1463,7 +1463,6 @@ return (
    {[
     { id: "create" as Section, icon: PlusCircle, title: "New Game", sub: "Set up a freshround", color: "bg-primary/10 text-primary", border: "hover:border-primary/50" },
     { id: "manage" as Section, icon: Gamepad2, title: "Manage Games", sub:`${waitingGames.length} waiting · ${completedGames.length} done`, color: "bg-secondary/10 text-secondary", border: "hover:border-secondary/50" },
-    { id: "questions" as Section, icon: HelpCircle, title: "Add Questions", sub: "Build yourquestion bank", color: "bg-accent/10 text-accent", border: "hover:border-accent/50" },
    ].map((item) => (
     <Card
         key={item.id}
@@ -4189,7 +4188,6 @@ const NAV_ITEMS: { id: Section; label: string; icon: typeof LayoutDashboard }[] 
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
  { id: "create", label: "Create Game", icon: PlusCircle },
  { id: "manage", label: "Manage Games", icon: Gamepad2 },
- { id: "questions", label: "Add Questions", icon: HelpCircle },
  { id: "review", label: "Review Questions", icon: ShieldCheck },
  { id: "settings", label: "Settings", icon: Settings },
  { id: "results", label: "Results", icon: BarChart3 },
