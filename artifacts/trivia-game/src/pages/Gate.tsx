@@ -113,126 +113,126 @@ const handleNameSubmit = async (e: React.FormEvent) => {
 };
 return (
  <div className="min-h-[100dvh] flex flex-col items-center justify-center p-4">
-   <div className="w-full max-w-md space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-   <div className="text-center space-y-2">
-    <h1 className="text-6xl font-bold tracking-tighter text-primary">
-     TRIVIA NIGHT
-    </h1>
-    <p className="text-xl text-muted-foreground">
-     The ultimate pub quiz experience
-    </p>
-   </div>
+  <div className="w-full max-w-md space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+  <div className="text-center space-y-2">
+   <h1 className="text-6xl font-bold tracking-tighter text-primary">
+    TRIVIA NIGHT
+   </h1>
+   <p className="text-xl text-muted-foreground">
+    The ultimate pub quiz experience
+   </p>
+  </div>
 
 
-   <Card className="border-primary/20 bg-card/50 backdrop-blur">
-    {step === "code" ? (
-     <CardContent className="pt-6">
-      <form onSubmit={handleCodeSubmit} className="space-y-4">
-       <div className="space-y-2">
-       <label className="text-sm font-medium uppercase tracking-widest text-secondary">
-           Access Code
-           </label>
-           <Input
-           value={code}
-           onChange={(e) => {
-            setCode(e.target.value);
-             setCodeError("");
-           }}
-           placeholder="ENTER CODE"
-           autoCapitalize="characters"
-           autoComplete="off"
-           aria-invalid={!!codeError}
-         className={`h-14 text-center text-2xl uppercase tracking-widest bg-backgroundborder-primary/30 focus-visible:ring-primary ${
-             codeError ? "border-destructive focus-visible:ring-destructive" : ""
-           }`}
-        />
-        {codeError && (
-           <p className="flex items-center gap-1.5 text-sm text-destructive">
-             <AlertCircle className="h-4 w-4 shrink-0" />
-             {codeError}
-           </p>
-        )}
-       </div>
-       <Button
-        type="submit"
-        className="w-full h-14 text-lg font-bold tracking-wide"
-        disabled={pending}
-       >
-        {pending ? (
-           <>
-             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-               CHECKING...
-           </>
-          ):(
-           "ENTER"
-          )}
-       </Button>
-      </form>
-     </CardContent>
-    ):(
-     <CardContent className="pt-6">
-      <form onSubmit={handleNameSubmit} className="space-y-4">
-       <div className="space-y-2">
-       <label className="text-sm font-medium uppercase tracking-widest text-secondary">
-           Display Name
+  <Card className="border-primary/20 bg-card/50 backdrop-blur">
+   {step === "code" ? (
+    <CardContent className="p-6 pt-6 text-center">
+     <form onSubmit={handleCodeSubmit} className="space-y-4">
+      <div className="space-y-2">
+      <label className="text-sm font-medium uppercase tracking-widest text-secondary text-center">
+          Access Code
           </label>
           <Input
-           value={name}
-           onChange={(e) => {
-               setName(e.target.value);
-               setNameError("");
-           }}
-           placeholder="YOUR NAME"
-           autoFocus
-           aria-invalid={!!nameError}
-         className={`h-14 text-center text-2xl uppercase tracking-widest bg-backgroundborder-secondary/30 focus-visible:ring-secondary ${
-             nameError ? "border-destructive focus-visible:ring-destructive" : ""
-           }`}
-        />
-        {nameError && (
-           <p className="flex items-center gap-1.5 text-sm text-destructive">
-             <AlertCircle className="h-4 w-4 shrink-0" />
-             {nameError}
-           </p>
-        )}
-       </div>
-       <Button
-        type="submit"
-       className="w-full h-14 text-lg font-bold tracking-wide bg-secondary text-secondary-foreground hover:bg-secondary/90"
-        disabled={pending}
-       >
-        {pending ? (
-           <>
-             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-             JOINING...
-           </>
-        ):(
-           "JOIN LOBBY"
-        )}
-       </Button>
-       <button
-                type="button"
-                onClick={() => setStep("code")}
-         className="w-full text-sm text-muted-foreground hover:text-foregroundtransition-colors"
-               >
-                Wrong code? Go back
-               </button>
-               </form>
-           </CardContent>
-          )}
-         </Card>
+          value={code}
+          onChange={(e) => {
+           setCode(e.target.value);
+            setCodeError("");
+          }}
+          placeholder="ENTER CODE"
+          autoCapitalize="characters"
+          autoComplete="off"
+          aria-invalid={!!codeError}
+        className={`h-14 text-center text-2xl uppercase tracking-widest bg-backgroundborder-primary/30 focus-visible:ring-primary ${
+            codeError ? "border-destructive focus-visible:ring-destructive" : ""
+          }`}
+       />
+       {codeError && (
+          <p className="flex items-center gap-1.5 text-sm text-destructive">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            {codeError}
+          </p>
+       )}
+      </div>
+      <Button
+       type="submit"
+       className="w-full h-14 text-lg font-bold tracking-wide"
+       disabled={pending}
+      >
+       {pending ? (
+          <>
+            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              CHECKING...
+          </>
+         ):(
+          "ENTER"
+         )}
+      </Button>
+     </form>
+    </CardContent>
+   ):(
+    <CardContent className="pt-6">
+     <form onSubmit={handleNameSubmit} className="space-y-4">
+      <div className="space-y-2">
+      <label className="text-sm font-medium uppercase tracking-widest text-secondary">
+          Display Name
+         </label>
+         <Input
+          value={name}
+          onChange={(e) => {
+              setName(e.target.value);
+              setNameError("");
+          }}
+          placeholder="YOUR NAME"
+          autoFocus
+          aria-invalid={!!nameError}
+        className={`h-14 text-center text-2xl uppercase tracking-widest bg-backgroundborder-secondary/30 focus-visible:ring-secondary ${
+            nameError ? "border-destructive focus-visible:ring-destructive" : ""
+          }`}
+       />
+       {nameError && (
+          <p className="flex items-center gap-1.5 text-sm text-destructive">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            {nameError}
+          </p>
+       )}
+      </div>
+      <Button
+       type="submit"
+      className="w-full h-14 text-lg font-bold tracking-wide bg-secondary text-secondary-foreground hover:bg-secondary/90"
+       disabled={pending}
+      >
+       {pending ? (
+          <>
+            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+            JOINING...
+          </>
+       ):(
+          "JOIN LOBBY"
+       )}
+      </Button>
+      <button
+               type="button"
+               onClick={() => setStep("code")}
+        className="w-full text-sm text-muted-foreground hover:text-foregroundtransition-colors"
+              >
+               Wrong code? Go back
+              </button>
+              </form>
+          </CardContent>
+         )}
+        </Card>
 
 
-         <p className="text-center text-sm text-muted-foreground">
-          Hosting tonight?{" "}
-          <Link
-           href="/admin-login"
-           className="text-secondary underline-offset-4 hover:underline font-medium"
-          >
-           Admin login
-          </Link>
-         </p>
-         </div>
-     </div>
-    );
+        <p className="text-center text-sm text-muted-foreground">
+         Hosting tonight?{" "}
+         <Link
+          href="/admin-login"
+          className="text-secondary underline-offset-4 hover:underline font-medium"
+         >
+          Admin login
+         </Link>
+        </p>
+        </div>
+ </div>
+);
 }
