@@ -1765,9 +1765,6 @@ return (
     <div className="space-y-6 max-w-xl">
      <div>
          <h2 className="text-xl font-bold tracking-tight">Create a New Game</h2>
-         <p className="text-muted-foreground text-sm mt-1">
-   Standard categories auto-import from Open Trivia Database. Custom topics useGemini AI.
-         </p>
      </div>
      <form onSubmit={handleSubmit} className="space-y-5">
 
