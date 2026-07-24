@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { useAuth } from "../lib/auth";
-import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -234,7 +233,6 @@ return (
           </Link>
          </p>
          </div>
-         <Footer />
      </div>
     );
 }
