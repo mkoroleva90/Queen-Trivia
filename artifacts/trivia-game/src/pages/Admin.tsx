@@ -1961,9 +1961,6 @@ return (
     <div className="space-y-4">
         <div>
             <h2 className="text-xl font-bold tracking-tight">Manage Games</h2>
-            <p className="text-muted-foreground text-sm mt-1">
- Start, end, or delete games. Only one game can be live at a time.
-</p>
 </div>
 {ordered.length === 0 ? (
 <Card className="border-dashed border-primary/30 bg-card/40">
