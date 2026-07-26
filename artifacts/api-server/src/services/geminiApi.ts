@@ -7,6 +7,10 @@ const GEMINI_MODELS = [
     "gemini-3.5-flash",    // fallback
 ];
 
+// Flip to true to enable Google Search grounding during bulk question generation.
+// factCheckSingleQuestion always uses grounding regardless of this flag.
+const BULK_GROUNDING_ENABLED = false;
+
 
 function geminiUrl(model: string) {
  return`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
@@ -581,9 +585,8 @@ const prompt = buildBulkPrompt(opts);
 let lastError: GeminiGenerateError = { code: "api_error", message: "Not attempted" };
 
 
-// Cascade through models. Try with Google Search grounding first (factual accuracy),
-// fall back to ungrounded if the grounding quota is exhausted for the month.
-let useGrounding = true;
+// Cascade through models. Grounding is controlled by BULK_GROUNDING_ENABLED at the top of this file.
+let useGrounding = BULK_GROUNDING_ENABLED;
 for (const model of GEMINI_MODELS) {
     let raw: GeminiRawResult | GeminiRawError = { ok: false, error: lastError };
 
