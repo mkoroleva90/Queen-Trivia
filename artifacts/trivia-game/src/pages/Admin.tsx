@@ -128,7 +128,7 @@ Sparkles,
 
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-type Section = "dashboard" | "create" | "manage" | "questions" | "review" | "settings" |"results" | "help";
+type Section = "dashboard" | "create" | "manage" | "questions" | "review" | "results" | "help";
 type QuestionType = Question["questionType"];
 
 
@@ -2206,6 +2206,12 @@ return (
               </DialogContent>
           </Dialog>
          )}
+
+      {/* ── Settings ── */}
+      <div className="pt-2">
+       <Separator className="mb-6" />
+       <SettingsSection />
+      </div>
      </div>
     );
 }
@@ -4304,7 +4310,6 @@ const NAV_ITEMS: { id: Section; label: string; icon: typeof LayoutDashboard }[] 
  { id: "create", label: "Create Game", icon: PlusCircle },
  { id: "manage", label: "Manage Games", icon: Gamepad2 },
  { id: "review", label: "Review Questions", icon: ShieldCheck },
- { id: "settings", label: "Settings", icon: Settings },
  { id: "results", label: "Results", icon: BarChart3 },
  { id: "help", label: "Help & Guide", icon: BookOpen },
 ];
@@ -4359,8 +4364,6 @@ const renderSection = () => {
      return <QuestionsSection games={games} preferGameId={preferredGameId} />;
      case "review":
       return <ReviewSection games={games} />;
-     case "settings":
-      return <SettingsSection />;
      case "results":
       return <ResultsSection games={games} />;
      case "help":
