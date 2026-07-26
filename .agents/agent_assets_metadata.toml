@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "N1u1e3OU7WfxSxeBiI5iA"
+uri = "file://trivia-night-source.zip"
+type = "unspecified"
+title = "Trivia Night — Full Source Code"
