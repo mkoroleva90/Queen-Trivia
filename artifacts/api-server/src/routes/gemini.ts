@@ -101,6 +101,7 @@ const result = await generateGeminiQuestions({
     difficulty: body.data.difficulty,
     amount: body.data.amount,
     existingQuestions: body.data.existingQuestions,
+    brief: (body.data.brief as string | undefined) ?? game.brief ?? undefined,
 });
 
 
@@ -210,6 +211,7 @@ router.post(
             questionType: questionType as "multiple_choice" | "true_false" | "write_in",
             avoidTexts,
             points,
+            brief: (req.body as { brief?: string }).brief ?? game.brief ?? undefined,
         });
 
         if (!result.ok) {
@@ -303,6 +305,7 @@ const result = await regenerateSingleQuestion({
          questionType,
          avoidTexts,
          points: question.points,
+         brief: (req.body as { brief?: string }).brief ?? game.brief ?? undefined,
      });
 
 

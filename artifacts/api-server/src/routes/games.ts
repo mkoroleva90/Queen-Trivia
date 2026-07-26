@@ -79,6 +79,7 @@ router.post("/games", requireAdmin, async (req, res): Promise<void> => {
      difficulty: parsed.data.difficulty,
      createdByAdmin: parsed.data.createdByAdmin ?? true,
      accessCode: randomAccessCode(),
+     brief: parsed.data.brief ?? null,
     })
     .returning();
    break;

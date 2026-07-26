@@ -17,4 +17,5 @@ export interface Game {
   createdAt: string;
   createdByAdmin: boolean;
   accessCode?: string | null;
+  brief?: string | null;
 }

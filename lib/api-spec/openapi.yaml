@@ -552,6 +552,7 @@ components:
           type: string
           enum: [easy, medium, hard]
         createdByAdmin: { type: boolean }
+        brief: { type: ["string", "null"], maxLength: 2000 }
     GameUpdate:
       type: object
       properties:
@@ -562,6 +563,7 @@ components:
         status:
           type: string
           enum: [waiting, active, completed]
+        brief: { type: ["string", "null"], maxLength: 2000 }
     Game:
       type: object
       required: [id, topic, difficulty, questionCount, status, createdAt, createdByAdmin]
@@ -578,6 +580,7 @@ components:
         createdAt: { type: string }
         createdByAdmin: { type: boolean }
         accessCode: { type: ["string", "null"] }
+        brief: { type: ["string", "null"] }
     GameDetail:
       type: object
       required: [id, topic, difficulty, questionCount, status, createdAt, createdByAdmin,participantCount]
@@ -595,6 +598,7 @@ components:
         createdByAdmin: { type: boolean }
         participantCount: { type: integer }
         accessCode: { type: ["string", "null"] }
+        brief: { type: ["string", "null"] }
     QuestionInput:
       type: object
       required: [questionText, questionType, correctAnswer, points, orderIndex]
@@ -697,6 +701,9 @@ components:
         existingQuestions:
           type: array
           items: { type: string }
+        brief:
+          type: string
+          maxLength: 2000
     OpenTdbImportInput:
       type: object
       required: [categoryId, difficulty, amount]

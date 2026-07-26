@@ -82,7 +82,8 @@ export const ListGamesResponseItem = zod.object({
   "status": zod.enum(['waiting', 'active', 'completed']),
   "createdAt": zod.string(),
   "createdByAdmin": zod.boolean(),
-  "accessCode": zod.string().nullish()
+  "accessCode": zod.string().nullish(),
+  "brief": zod.string().nullish()
 })
 export const ListGamesResponse = zod.array(ListGamesResponseItem)
 
@@ -96,7 +97,8 @@ export const ListGamesResponse = zod.array(ListGamesResponseItem)
 export const CreateGameBody = zod.object({
   "topic": zod.string().min(1),
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
-  "createdByAdmin": zod.boolean().optional()
+  "createdByAdmin": zod.boolean().optional(),
+  "brief": zod.string().max(2000).nullish()
 })
 
 export const CreateGameResponse = zod.object({
@@ -107,7 +109,8 @@ export const CreateGameResponse = zod.object({
   "status": zod.enum(['waiting', 'active', 'completed']),
   "createdAt": zod.string(),
   "createdByAdmin": zod.boolean(),
-  "accessCode": zod.string().nullish()
+  "accessCode": zod.string().nullish(),
+  "brief": zod.string().nullish()
 })
 
 
@@ -127,7 +130,8 @@ export const GetGameResponse = zod.object({
   "createdAt": zod.string(),
   "createdByAdmin": zod.boolean(),
   "participantCount": zod.number(),
-  "accessCode": zod.string().nullish()
+  "accessCode": zod.string().nullish(),
+  "brief": zod.string().nullish()
 })
 
 
@@ -144,7 +148,8 @@ export const UpdateGameParams = zod.object({
 export const UpdateGameBody = zod.object({
   "topic": zod.string().min(1).optional(),
   "difficulty": zod.enum(['easy', 'medium', 'hard']).optional(),
-  "status": zod.enum(['waiting', 'active', 'completed']).optional()
+  "status": zod.enum(['waiting', 'active', 'completed']).optional(),
+  "brief": zod.string().max(2000).nullish()
 })
 
 export const UpdateGameResponse = zod.object({
@@ -154,7 +159,8 @@ export const UpdateGameResponse = zod.object({
   "questionCount": zod.number(),
   "status": zod.enum(['waiting', 'active', 'completed']),
   "createdAt": zod.string(),
-  "createdByAdmin": zod.boolean()
+  "createdByAdmin": zod.boolean(),
+  "brief": zod.string().nullish()
 })
 
 
@@ -207,7 +213,8 @@ export const GenerateGeminiQuestionsBody = zod.object({
   "topic": zod.string().min(1),
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
   "amount": zod.number().min(1).max(generateGeminiQuestionsBodyAmountMax),
-  "existingQuestions": zod.array(zod.string()).optional()
+  "existingQuestions": zod.array(zod.string()).optional(),
+  "brief": zod.string().max(2000).nullish()
 })
 
 export const GenerateGeminiQuestionsResponse = zod.object({

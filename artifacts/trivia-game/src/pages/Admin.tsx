@@ -920,6 +920,7 @@ const [genOpen, setGenOpen] = useState(false);
 const [genCount, setGenCount] = useState(5);
 const [genDiff, setGenDiff] = useState<"easy" | "medium" | "hard" | "same">("same");
 const [genAvoid, setGenAvoid] = useState(true);
+const [genBrief, setGenBrief] = useState(game.brief ?? "");
 
 const handleGenerate = async () => {
  const difficulty =
@@ -930,7 +931,7 @@ const handleGenerate = async () => {
  try {
   const result = await generateQuestions.mutateAsync({
    gameId: game.id,
-   data: { topic: game.topic, difficulty, amount: genCount, existingQuestions: existingQs },
+   data: { topic: game.topic, difficulty, amount: genCount, existingQuestions: existingQs, brief: genBrief.trim() || undefined },
   });
   invalidate();
   setGenOpen(false);
@@ -1173,6 +1174,17 @@ return (
     />
     <span className="text-sm text-muted-foreground">Avoid duplicating existing questions</span>
    </label>
+   <div className="space-y-1.5">
+    <Label>Brief <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
+    <Textarea
+     value={genBrief}
+     onChange={(e) => setGenBrief(e.target.value)}
+     rows={4}
+     maxLength={2000}
+     placeholder="Add specific instructions for this generation run…"
+     className="resize-none text-sm"
+    />
+   </div>
    <Button className="w-full" onClick={handleGenerate} disabled={generateQuestions.isPending}>
     {generateQuestions.isPending ? (
      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating…</>
@@ -1531,6 +1543,7 @@ const [importedCount, setImportedCount] = useState<number | null>(null);
 const [importError, setImportError] = useState<string | null>(null);
  const [importSource, setImportSource] = useState<"opentdb" | "gemini" | "manual" |null>(null);
 const [retryCountdown, setRetryCountdown] = useState(0);
+const [brief, setBrief] = useState("");
 const { toast } = useToast();
 const queryClient = useQueryClient();
 const createGame = useCreateGame();
@@ -1559,7 +1572,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       setWorkingLabel("Creating game…");
       setWorking(true);
       game = await createGame.mutateAsync({
-       data: { topic: topicName, difficulty, createdByAdmin: true },
+       data: { topic: topicName, difficulty, createdByAdmin: true, brief: brief.trim() || null },
       });
       queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
@@ -1600,7 +1613,7 @@ const handleSubmit = async (e: React.FormEvent) => {
   try {
       const result = await generateQuestions.mutateAsync({
        gameId: game.id,
-       data: { topic: topicName, difficulty, amount: Number(amount) },
+       data: { topic: topicName, difficulty, amount: Number(amount), brief: brief.trim() || null },
           });
           queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
           setImportedCount(result.imported);
@@ -1801,6 +1814,20 @@ return (
      className="h-12 text-base"
      autoFocus
      />
+ </div>
+)}
+{isCustom && (
+ <div className="space-y-2">
+  <Label htmlFor="createBrief">Brief <span className="text-muted-foreground font-normal">(optional)</span></Label>
+  <Textarea
+   id="createBrief"
+   value={brief}
+   onChange={(e) => setBrief(e.target.value)}
+   rows={6}
+   maxLength={2000}
+   placeholder="e.g. Focus on the 1990s. Players are experts — skip the obvious. No chart position questions."
+   className="resize-none text-sm"
+  />
  </div>
 )}
 
@@ -2274,11 +2301,13 @@ const [genMoreOpen, setGenMoreOpen] = useState(false);
 const [genMoreCount, setGenMoreCount] = useState(5);
  const [genMoreDiff, setGenMoreDiff] = useState<"easy" | "medium" | "hard" |"same">("same");
 const [genMoreAvoid, setGenMoreAvoid] = useState(true);
+const [genMoreBrief, setGenMoreBrief] = useState("");
 
 // Regenerate All modal state
 const [regenAllOpen, setRegenAllOpen] = useState(false);
 const [regenAllCount, setRegenAllCount] = useState(10);
 const [regenAllDiff, setRegenAllDiff] = useState<"easy" | "medium" | "hard" | "same">("same");
+const [regenAllBrief, setRegenAllBrief] = useState("");
 const [regenAllRunning, setRegenAllRunning] = useState(false);
 
 
@@ -2540,7 +2569,7 @@ const handleGenerateMore = async () => {
  try {
      const result = await generateMore.mutateAsync({
       gameId: selectedGameId,
-    data: { topic: game.topic, difficulty, amount: genMoreCount, existingQuestions:existingQs },
+    data: { topic: game.topic, difficulty, amount: genMoreCount, existingQuestions: existingQs, brief: genMoreBrief.trim() || undefined },
      });
      invalidate();
       setGenMoreOpen(false);
@@ -2579,7 +2608,7 @@ const handleGenerateMore = async () => {
         : regenAllDiff;
     const result = await generateMore.mutateAsync({
       gameId: selectedGameId,
-      data: { topic: game.topic, difficulty, amount: regenAllCount, existingQuestions: oldTexts },
+      data: { topic: game.topic, difficulty, amount: regenAllCount, existingQuestions: oldTexts, brief: regenAllBrief.trim() || undefined },
     });
     invalidate();
     setRegenAllOpen(false);
@@ -2780,7 +2809,7 @@ return (
         size="sm"
         variant="ghost"
         className="h-7 px-2 text-xs gap-1"
-        onClick={() => setGenMoreOpen(true)}
+        onClick={() => { const g = games.find((g) => g.id === selectedGameId); setGenMoreBrief(g?.brief ?? ""); setGenMoreOpen(true); }}
         disabled={fcState?.running || regenAllRunning}
        >
         <Sparkles className="h-3 w-3" /> Generate More
@@ -2789,7 +2818,7 @@ return (
         size="sm"
         variant="ghost"
         className="h-7 px-2 text-xs gap-1 text-destructive hover:text-destructive"
-        onClick={() => setRegenAllOpen(true)}
+        onClick={() => { const g = games.find((g) => g.id === selectedGameId); setRegenAllBrief(g?.brief ?? ""); setRegenAllOpen(true); }}
         disabled={fcState?.running || regenAllRunning || rawQuestions.length === 0}
        >
         <RefreshCw className="h-3 w-3" /> Regenerate All
@@ -3427,6 +3456,17 @@ disabled={updateQuestion.isPending}
         />
         <span className="text-sm text-muted-foreground">Avoid duplicating existingquestions</span>
        </label>
+       <div className="space-y-1.5">
+        <Label>Brief <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
+        <Textarea
+         value={genMoreBrief}
+         onChange={(e) => setGenMoreBrief(e.target.value)}
+         rows={4}
+         maxLength={2000}
+         placeholder="Add specific instructions for this generation run…"
+         className="resize-none text-sm"
+        />
+       </div>
        <Button
         className="w-full"
         onClick={handleGenerateMore}
@@ -3486,6 +3526,17 @@ disabled={updateQuestion.isPending}
           <SelectItem value="hard">Hard</SelectItem>
          </SelectContent>
         </Select>
+       </div>
+       <div className="space-y-1.5">
+        <Label>Brief <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
+        <Textarea
+         value={regenAllBrief}
+         onChange={(e) => setRegenAllBrief(e.target.value)}
+         rows={4}
+         maxLength={2000}
+         placeholder="Add specific instructions for this regeneration run…"
+         className="resize-none text-sm"
+        />
        </div>
        <Button
         className="w-full"

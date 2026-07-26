@@ -58,6 +58,7 @@ export interface GameInput {
   topic: string;
   difficulty: GameInputDifficulty;
   createdByAdmin?: boolean;
+  brief?: string | null;
 }
 
 export type GameUpdateDifficulty = typeof GameUpdateDifficulty[keyof typeof GameUpdateDifficulty];
@@ -83,6 +84,7 @@ export interface GameUpdate {
   topic?: string;
   difficulty?: GameUpdateDifficulty;
   status?: GameUpdateStatus;
+  brief?: string | null;
 }
 
 export type GameDifficulty = typeof GameDifficulty[keyof typeof GameDifficulty];
@@ -112,6 +114,7 @@ export interface Game {
   createdAt: string;
   createdByAdmin: boolean;
   accessCode?: string | null;
+  brief?: string | null;
 }
 
 export type GameDetailDifficulty = typeof GameDetailDifficulty[keyof typeof GameDetailDifficulty];
@@ -142,6 +145,7 @@ export interface GameDetail {
   createdByAdmin: boolean;
   participantCount: number;
   accessCode?: string | null;
+  brief?: string | null;
 }
 
 export type QuestionInputQuestionType = typeof QuestionInputQuestionType[keyof typeof QuestionInputQuestionType];
@@ -313,6 +317,7 @@ export interface GeminiGenerateInput {
      */
   amount: number;
   existingQuestions?: string[];
+  brief?: string | null;
 }
 
 export type OpenTdbImportInputDifficulty = typeof OpenTdbImportInputDifficulty[keyof typeof OpenTdbImportInputDifficulty];

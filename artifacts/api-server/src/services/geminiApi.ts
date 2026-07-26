@@ -180,6 +180,7 @@ export interface GeminiGenerateOptions {
     difficulty: "easy" | "medium" | "hard";
     amount: number;
     existingQuestions?: string[];
+    brief?: string;
 }
 
 
@@ -212,6 +213,9 @@ function buildBulkPrompt(opts: GeminiGenerateOptions): string {
      opts.existingQuestions && opts.existingQuestions.length > 0
    ? `\nThe following questions have ALREADY been used. You MUST NOT duplicate, reword, or rephrase ANY of them — do not ask about the same fact, person, event, or statistic even with different wording. Every question you write must cover a genuinely different subtopic or angle:\n${opts.existingQuestions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`
      : "";
+    const briefSection = opts.brief
+        ? `\n\nADDITIONAL INSTRUCTIONS FROM THE QUIZ HOST (these take priority over the general guidance below, except the accuracy rules which are absolute):\n${opts.brief}`
+        : "";
 
 
 // Compute exact counts so the model cannot ignore the mix requirement.
@@ -241,7 +245,7 @@ const imageSpec = imgCount > 0
  : "";
 
 
- return `You are a trivia question writer creating a fun, varied quiz. Generate exactly ${total}trivia questions about "${opts.topic}" at ${opts.difficulty} difficulty level.${avoid}
+ return `You are a trivia question writer creating a fun, varied quiz. Generate exactly ${total}trivia questions about "${opts.topic}" at ${opts.difficulty} difficulty level.${avoid}${briefSection}
 
 
 CRITICAL RULES:
@@ -566,6 +570,7 @@ export interface RegenerateOpts {
     questionType: "multiple_choice" | "true_false" | "write_in";
     avoidTexts: string[];
     points: number;
+    brief?: string;
 }
 
 
@@ -594,7 +599,7 @@ export async function regenerateSingleQuestion(opts: RegenerateOpts):Promise<Reg
     const prompt = `Generate exactly 1 trivia question about "${opts.topic}" at ${opts.difficulty} difficulty level.
 
 The question type must be: ${opts.questionType}
-
+${opts.brief ? `\nADDITIONAL INSTRUCTIONS FROM THE QUIZ HOST (these take priority over the guidance below, except the accuracy rules which are absolute):\n${opts.brief}\n` : ""}
 CRITICAL RULES:
 1. The question and answer MUST be based on verifiable, real-world facts
 2. Include the factual source for the answer

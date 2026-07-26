@@ -22,6 +22,7 @@ export const gamesTable = pgTable("games", {
   .notNull()
   .default("waiting"),
  accessCode: text("access_code").unique(),
+ brief: text("brief"),
  createdAt: timestamp("created_at", { withTimezone: true })
   .notNull()
   .defaultNow(),
