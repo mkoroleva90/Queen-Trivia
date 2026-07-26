@@ -1,0 +1,35 @@
+Every question and answer must be verifiable against a real source. Right now the model
+generates from memory and fabricates facts. I am on a paid key now, so grounding is
+available. Rebuild generation around verification.
+
+1. Turn Google Search grounding back ON for bulk generation. Set the constant we added to
+   true and confirm it is actually reaching the API call.
+
+2. Require a source for every question. Add a `sourceUrl` requirement to the requested JSON
+   output, and instruct the model that every question must be based on a fact it retrieved
+   and can cite. Also capture the grounding metadata Google returns and store those URLs.
+   Persist them to the existing factCheckUrl column.
+
+3. Add a mandatory verification pass after generation, before anything is saved. For each
+   batch of 5 generated questions, make one grounded verification call that asks: for each
+   question, is the stated correct answer factually accurate, and is there a reliable source
+   confirming it? Require a structured response per question: "verified", "disputed", or
+   "unverifiable", plus a one-line reason and a source URL.
+
+4. Add a `verificationStatus` column to questions (verified / disputed / unverifiable /
+   unchecked) and a `verificationNote` text column. Store what the pass returned. Apply the
+   schema change as raw SQL against DATABASE_URL — do not run drizzle push.
+
+5. In the admin question review UI, show verification status prominently on every question:
+   a green tick for verified, a clear warning for disputed or unverifiable, with the note and
+   a clickable source link. Sort or filter so unverified questions surface first.
+
+6. Warn me before a game goes live. If a game contains any question that is not "verified",
+   show a clear warning when I set the game to active, listing which ones. Do not block me,
+   but make sure I cannot miss it.
+
+7. Log the verification outcome counts after each generation so I can see, for example,
+   "12 generated, 10 verified, 1 disputed, 1 unverifiable".
+
+Run pnpm run typecheck. Tell me what one generation of 12 questions now costs in grounded
+queries, so I know what I am spending.
