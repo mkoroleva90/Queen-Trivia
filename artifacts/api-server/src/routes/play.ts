@@ -32,54 +32,10 @@ import {
     ListUserAnswersResponse,
 } from "@workspace/api-zod";
 import { toJsonSafe } from "../lib/serialize";
+import { gradeAnswer } from "../lib/grading";
 
 
 const router: IRouter = Router();
-
-
-function normalize(value: string): string {
-    return value.trim().toLowerCase().replace(/\s+/g, " ");
-}
-function gradeAnswer(
-questionType: string,
-userAnswer: string,
-correctAnswer: string,
-points: number,
-alternates: string[],
-): { isCorrect: boolean; pointsEarned: number } {
-// Matching: compare pair-by-pair for partial credit
-if (questionType === "matching") {
- const parsePairs = (ans: string): Record<string, string> =>
-     ans.split("|").reduce<Record<string, string>>((acc, pair) => {
-      const idx = pair.indexOf(":");
-      if (idx === -1) return acc;
-      acc[normalize(pair.slice(0, idx))] = normalize(pair.slice(idx + 1));
-      return acc;
-     }, {});
-
-
- const correctPairs = parsePairs(correctAnswer);
- const userPairs = parsePairs(userAnswer);
- const total = Object.keys(correctPairs).length;
- if (total === 0) return { isCorrect: true, pointsEarned: points };
-
-
- let correctCount = 0;
- for (const [left, right] of Object.entries(userPairs)) {
-     if (correctPairs[left] === right) correctCount++;
- }
-        const isCorrect = correctCount === total;
-        const pointsEarned = Math.floor((correctCount / total) * points);
-        return { isCorrect, pointsEarned };
-    }
-
-
-    // All other types: exact match + alternates
-    const isCorrect =
-        normalize(userAnswer) === normalize(correctAnswer) ||
-        alternates.some((alt) => normalize(userAnswer) === normalize(alt));
-    return { isCorrect, pointsEarned: isCorrect ? points : 0 };
-}
 
 
 // ─── Join game ─────────────────────────────────────────────────────────────
