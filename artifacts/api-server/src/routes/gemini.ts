@@ -51,7 +51,8 @@ function geminiErrorResponse(
     const msg = (error as { message?: string }).message ?? error.code;
     const kind = (error as { kind?: string }).kind;
     if (kind === "rate_limit_minute" || kind === "rate_limit_daily") {
-        res.status(429).json({ error: msg });
+        const e = error as { kind?: string; message?: string; quotaId?: string; retryAfterSeconds?: number };
+        res.status(429).json({ error: msg, kind: e.kind, quotaId: e.quotaId, retryAfterSeconds: e.retryAfterSeconds });
         return;
     }
     if (kind === "model_unavailable") {

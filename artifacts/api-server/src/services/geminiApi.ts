@@ -19,7 +19,7 @@ export type GeminiErrorKind = "rate_limit_minute" | "rate_limit_daily" | "model_
 
 export type GeminiGenerateError =
     | { code: "no_api_key" }
-    | { code: "api_error"; message: string; kind?: GeminiErrorKind }
+    | { code: "api_error"; message: string; kind?: GeminiErrorKind; quotaId?: string; retryAfterSeconds?: number }
     | { code: "parse_error"; message: string }
     | { code: "fetch_failed"; message: string };
 
@@ -91,38 +91,61 @@ async function callGeminiRaw(
 
 
 if (resp.status === 429) {
-    // Read body to distinguish per-minute vs daily quota exhaustion
     const body = await resp.text().catch(() => "");
-    // Grounding search quota exhausted — different from generation quota; fall back gracefully
-    if (body.toLowerCase().includes("grounding")) {
-        logger.warn({ model }, "Gemini grounding quota hit");
-        return { ok: false, rateLimitKind: "daily", error: { code: "api_error", kind: "grounding_quota", message: "Grounding search quota exhausted — falling back to ungrounded generation." } };
+    // Log the ENTIRE body at error level — Google embeds quotaMetric, quotaId, quotaValue,
+    // and retryDelay in the JSON body and we must never discard them.
+    logger.error({ model, grounding, body }, "Gemini 429 — full response body");
+
+    // Extract quotaId and retryDelay from the structured error response
+    let quotaId = "";
+    let retryAfterSeconds: number | undefined;
+    try {
+        const parsed = JSON.parse(body) as {
+            error?: { details?: Array<Record<string, unknown>> }
+        };
+        for (const detail of parsed.error?.details ?? []) {
+            const meta = detail["metadata"] as Record<string, string> | undefined;
+            if (meta?.["quota_id"]) quotaId = meta["quota_id"];
+            const rd = detail["retryDelay"];
+            if (typeof rd === "string") {
+                const m = /^(\d+(?:\.\d+)?)s?$/.exec(rd);
+                if (m) retryAfterSeconds = parseFloat(m[1]!);
+            }
+        }
+    } catch { /* body was not JSON or lacked the expected shape */ }
+
+    // Grounding-specific quota exhaustion — fall back gracefully to ungrounded
+    if (body.toLowerCase().includes("grounding") || quotaId.toLowerCase().includes("ground")) {
+        return { ok: false, rateLimitKind: "daily", error: { code: "api_error", kind: "grounding_quota", message: "Grounding search quota exhausted — falling back to ungrounded generation.", quotaId } };
     }
+
     const hasZeroLimit = /limit:\s*0\b/.test(body);
+    // Prefer quotaId-based detection; fall back to body keyword scan
     const isDaily =
-     body.includes("per_day") ||
-     body.includes("PerDay") ||
-     body.includes("daily") ||
-     body.includes("free_tier") ||
-     body.includes("RESOURCE_EXHAUSTED");
+        quotaId.toLowerCase().includes("perday") ||
+        quotaId.toLowerCase().includes("per_day") ||
+        body.includes("per_day") || body.includes("PerDay") || body.includes("daily") ||
+        body.includes("free_tier") ||
+        (body.includes("RESOURCE_EXHAUSTED") && !retryAfterSeconds);
     const rateLimitKind: RateLimitKind = isDaily || hasZeroLimit ? "daily" : "per_minute";
-  logger.warn({ model, rateLimitKind, hasZeroLimit, body: body.slice(0, 400) }, "Gemini429");
     return {
-     ok: false,
-     rateLimitKind,
-     error: {
-         code: "api_error",
-         kind: hasZeroLimit
-          ? "model_unavailable"
-          : isDaily
-           ? "rate_limit_daily"
-           : "rate_limit_minute",
-         message: hasZeroLimit
-      ? "This API key has no quota for this Gemini model (limit is 0) — the model may beretired for new accounts, or the key's project lacks free-tier access."
-          : isDaily
-           ? "Gemini daily quota exhausted. Please try again after midnight Pacific time."
-           : "Too many requests. Please wait a moment and try again.",
-     },
+        ok: false,
+        rateLimitKind,
+        error: {
+            code: "api_error",
+            kind: hasZeroLimit
+                ? "model_unavailable"
+                : isDaily
+                    ? "rate_limit_daily"
+                    : "rate_limit_minute",
+            message: hasZeroLimit
+                ? "This API key has no quota for this Gemini model (limit is 0) — the model may be retired for new accounts, or the key's project lacks free-tier access."
+                : isDaily
+                    ? "Gemini daily quota exhausted. Please try again after midnight Pacific time."
+                    : "Too many requests. Please wait a moment and try again.",
+            quotaId,
+            retryAfterSeconds,
+        },
     };
 }
 
@@ -566,14 +589,18 @@ for (const model of GEMINI_MODELS) {
 
 
     for (let attempt = 0; attempt < 2; attempt++) {
+        logger.info({ model, grounding: useGrounding, attempt }, "Gemini call");
         raw = await callGeminiRaw(apiKey, model, prompt, 0.4, 8192, useGrounding);
+        logger.info({ model, grounding: useGrounding, attempt, ok: raw.ok, ...(!raw.ok ? { kind: (raw.error as Record<string, unknown>)["kind"] ?? raw.error.code } : {}) }, "Gemini result");
         if (raw.ok) break;
         lastError = raw.error;
         // Grounding quota hit — immediately retry without grounding on the same model
         if (!raw.ok && raw.error.code === "api_error" && raw.error.kind === "grounding_quota") {
             logger.warn({ model }, "Grounding quota hit — falling back to ungrounded generation");
             useGrounding = false;
+            logger.info({ model, grounding: false, attempt: "grounding-fallback" }, "Gemini call");
             raw = await callGeminiRaw(apiKey, model, prompt, 0.4, 8192, false);
+            logger.info({ model, grounding: false, attempt: "grounding-fallback", ok: raw.ok, ...(!raw.ok ? { kind: (raw.error as Record<string, unknown>)["kind"] ?? raw.error.code } : {}) }, "Gemini result");
             if (raw.ok) break;
             lastError = raw.error;
             break; // skip per-minute retry after grounding fallback
@@ -581,7 +608,7 @@ for (const model of GEMINI_MODELS) {
         const isPerMinute = !raw.ok && raw.rateLimitKind === "per_minute";
         if (!isPerMinute || attempt >= 1) break;
         const delay = 25000;
-        logger.info({ model, attempt: attempt + 1, delay }, "Gemini per-minute limit, retrying");
+        logger.info({ model, attempt: attempt + 1, delay }, "Gemini per-minute limit — waiting before retry");
         await new Promise((resolve) => setTimeout(resolve, delay));
     }
  if (raw.ok) {

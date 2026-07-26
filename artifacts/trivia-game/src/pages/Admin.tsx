@@ -1543,6 +1543,7 @@ const [importedCount, setImportedCount] = useState<number | null>(null);
 const [importError, setImportError] = useState<string | null>(null);
  const [importSource, setImportSource] = useState<"opentdb" | "gemini" | "manual" |null>(null);
 const [retryCountdown, setRetryCountdown] = useState(0);
+const [dailyQuotaExhausted, setDailyQuotaExhausted] = useState(false);
 const [brief, setBrief] = useState("");
 const { toast } = useToast();
 const queryClient = useQueryClient();
@@ -1558,6 +1559,18 @@ useEffect(() => {
 }, [retryCountdown]);
 
 
+const parseGeminiRateError = (err: unknown): { isDaily: boolean; isPerMinute: boolean; countdown: number } => {
+ const status = err && typeof err === "object" && "status" in err ? (err as { status: number }).status : 0;
+ if (status !== 429) return { isDaily: false, isPerMinute: false, countdown: 0 };
+ const data = err && typeof err === "object" && "data" in err ? (err as { data: Record<string, unknown> | null }).data : null;
+ const kind = data && typeof data.kind === "string" ? data.kind : "";
+ const quotaId = data && typeof data.quotaId === "string" ? data.quotaId : "";
+ const retryAfterRaw = data && typeof data.retryAfterSeconds === "number" ? data.retryAfterSeconds : 0;
+ const isDaily = kind === "rate_limit_daily" || quotaId.toLowerCase().includes("perday") || quotaId.toLowerCase().includes("per_day");
+ const isPerMinute = !isDaily && (kind === "rate_limit_minute" || status === 429);
+ const countdown = isPerMinute ? (retryAfterRaw > 0 ? Math.ceil(retryAfterRaw) : 60) : 0;
+ return { isDaily, isPerMinute, countdown };
+};
 const isCustom = categoryId === "custom";
 const selectedCategory = OPENTDB_CATEGORIES.find((c) => String(c.id) === categoryId);
 const topicName = isCustom ? customTopic.trim() : (selectedCategory?.name ?? "");
@@ -1623,11 +1636,13 @@ const handleSubmit = async (e: React.FormEvent) => {
           const msg = err instanceof Error ? err.message : "Could not generate questions.";
           setImportError(msg);
           setImportSource("gemini");
-     const status = err && typeof err === "object" && "status" in err ? (err as { status: number}).status : 0;
-   const isRateLimit = status === 429 || msg.includes("Too many requests") ||msg.includes("429") || msg.includes("rate limit");
-          if (isRateLimit) {
-              setRetryCountdown(60);
-              toast({ variant: "destructive", title: "Gemini rate limited — retry unlocks in 60 s" });
+     const { isDaily: _isDaily1, isPerMinute: _isPM1, countdown: _cd1 } = parseGeminiRateError(err);
+          if (_isDaily1) {
+              setDailyQuotaExhausted(true);
+              toast({ variant: "destructive", title: "Gemini daily quota exhausted — resets at midnight Pacific" });
+          } else if (_isPM1) {
+              setRetryCountdown(_cd1);
+              toast({ variant: "destructive", title: `Rate limited — retry unlocks in ${_cd1} s` });
           } else {
               toast({ variant: "destructive", title: "Generation failed — add questions manually" });
           }
@@ -1664,13 +1679,16 @@ const handleRetryGeneration = async () => {
    setImportError(msg);
    setImportSource("gemini");
     const status = err && typeof err === "object" && "status" in err ? (err as { status: number}).status : 0;
-  const isRateLimit = status === 429 || msg.includes("Too many requests") ||msg.includes("429") || msg.includes("rate limit");
-   if (isRateLimit) {
-         setRetryCountdown(60);
-         toast({ variant: "destructive", title: "Still rate limited — retry unlocks in 60 s" });
-     } else {
-         toast({ variant: "destructive", title: "Generation failed — add questions manually" });
-     }
+   const { isDaily: _isDaily2, isPerMinute: _isPM2, countdown: _cd2 } = parseGeminiRateError(err);
+   if (_isDaily2) {
+       setDailyQuotaExhausted(true);
+       toast({ variant: "destructive", title: "Gemini daily quota exhausted — resets at midnight Pacific" });
+   } else if (_isPM2) {
+       setRetryCountdown(_cd2);
+       toast({ variant: "destructive", title: `Rate limited — retry unlocks in ${_cd2} s` });
+   } else {
+       toast({ variant: "destructive", title: "Generation failed — add questions manually" });
+   }
  } finally {
      setWorking(false);
  }
