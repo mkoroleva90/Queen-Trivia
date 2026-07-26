@@ -686,6 +686,10 @@ components:
         correctAnswerIfWrong:
           type: string
           nullable: true
+        groundingUrl:
+          type: string
+          nullable: true
+          description: First Google Search grounding source URL used to verify this fact, if grounding was active.
     GeminiGenerateInput:
       type: object
       required: [topic, difficulty, amount]

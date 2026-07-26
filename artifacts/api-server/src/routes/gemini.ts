@@ -145,6 +145,7 @@ if (!result.ok) {
          points: q.points,
          orderIndex: maxOrder + 1 + i,
          source: q.source,
+         factCheckUrl: q.factCheckUrl,
          aiGenerated: q.aiGenerated,
          verifiedByAdmin: q.verifiedByAdmin,
      }));
@@ -435,11 +436,20 @@ async (req, res): Promise<void> => {
      }
 
 
+     // Persist the grounding source URL so it appears as a link in the review UI
+     if (result.data.groundingUrl) {
+         await db
+             .update(questionsTable)
+             .set({ factCheckUrl: result.data.groundingUrl })
+             .where(eq(questionsTable.id, params.data.questionId));
+     }
+
      res.json({
          verdict: result.data.verdict,
          confidence: result.data.confidence,
          explanation: result.data.explanation,
          correctAnswerIfWrong: result.data.correctAnswerIfWrong,
+         groundingUrl: result.data.groundingUrl ?? null,
      });
  },
 );

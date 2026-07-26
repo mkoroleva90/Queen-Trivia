@@ -276,7 +276,8 @@ export const FactCheckQuestionResponse = zod.object({
   "verdict": zod.enum(['CORRECT', 'INCORRECT', 'UNCERTAIN']),
   "confidence": zod.enum(['HIGH', 'MEDIUM', 'LOW']),
   "explanation": zod.string(),
-  "correctAnswerIfWrong": zod.string().nullish()
+  "correctAnswerIfWrong": zod.string().nullish(),
+  "groundingUrl": zod.string().nullish()
 })
 
 

@@ -14,7 +14,7 @@ function geminiUrl(model: string) {
 
 
 // ─── Shared types──────────────────────────────────────────────────────────────
-export type GeminiErrorKind = "rate_limit_minute" | "rate_limit_daily" |"model_unavailable";
+export type GeminiErrorKind = "rate_limit_minute" | "rate_limit_daily" | "model_unavailable" | "grounding_quota";
 
 
 export type GeminiGenerateError =
@@ -27,7 +27,10 @@ export type GeminiGenerateError =
 interface GeminiApiResponse {
     candidates?: Array<{
         content?: {
-         parts?: Array<{ text?: string }>;
+            parts?: Array<{ text?: string }>;
+        };
+        groundingMetadata?: {
+            groundingChunks?: Array<{ web?: { uri?: string; title?: string } }>;
         };
     }>;
 }
@@ -52,6 +55,8 @@ type RateLimitKind = "per_minute" | "daily";
 interface GeminiRawResult {
     ok: true;
     text: string;
+    // Source URLs from Google Search grounding (empty array when grounding is off or returned no chunks)
+    groundingUrls: string[];
 }
 interface GeminiRawError {
     ok: false;
@@ -64,8 +69,9 @@ async function callGeminiRaw(
     apiKey: string,
     model: string,
     prompt: string,
-    temperature = 0.4,
-    maxTokens = 8192,
+    temperature: number,
+    maxTokens: number,
+    grounding = false,
 ): Promise<GeminiRawResult | GeminiRawError> {
     let resp: Response;
     try {
@@ -74,6 +80,7 @@ async function callGeminiRaw(
       headers: { "Content-Type": "application/json" },
      body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
+      ...(grounding && { tools: [{ googleSearch: {} }] }),
       generationConfig: { temperature, maxOutputTokens: maxTokens },
      }),
     });
@@ -86,6 +93,11 @@ async function callGeminiRaw(
 if (resp.status === 429) {
     // Read body to distinguish per-minute vs daily quota exhaustion
     const body = await resp.text().catch(() => "");
+    // Grounding search quota exhausted — different from generation quota; fall back gracefully
+    if (body.toLowerCase().includes("grounding")) {
+        logger.warn({ model }, "Gemini grounding quota hit");
+        return { ok: false, rateLimitKind: "daily", error: { code: "api_error", kind: "grounding_quota", message: "Grounding search quota exhausted — falling back to ungrounded generation." } };
+    }
     const hasZeroLimit = /limit:\s*0\b/.test(body);
     const isDaily =
      body.includes("per_day") ||
@@ -129,15 +141,43 @@ const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
     }
 
 
-    return { ok: true, text };
+    const groundingChunks = data.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
+    const groundingUrls = groundingChunks
+        .map((chunk) => chunk.web?.uri)
+        .filter((u): u is string => typeof u === "string" && u.length > 0);
+    return { ok: true, text, groundingUrls };
 }
 
 
-function stripFences(text: string): string {
-    return text
-        .replace(/^```(?:json)?\s*/i, "")
-        .replace(/\s*```\s*$/i, "")
-        .trim();
+/**
+ * Extract the JSON payload from a Gemini response.
+ * Grounded responses may prepend citation preamble or wrap the JSON in markdown fences.
+ * Strategy: find the first '[' or '{' and the last matching ']' or '}', parse that span.
+ *
+ * NOTE: Google's responseSchema (structured output) is INCOMPATIBLE with the google_search
+ * grounding tool — enabling both silently disables grounding (open bug as of July 2026).
+ * Prompt-level JSON instructions + this extractor is therefore the correct approach.
+ */
+function extractJson(text: string): string {
+    const firstBrace = text.indexOf("{");
+    const firstBracket = text.indexOf("[");
+    if (firstBrace === -1 && firstBracket === -1) {
+        // Nothing structural — strip fences as last resort
+        return text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+    }
+    let start: number;
+    let isArray: boolean;
+    if (firstBrace === -1 || (firstBracket !== -1 && firstBracket < firstBrace)) {
+        start = firstBracket;
+        isArray = true;
+    } else {
+        start = firstBrace;
+        isArray = false;
+    }
+    const closer = isArray ? "]" : "}";
+    const end = text.lastIndexOf(closer);
+    if (end <= start) return text.slice(start); // malformed, give it a try anyway
+    return text.slice(start, end + 1);
 }
 
 
@@ -162,6 +202,7 @@ export interface GeminiQuestion {
      | { alternateAnswers: string[] }
      | null;
     imageUrl: string | null;
+    factCheckUrl: string | null; // First grounding source URL when grounding was active
     points: number;
     orderIndex: number;
     source: string;
@@ -291,7 +332,7 @@ Total questions required: ${total}`;
 }
 
 
-function parseQuestions(raw: unknown, opts: GeminiGenerateOptions): GeminiQuestion[]{
+function parseQuestions(raw: unknown, opts: GeminiGenerateOptions, groundingUrls: string[] = []): GeminiQuestion[] {
     if (!Array.isArray(raw)) return [];
 
 
@@ -333,6 +374,7 @@ if (questionType === "matching") {
      source: sourceCitation,
      aiGenerated: true,
      verifiedByAdmin: false,
+    factCheckUrl: groundingUrls[0] ?? null,
     });
     continue;
 }
@@ -376,6 +418,7 @@ results.push({
   source: sourceCitation,
   aiGenerated: true,
   verifiedByAdmin: false,
+ factCheckUrl: groundingUrls[0] ?? null,
  });
 } else if (questionType === "true_false") {
  const answer = correctAnswer.toLowerCase() === "false" ? "false" : "true";
@@ -390,6 +433,7 @@ results.push({
   source: sourceCitation,
   aiGenerated: true,
   verifiedByAdmin: false,
+ factCheckUrl: groundingUrls[0] ?? null,
  });
 } else if (questionType === "write_in") {
 results.push({
@@ -403,6 +447,7 @@ results.push({
  source: sourceCitation,
  aiGenerated: true,
  verifiedByAdmin: false,
+ factCheckUrl: groundingUrls[0] ?? null,
 });
 } else if (questionType === "image_recognition") {
 const imageUrl = normalizeWikimediaUrl(
@@ -420,6 +465,7 @@ results.push({
  source: sourceCitation,
              aiGenerated: true,
              verifiedByAdmin: false,
+            factCheckUrl: groundingUrls[0] ?? null,
             });
         }
     }
@@ -512,15 +558,26 @@ const prompt = buildBulkPrompt(opts);
 let lastError: GeminiGenerateError = { code: "api_error", message: "Not attempted" };
 
 
-// Cascade through available models; within each model retry once on per-minute limits
+// Cascade through models. Try with Google Search grounding first (factual accuracy),
+// fall back to ungrounded if the grounding quota is exhausted for the month.
+let useGrounding = true;
 for (const model of GEMINI_MODELS) {
     let raw: GeminiRawResult | GeminiRawError = { ok: false, error: lastError };
 
 
     for (let attempt = 0; attempt < 2; attempt++) {
-        raw = await callGeminiRaw(apiKey, model, prompt, 0.4, 8192);
+        raw = await callGeminiRaw(apiKey, model, prompt, 0.4, 8192, useGrounding);
         if (raw.ok) break;
         lastError = raw.error;
+        // Grounding quota hit — immediately retry without grounding on the same model
+        if (!raw.ok && raw.error.code === "api_error" && raw.error.kind === "grounding_quota") {
+            logger.warn({ model }, "Grounding quota hit — falling back to ungrounded generation");
+            useGrounding = false;
+            raw = await callGeminiRaw(apiKey, model, prompt, 0.4, 8192, false);
+            if (raw.ok) break;
+            lastError = raw.error;
+            break; // skip per-minute retry after grounding fallback
+        }
         const isPerMinute = !raw.ok && raw.rateLimitKind === "per_minute";
         if (!isPerMinute || attempt >= 1) break;
         const delay = 25000;
@@ -528,18 +585,19 @@ for (const model of GEMINI_MODELS) {
         await new Promise((resolve) => setTimeout(resolve, delay));
     }
  if (raw.ok) {
-     // success — fall through to parse
+     // success — extract grounding URLs then parse JSON
+     const { groundingUrls } = raw;
      let parsed: unknown;
      try {
-         parsed = JSON.parse(stripFences(raw.text));
+         parsed = JSON.parse(extractJson(raw.text));
      } catch {
-         logger.warn({ text: raw.text.slice(0, 500) }, "Failed to parse Gemini JSON response");
+         logger.warn({ tail: raw.text.slice(-1000) }, "Failed to parse Gemini JSON response");
          return {
-          ok: false,
-    error: { code: "parse_error", message: "Invalid response format from Gemini. Please tryagain." },
+             ok: false,
+             error: { code: "parse_error", message: "Invalid response format from Gemini. Please try again." },
          };
      }
-     const questions = parseQuestions(parsed, opts);
+     const questions = parseQuestions(parsed, opts, groundingUrls);
      if (questions.length === 0) {
          return {
           ok: false,
@@ -628,7 +686,7 @@ For write_in, options should be an empty array [].`;
 
     let parsed: unknown;
     try {
-        parsed = JSON.parse(stripFences(raw.text));
+        parsed = JSON.parse(extractJson(raw.text));
     } catch {
   return { ok: false, error: { code: "parse_error", message: "Could not parse Gemini response" } };
     }
@@ -730,7 +788,7 @@ IMPORTANT:
     if (!raw.ok) return raw;
 let parsed: Record<string, unknown>;
 try {
-    parsed = JSON.parse(stripFences(raw.text)) as Record<string, unknown>;
+    parsed = JSON.parse(extractJson(raw.text)) as Record<string, unknown>;
 } catch {
   return { ok: false, error: { code: "parse_error", message: "Could not parse Gemini response" } };
 }
@@ -775,6 +833,7 @@ export interface FactCheckData {
     confidence: "HIGH" | "MEDIUM" | "LOW";
     explanation: string;
     correctAnswerIfWrong: string | null;
+    groundingUrl: string | null; // First grounding source URL used to verify this fact
 }
 
 
@@ -800,13 +859,20 @@ Is this factually correct? Return JSON only:
 }`;
 
 
-    const raw = await callGeminiRaw(apiKey, GEMINI_MODELS[0]!, prompt, 0.2, 1024);
+    // Enable Google Search grounding so the model verifies against live sources,
+    // not its own training data (which would mostly just confirm its prior answer).
+    let raw: GeminiRawResult | GeminiRawError = await callGeminiRaw(apiKey, GEMINI_MODELS[0]!, prompt, 0.2, 1024, true);
+    if (!raw.ok && raw.error.code === "api_error" && raw.error.kind === "grounding_quota") {
+        logger.warn("Fact-check grounding quota hit — retrying without grounding");
+        raw = await callGeminiRaw(apiKey, GEMINI_MODELS[0]!, prompt, 0.2, 1024, false);
+    }
     if (!raw.ok) return raw;
+    const groundingUrl = raw.groundingUrls[0] ?? null;
 
 
     let parsed: Record<string, unknown>;
     try {
-     parsed = JSON.parse(stripFences(raw.text)) as Record<string, unknown>;
+     parsed = JSON.parse(extractJson(raw.text)) as Record<string, unknown>;
     } catch {
   return { ok: false, error: { code: "parse_error", message: "Could not parse Gemini response" } };
     }
@@ -832,6 +898,7 @@ Is this factually correct? Return JSON only:
              parsed.correct_answer_if_wrong && parsed.correct_answer_if_wrong !== "null"
              ? String(parsed.correct_answer_if_wrong).trim()
              : null,
+          groundingUrl,
         },
     };
 }

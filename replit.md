@@ -46,7 +46,10 @@ A multiplayer pub-quiz web app: players enter with an access code, join live gam
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- **Google Search grounding is enabled** on both bulk generation and single fact-check calls (`geminiApi.ts`). Grounding quota: 5 000 prompts/month free (shared across all Gemini 3.x models); $14 / 1 000 queries beyond that. If the quota is exhausted mid-run the service falls back to an ungrounded call automatically.
+- **`responseSchema` + `google_search` grounding are mutually exclusive** — enabling both silently disables grounding (confirmed open bug, July 2026). The codebase therefore uses prompt-level JSON instructions + `extractJson()` (bracket-extraction) instead of `responseSchema` for structured output. Never re-add `responseSchema` to grounded calls.
+- **Codegen is broken on Node 24** — never run `pnpm run codegen`; hand-patch all three generated locations (`lib/api-zod/src/generated/api.ts`, `lib/api-zod/src/generated/types/`, `lib/api-client-react/src/generated/api.schemas.ts`) when `openapi.yaml` changes.
+- **drizzle push needs a TTY** — apply DDL changes with raw SQL via `psql` or `executeSql`, then update the schema file by hand.
 
 ## Product
 

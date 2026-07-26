@@ -2312,7 +2312,7 @@ const [regenAllRunning, setRegenAllRunning] = useState(false);
 
 
 // Fact check state
- type FcResult = { question: Question; verdict: string; confidence: string; explanation:string; correctAnswerIfWrong: string | null };
+ type FcResult = { question: Question; verdict: string; confidence: string; explanation: string; correctAnswerIfWrong: string | null; groundingUrl: string | null };
 type FcFailed = { question: Question; error: string };
 const [fcState, setFcState] = useState<{
  running: boolean;
@@ -2643,6 +2643,7 @@ const handleGenerateMore = async () => {
                 confidence: r.confidence,
                 explanation: r.explanation,
                 correctAnswerIfWrong: r.correctAnswerIfWrong ?? null,
+                groundingUrl: (r as { groundingUrl?: string | null }).groundingUrl ?? null,
             });
             done = true;
             break;
@@ -2686,6 +2687,7 @@ const handleGenerateMore = async () => {
         confidence: r.confidence,
         explanation: r.explanation,
         correctAnswerIfWrong: r.correctAnswerIfWrong ?? null,
+        groundingUrl: (r as { groundingUrl?: string | null }).groundingUrl ?? null,
        });
       } catch {
        newFailed.push(entry);
@@ -2932,7 +2934,7 @@ return (
          <div className="space-y-2 max-h-64 overflow-y-auto">
          {fcState.results
           .filter((r) => r.verdict !== "CORRECT")
-          .map(({ question, verdict, confidence, explanation, correctAnswerIfWrong }) => (
+          .map(({ question, verdict, confidence, explanation, correctAnswerIfWrong, groundingUrl }) => (
            <div
            key={question.id}
            className={`rounded-md border px-3 py-2 text-xs space-y-1 ${
@@ -2955,6 +2957,12 @@ return (
                     Suggested answer:{" "}
                <span className="text-secondary font-medium">{correctAnswerIfWrong}</span>
                     </p>
+                         )}
+                         {groundingUrl && (
+                          <a href={groundingUrl} target="_blank" rel="noopener noreferrer"
+                             className="flex items-center gap-1 mt-1 text-[10px] text-primary hover:underline">
+                           <Link className="h-2.5 w-2.5" /> Source
+                          </a>
                          )}
               <span className="inline-block mt-0.5 text-[10px] text-muted-foregrounduppercase tracking-wide">
                           Confidence: {confidence}

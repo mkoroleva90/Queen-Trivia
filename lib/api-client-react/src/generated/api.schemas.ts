@@ -296,6 +296,7 @@ export interface FactCheckSingleResult {
   confidence: FactCheckSingleResultConfidence;
   explanation: string;
   correctAnswerIfWrong?: string | null;
+  groundingUrl?: string | null;
 }
 
 export type GeminiGenerateInputDifficulty = typeof GeminiGenerateInputDifficulty[keyof typeof GeminiGenerateInputDifficulty];
