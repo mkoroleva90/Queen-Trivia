@@ -214,12 +214,14 @@ export const GenerateGeminiQuestionsBody = zod.object({
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
   "amount": zod.number().min(1).max(generateGeminiQuestionsBodyAmountMax),
   "existingQuestions": zod.array(zod.string()).optional(),
-  "brief": zod.string().max(2000).nullish()
+  "brief": zod.string().max(2000).nullish(),
+  "skipFactCheck": zod.boolean().optional()
 })
 
 export const GenerateGeminiQuestionsResponse = zod.object({
   "imported": zod.number(),
-  "total": zod.number()
+  "total": zod.number(),
+  "discarded": zod.number().optional()
 })
 
 

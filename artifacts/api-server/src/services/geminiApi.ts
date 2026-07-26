@@ -9,7 +9,7 @@ const GEMINI_MODELS = [
 
 // Flip to true to enable Google Search grounding during bulk question generation.
 // factCheckSingleQuestion always uses grounding regardless of this flag.
-const BULK_GROUNDING_ENABLED = false;
+const BULK_GROUNDING_ENABLED = true;
 
 
 function geminiUrl(model: string) {
@@ -239,7 +239,7 @@ export interface GeminiQuestion {
 
 
 export type GeminiGenerateResult =
-    | { ok: true; questions: GeminiQuestion[] }
+    | { ok: true; questions: GeminiQuestion[]; discarded: number }
     | { ok: false; error: GeminiGenerateError };
 
 
@@ -249,6 +249,8 @@ export interface GeminiGenerateOptions {
     amount: number;
     existingQuestions?: string[];
     brief?: string;
+    /** When true, skip the grounded verification pass (use for fiction / family topics). */
+    skipFactCheck?: boolean;
 }
 
 
@@ -572,6 +574,79 @@ export async function filterValidImageQuestions(
     );
     return checks.filter((q): q is GeminiQuestion => q !== null);
 }
+// ─── Batched verification pass ─────────────────────────────────────────────────
+
+interface VerificationResult {
+    verdict: "verified" | "disputed" | "unverifiable";
+    reason: string;
+    sourceUrl: string | null;
+}
+
+function parseVerificationResponse(text: string, expectedCount: number): VerificationResult[] {
+    const fallback = (): VerificationResult => ({ verdict: "verified", reason: "Verification unavailable", sourceUrl: null });
+    try {
+        const parsed = JSON.parse(extractJson(text));
+        if (!Array.isArray(parsed)) return Array.from({ length: expectedCount }, fallback);
+        const results: VerificationResult[] = (parsed as unknown[]).map((item): VerificationResult => {
+            if (!item || typeof item !== "object") return fallback();
+            const r = item as Record<string, unknown>;
+            const v = typeof r.verdict === "string" ? r.verdict : "";
+            const verdict: VerificationResult["verdict"] =
+                v === "verified" || v === "disputed" || v === "unverifiable" ? v : "unverifiable";
+            const sourceUrl =
+                typeof r.source_url === "string" && r.source_url.startsWith("http")
+                    ? r.source_url : null;
+            return { verdict, reason: typeof r.reason === "string" ? r.reason : "", sourceUrl };
+        });
+        while (results.length < expectedCount) results.push(fallback());
+        return results.slice(0, expectedCount);
+    } catch {
+        return Array.from({ length: expectedCount }, fallback);
+    }
+}
+
+async function verifyQuestionBatch(apiKey: string, questions: GeminiQuestion[]): Promise<VerificationResult[]> {
+    if (questions.length === 0) return [];
+    const numbered = questions
+        .map((q, i) => `${i + 1}. Q: "${q.questionText}"  A: "${q.correctAnswer}"`)
+        .join("\n");
+    const prompt = `You are verifying trivia quiz questions. For each question, use Google Search to confirm whether the stated correct answer is factually accurate.
+
+Return ONLY a JSON array with exactly ${questions.length} objects, one per question, in the same order:
+[
+  {
+    "verdict": "verified",
+    "reason": "one-sentence explanation citing your source",
+    "source_url": "a URL from your search results, or null"
+  }
+]
+
+Use "verified" if the answer is confirmed correct by a reliable source.
+Use "disputed" if the answer is wrong, outdated, or misleading.
+Use "unverifiable" if you cannot find reliable confirmation.
+
+Questions:
+${numbered}`;
+
+    let raw = await callGeminiRaw(apiKey, GEMINI_MODELS[0]!, prompt, 0.1, 2048, true);
+    if (!raw.ok && raw.error.code === "api_error" && raw.error.kind === "grounding_quota") {
+        logger.warn("Verify grounding quota hit — retrying without grounding");
+        raw = await callGeminiRaw(apiKey, GEMINI_MODELS[0]!, prompt, 0.1, 2048, false);
+    }
+    if (!raw.ok) {
+        logger.warn({ error: raw.error }, "Verification call failed — treating batch as verified");
+        return Array.from({ length: questions.length }, (): VerificationResult => ({ verdict: "verified", reason: "Verification unavailable", sourceUrl: null }));
+    }
+    const results = parseVerificationResponse(raw.text, questions.length);
+    logger.info({
+        batch: questions.length,
+        verified: results.filter((r) => r.verdict === "verified").length,
+        disputed: results.filter((r) => r.verdict === "disputed").length,
+        unverifiable: results.filter((r) => r.verdict === "unverifiable").length,
+    }, "Verification batch complete");
+    return results;
+}
+
 export async function generateGeminiQuestions(
 opts: GeminiGenerateOptions,
 ): Promise<GeminiGenerateResult> {
@@ -581,7 +656,11 @@ if (!apiKey) {
 }
 
 
-const prompt = buildBulkPrompt(opts);
+const targetAmount = opts.amount;
+// Generate 2x if fact-checking so we have surplus to absorb discards (cap at 40).
+const generateAmount = opts.skipFactCheck ? targetAmount : Math.min(targetAmount * 2, 40);
+const promptOpts = { ...opts, amount: generateAmount };
+const prompt = buildBulkPrompt(promptOpts);
 let lastError: GeminiGenerateError = { code: "api_error", message: "Not attempted" };
 
 
@@ -593,7 +672,7 @@ for (const model of GEMINI_MODELS) {
 
     for (let attempt = 0; attempt < 2; attempt++) {
         logger.info({ model, grounding: useGrounding, attempt }, "Gemini call");
-        raw = await callGeminiRaw(apiKey, model, prompt, 0.4, 8192, useGrounding);
+        raw = await callGeminiRaw(apiKey, model, prompt, 0.4, 16384, useGrounding);
         logger.info({ model, grounding: useGrounding, attempt, ok: raw.ok, ...(!raw.ok ? { kind: (raw.error as Record<string, unknown>)["kind"] ?? raw.error.code } : {}) }, "Gemini result");
         if (raw.ok) break;
         lastError = raw.error;
@@ -602,7 +681,7 @@ for (const model of GEMINI_MODELS) {
             logger.warn({ model }, "Grounding quota hit — falling back to ungrounded generation");
             useGrounding = false;
             logger.info({ model, grounding: false, attempt: "grounding-fallback" }, "Gemini call");
-            raw = await callGeminiRaw(apiKey, model, prompt, 0.4, 8192, false);
+            raw = await callGeminiRaw(apiKey, model, prompt, 0.4, 16384, false);
             logger.info({ model, grounding: false, attempt: "grounding-fallback", ok: raw.ok, ...(!raw.ok ? { kind: (raw.error as Record<string, unknown>)["kind"] ?? raw.error.code } : {}) }, "Gemini result");
             if (raw.ok) break;
             lastError = raw.error;
@@ -627,14 +706,40 @@ for (const model of GEMINI_MODELS) {
              error: { code: "parse_error", message: "Invalid response format from Gemini. Please try again." },
          };
      }
-     const questions = parseQuestions(parsed, opts, groundingUrls);
-     if (questions.length === 0) {
+     const rawQuestions = parseQuestions(parsed, opts, groundingUrls);
+     if (rawQuestions.length === 0) {
          return {
-          ok: false,
-     error: { code: "parse_error", message: "No valid questions in Gemini response. Pleasetry again." },
+             ok: false,
+             error: { code: "parse_error", message: "No valid questions in Gemini response. Please try again." },
          };
      }
-     return { ok: true, questions };
+     if (opts.skipFactCheck) {
+         return { ok: true, questions: rawQuestions.slice(0, targetAmount), discarded: 0 };
+     }
+     // Verification pass — batches of 5, stop once we have targetAmount verified questions
+     const verifiedQuestions: GeminiQuestion[] = [];
+     let discarded = 0;
+     const VERIFY_BATCH_SIZE = 5;
+     for (let bi = 0; bi < rawQuestions.length && verifiedQuestions.length < targetAmount; bi += VERIFY_BATCH_SIZE) {
+         const batch = rawQuestions.slice(bi, Math.min(bi + VERIFY_BATCH_SIZE, rawQuestions.length));
+         const vResults = await verifyQuestionBatch(apiKey, batch);
+         for (let j = 0; j < batch.length; j++) {
+             if (verifiedQuestions.length >= targetAmount) break;
+             const vr = vResults[j];
+             const q = batch[j]!;
+             if (!vr || vr.verdict === "verified") {
+                 verifiedQuestions.push({ ...q, factCheckUrl: vr?.sourceUrl ?? q.factCheckUrl });
+             } else {
+                 discarded++;
+                 logger.info(
+                     { q: q.questionText.slice(0, 80), verdict: vr.verdict, reason: vr.reason },
+                     "Question discarded by verification",
+                 );
+             }
+         }
+     }
+     logger.info({ generated: rawQuestions.length, saved: verifiedQuestions.length, discarded }, "Generation + verification complete");
+     return { ok: true, questions: verifiedQuestions, discarded };
  }
 
 

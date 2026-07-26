@@ -103,6 +103,7 @@ const result = await generateGeminiQuestions({
     amount: body.data.amount,
     existingQuestions: body.data.existingQuestions,
     brief: (body.data.brief as string | undefined) ?? game.brief ?? undefined,
+    skipFactCheck: (body.data as { skipFactCheck?: boolean }).skipFactCheck ?? false,
 });
 
 
@@ -165,7 +166,10 @@ if (!result.ok) {
      }
 
 
-     res.json({ imported: questions.length, total: result.questions.length });
+     const savedCount = questions.length;
+     const discardedCount = result.discarded;
+     logger.info({ gameId: game.id, saved: savedCount, discarded: discardedCount }, `${savedCount} saved, ${discardedCount} discarded`);
+     res.json({ imported: savedCount, total: result.questions.length + result.discarded, discarded: discardedCount });
  },
 );
 

@@ -708,6 +708,8 @@ components:
         brief:
           type: string
           maxLength: 2000
+        skipFactCheck:
+          type: boolean
     OpenTdbImportInput:
       type: object
       required: [categoryId, difficulty, amount]
@@ -726,6 +728,7 @@ components:
       properties:
         imported: { type: integer }
         total: { type: integer }
+        discarded: { type: integer }
     Question:
       type: object
       required: [id, gameId, questionText, questionType, options, imageUrl, points, orderIndex,verifiedByAdmin, aiGenerated]

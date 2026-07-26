@@ -319,6 +319,7 @@ export interface GeminiGenerateInput {
   amount: number;
   existingQuestions?: string[];
   brief?: string | null;
+  skipFactCheck?: boolean;
 }
 
 export type OpenTdbImportInputDifficulty = typeof OpenTdbImportInputDifficulty[keyof typeof OpenTdbImportInputDifficulty];
@@ -343,6 +344,7 @@ export interface OpenTdbImportInput {
 export interface OpenTdbImportResult {
   imported: number;
   total: number;
+  discarded?: number;
 }
 
 export type QuestionQuestionType = typeof QuestionQuestionType[keyof typeof QuestionQuestionType];

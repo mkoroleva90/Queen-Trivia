@@ -55,6 +55,7 @@ type Feedback = {
  timeTaken: string;
  questionId: number;
  questionType: string;
+ factCheckUrl?: string | null;
 };
 
 
@@ -252,6 +253,18 @@ className="space-y-1"
           )}
          </div>
 
+
+         {/* ── Source link ── */}
+         {feedback.factCheckUrl && (
+          <a
+           href={feedback.factCheckUrl}
+           target="_blank"
+           rel="noopener noreferrer"
+           className="text-xs text-white/40 hover:text-white/70 underline underline-offset-2 text-center transition-colors block"
+          >
+           Source ↗
+          </a>
+         )}
 
          {/* ── Next button ── */}
          <div className="mt-auto pt-2">
@@ -612,6 +625,7 @@ const handleSubmit = (question: Question, userAnswer: string) => {
                timeTaken,
                questionId: question.id,
                questionType: question.questionType,
+               factCheckUrl: question.factCheckUrl ?? null,
            });
            queryClient.invalidateQueries({ queryKey: getListGameParticipantsQueryKey(gameId)});
        },
