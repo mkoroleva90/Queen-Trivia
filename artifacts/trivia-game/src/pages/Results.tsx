@@ -102,7 +102,7 @@ export default function Results() {
     const userId = user?.id ?? 0;
     const [, setLocation] = useLocation();
     const { toast } = useToast();
-    const [expandedQuestions, setExpandedQuestions] = useState(false);
+    const [expandedQuestions, setExpandedQuestions] = useState(true);
     const [expandedQ, setExpandedQ] = useState<Set<number>>(new Set());
 
 
@@ -440,6 +440,13 @@ return (
                    <p className="text-sm font-medium leading-snug line-clamp-2">
                     {q.questionText}
                    </p>
+                   {/* Correct answer — always visible */}
+                   {(q.correctAnswer || myAns?.correctAnswer) && (
+                    <p className="text-[11px] text-emerald-400 font-medium mt-1 flex items-center gap-1">
+                     <CheckCircle2 className="h-3 w-3 shrink-0" />
+                     {q.correctAnswer ?? myAns?.correctAnswer}
+                    </p>
+                   )}
                    <p className="text-[11px] text-muted-foreground mt-0.5">
                     {QUESTION_TYPE_LABELS[q.questionType] ?? q.questionType} · {q.points}pts
                     {stat?.percentCorrect != null && (
@@ -517,9 +524,17 @@ return (
                    )}
                   </div>
                  </>
-                 ):(
-                  <p className="text-sm text-muted-foreground italic">You didn't answerthis question.</p>
-                      )}
+                 ) : (
+                  <div className="space-y-2">
+                   {q.correctAnswer && (
+                    <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm">
+                     <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">Correct answer</p>
+                     <p className="font-medium leading-snug">{q.correctAnswer}</p>
+                    </div>
+                   )}
+                   <p className="text-sm text-muted-foreground italic">You didn't answer this question.</p>
+                  </div>
+                )}
                       </div>
                   </motion.div>
                  )}

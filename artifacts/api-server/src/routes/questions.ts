@@ -42,19 +42,25 @@ router.get("/games/:gameId/questions", requireAuth, async (req, res): Promise<vo
     }
 
 
-    const questions = await db
-     .select()
-     .from(questionsTable)
-     .where(eq(questionsTable.gameId, params.data.gameId))
-     .orderBy(asc(questionsTable.orderIndex));
+    const [game, questions] = await Promise.all([
+        db.select({ status: gamesTable.status })
+            .from(gamesTable)
+            .where(eq(gamesTable.id, params.data.gameId))
+            .limit(1)
+            .then((rows) => rows[0]),
+        db.select()
+            .from(questionsTable)
+            .where(eq(questionsTable.gameId, params.data.gameId))
+            .orderBy(asc(questionsTable.orderIndex)),
+    ]);
 
+    const isAdmin = req.session.isAdmin === true;
+    // Reveal correct answers once the game is over — safe to show players their results
+    const revealAnswers = isAdmin || game?.status === "completed";
 
- const isAdmin = req.session.isAdmin === true;
-
-
- const response = isAdmin
-     ? questions
-     : questions.map(({ correctAnswer: _ca, ...rest }) => rest);
+    const response = revealAnswers
+        ? questions
+        : questions.map(({ correctAnswer: _ca, ...rest }) => rest);
 
 
  res.json(ListGameQuestionsResponse.parse(response));
