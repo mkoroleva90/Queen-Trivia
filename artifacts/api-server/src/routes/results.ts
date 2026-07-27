@@ -181,7 +181,16 @@ const totalQuestions = await db
 const statsMap = new Map(answerStats.map((s) => [s.userId, s]));
 
 
-const escapeCsv = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+const escapeCsv = (v: string | number) => {
+  let s = String(v);
+  // Prevent CSV formula injection: prefix cells that start with a spreadsheet
+  // formula trigger character with a tab so spreadsheet apps treat the value
+  // as plain text (OWASP CSV Injection guidance).
+  if (/^[=+\-@\t\r]/.test(s)) {
+    s = `\t${s}`;
+  }
+  return `"${s.replace(/"/g, '""')}"`;
+};
  const header = ["Rank", "Player Name", "Total Score", "Correct", "Total Questions","Accuracy %"].map(escapeCsv).join(",");
  const rows = participants.map((p, i) => {
   const s = statsMap.get(p.userId);
