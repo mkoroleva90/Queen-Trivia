@@ -18,4 +18,5 @@ export const QuestionUpdateQuestionType = {
   multi_select: 'multi_select',
   ordering: 'ordering',
   slider: 'slider',
+  image_hotspot: 'image_hotspot',
 } as const;

@@ -272,7 +272,7 @@ res.status(201).json(
          ...answer,
          pointsEarned,
          totalScore,
-         ...(question.questionType === "slider"
+         ...(question.questionType === "slider" || question.questionType === "image_hotspot"
              ? { correctAnswer: question.correctAnswer }
              : {}),
      }),

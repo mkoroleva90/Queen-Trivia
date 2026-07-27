@@ -87,6 +87,10 @@ const CHOICE_LABELS = ["A", "B", "C", "D", "E", "F"];
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatCorrectAnswer(type: string, answer: string, opts?: Record<string, unknown> | null): string {
+  if (type === "image_hotspot") {
+    const [x, y] = answer.split(",").map((v) => parseFloat(v).toFixed(1));
+    return `Location (${x}%, ${y}%)`;
+  }
   if (type === "slider") {
     const unit = typeof opts?.unit === "string" ? ` ${opts.unit}` : "";
     return `${answer}${unit}`;
@@ -700,6 +704,159 @@ function ImageQuestion({
   );
 }
 
+// ─── Image hotspot question (tap the correct spot) ────────────────────────────
+function ImageHotspotQuestion({
+  question, onSubmit, disabled, feedbackResult,
+}: {
+  question: Question;
+  onSubmit: (a: string) => void;
+  disabled: boolean;
+  feedbackResult: FeedbackResult | null;
+}) {
+  const [tap, setTap] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => { setTap(null); }, [question.id]);
+
+  const answered   = !!feedbackResult;
+  const playerTap  = answered
+    ? (() => { const [x, y] = feedbackResult!.lockedAnswer.split(",").map(Number); return { x: x!, y: y! }; })()
+    : tap;
+  const correctTap = answered && feedbackResult!.correctAnswer
+    ? (() => { const [x, y] = feedbackResult!.correctAnswer.split(",").map(Number); return { x: x!, y: y! }; })()
+    : null;
+
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (disabled || answered) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x    = ((e.clientX - rect.left) / rect.width)  * 100;
+    const y    = ((e.clientY - rect.top)  / rect.height) * 100;
+    setTap({ x: parseFloat(x.toFixed(2)), y: parseFloat(y.toFixed(2)) });
+  };
+
+  if (!question.imageUrl) return null;
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Tappable image container */}
+      <div
+        className="relative overflow-hidden rounded-xl"
+        style={{
+          border: "1px solid rgba(255,255,255,.12)",
+          cursor: answered ? "default" : "crosshair",
+          userSelect: "none",
+        }}
+        onClick={handleClick}
+      >
+        <img
+          src={question.imageUrl}
+          alt="Tap the correct location"
+          className="w-full block"
+          style={{ maxHeight: 320, objectFit: "contain", display: "block" }}
+          draggable={false}
+        />
+
+        {/* Player's tap marker (pink) */}
+        {playerTap && (
+          <div
+            style={{
+              position: "absolute",
+              left: `${playerTap.x}%`,
+              top:  `${playerTap.y}%`,
+              transform: "translate(-50%, -100%)",
+              pointerEvents: "none",
+            }}
+          >
+            {/* Pin shape */}
+            <svg width="28" height="36" viewBox="0 0 28 36">
+              <circle cx="14" cy="14" r="12" fill="#ff0080" stroke="white" strokeWidth="2" />
+              <polygon points="14,36 7,22 21,22" fill="#ff0080" />
+            </svg>
+          </div>
+        )}
+
+        {/* Correct location marker (cyan) — shown after reveal if wrong */}
+        {answered && correctTap && !feedbackResult!.isCorrect && (
+          <div
+            style={{
+              position: "absolute",
+              left: `${correctTap.x}%`,
+              top:  `${correctTap.y}%`,
+              transform: "translate(-50%, -100%)",
+              pointerEvents: "none",
+            }}
+          >
+            <svg width="28" height="36" viewBox="0 0 28 36">
+              <circle cx="14" cy="14" r="12" fill="#00ddff" stroke="white" strokeWidth="2" />
+              <polygon points="14,36 7,22 21,22" fill="#00ddff" />
+              <text x="14" y="19" textAnchor="middle" fontSize="13" fontWeight="bold" fill="#0a0510">✓</text>
+            </svg>
+          </div>
+        )}
+
+        {/* Single cyan pin when correct */}
+        {answered && feedbackResult!.isCorrect && playerTap && (
+          <div
+            style={{
+              position: "absolute",
+              left: `${playerTap.x}%`,
+              top:  `${playerTap.y}%`,
+              transform: "translate(-50%, -100%)",
+              pointerEvents: "none",
+            }}
+          >
+            <svg width="28" height="36" viewBox="0 0 28 36">
+              <circle cx="14" cy="14" r="12" fill="#00ddff" stroke="white" strokeWidth="2" />
+              <polygon points="14,36 7,22 21,22" fill="#00ddff" />
+              <text x="14" y="19" textAnchor="middle" fontSize="13" fontWeight="bold" fill="#0a0510">✓</text>
+            </svg>
+          </div>
+        )}
+
+        {/* Tap prompt overlay when no tap yet */}
+        {!answered && !tap && (
+          <div
+            className="absolute inset-0 flex items-center justify-center"
+            style={{ background: "rgba(0,0,0,.3)", pointerEvents: "none" }}
+          >
+            <p className="text-white font-bold text-[15px]" style={{ textShadow: "0 1px 4px rgba(0,0,0,.8)" }}>
+              Tap to mark your answer
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Legend after answer */}
+      {answered && !feedbackResult!.isCorrect && correctTap && (
+        <div className="flex justify-center gap-6">
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full" style={{ background: "#ff0080" }} />
+            <span className="text-[12px] font-semibold" style={{ color: "#ff0080" }}>Your guess</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full" style={{ background: "#00ddff" }} />
+            <span className="text-[12px] font-semibold" style={{ color: "#00ddff" }}>Correct location</span>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm button */}
+      {!answered && tap && (
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
+          <ActionBtn
+            onClick={() => onSubmit(`${tap.x},${tap.y}`)}
+            disabled={disabled}
+            pending={disabled}
+            pendingLabel="Submitting…"
+            bg="#ff0080"
+            color="#ffffff"
+          >
+            Confirm location →
+          </ActionBtn>
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
 // ─── Slider question (numeric estimation) ─────────────────────────────────────
 function SliderQuestion({
   question, onSubmit, disabled, feedbackResult,
@@ -1058,6 +1215,8 @@ export default function GamePlay() {
         return <MatchingBoard key={q.id} {...sub} onSubmit={(a) => handleSubmit(q, a)} />;
       case "image_recognition":
         return <ImageQuestion {...sub} onSubmit={(a) => handleSubmit(q, a)} />;
+      case "image_hotspot":
+        return <ImageHotspotQuestion key={q.id} {...sub} onSubmit={(a) => handleSubmit(q, a)} feedbackResult={fr} />;
       case "write_in":
         return <WriteInQuestion {...sub} onSubmit={(a) => handleSubmit(q, a)} />;
       default:
@@ -1197,7 +1356,7 @@ export default function GamePlay() {
                   </h2>
 
                   {/* Image (if present) */}
-                  {current.imageUrl && current.questionType !== "image_recognition" && (
+                  {current.imageUrl && current.questionType !== "image_recognition" && current.questionType !== "image_hotspot" && (
                     <div className="overflow-hidden rounded-xl border border-border/50 bg-background/60">
                       <img src={current.imageUrl} alt="" className="w-full max-h-60 object-contain" />
                     </div>

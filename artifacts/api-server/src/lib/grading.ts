@@ -74,6 +74,23 @@ export function gradeAnswer(
         return { isCorrect, pointsEarned };
     }
 
+    // ── Image hotspot: Euclidean distance vs radiusPercent ───────────────
+    if (questionType === "image_hotspot") {
+        const opts         = questionOptions as { radiusPercent?: number } | null;
+        const radiusPercent = typeof opts?.radiusPercent === "number" ? opts.radiusPercent : 10;
+        const parseCoord   = (s: string): { x: number; y: number } | null => {
+            const parts = s.split(",").map(Number);
+            if (parts.length < 2 || isNaN(parts[0]!) || isNaN(parts[1]!)) return null;
+            return { x: parts[0]!, y: parts[1]! };
+        };
+        const user    = parseCoord(userAnswer);
+        const correct = parseCoord(correctAnswer);
+        if (!user || !correct) return { isCorrect: false, pointsEarned: 0 };
+        const dist    = Math.sqrt((user.x - correct.x) ** 2 + (user.y - correct.y) ** 2);
+        const isCorrect = dist <= radiusPercent;
+        return { isCorrect, pointsEarned: isCorrect ? points : 0 };
+    }
+
     // ── Slider: proximity-based partial credit ────────────────────────────
     if (questionType === "slider") {
         const opts      = questionOptions as { tolerance?: number } | null;

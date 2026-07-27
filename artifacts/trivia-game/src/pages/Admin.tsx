@@ -158,6 +158,7 @@ const DEFAULT_POINTS: Record<QuestionType, number> = {
  multi_select: 10,
  ordering: 15,
  slider: 10,
+ image_hotspot: 15,
 };
 const emptyForm: QuestionFormState = {
     questionText: "",
@@ -325,6 +326,7 @@ const TYPE_META: Record<
  multi_select: { label: "Multi-Select", Icon: CheckSquare, color: "text-cyan-400" },
  ordering: { label: "Ordering", Icon: ArrowLeftRight, color: "text-emerald-400" },
  slider: { label: "Slider", Icon: SlidersHorizontal, color: "text-yellow-400" },
+ image_hotspot: { label: "Image Hotspot", Icon: ImageIcon, color: "text-rose-400" },
 };
 
 

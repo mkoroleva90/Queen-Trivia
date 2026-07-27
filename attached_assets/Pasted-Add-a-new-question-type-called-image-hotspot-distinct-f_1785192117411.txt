@@ -1,0 +1,36 @@
+Add a new question type called `image_hotspot`, distinct from the existing
+`image_recognition` type (which asks for a typed answer under an image — hotspot
+instead asks the player to tap the correct spot on the image).
+
+Backend:
+1. Add `image_hotspot` to the questionType enum.
+2. `options` for an image_hotspot question: { radiusPercent: number } — radius as a
+   percentage of the image's shorter dimension, so tolerance stays consistent across
+   screen sizes.
+3. `correctAnswer` is the correct tap location as "x,y", where x and y are
+   percentages (0-100) of the image's width and height — NOT raw pixels, since the
+   image renders at different sizes on different devices.
+4. `userAnswer` is the player's tapped location in the same "x,y" percent format.
+5. In lib/grading.ts, add an `image_hotspot` branch to gradeAnswer(): parse both
+   "x,y" strings into numbers, compute Euclidean distance between them, and compare
+   against radiusPercent from the question's options. This is binary (no partial
+   credit) — correct if within radius, incorrect otherwise.
+6. Regenerate the OpenAPI client / hooks as usual.
+
+Frontend:
+7. Add an ImageHotspotQuestion component. Render question.imageUrl inside a
+   positioned container, and capture taps/clicks on the image: convert the click
+   position to a percentage of the image's rendered width/height using
+   getBoundingClientRect() (this is what makes the percent-based coordinate system
+   work). Show a pin/marker at the tapped location and a confirm button, following
+   the same select-then-confirm pattern as MultipleChoiceQuestion.
+8. On confirm, submit the "x,y" percent string.
+9. After locking, overlay two markers on the image: the player's guess (pink pin) and
+   the correct location (cyan pin) if they got it wrong, or just a single cyan pin if
+   correct — this reveal is what makes the format make sense, treat it as required,
+   not optional.
+10. Wire into renderQuestion() as case "image_hotspot":. Note that the existing check
+    in the main render — {current.imageUrl && current.questionType !==
+    "image_recognition" && (...)} — that renders the image separately above the
+    answer area needs to also exclude image_hotspot, since this component renders its
+    own image with the tap layer.
