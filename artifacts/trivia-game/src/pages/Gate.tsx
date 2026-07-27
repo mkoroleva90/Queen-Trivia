@@ -260,22 +260,6 @@ export default function Gate() {
           {/* ── Step 0: Welcome ── */}
           {onboardingStep === 0 && (
             <motion.div key="s0" {...slide} className="flex-1 flex flex-col justify-center gap-8">
-              {/* Eyebrow pill */}
-              <div>
-                <span
-                  className="inline-block text-[10px] font-extrabold uppercase"
-                  style={{
-                    letterSpacing: ".2em",
-                    background: "#ffe500",
-                    color: "#0a0510",
-                    borderRadius: 20,
-                    padding: "8px 14px",
-                  }}
-                >
-                  Tonight Only
-                </span>
-              </div>
-
               {/* Headline */}
               <div>
                 <h1
