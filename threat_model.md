@@ -27,7 +27,7 @@ Trivia Night is a multiplayer pub-quiz web application. Players join live games 
 ## Scan Anchors
 
 - **Entry points:** `artifacts/api-server/src/routes/` (all route files), `artifacts/api-server/src/app.ts` (Express setup and CORS)
-- **Highest-risk areas:** Admin session logic in `routes/session.ts`; access code comparison in `routes/session.ts` and `routes/auth.ts`; per-game access code generation in `routes/games.ts` (uses `Math.random()` — open finding); session regeneration missing on login in `routes/session.ts` (open finding)
+- **Highest-risk areas:** Admin session logic in `routes/session.ts`; access code comparison in `routes/session.ts` and `routes/auth.ts`; per-game access code generation in `routes/games.ts`; CSV export in `routes/results.ts` (open LOW finding: formula injection)
 - **Public surface:** `/api/health`, `/api/auth/verify`, `/api/auth/login`, `/api/admin/login`, `/api/auth/me`, `/api/admin/me`
 - **Admin surface:** `/api/settings`, `/api/games` (POST/PATCH/DELETE), `/api/questions` (POST/PATCH/DELETE), `/api/stats/summary`, Gemini and OpenTDB import routes, `/api/games/:id/results/export.csv`
 - **Player surface:** `/api/games` (GET), `/api/games/:id/join`, `/api/games/:id/answers`, `/api/games/:id/results`
@@ -37,15 +37,15 @@ Trivia Night is a multiplayer pub-quiz web application. Players join live games 
 
 ### Spoofing
 
-Players and admins authenticate with shared access codes. There is no per-user password or MFA. Anyone who learns the admin access code can gain full admin access. Codes are randomly generated at first boot (no documented defaults); any legacy publicly documented default codes (`trivia-default-admin-credentials-in-source`) are automatically rotated at boot.
+Players and admins authenticate with shared access codes. There is no per-user password or MFA. Anyone who learns the admin access code can gain full admin access. Codes are randomly generated at first boot (no documented defaults); any legacy publicly documented default codes are automatically rotated at boot.
 
 **Required guarantees:**
-- Access codes MUST NOT be documented in the repository; random codes are seeded at first boot and rotated if legacy defaults are detected.
-- Sessions MUST be tied to httpOnly, Secure, SameSite cookies — currently implemented correctly.
-- Admin and player codes MUST remain distinct — enforced by settings PATCH validation (minimum 8 characters).
-- Auth endpoints are rate-limited (10 req / 15 min per IP) — correctly implemented.
-- **Session IDs MUST be regenerated on login** — currently missing (`req.session.regenerate()` not called on player or admin login paths). ⚠️ Open finding.
-- **Per-game access codes MUST use a CSPRNG** — currently `routes/games.ts` uses `Math.random()`. ⚠️ Open finding.
+- Access codes MUST NOT be documented in the repository; random codes are seeded at first boot and rotated if legacy defaults are detected. ✅ Implemented.
+- Sessions MUST be tied to httpOnly, Secure, SameSite cookies — correctly implemented. ✅
+- Admin and player codes MUST remain distinct — enforced by settings PATCH validation (minimum 8 characters). ✅
+- Auth endpoints are rate-limited (10 req / 15 min per IP) — correctly implemented. ✅
+- **Session IDs MUST be regenerated on login** — `req.session.regenerate()` is called on both player (`routes/session.ts`) and admin login paths. ✅ Fixed.
+- **Per-game access codes MUST use a CSPRNG** — `routes/games.ts` calls `generateAccessCode()` which uses `crypto.randomBytes`. ✅ Fixed (was `Math.random()` in prior scans).
 
 ### Tampering
 
@@ -53,10 +53,11 @@ Correct answers and question data are fetched from the database server-side; the
 
 ### Information Disclosure
 
-- **Correct answers:** Stripped from `GET /api/games/:gameId/questions` responses for non-admin sessions. Exposed only after a game is `completed`. Correctly implemented.
-- **CORS:** Previously reflected any origin with credentials; now uses an allowlist restricted to `REPLIT_DOMAINS`. **Fixed.**
-- **User enumeration:** Previously unauthenticated; both GET and POST `/api/users/:userId` now require `requireAdmin`. **Fixed.**
-- **Image SSRF:** Gemini-generated image URLs are validated against a strict allowlist (`upload.wikimedia.org/wikipedia/commons/`) before any outbound fetch. Safe.
+- **Correct answers:** Stripped from `GET /api/games/:gameId/questions` responses for non-admin sessions. Exposed only after a game is `completed`. Correctly implemented. ✅
+- **CORS:** Restricted to an allowlist of this app's own Replit domains (`REPLIT_DOMAINS` env var). ✅
+- **User enumeration:** Both GET and POST `/api/users/:userId` require `requireAdmin`. ✅
+- **Image SSRF:** Gemini-generated image URLs are validated against a strict allowlist (`upload.wikimedia.org/wikipedia/commons/`) before any outbound fetch. ✅
+- **CSV formula injection:** The results export (`/api/games/:id/results/export.csv`) does not sanitize formula trigger characters in player names. A player named `=HYPERLINK(...)` could inject a formula into the admin's spreadsheet. ⚠️ Open LOW finding.
 
 ### Elevation of Privilege
 
