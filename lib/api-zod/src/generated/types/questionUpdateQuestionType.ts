@@ -17,4 +17,5 @@ export const QuestionUpdateQuestionType = {
   true_false: 'true_false',
   multi_select: 'multi_select',
   ordering: 'ordering',
+  slider: 'slider',
 } as const;

@@ -159,6 +159,7 @@ export const QuestionInputQuestionType = {
   true_false: 'true_false',
   multi_select: 'multi_select',
   ordering: 'ordering',
+  slider: 'slider',
 } as const;
 
 /**
@@ -199,6 +200,7 @@ export const QuestionUpdateQuestionType = {
   true_false: 'true_false',
   multi_select: 'multi_select',
   ordering: 'ordering',
+  slider: 'slider',
 } as const;
 
 /**
@@ -362,6 +364,7 @@ export const QuestionQuestionType = {
   true_false: 'true_false',
   multi_select: 'multi_select',
   ordering: 'ordering',
+  slider: 'slider',
 } as const;
 
 /**

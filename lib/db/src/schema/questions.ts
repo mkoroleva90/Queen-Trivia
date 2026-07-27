@@ -27,6 +27,7 @@ export const questionsTable = pgTable("questions", {
       "true_false",
       "multi_select",
       "ordering",
+      "slider",
   ],
  }).notNull(),
  correctAnswer: text("correct_answer").notNull(),

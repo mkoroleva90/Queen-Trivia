@@ -55,6 +55,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -66,6 +67,7 @@ type Feedback = {
   questionId: number;
   questionType: string;
   factCheckUrl?: string | null;
+  correctAnswer?: string; // slider only — included in submit response
 };
 
 type QuestionStats = {
@@ -73,17 +75,22 @@ type QuestionStats = {
   correctCount: number;
 };
 
-// Inline answer-reveal result passed to MC / TF question components
+// Inline answer-reveal result passed to question components
 type FeedbackResult = {
   isCorrect: boolean;
   lockedAnswer: string;
+  correctAnswer?: string; // slider only
 };
 
 const CHOICE_LABELS = ["A", "B", "C", "D", "E", "F"];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatCorrectAnswer(type: string, answer: string): string {
+function formatCorrectAnswer(type: string, answer: string, opts?: Record<string, unknown> | null): string {
+  if (type === "slider") {
+    const unit = typeof opts?.unit === "string" ? ` ${opts.unit}` : "";
+    return `${answer}${unit}`;
+  }
   if (type === "ordering") {
     return answer.split("|").map((s, i) => `${i + 1}. ${s}`).join("  ");
   }
@@ -693,6 +700,149 @@ function ImageQuestion({
   );
 }
 
+// ─── Slider question (numeric estimation) ─────────────────────────────────────
+function SliderQuestion({
+  question, onSubmit, disabled, feedbackResult,
+}: {
+  question: Question;
+  onSubmit: (a: string) => void;
+  disabled: boolean;
+  feedbackResult: FeedbackResult | null;
+}) {
+  const opts       = question.options as { min?: number; max?: number; step?: number; unit?: string } | null;
+  const min        = opts?.min  ?? 0;
+  const max        = opts?.max  ?? 100;
+  const step       = opts?.step ?? 1;
+  const unit       = opts?.unit ?? "";
+  const initialVal = Math.round(((min + max) / 2) / step) * step;
+
+  const [value, setValue] = useState(initialVal);
+  useEffect(() => { setValue(Math.round(((min + max) / 2) / step) * step); }, [question.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const answered   = !!feedbackResult;
+  const playerVal  = answered ? parseFloat(feedbackResult!.lockedAnswer) : value;
+  const correctVal = answered && feedbackResult!.correctAnswer !== undefined
+    ? parseFloat(feedbackResult!.correctAnswer)
+    : null;
+
+  const toPct      = (v: number) => Math.max(0, Math.min(1, (v - min) / (max - min)));
+  const playerPct  = toPct(playerVal);
+  const correctPct = correctVal !== null ? toPct(correctVal) : null;
+
+  const fmtVal = (v: number) => `${v.toLocaleString()}${unit ? ` ${unit}` : ""}`;
+
+  return (
+    <div className="flex flex-col gap-5">
+      {/* Live value display */}
+      {!answered && (
+        <div className="text-center py-2">
+          <span
+            className="font-extrabold tabular-nums"
+            style={{ fontSize: 52, color: "#ffe500", letterSpacing: "-.02em" }}
+          >
+            {value.toLocaleString()}
+          </span>
+          {unit && (
+            <span className="ml-2 font-semibold text-[20px]" style={{ color: "#a3aec2" }}>
+              {unit}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Active slider */}
+      {!answered && (
+        <div className="px-1">
+          <Slider
+            min={min}
+            max={max}
+            step={step}
+            value={[value]}
+            onValueChange={([v]) => v !== undefined && setValue(v)}
+            className="w-full [&_[data-slot=range]]:bg-yellow-400 [&_[data-slot=thumb]]:border-yellow-400 [&_[data-slot=thumb]]:bg-yellow-400"
+          />
+          <div className="flex justify-between mt-2">
+            <span className="text-[12px]" style={{ color: "#a3aec2" }}>{fmtVal(min)}</span>
+            <span className="text-[12px]" style={{ color: "#a3aec2" }}>{fmtVal(max)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Reveal: dual-marker track */}
+      {answered && correctPct !== null && (
+        <div className="px-1 py-2">
+          {/* Track + markers */}
+          <div className="relative" style={{ height: 52 }}>
+            {/* Base track */}
+            <div
+              className="absolute"
+              style={{ top: 22, left: 0, right: 0, height: 4, borderRadius: 2, background: "rgba(255,255,255,.15)" }}
+            >
+              {/* Bridge between the two thumbs */}
+              <div style={{
+                position: "absolute",
+                left: `${Math.min(playerPct, correctPct) * 100}%`,
+                width: `${Math.abs(playerPct - correctPct) * 100}%`,
+                height: "100%",
+                background: "rgba(255,255,255,.2)",
+              }} />
+            </div>
+            {/* Player thumb (pink) */}
+            <div style={{ position: "absolute", top: 12, left: `calc(${playerPct * 100}% - 10px)` }}>
+              <div style={{
+                width: 20, height: 20, borderRadius: "50%",
+                background: "#ff0080",
+                boxShadow: "0 0 14px rgba(255,0,128,.55)",
+                border: "2px solid rgba(255,255,255,.25)",
+              }} />
+            </div>
+            {/* Correct thumb (cyan) */}
+            <div style={{ position: "absolute", top: 12, left: `calc(${correctPct * 100}% - 10px)` }}>
+              <div style={{
+                width: 20, height: 20, borderRadius: "50%",
+                background: "#00ddff",
+                boxShadow: "0 0 14px rgba(0,221,255,.55)",
+                border: "2px solid rgba(255,255,255,.25)",
+              }} />
+            </div>
+          </div>
+          {/* Labels */}
+          <div className="flex justify-between text-[12px] mt-1" style={{ color: "#a3aec2" }}>
+            <span>{fmtVal(min)}</span>
+            <span>{fmtVal(max)}</span>
+          </div>
+          <div className="flex justify-center gap-6 mt-3">
+            <div className="text-center">
+              <div className="w-3 h-3 rounded-full mx-auto mb-1" style={{ background: "#ff0080" }} />
+              <p className="text-[13px] font-bold" style={{ color: "#ff0080" }}>You</p>
+              <p className="text-[13px] font-semibold text-white">{fmtVal(playerVal)}</p>
+            </div>
+            <div className="text-center">
+              <div className="w-3 h-3 rounded-full mx-auto mb-1" style={{ background: "#00ddff" }} />
+              <p className="text-[13px] font-bold" style={{ color: "#00ddff" }}>Answer</p>
+              <p className="text-[13px] font-semibold text-white">{fmtVal(correctVal!)}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm button */}
+      {!answered && (
+        <ActionBtn
+          onClick={() => onSubmit(String(value))}
+          disabled={disabled}
+          pending={disabled}
+          pendingLabel="Submitting…"
+          bg="#ffe500"
+          color="#0a0510"
+        >
+          Lock in {fmtVal(value)} →
+        </ActionBtn>
+      )}
+    </div>
+  );
+}
+
 // ─── Matching board (unchanged logic, refreshed style) ────────────────────────
 function MatchingBoard({
   question, onSubmit, disabled,
@@ -865,6 +1015,7 @@ export default function GamePlay() {
             questionId: question.id,
             questionType: question.questionType,
             factCheckUrl: question.factCheckUrl ?? null,
+            correctAnswer: (res as typeof res & { correctAnswer?: string }).correctAnswer,
           });
           setLockedAnswer(userAnswer); // store for inline reveal
           queryClient.invalidateQueries({ queryKey: getListGameParticipantsQueryKey(gameId) });
@@ -889,7 +1040,7 @@ export default function GamePlay() {
 
   const renderQuestion = (q: Question) => {
     const fr: FeedbackResult | null = feedback?.questionId === q.id
-      ? { isCorrect: feedback.isCorrect, lockedAnswer: lockedAnswer ?? "" }
+      ? { isCorrect: feedback.isCorrect, lockedAnswer: lockedAnswer ?? "", correctAnswer: feedback.correctAnswer }
       : null;
     const sub = { question: q, disabled: submitAnswer.isPending };
     switch (q.questionType) {
@@ -897,6 +1048,8 @@ export default function GamePlay() {
         return <MultipleChoiceQuestion {...sub} onSubmit={(a) => handleSubmit(q, a)} feedbackResult={fr} />;
       case "multi_select":
         return <MultiSelectQuestion {...sub} onSubmit={(a) => handleSubmit(q, a)} feedbackResult={fr} />;
+      case "slider":
+        return <SliderQuestion key={q.id} {...sub} onSubmit={(a) => handleSubmit(q, a)} feedbackResult={fr} />;
       case "ordering":
         return <OrderingQuestion key={q.id} {...sub} onSubmit={(a) => handleSubmit(q, a)} feedbackResult={fr} />;
       case "true_false":

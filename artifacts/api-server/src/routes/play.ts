@@ -240,6 +240,7 @@ const { isCorrect, pointsEarned } = gradeAnswer(
     question.correctAnswer,
     question.points,
     alternates,
+    question.options as Record<string, unknown> | null,
 );
 
 
@@ -267,7 +268,14 @@ await db
 
 res.status(201).json(
  SubmitAnswerResponse.parse(
-     toJsonSafe({ ...answer, pointsEarned, totalScore }),
+     toJsonSafe({
+         ...answer,
+         pointsEarned,
+         totalScore,
+         ...(question.questionType === "slider"
+             ? { correctAnswer: question.correctAnswer }
+             : {}),
+     }),
  ),
 );
 

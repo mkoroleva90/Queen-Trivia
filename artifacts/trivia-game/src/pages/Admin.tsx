@@ -157,6 +157,7 @@ const DEFAULT_POINTS: Record<QuestionType, number> = {
  image_recognition: 15,
  multi_select: 10,
  ordering: 15,
+ slider: 10,
 };
 const emptyForm: QuestionFormState = {
     questionText: "",
@@ -323,6 +324,7 @@ const TYPE_META: Record<
  matching: { label: "Matching", Icon: ArrowLeftRight, color: "text-purple-400" },
  multi_select: { label: "Multi-Select", Icon: CheckSquare, color: "text-cyan-400" },
  ordering: { label: "Ordering", Icon: ArrowLeftRight, color: "text-emerald-400" },
+ slider: { label: "Slider", Icon: SlidersHorizontal, color: "text-yellow-400" },
 };
 
 

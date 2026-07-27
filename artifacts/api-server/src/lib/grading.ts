@@ -48,6 +48,7 @@ export function gradeAnswer(
     correctAnswer: string,
     points: number,
     alternates: string[],
+    questionOptions?: Record<string, unknown> | null,
 ): { isCorrect: boolean; pointsEarned: number } {
     // ── Matching: pair-by-pair partial credit ──────────────────────────────
     if (questionType === "matching") {
@@ -71,6 +72,21 @@ export function gradeAnswer(
         const isCorrect = correctCount === total;
         const pointsEarned = Math.floor((correctCount / total) * points);
         return { isCorrect, pointsEarned };
+    }
+
+    // ── Slider: proximity-based partial credit ────────────────────────────
+    if (questionType === "slider") {
+        const opts      = questionOptions as { tolerance?: number } | null;
+        const tolerance = typeof opts?.tolerance === "number" ? opts.tolerance : 0;
+        const userVal   = parseFloat(userAnswer);
+        const corrVal   = parseFloat(correctAnswer);
+        if (isNaN(userVal) || isNaN(corrVal)) return { isCorrect: false, pointsEarned: 0 };
+        const distance = Math.abs(userVal - corrVal);
+        if (distance <= tolerance) return { isCorrect: true, pointsEarned: points };
+        const falloff = tolerance * 2; // range from tolerance → tolerance*3 → 0 pts
+        if (falloff <= 0) return { isCorrect: false, pointsEarned: 0 };
+        const ratio = Math.min(1, (distance - tolerance) / falloff);
+        return { isCorrect: false, pointsEarned: Math.max(0, Math.floor((1 - ratio) * points)) };
     }
 
     // ── Ordering: positional partial credit ───────────────────────────────

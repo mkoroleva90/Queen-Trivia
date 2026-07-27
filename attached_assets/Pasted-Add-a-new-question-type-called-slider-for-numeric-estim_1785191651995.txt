@@ -1,0 +1,35 @@
+Add a new question type called `slider` for numeric-estimation questions (e.g.
+"What year did X happen?").
+
+Check if this repo already has a shadcn/ui Slider component at
+@/components/ui/slider (it's built on Radix, same family as the Select component
+already used in MatchingBoard). If it's missing, add it via whatever convention this
+project used to add Select/Input (e.g. npx shadcn add slider).
+
+Backend:
+1. Add `slider` to the questionType enum in the Zod schema(s) for Question/
+   QuestionInput/QuestionUpdate.
+2. `options` for a slider question:
+   { min: number; max: number; step?: number; unit?: string; tolerance: number } —
+   tolerance is the absolute distance from the correct value that still counts as
+   fully correct.
+3. `correctAnswer` is the correct numeric value as a string, e.g. "1969".
+4. `userAnswer` is the player's chosen numeric value as a string.
+5. In lib/grading.ts, add a `slider` branch to gradeAnswer(): parse both as numbers,
+   compute distance = Math.abs(userValue - correctValue). If distance <= tolerance,
+   award full points. Otherwise award partial credit that linearly decreases to 0 at
+   distance = tolerance * 3 (or another falloff that reads well), floored at 0. Pull
+   tolerance from the question's options.
+6. Regenerate the OpenAPI client / hooks as usual.
+
+Frontend:
+7. Add a SliderQuestion component using the shadcn Slider, initialized at the
+   midpoint of min/max, respecting step. Show the live selected value as large text
+   above the slider (with unit appended if present), styled consistent with the app's
+   yellow/pink accent palette.
+8. On confirm, submit the numeric value as a string.
+9. After locking, show both markers on the same slider track: the player's guess
+   (pink) and the correct value (cyan), so they can see how close they were — this is
+   the main payoff of the format, don't skip it.
+10. Wire into renderQuestion() as case "slider":, and add a slider branch to
+    formatCorrectAnswer() that appends the unit if present.
