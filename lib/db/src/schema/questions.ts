@@ -25,6 +25,7 @@ export const questionsTable = pgTable("questions", {
       "matching",
       "image_recognition",
       "true_false",
+      "multi_select",
   ],
  }).notNull(),
  correctAnswer: text("correct_answer").notNull(),

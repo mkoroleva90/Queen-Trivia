@@ -73,6 +73,18 @@ export function gradeAnswer(
         return { isCorrect, pointsEarned };
     }
 
+    // ── Multi-select: exact set match, all-or-nothing ────────────────────
+    if (questionType === "multi_select") {
+        const parseSet = (s: string): Set<string> =>
+            new Set(s.split("|").map((v) => normalize(v)).filter(Boolean));
+        const correctSet = parseSet(correctAnswer);
+        const userSet    = parseSet(userAnswer);
+        const isCorrect  =
+            correctSet.size === userSet.size &&
+            [...correctSet].every((v) => userSet.has(v));
+        return { isCorrect, pointsEarned: isCorrect ? points : 0 };
+    }
+
     // ── All other types: fuzzy string match ───────────────────────────────
     const normUser    = normalize(userAnswer);
     const normCorrect = normalize(correctAnswer);

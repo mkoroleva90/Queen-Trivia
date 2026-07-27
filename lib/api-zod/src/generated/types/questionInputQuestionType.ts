@@ -15,4 +15,5 @@ export const QuestionInputQuestionType = {
   matching: 'matching',
   image_recognition: 'image_recognition',
   true_false: 'true_false',
+  multi_select: 'multi_select',
 } as const;

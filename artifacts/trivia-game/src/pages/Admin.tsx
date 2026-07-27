@@ -155,6 +155,7 @@ const DEFAULT_POINTS: Record<QuestionType, number> = {
  write_in: 15,
  matching: 20,
  image_recognition: 15,
+ multi_select: 10,
 };
 const emptyForm: QuestionFormState = {
     questionText: "",
@@ -319,6 +320,7 @@ const TYPE_META: Record<
     write_in: { label: "Write-In", Icon: PenLine, color: "text-accent" },
     image_recognition: { label: "Image", Icon: ImageIcon, color: "text-orange-400" },
  matching: { label: "Matching", Icon: ArrowLeftRight, color: "text-purple-400" },
+ multi_select: { label: "Multi-Select", Icon: CheckSquare, color: "text-cyan-400" },
 };
 
 

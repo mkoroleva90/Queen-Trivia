@@ -1,0 +1,42 @@
+Add a new question type called `multi_select` to the trivia app, modeled closely on
+the existing `multiple_choice` type.
+
+Backend:
+1. Find the Zod schema(s) that define `questionType` for Question/QuestionInput/
+   QuestionUpdate (search the repo for "multiple_choice" — it's likely in a package
+   such as packages/api-zod, not in generated/api.schemas.ts, which is auto-generated
+   and shouldn't be edited directly). Add `multi_select` to that enum everywhere it's
+   used.
+2. `options` for a multi_select question should reuse the same shape as
+   multiple_choice: { choices: string[] }.
+3. `correctAnswer` should be the correct subset of choices, sorted alphabetically and
+   joined with "|" — e.g. "Berlin|Paris". Follow the same string-encoding convention
+   already used by the `matching` type.
+4. In lib/grading.ts, add a new branch in gradeAnswer() for
+   questionType === "multi_select", following the same pattern as the existing
+   `matching` branch: parse both correctAnswer and userAnswer by splitting on "|",
+   normalize each item, compare as sets. Award full points only if the sets match
+   exactly (no missing and no extra selections); otherwise award 0 points. Keep this
+   stricter than matching's partial credit — multi-select shouldn't reward
+   partially-correct guessing.
+5. Run whatever OpenAPI/client regeneration step this repo uses after schema changes
+   (check package.json scripts, or search for an orval.config file), so
+   generated/api.schemas.ts, generated/api.ts, and the React Query hooks in
+   @workspace/api-client-react regenerate correctly.
+
+Frontend (in the file that contains MultipleChoiceQuestion, likely GamePlay.tsx):
+6. Add a new MultiSelectQuestion component, copied from MultipleChoiceQuestion but
+   allowing multiple selections (array of selected choices in state instead of a
+   single string). Reuse CHOICE_LABELS for the A/B/C/D badges. The confirm button
+   should enable once at least one choice is selected, and submit the selected
+   choices sorted and joined with "|" (matching the backend convention above).
+7. Give it the same inline reveal behavior as MultipleChoiceQuestion on the
+   locked/answered state: correctly-selected choices get the cyan "correct" styling,
+   incorrectly-selected choices get the pink "wrong" styling, and any correct choice
+   the user didn't select should also be highlighted (e.g. cyan outline, no fill) so
+   they can see what they missed.
+8. Add a case "multi_select": to the renderQuestion() switch, wired the same way as
+   multiple_choice.
+9. Update formatCorrectAnswer() to handle multi_select the same way it currently
+   formats matching — split the "|"-joined string and display as a readable
+   comma-separated list.

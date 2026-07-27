@@ -75,6 +75,9 @@ function formatCorrectAnswer(type: string, answer: string): string {
       })
       .join(", ");
   }
+  if (type === "multi_select") {
+    return answer.split("|").join(", ");
+  }
   if (type === "true_false") {
     return answer.charAt(0).toUpperCase() + answer.slice(1);
   }
@@ -204,6 +207,119 @@ function MultipleChoiceQuestion({
                 color="#ffffff"
               >
                 Confirm: {selected}
+              </ActionBtn>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
+    </div>
+  );
+}
+
+// ─── Multi-select question ────────────────────────────────────────────────────
+function MultiSelectQuestion({
+  question, onSubmit, disabled, feedbackResult,
+}: {
+  question: Question;
+  onSubmit: (a: string) => void;
+  disabled: boolean;
+  feedbackResult: FeedbackResult | null;
+}) {
+  const opts = question.options as { choices?: string[] } | null;
+  const choices = opts?.choices ?? [];
+  const [selected, setSelected] = useState<string[]>([]);
+  useEffect(() => { setSelected([]); }, [question.id]);
+
+  const answered = !!feedbackResult;
+  const lockedSet = answered
+    ? new Set(feedbackResult!.lockedAnswer.split("|").map((s) => s.trim()).filter(Boolean))
+    : new Set<string>();
+
+  return (
+    <div className="flex flex-col gap-[10px]">
+      {!answered && (
+        <p className="text-[12px] font-semibold uppercase" style={{ letterSpacing: ".15em", color: "#a3aec2" }}>
+          Select all that apply
+        </p>
+      )}
+
+      {choices.map((choice, i) => {
+        const isLocked        = lockedSet.has(choice);
+        const isCorrectChoice = answered && isLocked &&  feedbackResult!.isCorrect;
+        const isWrongChoice   = answered && isLocked && !feedbackResult!.isCorrect;
+        const isDimmed        = answered && !isLocked;
+        const isSel           = !answered && selected.includes(choice);
+
+        let border      = "1px solid rgba(255,255,255,.12)";
+        let bg          = "rgba(255,255,255,.04)";
+        let badgeBg     = "transparent";
+        let badgeBorder = "rgba(255,255,255,.3)";
+        let badgeColor  = "#a3aec2";
+        let glow        = "none";
+        let trailing: React.ReactNode = null;
+
+        if (isCorrectChoice) {
+          border = "1px solid #00ddff"; bg = "rgba(0,221,255,.15)";
+          badgeBg = "#00ddff"; badgeBorder = "#00ddff"; badgeColor = "#0a0510";
+          glow = "0 0 22px rgba(0,221,255,.2)";
+          trailing = <Check className="h-4 w-4 shrink-0" style={{ color: "#00ddff" }} />;
+        } else if (isWrongChoice) {
+          border = "1px solid #ff0080"; bg = "rgba(255,0,128,.15)";
+          badgeBg = "#ff0080"; badgeBorder = "#ff0080"; badgeColor = "#ffffff";
+          trailing = <X className="h-4 w-4 shrink-0" style={{ color: "#ff0080" }} />;
+        } else if (isSel) {
+          border = "1px solid #00ddff"; bg = "rgba(0,221,255,.12)";
+          badgeBg = "#00ddff"; badgeBorder = "#00ddff"; badgeColor = "#0a0510";
+        }
+
+        const toggle = () => {
+          if (disabled || answered) return;
+          setSelected((prev) =>
+            prev.includes(choice) ? prev.filter((c) => c !== choice) : [...prev, choice],
+          );
+        };
+
+        return (
+          <motion.button
+            key={choice}
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: isDimmed ? 0.45 : 1, x: 0 }}
+            transition={{ delay: i * 0.05 }}
+            disabled={disabled || answered}
+            onClick={toggle}
+            className="flex items-center gap-3 w-full text-left transition-colors duration-150 focus:outline-none"
+            style={{
+              borderRadius: 14, padding: "15px 16px",
+              background: bg, border, boxShadow: glow,
+              cursor: disabled || answered ? "default" : "pointer",
+            }}
+          >
+            <span
+              className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full text-[13px] font-bold"
+              style={{ background: badgeBg, border: `1.5px solid ${badgeBorder}`, color: badgeColor }}
+            >
+              {CHOICE_LABELS[i]}
+            </span>
+            <span className="flex-1 font-semibold text-[15px] leading-snug">{choice}</span>
+            {trailing}
+          </motion.button>
+        );
+      })}
+
+      {/* Confirm button */}
+      {!answered && (
+        <AnimatePresence>
+          {selected.length > 0 && (
+            <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+              <ActionBtn
+                onClick={() => onSubmit([...selected].sort().join("|"))}
+                disabled={disabled}
+                pending={disabled}
+                pendingLabel="Submitting…"
+                bg="#ff0080"
+                color="#ffffff"
+              >
+                Confirm {selected.length} selection{selected.length !== 1 ? "s" : ""}
               </ActionBtn>
             </motion.div>
           )}
@@ -603,6 +719,8 @@ export default function GamePlay() {
     switch (q.questionType) {
       case "multiple_choice":
         return <MultipleChoiceQuestion {...sub} onSubmit={(a) => handleSubmit(q, a)} feedbackResult={fr} />;
+      case "multi_select":
+        return <MultiSelectQuestion {...sub} onSubmit={(a) => handleSubmit(q, a)} feedbackResult={fr} />;
       case "true_false":
         return <TrueFalseQuestion {...sub} onSubmit={(a) => handleSubmit(q, a)} feedbackResult={fr} />;
       case "matching":
