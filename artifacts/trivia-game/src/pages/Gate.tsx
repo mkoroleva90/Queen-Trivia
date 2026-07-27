@@ -212,7 +212,6 @@ export default function Gate() {
           }}
         />
       </div>
-
       {/* ── Top bar: back + progress dots ── */}
       <div className="relative z-10 flex items-center justify-between px-[22px] pt-14 pb-2">
         {/* Back chevron — hidden on step 0 */}
@@ -252,7 +251,6 @@ export default function Gate() {
 
         <div style={{ width: 36 }} />
       </div>
-
       {/* ── Screen content ── */}
       <div className="relative z-10 flex-1 flex flex-col px-[22px] pb-8">
         <AnimatePresence mode="wait">
@@ -266,10 +264,12 @@ export default function Gate() {
                   className="font-extrabold"
                   style={{ fontSize: 56, letterSpacing: "-.03em", lineHeight: .88 }}
                 >
-                  <span style={{ color: "#ffffff" }}>GAME</span>
+                  <span style={{ color: "#ffffff" }}>MK</span>
                   <br />
-                  <span style={{ color: "#00ddff", textShadow: "0 0 30px rgba(0,221,255,.6)" }}>
-                    NIGHT
+                  <span
+                    style={{ color: "#00ddff", textShadow: "0 0 30px rgba(0,221,255,.6)" }}
+                    className="text-[65px]">
+                    TRIVIA
                   </span>
                 </h1>
               </div>
@@ -443,7 +443,6 @@ export default function Gate() {
 
         </AnimatePresence>
       </div>
-
       {/* ── Footer ── */}
       <div className="relative z-10 pb-10 text-center px-[22px]">
         <p style={{ fontSize: 13, color: "#475569" }}>
