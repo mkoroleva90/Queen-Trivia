@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0d0f15;font-family:'Manrope',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#00ddff;text-decoration:none}a:hover{color:#5be9ff}
+.dv-turn{padding:48px 52px 44px;border-bottom:1px solid rgba(255,255,255,.06)}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 6px}
+.dv-tid{font:700 10px ui-monospace,Menlo,monospace;padding:4px 8px;background:#ff0080;color:#fff;border-radius:5px}
+.dv-tname{font:700 15px/1.3 'Manrope',system-ui;color:#eef2f8}
+.dv-sub{font:400 13px/1.5 'Manrope',system-ui;color:#8b93a7;margin:0 0 30px;max-width:640px}
+.dv-opts{display:flex;flex-wrap:wrap;gap:44px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:14px;scroll-margin-top:20px}
+.dv-oid{font:700 10.5px ui-monospace,Menlo,monospace;padding:4px 8px;background:rgba(255,255,255,.1);color:#dfe5f0;border-radius:6px}
+.dv-olabel{display:flex;align-items:baseline;gap:9px;font:500 12.5px/1.35 'Manrope',system-ui;color:#9aa3b5}
+.dv-opt:target .dv-oid{background:#ff0080;color:#fff}
+.dv-next{margin:30px 0 0;font:13px/1.6 'Manrope',system-ui;color:#8b93a7}
+.dv-next a{color:#c9d1e0}
+.ph{width:300px;border-radius:42px;padding:9px;background:linear-gradient(#20242e,#0a0b10);box-shadow:0 34px 70px -22px rgba(0,0,0,.85),0 0 0 1px rgba(255,255,255,.05)}
+.scr{position:relative;width:100%;height:600px;border-radius:34px;overflow:hidden;display:flex;flex-direction:column}
+.notch{position:absolute;top:9px;left:50%;transform:translateX(-50%);width:88px;height:6px;border-radius:3px;background:rgba(255,255,255,.14);z-index:5}
+.tbar{display:flex;align-items:center;justify-content:space-between;padding:26px 22px 6px}
+.bkslot{width:34px;height:34px;display:flex;align-items:center;justify-content:center}
+.bkbtn{cursor:pointer;border:none;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:rgba(255,255,255,.07);color:#9fb0c3;font:400 20px/1 'Manrope';padding:0 0 3px 0}
+.body{flex:1;display:flex;flex-direction:column;padding:0 22px 26px;min-height:0}
+.ctr{flex:1;display:flex;flex-direction:column;justify-content:center;min-height:0}
+input.mk{box-sizing:border-box;width:100%;appearance:none;outline:none;font-family:'Manrope'}
+input.mk::placeholder{color:rgba(255,255,255,.32)}
+.cta{cursor:pointer;border:none;appearance:none;font-family:'Manrope';display:flex;align-items:center;justify-content:center;width:100%}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+@keyframes glow{0%,100%{opacity:.55}50%{opacity:.95}}
+</style>
+</helmet>
+
+<section class="dv-turn" id="t2">
+<div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname">Built out — <a class="dv-oid" href="#1b">1b</a> playful onboarding + <a class="dv-oid" href="#1d">1d</a> gameplay, as one connected flow</span></div>
+<p class="dv-sub">A single clickable prototype: onboarding → lobby → live question → results. Tap the buttons to move through it; ‹ steps back, "Play again" loops you home.</p>
+<div class="dv-opts">
+
+<div class="dv-opt" id="2a">
+<div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a>End-to-end player flow</div>
+<div class="ph"><div class="scr" style="height:680px;background:linear-gradient(165deg,#2a0a3d 0%,#12061f 55%,#0a0510 100%)">
+<div style="position:absolute;top:-40px;left:-30px;width:210px;height:210px;border-radius:50%;background:radial-gradient(circle,rgba(255,0,128,.45),transparent 70%);filter:blur(22px);pointer-events:none"></div>
+<div style="position:absolute;bottom:-30px;right:-40px;width:230px;height:230px;border-radius:50%;background:radial-gradient(circle,rgba(0,221,255,.26),transparent 70%);filter:blur(24px);pointer-events:none"></div>
+<div class="notch"></div>
+<div class="tbar">
+<div class="bkslot"><sc-if value="{{f.canBack}}"><button class="bkbtn" onClick="{{fBack}}" style="background:rgba(255,255,255,.12)">‹</button></sc-if></div>
+<sc-if value="{{f.onboarding}}"><div style="display:flex;gap:7px">
+<sc-for list="{{f.dots}}" as="d" hint-placeholder-count="4">
+<sc-if value="{{d.on}}"><span style="width:24px;height:8px;border-radius:4px;background:#ffe500;box-shadow:0 0 12px rgba(255,229,0,.7)"></span></sc-if>
+<sc-if value="{{d.off}}"><span style="width:8px;height:8px;border-radius:4px;background:rgba(255,255,255,.22)"></span></sc-if>
+</sc-for>
+</div></sc-if>
+<div style="width:34px"></div>
+</div>
+<div class="body">
+
+<sc-if value="{{f.ob0}}"><div class="ctr" style="gap:20px">
+<span style="align-self:flex-start;font:800 10px/1 'Manrope';letter-spacing:.2em;color:#041016;background:#ffe500;padding:8px 12px;border-radius:20px">TONIGHT ONLY</span>
+<h1 style="margin:0;font:800 56px/.9 'Manrope';letter-spacing:-.03em;color:#fff">GAME<br><span style="color:#00ddff;text-shadow:0 0 30px rgba(0,221,255,.6)">NIGHT</span></h1>
+<p style="margin:0;font:500 16px/1.4 'Manrope';color:#c7b8e0">Big questions. Bigger bragging rights. Let's find out who's actually smart.</p>
+<button class="cta" onClick="{{fNext}}" style="margin-top:4px;height:58px;border-radius:18px;font:800 17px/1 'Manrope';letter-spacing:.06em;color:#041016;background:#ffe500;box-shadow:0 10px 30px rgba(255,229,0,.4)">Let's go →</button>
+</div></sc-if>
+
+<sc-if value="{{f.ob1}}"><div class="ctr" style="gap:18px">
+<h2 style="margin:0;font:800 30px/1 'Manrope';color:#fff;letter-spacing:-.02em">Here's the deal</h2>
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;align-items:stretch;border-radius:16px;overflow:hidden;background:rgba(255,255,255,.05)"><div style="width:8px;background:#ff0080"></div><div style="padding:14px 16px"><div style="font:800 16px 'Manrope';color:#fff">1 · Enter the code</div><div style="font:500 13px/1.4 'Manrope';color:#b7a8d0">Your host shares it at the door.</div></div></div>
+<div style="display:flex;align-items:stretch;border-radius:16px;overflow:hidden;background:rgba(255,255,255,.05)"><div style="width:8px;background:#00ddff"></div><div style="padding:14px 16px"><div style="font:800 16px 'Manrope';color:#fff">2 · Grab a name</div><div style="font:500 13px/1.4 'Manrope';color:#b7a8d0">Make it one they'll fear.</div></div></div>
+<div style="display:flex;align-items:stretch;border-radius:16px;overflow:hidden;background:rgba(255,255,255,.05)"><div style="width:8px;background:#ffe500"></div><div style="padding:14px 16px"><div style="font:800 16px 'Manrope';color:#fff">3 · Go fast</div><div style="font:500 13px/1.4 'Manrope';color:#b7a8d0">Speed = bonus points.</div></div></div>
+</div>
+<button class="cta" onClick="{{fNext}}" style="height:56px;border-radius:18px;font:800 16px 'Manrope';color:#fff;background:#ff0080;box-shadow:0 10px 30px rgba(255,0,128,.45)">Got it →</button>
+</div></sc-if>
+
+<sc-if value="{{f.ob2}}"><div class="ctr" style="gap:16px">
+<h2 style="margin:0;font:800 32px/1 'Manrope';color:#fff;letter-spacing:-.02em">Magic word?</h2>
+<p style="margin:0;font:500 14px 'Manrope';color:#b7a8d0">Punch in tonight's access code.</p>
+<input class="mk" placeholder="CODE" style="height:70px;text-align:center;text-transform:uppercase;font:800 30px 'Manrope';letter-spacing:.16em;color:#fff;background:rgba(0,0,0,.35);border:2px solid #00ddff;border-radius:18px;box-shadow:0 0 24px rgba(0,221,255,.25)">
+<button class="cta" onClick="{{fNext}}" style="height:58px;border-radius:18px;font:800 17px 'Manrope';color:#041016;background:#00ddff;box-shadow:0 10px 30px rgba(0,221,255,.4)">Check it →</button>
+</div></sc-if>
+
+<sc-if value="{{f.ob3}}"><div class="ctr" style="gap:16px">
+<h2 style="margin:0;font:800 32px/1 'Manrope';color:#fff;letter-spacing:-.02em">You're in!</h2>
+<p style="margin:0;font:500 14px 'Manrope';color:#b7a8d0">Pick a color and a name.</p>
+<div style="display:flex;gap:12px;justify-content:center;padding:4px 0">
+<span style="width:46px;height:46px;border-radius:16px;background:#ff0080;box-shadow:0 0 0 3px #ffe500"></span>
+<span style="width:46px;height:46px;border-radius:16px;background:#00ddff"></span>
+<span style="width:46px;height:46px;border-radius:16px;background:#8b5cf6"></span>
+<span style="width:46px;height:46px;border-radius:16px;background:#22c55e"></span>
+</div>
+<input class="mk" placeholder="YOUR NAME" style="height:60px;text-align:center;font:800 22px 'Manrope';color:#fff;background:rgba(0,0,0,.35);border:2px solid rgba(255,255,255,.2);border-radius:18px">
+<button class="cta" onClick="{{fNext}}" style="height:58px;border-radius:18px;font:800 17px 'Manrope';color:#041016;background:#ffe500;box-shadow:0 10px 30px rgba(255,229,0,.4)">Enter the lobby →</button>
+</div></sc-if>
+
+<sc-if value="{{f.lobby}}"><div style="flex:1;display:flex;flex-direction:column;gap:16px;min-height:0">
+<div><h1 style="margin:0;font:800 30px/1 'Manrope';color:#fff;letter-spacing:-.02em">THE LOBBY</h1>
+<p style="margin:4px 0 0;font:500 14px 'Manrope';color:#b7a8d0">Playing as <span style="color:#00ddff;font-weight:800">Alex</span></p></div>
+<div style="display:flex;gap:8px">
+<div style="flex:1;background:rgba(255,255,255,.05);border-radius:14px;padding:12px 10px;text-align:center"><div style="font:800 20px 'Manrope';color:#00ddff">1</div><div style="font:600 9px 'Manrope';letter-spacing:.14em;color:#8b7ea3">LIVE</div></div>
+<div style="flex:1;background:rgba(255,255,255,.05);border-radius:14px;padding:12px 10px;text-align:center"><div style="font:800 20px 'Manrope';color:#ffe500">12</div><div style="font:600 9px 'Manrope';letter-spacing:.14em;color:#8b7ea3">PLAYERS</div></div>
+<div style="flex:1;background:rgba(255,255,255,.05);border-radius:14px;padding:12px 10px;text-align:center"><div style="font:800 20px 'Manrope';color:#ff0080">340</div><div style="font:600 9px 'Manrope';letter-spacing:.14em;color:#8b7ea3">TOP</div></div>
+</div>
+<div style="border-radius:20px;padding:18px;background:linear-gradient(160deg,rgba(255,0,128,.16),rgba(255,0,128,.04));border:1.5px solid rgba(255,0,128,.4);display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;align-items:center;gap:7px;font:800 10px 'Manrope';letter-spacing:.18em;color:#ff5aa8"><span style="width:8px;height:8px;border-radius:50%;background:#ff0080;animation:pulse 1.6s ease-in-out infinite"></span>LIVE NOW</div>
+<h2 style="margin:0;font:800 24px/1.05 'Manrope';color:#fff">80s Movie Trivia</h2>
+<div style="display:flex;align-items:center;gap:8px"><span style="font:600 13px 'Manrope';color:#c7b8e0">12 questions</span><span style="color:#6b5a80">·</span><span style="font:800 9px 'Manrope';letter-spacing:.12em;color:#ffe500;background:rgba(255,229,0,.12);border:1px solid rgba(255,229,0,.35);padding:4px 8px;border-radius:8px">MEDIUM</span></div>
+<div style="display:flex;align-items:center;gap:0;padding:2px 0">
+<span style="width:30px;height:30px;border-radius:50%;background:#ff0080;border:2px solid #1a0728"></span>
+<span style="width:30px;height:30px;border-radius:50%;background:#00ddff;border:2px solid #1a0728;margin-left:-8px"></span>
+<span style="width:30px;height:30px;border-radius:50%;background:#8b5cf6;border:2px solid #1a0728;margin-left:-8px"></span>
+<span style="width:30px;height:30px;border-radius:50%;background:#22c55e;border:2px solid #1a0728;margin-left:-8px"></span>
+<span style="width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.1);border:2px solid #1a0728;margin-left:-8px;display:flex;align-items:center;justify-content:center;font:800 10px 'Manrope';color:#c7b8e0">+8</span>
+</div>
+<button class="cta" onClick="{{joinGame}}" style="height:54px;border-radius:16px;font:800 16px 'Manrope';color:#041016;background:#ffe500;box-shadow:0 10px 28px rgba(255,229,0,.4)">JOIN GAME →</button>
+</div>
+</div></sc-if>
+
+<sc-if value="{{f.game}}"><div style="flex:1;display:flex;flex-direction:column;min-height:0">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+<span style="font:700 10px 'Manrope';letter-spacing:.24em;color:#b7a8d0">QUESTION 4 / 12</span>
+<span style="display:flex;align-items:center;gap:5px;font:800 14px 'Manrope';color:#041016;background:#ffe500;padding:5px 11px;border-radius:20px;box-shadow:0 0 16px rgba(255,229,0,.4)">★ 230</span>
+</div>
+<div style="height:6px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden;margin-bottom:16px"><div style="height:100%;width:62%;border-radius:3px;background:linear-gradient(90deg,#ff0080,#ffe500);animation:glow 2s ease-in-out infinite"></div></div>
+<div style="display:flex;gap:8px;margin-bottom:12px">
+<span style="font:700 10px 'Manrope';letter-spacing:.12em;color:#00ddff;background:rgba(0,221,255,.12);border:1px solid rgba(0,221,255,.3);padding:5px 10px;border-radius:8px">GEOGRAPHY</span>
+<span style="font:700 10px 'Manrope';letter-spacing:.12em;color:#ffe500;background:rgba(255,229,0,.1);border:1px solid rgba(255,229,0,.3);padding:5px 10px;border-radius:8px">10 PTS</span>
+</div>
+<h2 style="margin:0 0 18px;font:800 22px/1.22 'Manrope';color:#fff;letter-spacing:-.01em">Which river is traditionally considered the longest in the world?</h2>
+<div style="display:flex;flex-direction:column;gap:10px">
+<sc-for list="{{fchoices}}" as="c" hint-placeholder-count="4">
+<sc-if value="{{c.def}}"><button class="cta" onClick="{{c.pick}}" style="justify-content:flex-start;gap:13px;padding:15px 16px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);text-align:left"><span style="flex:none;width:30px;height:30px;border-radius:50%;border:1.5px solid rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font:800 14px 'Manrope';color:#e6d9f6">{{c.L}}</span><span style="font:600 15px 'Manrope';color:#f0eafa">{{c.t}}</span></button></sc-if>
+<sc-if value="{{c.correct}}"><div style="display:flex;align-items:center;gap:13px;padding:15px 16px;border-radius:14px;border:1px solid #00ddff;background:rgba(0,221,255,.15);box-shadow:0 0 22px rgba(0,221,255,.2)"><span style="flex:none;width:30px;height:30px;border-radius:50%;background:#00ddff;display:flex;align-items:center;justify-content:center;font:800 14px 'Manrope';color:#041016">{{c.L}}</span><span style="font:700 15px 'Manrope';color:#eafcff;flex:1">{{c.t}}</span><span style="font:800 16px 'Manrope';color:#00ddff">✓</span></div></sc-if>
+<sc-if value="{{c.wrong}}"><div style="display:flex;align-items:center;gap:13px;padding:15px 16px;border-radius:14px;border:1px solid #ff0080;background:rgba(255,0,128,.15)"><span style="flex:none;width:30px;height:30px;border-radius:50%;background:#ff0080;display:flex;align-items:center;justify-content:center;font:800 14px 'Manrope';color:#fff">{{c.L}}</span><span style="font:700 15px 'Manrope';color:#ffe1ef;flex:1">{{c.t}}</span><span style="font:800 16px 'Manrope';color:#ff0080">✗</span></div></sc-if>
+<sc-if value="{{c.dim}}"><div style="display:flex;align-items:center;gap:13px;padding:15px 16px;border-radius:14px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.02);opacity:.45"><span style="flex:none;width:30px;height:30px;border-radius:50%;border:1.5px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font:800 14px 'Manrope';color:#e6d9f6">{{c.L}}</span><span style="font:600 15px 'Manrope';color:#f0eafa">{{c.t}}</span></div></sc-if>
+</sc-for>
+</div>
+<div style="margin-top:auto;padding-top:16px">
+<sc-if value="{{fAnswered}}"><button class="cta" onClick="{{gameNext}}" style="height:52px;border-radius:16px;font:800 15px 'Manrope';letter-spacing:.06em;color:#041016;background:#ffe500;box-shadow:0 10px 28px rgba(255,229,0,.4)">SEE RESULTS →</button></sc-if>
+<sc-if value="{{fUnanswered}}"><p style="margin:0;text-align:center;font:500 12px 'Manrope';color:#8b7ea3;animation:pulse 2s ease-in-out infinite">Tap your answer — the clock's ticking</p></sc-if>
+</div>
+</div></sc-if>
+
+<sc-if value="{{f.results}}"><div style="flex:1;display:flex;flex-direction:column;min-height:0">
+<div style="margin-bottom:18px">
+<div style="font:600 10px 'Manrope';letter-spacing:.28em;color:#8b7ea3">FINAL SCORES</div>
+<h1 style="margin:5px 0 2px;font:800 26px/1.05 'Manrope';color:#fff;letter-spacing:-.02em">80s Movie Trivia</h1>
+<p style="margin:0;font:500 13px 'Manrope';color:#8b7ea3">12 questions · 6 players</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:1px;border-radius:16px;overflow:hidden;background:rgba(255,255,255,.06)">
+<div style="display:flex;align-items:center;gap:14px;padding:16px 16px;background:linear-gradient(120deg,rgba(255,0,128,.16),rgba(255,0,128,.03))">
+<span style="width:20px;font:800 15px 'Manrope';color:#ff5aa8;text-align:center">1</span>
+<span style="width:36px;height:36px;border-radius:50%;background:#ff0080;display:flex;align-items:center;justify-content:center;font:800 15px 'Manrope';color:#fff">A</span>
+<span style="flex:1;font:800 16px 'Manrope';color:#fff">Alex</span>
+<span style="font:800 17px 'Manrope';color:#fff;font-variant-numeric:tabular-nums">340</span>
+</div>
+<div style="display:flex;align-items:center;gap:14px;padding:13px 16px;background:rgba(15,10,22,.6)">
+<span style="width:20px;font:700 14px 'Manrope';color:#8b7ea3;text-align:center">2</span>
+<span style="width:32px;height:32px;border-radius:50%;background:rgba(0,221,255,.9);display:flex;align-items:center;justify-content:center;font:800 13px 'Manrope';color:#041016">J</span>
+<span style="flex:1;font:700 15px 'Manrope';color:#f0eafa">Jamie</span>
+<span style="font:700 15px 'Manrope';color:#c7b8e0;font-variant-numeric:tabular-nums">290</span>
+</div>
+<div style="display:flex;align-items:center;gap:14px;padding:13px 16px;background:rgba(15,10,22,.6)">
+<span style="width:20px;font:700 14px 'Manrope';color:#8b7ea3;text-align:center">3</span>
+<span style="width:32px;height:32px;border-radius:50%;background:rgba(139,92,246,.9);display:flex;align-items:center;justify-content:center;font:800 13px 'Manrope';color:#fff">S</span>
+<span style="flex:1;font:700 15px 'Manrope';color:#f0eafa">Sam</span>
+<span style="font:700 15px 'Manrope';color:#c7b8e0;font-variant-numeric:tabular-nums">255</span>
+</div>
+<div style="display:flex;align-items:center;gap:14px;padding:13px 16px;background:rgba(255,255,255,.04);box-shadow:inset 2px 0 0 #ffe500">
+<span style="width:20px;font:700 14px 'Manrope';color:#ffe500;text-align:center">4</span>
+<span style="width:32px;height:32px;border-radius:50%;background:rgba(34,197,94,.9);display:flex;align-items:center;justify-content:center;font:800 13px 'Manrope';color:#041016">Y</span>
+<span style="flex:1;font:800 15px 'Manrope';color:#fff">You</span>
+<span style="font:800 15px 'Manrope';color:#ffe500;font-variant-numeric:tabular-nums">210</span>
+</div>
+<div style="display:flex;align-items:center;gap:14px;padding:13px 16px;background:rgba(15,10,22,.6)">
+<span style="width:20px;font:700 14px 'Manrope';color:#8b7ea3;text-align:center">5</span>
+<span style="width:32px;height:32px;border-radius:50%;background:rgba(249,115,22,.9);display:flex;align-items:center;justify-content:center;font:800 13px 'Manrope';color:#fff">R</span>
+<span style="flex:1;font:700 15px 'Manrope';color:#f0eafa">Riley</span>
+<span style="font:700 15px 'Manrope';color:#c7b8e0;font-variant-numeric:tabular-nums">195</span>
+</div>
+</div>
+<div style="margin-top:auto;display:flex;gap:10px;padding-top:18px">
+<button class="cta" onClick="{{restart}}" style="flex:1;height:52px;border-radius:14px;font:800 15px 'Manrope';letter-spacing:.02em;color:#041016;background:#ffe500">Play again</button>
+<button class="cta" style="cursor:pointer;width:92px;height:52px;border-radius:14px;font:700 14px 'Manrope';color:#f0eafa;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14)">Share</button>
+</div>
+</div></sc-if>
+
+</div>
+</div></div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "redesign the Lobby screen on its own" · "add a countdown timer to the question" · "add a celebration burst on the results screen" · "swap in a different sample question"</p>
+</section>
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Player onboarding — 3 directions + redesigned gameplay &amp; results</span></div>
+<p class="dv-sub">Same neon DNA (hot pink / cyan / electric yellow, Manrope). Each onboarding phone is a live 4-step flow — tap the button to advance, ‹ to go back. <a href="#1d">1d</a> gameplay lets you pick an answer; <a href="#1e">1e</a> is the final leaderboard.</p>
+<div class="dv-opts">
+
+<!-- ============ 1a REFINED NEON ============ -->
+<div class="dv-opt" id="1a">
+<div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Onboarding · Refined neon — cleaner, same vibe</div>
+<div class="ph"><div class="scr" style="background:radial-gradient(ellipse 80% 60% at 50% 0%,#0f1e2e 0%,#060c13 60%,#040810 100%)">
+<div class="notch"></div>
+<div class="tbar">
+<div class="bkslot"><sc-if value="{{a.canBack}}"><button class="bkbtn" onClick="{{backA}}">‹</button></sc-if></div>
+<div style="display:flex;gap:6px">
+<sc-for list="{{a.dots}}" as="d" hint-placeholder-count="4">
+<sc-if value="{{d.on}}"><span style="width:22px;height:6px;border-radius:3px;background:#ff0080;box-shadow:0 0 10px rgba(255,0,128,.6)"></span></sc-if>
+<sc-if value="{{d.off}}"><span style="width:6px;height:6px;border-radius:3px;background:rgba(255,255,255,.18)"></span></sc-if>
+</sc-for>
+</div>
+<div style="width:34px"></div>
+</div>
+<div class="body">
+<sc-if value="{{a.s0}}"><div class="ctr" style="text-align:center;gap:18px">
+<div style="display:flex;align-items:center;justify-content:center;gap:10px">
+<span style="height:1px;width:26px;background:linear-gradient(to right,transparent,rgba(255,0,128,.6))"></span>
+<span style="font:700 9px/1 'Manrope';letter-spacing:.34em;color:rgba(255,0,128,.85)">LIVE TONIGHT</span>
+<span style="height:1px;width:26px;background:linear-gradient(to left,transparent,rgba(255,0,128,.6))"></span>
+</div>
+<h1 style="margin:0;font:800 46px/.94 'Manrope';letter-spacing:-.02em;color:#ff0f8a;text-shadow:0 0 34px rgba(255,0,128,.55),0 0 70px rgba(255,0,128,.22)">GAME<br>NIGHT</h1>
+<p style="margin:0;font:300 15px/1.45 'Manrope';color:#8ea0b5">Big questions. Bigger bragging rights. Grab tonight's code and jump in.</p>
+<button class="cta" onClick="{{nextA}}" style="margin-top:6px;height:52px;border-radius:14px;font:800 15px/1 'Manrope';letter-spacing:.16em;color:#fff;background:linear-gradient(135deg,#ff0080,#c4006d);box-shadow:0 8px 30px rgba(255,0,128,.45),inset 0 1px 0 rgba(255,255,255,.15)">LET'S GO</button>
+</div></sc-if>
+<sc-if value="{{a.s1}}"><div class="ctr" style="gap:24px">
+<h2 style="margin:0;font:800 27px/1.04 'Manrope';color:#eef4ff;letter-spacing:-.01em">How it<br>works</h2>
+<div style="display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;gap:14px;align-items:flex-start"><span style="flex:none;width:34px;height:34px;border-radius:11px;display:flex;align-items:center;justify-content:center;font:800 15px 'Manrope';color:#041016;background:#00ddff;box-shadow:0 0 18px rgba(0,221,255,.4)">1</span><div><div style="font:700 15px 'Manrope';color:#eef4ff">Enter tonight's code</div><div style="font:400 13px/1.4 'Manrope';color:#7e8ea3">Your host shares it at the door.</div></div></div>
+<div style="display:flex;gap:14px;align-items:flex-start"><span style="flex:none;width:34px;height:34px;border-radius:11px;display:flex;align-items:center;justify-content:center;font:800 15px 'Manrope';color:#fff;background:#ff0080;box-shadow:0 0 18px rgba(255,0,128,.4)">2</span><div><div style="font:700 15px 'Manrope';color:#eef4ff">Claim your name</div><div style="font:400 13px/1.4 'Manrope';color:#7e8ea3">Pick a handle your rivals will remember.</div></div></div>
+<div style="display:flex;gap:14px;align-items:flex-start"><span style="flex:none;width:34px;height:34px;border-radius:11px;display:flex;align-items:center;justify-content:center;font:800 15px 'Manrope';color:#041016;background:#ffe500;box-shadow:0 0 18px rgba(255,229,0,.4)">3</span><div><div style="font:700 15px 'Manrope';color:#eef4ff">Answer fast, score big</div><div style="font:400 13px/1.4 'Manrope';color:#7e8ea3">Speed bonuses reward quick thinkers.</div></div></div>
+</div>
+<button class="cta" onClick="{{nextA}}" style="height:50px;border-radius:13px;font:800 14px 'Manrope';letter-spacing:.14em;color:#041016;background:linear-gradient(135deg,#00ddff,#00a7c4);box-shadow:0 8px 26px rgba(0,221,255,.35)">GOT IT</button>
+</div></sc-if>
+<sc-if value="{{a.s2}}"><div class="ctr" style="text-align:center;gap:16px">
+<div style="font:700 10px 'Manrope';letter-spacing:.28em;color:#00ddff">ACCESS CODE</div>
+<h2 style="margin:0;font:800 24px/1.1 'Manrope';color:#eef4ff">What's the magic word?</h2>
+<input class="mk" placeholder="ENTER CODE" style="height:60px;text-align:center;text-transform:uppercase;font:800 24px 'Manrope';letter-spacing:.18em;color:#eef4ff;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:14px;box-shadow:inset 0 2px 10px rgba(0,0,0,.4)">
+<button class="cta" onClick="{{nextA}}" style="height:52px;border-radius:14px;font:800 15px 'Manrope';letter-spacing:.16em;color:#fff;background:linear-gradient(135deg,#ff0080,#c4006d);box-shadow:0 8px 30px rgba(255,0,128,.45)">CHECK CODE</button>
+</div></sc-if>
+<sc-if value="{{a.s3}}"><div class="ctr" style="text-align:center;gap:16px">
+<div style="font:700 10px 'Manrope';letter-spacing:.28em;color:#00ddff">DISPLAY NAME</div>
+<h2 style="margin:0;font:800 24px/1.1 'Manrope';color:#eef4ff">Who's playing?</h2>
+<input class="mk" placeholder="YOUR NAME" style="height:56px;text-align:center;font:700 20px 'Manrope';color:#eef4ff;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:14px;box-shadow:inset 0 2px 10px rgba(0,0,0,.4)">
+<div style="display:flex;gap:10px;justify-content:center;padding:2px 0">
+<span style="width:40px;height:40px;border-radius:50%;background:#ff0080;box-shadow:0 0 0 3px rgba(255,255,255,.9),0 0 16px rgba(255,0,128,.5)"></span>
+<span style="width:40px;height:40px;border-radius:50%;background:#00ddff"></span>
+<span style="width:40px;height:40px;border-radius:50%;background:#ffe500"></span>
+<span style="width:40px;height:40px;border-radius:50%;background:#8b5cf6"></span>
+<span style="width:40px;height:40px;border-radius:50%;background:#22c55e"></span>
+</div>
+<button class="cta" onClick="{{nextA}}" style="height:52px;border-radius:14px;font:800 15px 'Manrope';letter-spacing:.16em;color:#fff;background:linear-gradient(135deg,#ff0080,#00ddff);box-shadow:0 8px 30px rgba(255,0,128,.4)">ENTER THE LOBBY</button>
+</div></sc-if>
+</div>
+</div></div>
+</div>
+
+<!-- ============ 1b PLAYFUL BOLD ============ -->
+<div class="dv-opt" id="1b">
+<div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Onboarding · Playful — bolder, color-blocked, chunky</div>
+<div class="ph"><div class="scr" style="background:linear-gradient(165deg,#2a0a3d 0%,#12061f 55%,#0a0510 100%)">
+<div style="position:absolute;top:-40px;left:-30px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(255,0,128,.5),transparent 70%);filter:blur(20px);pointer-events:none"></div>
+<div style="position:absolute;bottom:-30px;right:-40px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(0,221,255,.28),transparent 70%);filter:blur(22px);pointer-events:none"></div>
+<div class="notch"></div>
+<div class="tbar">
+<div class="bkslot"><sc-if value="{{b.canBack}}"><button class="bkbtn" onClick="{{backB}}" style="background:rgba(255,255,255,.12)">‹</button></sc-if></div>
+<div style="display:flex;gap:7px">
+<sc-for list="{{b.dots}}" as="d" hint-placeholder-count="4">
+<sc-if value="{{d.on}}"><span style="width:24px;height:8px;border-radius:4px;background:#ffe500;box-shadow:0 0 12px rgba(255,229,0,.7)"></span></sc-if>
+<sc-if value="{{d.off}}"><span style="width:8px;height:8px;border-radius:4px;background:rgba(255,255,255,.22)"></span></sc-if>
+</sc-for>
+</div>
+<div style="width:34px"></div>
+</div>
+<div class="body">
+<sc-if value="{{b.s0}}"><div class="ctr" style="gap:20px">
+<span style="align-self:flex-start;font:800 10px/1 'Manrope';letter-spacing:.2em;color:#041016;background:#ffe500;padding:8px 12px;border-radius:20px">TONIGHT ONLY</span>
+<h1 style="margin:0;font:800 56px/.9 'Manrope';letter-spacing:-.03em;color:#fff">GAME<br><span style="color:#00ddff;text-shadow:0 0 30px rgba(0,221,255,.6)">NIGHT</span></h1>
+<p style="margin:0;font:500 16px/1.4 'Manrope';color:#c7b8e0">Big questions. Bigger bragging rights. Let's find out who's actually smart.</p>
+<button class="cta" onClick="{{nextB}}" style="margin-top:4px;height:58px;border-radius:18px;font:800 17px/1 'Manrope';letter-spacing:.06em;color:#041016;background:#ffe500;box-shadow:0 10px 30px rgba(255,229,0,.4)">Let's go →</button>
+</div></sc-if>
+<sc-if value="{{b.s1}}"><div class="ctr" style="gap:18px">
+<h2 style="margin:0;font:800 30px/1 'Manrope';color:#fff;letter-spacing:-.02em">Here's the deal</h2>
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;gap:0;align-items:stretch;border-radius:16px;overflow:hidden;background:rgba(255,255,255,.05)"><div style="width:8px;background:#ff0080"></div><div style="padding:14px 16px"><div style="font:800 16px 'Manrope';color:#fff">1 · Enter the code</div><div style="font:500 13px/1.4 'Manrope';color:#b7a8d0">Your host shares it at the door.</div></div></div>
+<div style="display:flex;gap:0;align-items:stretch;border-radius:16px;overflow:hidden;background:rgba(255,255,255,.05)"><div style="width:8px;background:#00ddff"></div><div style="padding:14px 16px"><div style="font:800 16px 'Manrope';color:#fff">2 · Grab a name</div><div style="font:500 13px/1.4 'Manrope';color:#b7a8d0">Make it one they'll fear.</div></div></div>
+<div style="display:flex;gap:0;align-items:stretch;border-radius:16px;overflow:hidden;background:rgba(255,255,255,.05)"><div style="width:8px;background:#ffe500"></div><div style="padding:14px 16px"><div style="font:800 16px 'Manrope';color:#fff">3 · Go fast</div><div style="font:500 13px/1.4 'Manrope';color:#b7a8d0">Speed = bonus points.</div></div></div>
+</div>
+<button class="cta" onClick="{{nextB}}" style="height:56px;border-radius:18px;font:800 16px 'Manrope';color:#fff;background:#ff0080;box-shadow:0 10px 30px rgba(255,0,128,.45)">Got it →</button>
+</div></sc-if>
+<sc-if value="{{b.s2}}"><div class="ctr" style="gap:16px">
+<h2 style="margin:0;font:800 32px/1 'Manrope';color:#fff;letter-spacing:-.02em">Magic word?</h2>
+<p style="margin:0;font:500 14px 'Manrope';color:#b7a8d0">Punch in tonight's access code.</p>
+<input class="mk" placeholder="CODE" style="height:70px;text-align:center;text-transform:uppercase;font:800 30px 'Manrope';letter-spacing:.16em;color:#fff;background:rgba(0,0,0,.35);border:2px solid #00ddff;border-radius:18px;box-shadow:0 0 24px rgba(0,221,255,.25)">
+<button class="cta" onClick="{{nextB}}" style="height:58px;border-radius:18px;font:800 17px 'Manrope';color:#041016;background:#00ddff;box-shadow:0 10px 30px rgba(0,221,255,.4)">Check it →</button>
+</div></sc-if>
+<sc-if value="{{b.s3}}"><div class="ctr" style="gap:16px">
+<h2 style="margin:0;font:800 32px/1 'Manrope';color:#fff;letter-spacing:-.02em">You're in!</h2>
+<p style="margin:0;font:500 14px 'Manrope';color:#b7a8d0">Pick a color and a name.</p>
+<div style="display:flex;gap:12px;justify-content:center;padding:4px 0">
+<span style="width:46px;height:46px;border-radius:16px;background:#ff0080;box-shadow:0 0 0 3px #ffe500"></span>
+<span style="width:46px;height:46px;border-radius:16px;background:#00ddff"></span>
+<span style="width:46px;height:46px;border-radius:16px;background:#8b5cf6"></span>
+<span style="width:46px;height:46px;border-radius:16px;background:#22c55e"></span>
+</div>
+<input class="mk" placeholder="YOUR NAME" style="height:60px;text-align:center;font:800 22px 'Manrope';color:#fff;background:rgba(0,0,0,.35);border:2px solid rgba(255,255,255,.2);border-radius:18px">
+<button class="cta" onClick="{{nextB}}" style="height:58px;border-radius:18px;font:800 17px 'Manrope';color:#041016;background:#ffe500;box-shadow:0 10px 30px rgba(255,229,0,.4)">Enter the lobby →</button>
+</div></sc-if>
+</div>
+</div></div>
+</div>
+
+<!-- ============ 1c PREMIUM RESTRAINED ============ -->
+<div class="dv-opt" id="1c">
+<div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Onboarding · Premium — neon dialed back, spacious</div>
+<div class="ph"><div class="scr" style="background:#08090d">
+<div style="position:absolute;top:-60px;left:50%;transform:translateX(-50%);width:280px;height:220px;background:radial-gradient(ellipse,rgba(224,64,154,.18),transparent 70%);filter:blur(30px);pointer-events:none"></div>
+<div class="notch"></div>
+<div class="tbar" style="padding-top:28px">
+<div class="bkslot"><sc-if value="{{c.canBack}}"><button class="bkbtn" onClick="{{backC}}" style="background:transparent;border:1px solid rgba(255,255,255,.14)">‹</button></sc-if></div>
+<div style="display:flex;gap:8px;align-items:center">
+<sc-for list="{{c.dots}}" as="d" hint-placeholder-count="4">
+<sc-if value="{{d.on}}"><span style="width:18px;height:2px;background:#e0409a"></span></sc-if>
+<sc-if value="{{d.off}}"><span style="width:18px;height:2px;background:rgba(255,255,255,.14)"></span></sc-if>
+</sc-for>
+</div>
+<div style="width:34px"></div>
+</div>
+<div class="body" style="padding:0 26px 30px">
+<sc-if value="{{c.s0}}"><div class="ctr" style="gap:22px">
+<span style="font:600 10px/1 'Manrope';letter-spacing:.4em;color:#6b7280">TRIVIA · LIVE</span>
+<h1 style="margin:0;font:300 44px/1.02 'Manrope';letter-spacing:-.01em;color:#f5f5f7">Game<br><span style="font-weight:700;color:#e0409a">night</span>.</h1>
+<div style="height:1px;width:40px;background:rgba(255,255,255,.14)"></div>
+<p style="margin:0;font:300 15px/1.6 'Manrope';color:#9096a1">An evening of questions worth arguing about. Join in a few taps.</p>
+<button class="cta" onClick="{{nextC}}" style="margin-top:8px;height:54px;border-radius:12px;font:600 14px 'Manrope';letter-spacing:.04em;color:#fff;background:#e0409a">Begin</button>
+</div></sc-if>
+<sc-if value="{{c.s1}}"><div class="ctr" style="gap:28px">
+<h2 style="margin:0;font:300 26px/1.2 'Manrope';color:#f5f5f7">Three steps.</h2>
+<div style="display:flex;flex-direction:column;gap:22px">
+<div style="display:flex;gap:16px;align-items:baseline;padding-bottom:22px;border-bottom:1px solid rgba(255,255,255,.08)"><span style="font:300 20px 'Manrope';color:#e0409a;width:24px">01</span><div><div style="font:600 15px 'Manrope';color:#f5f5f7">Enter the code</div><div style="font:300 13px/1.5 'Manrope';color:#8b909b;margin-top:2px">Provided by your host.</div></div></div>
+<div style="display:flex;gap:16px;align-items:baseline;padding-bottom:22px;border-bottom:1px solid rgba(255,255,255,.08)"><span style="font:300 20px 'Manrope';color:#e0409a;width:24px">02</span><div><div style="font:600 15px 'Manrope';color:#f5f5f7">Choose a name</div><div style="font:300 13px/1.5 'Manrope';color:#8b909b;margin-top:2px">How you'll appear on the board.</div></div></div>
+<div style="display:flex;gap:16px;align-items:baseline"><span style="font:300 20px 'Manrope';color:#e0409a;width:24px">03</span><div><div style="font:600 15px 'Manrope';color:#f5f5f7">Play</div><div style="font:300 13px/1.5 'Manrope';color:#8b909b;margin-top:2px">Answer quickly for more points.</div></div></div>
+</div>
+<button class="cta" onClick="{{nextC}}" style="height:54px;border-radius:12px;font:600 14px 'Manrope';color:#fff;background:#e0409a">Continue</button>
+</div></sc-if>
+<sc-if value="{{c.s2}}"><div class="ctr" style="gap:20px">
+<span style="font:600 10px 'Manrope';letter-spacing:.32em;color:#6b7280">ACCESS CODE</span>
+<h2 style="margin:0;font:300 28px/1.15 'Manrope';color:#f5f5f7">Enter your code.</h2>
+<input class="mk" placeholder="——————" style="height:64px;text-align:center;text-transform:uppercase;font:300 30px 'Manrope';letter-spacing:.3em;color:#f5f5f7;background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,.22)">
+<button class="cta" onClick="{{nextC}}" style="margin-top:8px;height:54px;border-radius:12px;font:600 14px 'Manrope';color:#fff;background:#e0409a">Verify</button>
+</div></sc-if>
+<sc-if value="{{c.s3}}"><div class="ctr" style="gap:20px">
+<span style="font:600 10px 'Manrope';letter-spacing:.32em;color:#6b7280">YOUR NAME</span>
+<h2 style="margin:0;font:300 28px/1.15 'Manrope';color:#f5f5f7">Almost there.</h2>
+<input class="mk" placeholder="Type your name" style="height:60px;text-align:center;font:300 22px 'Manrope';color:#f5f5f7;background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,.22)">
+<div style="display:flex;gap:14px;justify-content:center;padding:4px 0">
+<span style="width:34px;height:34px;border-radius:50%;background:#e0409a;box-shadow:0 0 0 2px #08090d,0 0 0 3px rgba(255,255,255,.5)"></span>
+<span style="width:34px;height:34px;border-radius:50%;background:#4b5563"></span>
+<span style="width:34px;height:34px;border-radius:50%;background:#6b7280"></span>
+<span style="width:34px;height:34px;border-radius:50%;background:#374151"></span>
+</div>
+<button class="cta" onClick="{{nextC}}" style="margin-top:4px;height:54px;border-radius:12px;font:600 14px 'Manrope';color:#fff;background:#e0409a">Enter lobby</button>
+</div></sc-if>
+</div>
+</div></div>
+</div>
+
+<!-- ============ 1d GAMEPLAY ============ -->
+<div class="dv-opt" id="1d">
+<div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>Gameplay — tap an answer</div>
+<div class="ph"><div class="scr" style="height:640px;background:radial-gradient(ellipse 90% 50% at 50% 0%,#12233a 0%,#070d16 60%,#04070d 100%)">
+<div class="notch"></div>
+<div style="padding:28px 20px 0">
+<div style="display:flex;align-items:center;justify-content:space-between">
+<button class="bkbtn" style="cursor:default">‹</button>
+<span style="font:700 10px 'Manrope';letter-spacing:.24em;color:#8ea0b5">QUESTION 4 / 12</span>
+<span style="display:flex;align-items:center;gap:5px;font:800 14px 'Manrope';color:#041016;background:#ffe500;padding:5px 11px;border-radius:20px;box-shadow:0 0 16px rgba(255,229,0,.4)">★ 230</span>
+</div>
+<div style="margin-top:14px;height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden"><div style="height:100%;width:62%;border-radius:3px;background:linear-gradient(90deg,#ff0080,#ffe500);animation:glow 2s ease-in-out infinite"></div></div>
+</div>
+<div class="body" style="padding:20px 20px 22px;justify-content:flex-start">
+<div style="display:flex;gap:8px;margin-bottom:14px">
+<span style="font:700 10px 'Manrope';letter-spacing:.12em;color:#00ddff;background:rgba(0,221,255,.12);border:1px solid rgba(0,221,255,.3);padding:5px 10px;border-radius:8px">GEOGRAPHY</span>
+<span style="font:700 10px 'Manrope';letter-spacing:.12em;color:#ffe500;background:rgba(255,229,0,.1);border:1px solid rgba(255,229,0,.3);padding:5px 10px;border-radius:8px">10 PTS</span>
+</div>
+<h2 style="margin:0 0 20px;font:800 21px/1.25 'Manrope';color:#eef4ff;letter-spacing:-.01em">Which river is traditionally considered the longest in the world?</h2>
+<div style="display:flex;flex-direction:column;gap:11px">
+<sc-for list="{{gpChoices}}" as="c" hint-placeholder-count="4">
+<sc-if value="{{c.def}}"><button class="cta" onClick="{{c.pick}}" style="justify-content:flex-start;gap:13px;padding:15px 16px;border-radius:14px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.03);text-align:left"><span style="flex:none;width:30px;height:30px;border-radius:50%;border:1.5px solid rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font:800 14px 'Manrope';color:#c9d4e2">{{c.L}}</span><span style="font:600 15px 'Manrope';color:#e6edf6">{{c.t}}</span></button></sc-if>
+<sc-if value="{{c.correct}}"><div style="display:flex;align-items:center;gap:13px;padding:15px 16px;border-radius:14px;border:1px solid #00ddff;background:rgba(0,221,255,.15);box-shadow:0 0 22px rgba(0,221,255,.2)"><span style="flex:none;width:30px;height:30px;border-radius:50%;background:#00ddff;display:flex;align-items:center;justify-content:center;font:800 14px 'Manrope';color:#041016">{{c.L}}</span><span style="font:700 15px 'Manrope';color:#eafcff;flex:1">{{c.t}}</span><span style="font:800 16px 'Manrope';color:#00ddff">✓</span></div></sc-if>
+<sc-if value="{{c.wrong}}"><div style="display:flex;align-items:center;gap:13px;padding:15px 16px;border-radius:14px;border:1px solid #ff0080;background:rgba(255,0,128,.15)"><span style="flex:none;width:30px;height:30px;border-radius:50%;background:#ff0080;display:flex;align-items:center;justify-content:center;font:800 14px 'Manrope';color:#fff">{{c.L}}</span><span style="font:700 15px 'Manrope';color:#ffe1ef;flex:1">{{c.t}}</span><span style="font:800 16px 'Manrope';color:#ff0080">✗</span></div></sc-if>
+<sc-if value="{{c.dim}}"><div style="display:flex;align-items:center;gap:13px;padding:15px 16px;border-radius:14px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.02);opacity:.45"><span style="flex:none;width:30px;height:30px;border-radius:50%;border:1.5px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font:800 14px 'Manrope';color:#c9d4e2">{{c.L}}</span><span style="font:600 15px 'Manrope';color:#e6edf6">{{c.t}}</span></div></sc-if>
+</sc-for>
+</div>
+<div style="margin-top:auto;padding-top:18px">
+<sc-if value="{{gpAnswered}}"><button class="cta" onClick="{{gpReset}}" style="height:50px;border-radius:13px;font:800 14px 'Manrope';letter-spacing:.1em;color:#fff;background:linear-gradient(135deg,#ff0080,#c4006d);box-shadow:0 8px 26px rgba(255,0,128,.4)">NEXT QUESTION →</button></sc-if>
+<sc-if value="{{gpUnanswered}}"><p style="margin:0;text-align:center;font:500 12px 'Manrope';color:#6b7a8d;animation:pulse 2s ease-in-out infinite">Tap your answer — the clock's ticking</p></sc-if>
+</div>
+</div>
+</div></div>
+</div>
+
+<!-- ============ 1e RESULTS ============ -->
+<div class="dv-opt" id="1e">
+<div class="dv-olabel"><a class="dv-oid" href="#1e">1e</a>Results — final leaderboard</div>
+<div class="ph"><div class="scr" style="height:640px;background:radial-gradient(ellipse 90% 50% at 50% 0%,#2a0f22 0%,#0c0710 55%,#060409 100%)">
+<div class="notch"></div>
+<div style="padding:30px 22px 4px;text-align:center">
+<div style="font:700 10px 'Manrope';letter-spacing:.3em;color:#ffe500">GAME OVER</div>
+<h1 style="margin:6px 0 2px;font:800 30px/1 'Manrope';color:#fff;letter-spacing:-.01em">FINAL SCORES</h1>
+<p style="margin:0;font:500 13px 'Manrope';color:#b98fb0">80s Movie Trivia · 12 questions</p>
+</div>
+<div class="body" style="padding:14px 20px 22px;justify-content:flex-start">
+<div style="display:flex;align-items:flex-end;justify-content:center;gap:8px;margin-bottom:18px">
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+<div style="width:44px;height:44px;border-radius:50%;background:#00ddff;display:flex;align-items:center;justify-content:center;font:800 17px 'Manrope';color:#041016">J</div>
+<div style="font:700 12px 'Manrope';color:#eef4ff;max-width:64px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Jamie</div>
+<div style="font:800 14px 'Manrope';color:#00ddff">290</div>
+<div style="width:100%;height:64px;border-radius:10px 10px 0 0;background:linear-gradient(#0d2a33,#0a1a20);display:flex;align-items:flex-start;justify-content:center;padding-top:8px;font:800 18px 'Manrope';color:#4a6b74">2</div>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+<div style="font:700 18px/1 'Manrope';color:#ffe500">♛</div>
+<div style="width:54px;height:54px;border-radius:50%;background:#ff0080;display:flex;align-items:center;justify-content:center;font:800 20px 'Manrope';color:#fff;box-shadow:0 0 24px rgba(255,0,128,.5)">A</div>
+<div style="font:800 13px 'Manrope';color:#fff;max-width:70px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Alex</div>
+<div style="font:800 16px 'Manrope';color:#ffe500">340</div>
+<div style="width:100%;height:88px;border-radius:10px 10px 0 0;background:linear-gradient(#3a0d2a,#240818);display:flex;align-items:flex-start;justify-content:center;padding-top:8px;font:800 22px 'Manrope';color:#ff0080">1</div>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+<div style="width:44px;height:44px;border-radius:50%;background:#8b5cf6;display:flex;align-items:center;justify-content:center;font:800 17px 'Manrope';color:#fff">S</div>
+<div style="font:700 12px 'Manrope';color:#eef4ff;max-width:64px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Sam</div>
+<div style="font:800 14px 'Manrope';color:#a78bfa">255</div>
+<div style="width:100%;height:48px;border-radius:10px 10px 0 0;background:linear-gradient(#211630,#150d20);display:flex;align-items:flex-start;justify-content:center;padding-top:8px;font:800 16px 'Manrope';color:#6d5a9c">3</div>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07)"><span style="width:20px;font:800 13px 'Manrope';color:#7e8ea3;text-align:center">4</span><span style="width:30px;height:30px;border-radius:50%;background:#22c55e;display:flex;align-items:center;justify-content:center;font:800 13px 'Manrope';color:#041016">Y</span><span style="flex:1;font:700 14px 'Manrope';color:#eef4ff">You <span style="font:700 10px 'Manrope';color:#ff0080">(that's you!)</span></span><span style="font:800 14px 'Manrope';color:#ffe500">210</span></div>
+<div style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;background:rgba(255,0,128,.08);border:1px solid rgba(255,0,128,.25)"><span style="width:20px;font:800 13px 'Manrope';color:#7e8ea3;text-align:center">5</span><span style="width:30px;height:30px;border-radius:50%;background:#f97316;display:flex;align-items:center;justify-content:center;font:800 13px 'Manrope';color:#fff">R</span><span style="flex:1;font:700 14px 'Manrope';color:#eef4ff">Riley</span><span style="font:800 14px 'Manrope';color:#c9d4e2">195</span></div>
+<div style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07)"><span style="width:20px;font:800 13px 'Manrope';color:#7e8ea3;text-align:center">6</span><span style="width:30px;height:30px;border-radius:50%;background:#06b6d4;display:flex;align-items:center;justify-content:center;font:800 13px 'Manrope';color:#041016">M</span><span style="flex:1;font:700 14px 'Manrope';color:#eef4ff">Morgan</span><span style="font:800 14px 'Manrope';color:#c9d4e2">180</span></div>
+</div>
+<div style="margin-top:auto;display:flex;gap:10px;padding-top:18px">
+<button class="cta" style="cursor:pointer;flex:1;height:50px;border-radius:13px;font:800 14px 'Manrope';letter-spacing:.06em;color:#fff;background:linear-gradient(135deg,#ff0080,#c4006d);box-shadow:0 8px 24px rgba(255,0,128,.4)">Play again</button>
+<button class="cta" style="cursor:pointer;width:96px;height:50px;border-radius:13px;font:700 14px 'Manrope';color:#c9d4e2;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)">Share</button>
+</div>
+</div>
+</div></div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "build out <a class="dv-oid" href="#1b">1b</a> as the full flow" · "apply <a class="dv-oid" href="#1c">1c</a>'s restraint to <a class="dv-oid" href="#1d">1d</a>" · "redesign the Lobby too" · "make <a class="dv-oid" href="#1a">1a</a> the direction and add a celebration screen"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { a: 0, b: 0, c: 0, gpSel: null, f: 0, fsel: null };
+  mk(v) {
+    return {
+      idx: v, s0: v === 0, s1: v === 1, s2: v === 2, s3: v === 3,
+      canBack: v > 0,
+      dots: [0, 1, 2, 3].map(i => ({ on: i === v, off: i !== v })),
+    };
+  }
+  renderVals() {
+    const adv = k => () => this.setState(s => ({ [k]: (s[k] + 1) % 4 }));
+    const bak = k => () => this.setState(s => ({ [k]: (s[k] + 3) % 4 }));
+    const sel = this.state.gpSel;
+    const correct = 1;
+    const raw = [
+      { L: "A", t: "The Amazon" },
+      { L: "B", t: "The Nile" },
+      { L: "C", t: "The Yangtze" },
+      { L: "D", t: "The Mississippi" },
+    ];
+    const gpChoices = raw.map((c, i) => ({
+      L: c.L, t: c.t,
+      def: sel === null,
+      correct: sel !== null && i === correct,
+      wrong: sel === i && i !== correct,
+      dim: sel !== null && i !== correct && sel !== i,
+      pick: () => this.setState({ gpSel: i }),
+    }));
+    // ── Built-out flow (1b + 1d): ob0,ob1,ob2,ob3,lobby,game,results ──
+    const fi = this.state.f;
+    const fsel = this.state.fsel;
+    const fchoices = raw.map((c, i) => ({
+      L: c.L, t: c.t,
+      def: fsel === null,
+      correct: fsel !== null && i === correct,
+      wrong: fsel === i && i !== correct,
+      dim: fsel !== null && i !== correct && fsel !== i,
+      pick: () => this.setState({ fsel: i }),
+    }));
+    const f = {
+      idx: fi,
+      ob0: fi === 0, ob1: fi === 1, ob2: fi === 2, ob3: fi === 3,
+      lobby: fi === 4, game: fi === 5, results: fi === 6,
+      onboarding: fi < 4,
+      canBack: fi > 0 && fi < 6,
+      dots: [0, 1, 2, 3].map(i => ({ on: i === fi, off: i !== fi })),
+    };
+
+    return {
+      f, fchoices,
+      fNext: () => this.setState(s => ({ f: Math.min(s.f + 1, 6) })),
+      fBack: () => this.setState(s => ({ f: Math.max(s.f - 1, 0) })),
+      joinGame: () => this.setState({ f: 5, fsel: null }),
+      gameNext: () => this.setState({ f: 6 }),
+      restart: () => this.setState({ f: 0, fsel: null }),
+      fAnswered: fsel !== null,
+      fUnanswered: fsel === null,
+      a: this.mk(this.state.a), b: this.mk(this.state.b), c: this.mk(this.state.c),
+      nextA: adv("a"), backA: bak("a"),
+      nextB: adv("b"), backB: bak("b"),
+      nextC: adv("c"), backC: bak("c"),
+      gpChoices,
+      gpAnswered: sel !== null,
+      gpUnanswered: sel === null,
+      gpReset: () => this.setState({ gpSel: null }),
+    };
+  }
+}
+</script>
+</body>
+</html>
