@@ -235,7 +235,7 @@ export const RegenerateQuestionParams = zod.object({
 
 export const RegenerateQuestionBody = zod.object({
   "difficulty": zod.enum(['easy', 'medium', 'hard']).optional(),
-  "questionType": zod.enum(['multiple_choice', 'true_false', 'write_in', 'multi_select', 'ordering', 'slider', 'image_hotspot']).optional()
+  "questionType": zod.enum(['multiple_choice', 'true_false', 'write_in', 'multi_select', 'ordering', 'slider', 'image_hotspot', 'short_response']).optional()
 })
 
 export const RegenerateQuestionResponse = zod.object({
@@ -294,7 +294,7 @@ export const ListGameQuestionsResponseItem = zod.object({
   "id": zod.number(),
   "gameId": zod.number(),
   "questionText": zod.string(),
-  "questionType": zod.enum(['multiple_choice', 'write_in', 'matching', 'image_recognition', 'true_false', 'multi_select', 'ordering', 'slider', 'image_hotspot']),
+  "questionType": zod.enum(['multiple_choice', 'write_in', 'matching', 'image_recognition', 'true_false', 'multi_select', 'ordering', 'slider', 'image_hotspot', 'short_response']),
   "correctAnswer": zod.string().optional(),
   "options": zod.record(zod.string(), zod.unknown()).nullable(),
   "imageUrl": zod.string().nullable(),
@@ -324,7 +324,7 @@ export const createQuestionBodyOrderIndexMin = 0;
 
 export const CreateQuestionBody = zod.object({
   "questionText": zod.string().min(1),
-  "questionType": zod.enum(['multiple_choice', 'write_in', 'matching', 'image_recognition', 'true_false', 'multi_select', 'ordering', 'slider', 'image_hotspot']),
+  "questionType": zod.enum(['multiple_choice', 'write_in', 'matching', 'image_recognition', 'true_false', 'multi_select', 'ordering', 'slider', 'image_hotspot', 'short_response']),
   "correctAnswer": zod.string().min(1),
   "options": zod.record(zod.string(), zod.unknown()).nullish(),
   "imageUrl": zod.string().nullish(),
@@ -340,7 +340,7 @@ export const CreateQuestionResponse = zod.object({
   "id": zod.number(),
   "gameId": zod.number(),
   "questionText": zod.string(),
-  "questionType": zod.enum(['multiple_choice', 'write_in', 'matching', 'image_recognition', 'true_false', 'multi_select', 'ordering', 'slider', 'image_hotspot']),
+  "questionType": zod.enum(['multiple_choice', 'write_in', 'matching', 'image_recognition', 'true_false', 'multi_select', 'ordering', 'slider', 'image_hotspot', 'short_response']),
   "correctAnswer": zod.string().optional(),
   "options": zod.record(zod.string(), zod.unknown()).nullable(),
   "imageUrl": zod.string().nullable(),
@@ -369,7 +369,7 @@ export const updateQuestionBodyOrderIndexMin = 0;
 
 export const UpdateQuestionBody = zod.object({
   "questionText": zod.string().min(1).optional(),
-  "questionType": zod.enum(['multiple_choice', 'write_in', 'matching', 'image_recognition', 'true_false', 'multi_select', 'ordering', 'slider', 'image_hotspot']).optional(),
+  "questionType": zod.enum(['multiple_choice', 'write_in', 'matching', 'image_recognition', 'true_false', 'multi_select', 'ordering', 'slider', 'image_hotspot', 'short_response']).optional(),
   "correctAnswer": zod.string().min(1).optional(),
   "options": zod.record(zod.string(), zod.unknown()).nullish(),
   "imageUrl": zod.string().nullish(),
@@ -384,7 +384,7 @@ export const UpdateQuestionResponse = zod.object({
   "id": zod.number(),
   "gameId": zod.number(),
   "questionText": zod.string(),
-  "questionType": zod.enum(['multiple_choice', 'write_in', 'matching', 'image_recognition', 'true_false', 'multi_select', 'ordering', 'slider', 'image_hotspot']),
+  "questionType": zod.enum(['multiple_choice', 'write_in', 'matching', 'image_recognition', 'true_false', 'multi_select', 'ordering', 'slider', 'image_hotspot', 'short_response']),
   "correctAnswer": zod.string().optional(),
   "options": zod.record(zod.string(), zod.unknown()).nullable(),
   "imageUrl": zod.string().nullable(),
@@ -467,7 +467,8 @@ export const SubmitAnswerResponse = zod.object({
   "answeredAt": zod.string(),
   "pointsEarned": zod.number(),
   "totalScore": zod.number(),
-  "correctAnswer": zod.string().optional()
+  "correctAnswer": zod.string().optional(),
+  "feedback": zod.string().optional()
 })
 
 

@@ -1039,3 +1039,74 @@ Is this factually correct? Return JSON only:
 }
 
 
+
+// ─── AI grader for short_response questions ────────────────────────────────────
+
+export type AIGradeResult = {
+    isCorrect: boolean;
+    pointsEarned: number;
+    feedback: string;
+};
+
+const AI_GRADE_FALLBACK: AIGradeResult = {
+    isCorrect: false,
+    pointsEarned: 0,
+    feedback: "We couldn't grade this automatically — an admin will review it.",
+};
+
+export async function gradeWithAI({
+    questionText,
+    correctAnswer,
+    rubric,
+    userAnswer,
+    points,
+}: {
+    questionText: string;
+    correctAnswer: string;
+    rubric?: string;
+    userAnswer: string;
+    points: number;
+}): Promise<AIGradeResult> {
+    const apiKey = process.env.GOOGLE_API_KEY;
+    if (!apiKey) return AI_GRADE_FALLBACK;
+
+    const criteria = rubric
+        ? `Grading rubric: ${rubric}`
+        : `Model answer / key facts: ${correctAnswer}`;
+
+    const prompt = `You are grading a short-response quiz question. Be fair but accurate.
+
+Question: ${questionText}
+${criteria}
+Maximum points: ${points}
+
+Player's answer: "${userAnswer}"
+
+Return ONLY a JSON object with no other text:
+{
+  "isCorrect": true or false (true if the answer captures the key facts adequately),
+  "pointsEarned": a number from 0 to ${points},
+  "feedback": "one concise sentence of feedback for the player"
+}`;
+
+    try {
+        const raw = await callGeminiRaw(apiKey, GEMINI_MODELS[0]!, prompt, 0.1, 300, false);
+        if (!raw.ok) {
+            logger.warn({ error: raw.error }, "gradeWithAI: Gemini call failed");
+            return AI_GRADE_FALLBACK;
+        }
+        const parsed = JSON.parse(extractJson(raw.text)) as Record<string, unknown>;
+        return {
+            isCorrect:    typeof parsed["isCorrect"]    === "boolean" ? parsed["isCorrect"]    : false,
+            pointsEarned: typeof parsed["pointsEarned"] === "number"
+                ? Math.max(0, Math.min(points, Math.round(parsed["pointsEarned"] as number)))
+                : 0,
+            feedback: typeof parsed["feedback"] === "string" && parsed["feedback"]
+                ? (parsed["feedback"] as string)
+                : "",
+        };
+    } catch (err) {
+        logger.warn({ err }, "gradeWithAI: unexpected error");
+        return AI_GRADE_FALLBACK;
+    }
+}

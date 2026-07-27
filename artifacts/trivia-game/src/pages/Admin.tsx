@@ -159,6 +159,7 @@ const DEFAULT_POINTS: Record<QuestionType, number> = {
  ordering: 15,
  slider: 10,
  image_hotspot: 15,
+ short_response: 10,
 };
 const emptyForm: QuestionFormState = {
     questionText: "",
@@ -327,6 +328,7 @@ const TYPE_META: Record<
  ordering: { label: "Ordering", Icon: ArrowLeftRight, color: "text-emerald-400" },
  slider: { label: "Slider", Icon: SlidersHorizontal, color: "text-yellow-400" },
  image_hotspot: { label: "Image Hotspot", Icon: ImageIcon, color: "text-rose-400" },
+ short_response: { label: "Short Response", Icon: PenLine, color: "text-violet-400" },
 };
 
 

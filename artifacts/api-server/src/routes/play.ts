@@ -234,13 +234,14 @@ const opts = question.options as { alternateAnswers?: string[] } | null;
 const alternates = opts?.alternateAnswers ?? [];
 
 
-const { isCorrect, pointsEarned } = gradeAnswer(
+const { isCorrect, pointsEarned, feedback } = await gradeAnswer(
     question.questionType,
     parsed.data.userAnswer,
     question.correctAnswer,
     question.points,
     alternates,
     question.options as Record<string, unknown> | null,
+    question.questionText,
 );
 
 
@@ -275,6 +276,7 @@ res.status(201).json(
          ...(question.questionType === "slider" || question.questionType === "image_hotspot"
              ? { correctAnswer: question.correctAnswer }
              : {}),
+         ...(feedback ? { feedback } : {}),
      }),
  ),
 );

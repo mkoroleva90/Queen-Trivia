@@ -67,7 +67,8 @@ type Feedback = {
   questionId: number;
   questionType: string;
   factCheckUrl?: string | null;
-  correctAnswer?: string; // slider only — included in submit response
+  correctAnswer?: string; // slider / image_hotspot — included in submit response
+  feedback?: string;       // AI feedback for short_response
 };
 
 type QuestionStats = {
@@ -857,6 +858,68 @@ function ImageHotspotQuestion({
   );
 }
 
+// ─── Short response question (AI-graded free text) ────────────────────────────
+function ShortResponseQuestion({
+  question, onSubmit, disabled, options,
+}: {
+  question: Question;
+  onSubmit: (a: string) => void;
+  disabled: boolean;
+  options: { maxWords?: number } | null;
+}) {
+  const [val, setVal] = useState("");
+  useEffect(() => { setVal(""); }, [question.id]);
+
+  const maxWords = options?.maxWords ?? null;
+  const wordCount = val.trim() === "" ? 0 : val.trim().split(/\s+/).length;
+  const overLimit = maxWords !== null && wordCount > maxWords;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <form
+        className="flex flex-col gap-3"
+        onSubmit={(e) => { e.preventDefault(); if (val.trim() && !overLimit) onSubmit(val.trim()); }}
+      >
+        <div className="relative">
+          <textarea
+            value={val}
+            onChange={(e) => setVal(e.target.value)}
+            placeholder="Write your answer…"
+            rows={3}
+            disabled={disabled}
+            autoFocus
+            className="w-full resize-none rounded-[14px] p-4 text-[15px] leading-relaxed text-white placeholder-white/40 outline-none focus:ring-2"
+            style={{
+              background: "rgba(0,0,0,.35)",
+              border: `2px solid ${overLimit ? "#ff0080" : "rgba(255,255,255,.2)"}`,
+              transition: "border-color .15s",
+            }}
+          />
+          {maxWords !== null && (
+            <div
+              className="absolute bottom-3 right-4 text-xs font-semibold tabular-nums"
+              style={{ color: overLimit ? "#ff0080" : "rgba(255,255,255,.4)" }}
+            >
+              {wordCount}/{maxWords}
+            </div>
+          )}
+        </div>
+
+        <ActionBtn
+          onClick={() => { if (val.trim() && !overLimit) onSubmit(val.trim()); }}
+          disabled={!val.trim() || overLimit || disabled}
+          pending={disabled}
+          pendingLabel="Grading with AI…"
+          bg="#ff0080"
+          color="#ffffff"
+        >
+          Submit answer →
+        </ActionBtn>
+      </form>
+    </div>
+  );
+}
+
 // ─── Slider question (numeric estimation) ─────────────────────────────────────
 function SliderQuestion({
   question, onSubmit, disabled, feedbackResult,
@@ -1173,6 +1236,7 @@ export default function GamePlay() {
             questionType: question.questionType,
             factCheckUrl: question.factCheckUrl ?? null,
             correctAnswer: (res as typeof res & { correctAnswer?: string }).correctAnswer,
+            feedback: (res as typeof res & { feedback?: string }).feedback,
           });
           setLockedAnswer(userAnswer); // store for inline reveal
           queryClient.invalidateQueries({ queryKey: getListGameParticipantsQueryKey(gameId) });
@@ -1217,6 +1281,8 @@ export default function GamePlay() {
         return <ImageQuestion {...sub} onSubmit={(a) => handleSubmit(q, a)} />;
       case "image_hotspot":
         return <ImageHotspotQuestion key={q.id} {...sub} onSubmit={(a) => handleSubmit(q, a)} feedbackResult={fr} />;
+      case "short_response":
+        return <ShortResponseQuestion {...sub} onSubmit={(a) => handleSubmit(q, a)} options={q.options as { maxWords?: number } | null} />;
       case "write_in":
         return <WriteInQuestion {...sub} onSubmit={(a) => handleSubmit(q, a)} />;
       default:
@@ -1406,6 +1472,16 @@ export default function GamePlay() {
                             </>
                           )}
                         </div>
+
+                        {/* AI feedback for short_response (or any type that returns it) */}
+                        {feedback.feedback && (
+                          <p
+                            className="text-center text-sm italic"
+                            style={{ color: "rgba(255,255,255,.7)" }}
+                          >
+                            {feedback.feedback}
+                          </p>
+                        )}
 
                         {/* Advance CTA */}
                         <button

@@ -29,6 +29,7 @@ export const questionsTable = pgTable("questions", {
       "ordering",
       "slider",
       "image_hotspot",
+      "short_response",
   ],
  }).notNull(),
  correctAnswer: text("correct_answer").notNull(),

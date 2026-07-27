@@ -1,0 +1,42 @@
+Add a new question type called `short_response`, graded by AI rather than exact
+string matching.
+
+Backend:
+1. Add `short_response` to the questionType enum.
+2. `options` for a short_response question: { rubric?: string; maxWords?: number } —
+   rubric is optional grading guidance for the AI; if absent, grade against
+   correctAnswer as the reference/model answer.
+3. `correctAnswer` is a model answer or key facts the AI should check for.
+4. Change gradeAnswer() in lib/grading.ts to an async function returning
+   Promise<{ isCorrect: boolean; pointsEarned: number; feedback?: string }>. Update
+   the one call site in the answer-submission route (play.ts, in the
+   POST /games/:gameId/answers handler) to await it — that route is already async, so
+   this is a small change.
+5. Add a short_response branch that calls a new async helper (e.g. gradeWithAI())
+   which sends the question text, correctAnswer/rubric, and the player's userAnswer
+   to whichever LLM this project already uses for question generation (there's a
+   Gemini integration used for the question-generation endpoint — reuse that same
+   client/API key rather than adding a new provider). Prompt it to return structured
+   JSON: { isCorrect: boolean, pointsEarned: number (0 to the question's max points),
+   feedback: string (one short sentence) }.
+6. Wrap the AI call in a try/catch. If it fails or times out, fall back to
+   { isCorrect: false, pointsEarned: 0, feedback: "We couldn't grade this
+   automatically — an admin will review it." } rather than letting the request fail,
+   so gameplay isn't blocked by an API outage.
+7. Regenerate the OpenAPI client / hooks as usual, and make sure the
+   AnswerResult/Answer types can carry the optional feedback string through to the
+   frontend response.
+
+Frontend:
+8. Add a ShortResponseQuestion component — a text input or small textarea
+   (respecting maxWords if present with a live counter), following the same visual
+   style as WriteInQuestion.
+9. Since grading is AI-based rather than an exact answer to reveal, keep this type's
+   post-submit state simple: no inline highlighting, just the existing feedback
+   banner — but update the banner (in the main GamePlay component, where
+   feedback.isCorrect/feedback.pointsEarned currently render) to also show
+   feedback.feedback (the AI's short comment) when present, for any question type
+   that returns it.
+10. Wire into renderQuestion() as case "short_response":, and leave
+    formatCorrectAnswer() returning the raw model answer for this type (no special
+    formatting needed).

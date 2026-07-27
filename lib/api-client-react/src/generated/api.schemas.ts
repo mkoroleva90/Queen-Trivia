@@ -161,6 +161,7 @@ export const QuestionInputQuestionType = {
   ordering: 'ordering',
   slider: 'slider',
   image_hotspot: 'image_hotspot',
+  short_response: 'short_response',
 } as const;
 
 /**
@@ -203,6 +204,7 @@ export const QuestionUpdateQuestionType = {
   ordering: 'ordering',
   slider: 'slider',
   image_hotspot: 'image_hotspot',
+  short_response: 'short_response',
 } as const;
 
 /**
@@ -368,6 +370,7 @@ export const QuestionQuestionType = {
   ordering: 'ordering',
   slider: 'slider',
   image_hotspot: 'image_hotspot',
+  short_response: 'short_response',
 } as const;
 
 /**

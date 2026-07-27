@@ -3,6 +3,8 @@
  * Exported so they can be unit-tested independently of the Express router.
  */
 
+import { gradeWithAI } from "../services/geminiApi";
+
 /**
  * Normalise a string for answer comparison:
  *  1. Strip citation markers like [1] or [i]
@@ -42,14 +44,27 @@ export function surnameOf(normalizedCorrect: string): string | null {
     return parts.length >= 2 ? parts[parts.length - 1]! : null;
 }
 
-export function gradeAnswer(
+export async function gradeAnswer(
     questionType: string,
     userAnswer: string,
     correctAnswer: string,
     points: number,
     alternates: string[],
     questionOptions?: Record<string, unknown> | null,
-): { isCorrect: boolean; pointsEarned: number } {
+    questionText?: string,
+): Promise<{ isCorrect: boolean; pointsEarned: number; feedback?: string }> {
+    // ── Short response: AI-graded ─────────────────────────────────────────
+    if (questionType === "short_response") {
+        const opts    = questionOptions as { rubric?: string } | null;
+        return gradeWithAI({
+            questionText: questionText ?? "",
+            correctAnswer,
+            rubric: opts?.rubric,
+            userAnswer,
+            points,
+        });
+    }
+
     // ── Matching: pair-by-pair partial credit ──────────────────────────────
     if (questionType === "matching") {
         const parsePairs = (ans: string): Record<string, string> =>
