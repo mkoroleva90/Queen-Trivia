@@ -1,0 +1,39 @@
+Add a new question type called `ordering` (drag-to-reorder) to the trivia app.
+
+First, check whether a drag-and-drop library is already installed (search
+package.json files for @dnd-kit, react-beautiful-dnd, or @hello-pangea/dnd). If none
+is present, install @dnd-kit/core, @dnd-kit/sortable, and @dnd-kit/utilities — these
+are actively maintained and work well on touch devices, which matters since this app
+is headed to app stores.
+
+Backend:
+1. Add `ordering` to the questionType enum in the Zod schema(s) that define Question/
+   QuestionInput/QuestionUpdate (same location you find/edit for other type
+   additions — search for "multiple_choice" if unsure).
+2. `options` for an ordering question: { items: string[] } — the items in their
+   canonical/correct order.
+3. `correctAnswer` should be the items in correct order, joined with "|" (same
+   convention as matching/multi_select).
+4. `userAnswer` is the items in the order the player arranged them, same "|"-joined
+   format.
+5. In lib/grading.ts, add an `ordering` branch to gradeAnswer(): split both strings
+   on "|", compare position-by-position, and award partial credit as
+   floor((correctPositions / totalItems) * points), same style as the existing
+   matching branch. isCorrect is true only if every position matches.
+6. Regenerate the OpenAPI client / React Query hooks after the schema change, same as
+   usual for this repo.
+
+Frontend (add near the other question components in GamePlay.tsx):
+7. Add an OrderingQuestion component. On mount, shuffle options.items client-side
+   (never show them in correctAnswer order) and render them as a vertically stacked,
+   drag-to-reorder list using the dnd-kit SortableContext pattern. Style consistent
+   with the existing question cards (rounded-14px items, rgba(255,255,255,.04)
+   background, rgba(255,255,255,.12) border, matching the visual language already
+   used in MatchingBoard).
+8. On submit, join the current order with "|" and call onSubmit.
+9. After the answer locks, recolor each item: cyan border/background if it ended up
+   in the correct position, pink if not — same visual treatment as the MC/TF locked
+   state.
+10. Wire it into the renderQuestion() switch as case "ordering":.
+11. Update formatCorrectAnswer() to render the correct order as a numbered list,
+    joining on "|".

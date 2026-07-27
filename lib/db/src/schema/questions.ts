@@ -26,6 +26,7 @@ export const questionsTable = pgTable("questions", {
       "image_recognition",
       "true_false",
       "multi_select",
+      "ordering",
   ],
  }).notNull(),
  correctAnswer: text("correct_answer").notNull(),

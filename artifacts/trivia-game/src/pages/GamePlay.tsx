@@ -37,6 +37,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { GripVertical } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -66,6 +84,9 @@ const CHOICE_LABELS = ["A", "B", "C", "D", "E", "F"];
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatCorrectAnswer(type: string, answer: string): string {
+  if (type === "ordering") {
+    return answer.split("|").map((s, i) => `${i + 1}. ${s}`).join("  ");
+  }
   if (type === "matching") {
     return answer
       .split("|")
@@ -327,6 +348,161 @@ function MultiSelectQuestion({
       )}
     </div>
   );
+}
+
+// ─── Ordering question (drag-to-reorder) ─────────────────────────────────────
+function SortableItem({
+  id, label, index, answered, isCorrect,
+}: {
+  id: string;
+  label: string;
+  index: number;
+  answered: boolean;
+  isCorrect: boolean | null; // null = not answered yet
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id });
+
+  let border   = "1px solid rgba(255,255,255,.12)";
+  let bg       = "rgba(255,255,255,.04)";
+  let numColor = "#a3aec2";
+
+  if (answered && isCorrect === true) {
+    border = "1px solid #00ddff"; bg = "rgba(0,221,255,.15)"; numColor = "#00ddff";
+  } else if (answered && isCorrect === false) {
+    border = "1px solid #ff0080"; bg = "rgba(255,0,128,.15)"; numColor = "#ff0080";
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        borderRadius: 14,
+        padding: "13px 16px",
+        background: bg,
+        border,
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        cursor: answered ? "default" : isDragging ? "grabbing" : "grab",
+        opacity: isDragging ? 0.7 : 1,
+        userSelect: "none",
+      }}
+      {...attributes}
+      {...(!answered ? listeners : {})}
+    >
+      {/* Position number */}
+      <span
+        className="flex h-[28px] w-[28px] shrink-0 items-center justify-center rounded-full text-[13px] font-bold"
+        style={{ background: "rgba(255,255,255,.06)", color: numColor }}
+      >
+        {index + 1}
+      </span>
+      <span className="flex-1 font-semibold text-[15px] leading-snug">{label}</span>
+      {!answered && (
+        <GripVertical className="h-4 w-4 shrink-0" style={{ color: "rgba(255,255,255,.3)" }} />
+      )}
+    </div>
+  );
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j]!, a[i]!];
+  }
+  return a;
+}
+
+function OrderingQuestion({
+  question, onSubmit, disabled, feedbackResult,
+}: {
+  question: Question;
+  onSubmit: (a: string) => void;
+  disabled: boolean;
+  feedbackResult: FeedbackResult | null;
+}) {
+  const opts    = question.options as { items?: string[] } | null;
+  const correct = (opts?.items ?? []);
+
+  const [items, setItems] = useState<string[]>(() => shuffle(correct));
+  useEffect(() => { setItems(shuffle(correct)); }, [question.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const answered = !!feedbackResult;
+  const lockedItems = answered
+    ? feedbackResult!.lockedAnswer.split("|").map((s) => s.trim()).filter(Boolean)
+    : null;
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setItems((prev) => {
+        const oldIdx = prev.indexOf(active.id as string);
+        const newIdx = prev.indexOf(over.id as string);
+        return arrayMove(prev, oldIdx, newIdx);
+      });
+    }
+  };
+
+  const displayItems = lockedItems ?? items;
+
+  return (
+    <div className="flex flex-col gap-[10px]">
+      {!answered && (
+        <p className="text-[12px] font-semibold uppercase" style={{ letterSpacing: ".15em", color: "#a3aec2" }}>
+          Drag to put in the correct order
+        </p>
+      )}
+
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={displayItems} strategy={verticalListSortingStrategy}>
+          <div className="flex flex-col gap-[8px]">
+            {displayItems.map((item, i) => {
+              const posCorrect = answered ? normalize_item(item) === normalize_item(correct[i] ?? "") : null;
+              return (
+                <SortableItem
+                  key={item}
+                  id={item}
+                  label={item}
+                  index={i}
+                  answered={answered}
+                  isCorrect={posCorrect}
+                />
+              );
+            })}
+          </div>
+        </SortableContext>
+      </DndContext>
+
+      {!answered && (
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
+          <ActionBtn
+            onClick={() => onSubmit(items.join("|"))}
+            disabled={disabled}
+            pending={disabled}
+            pendingLabel="Submitting…"
+            bg="#ff0080"
+            color="#ffffff"
+          >
+            Lock in order →
+          </ActionBtn>
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+// Simple normalize for positional comparison (no need for the full normalize() from grading)
+function normalize_item(s: string) {
+  return s.trim().toLowerCase();
 }
 
 // ─── True/false question ──────────────────────────────────────────────────────
@@ -721,6 +897,8 @@ export default function GamePlay() {
         return <MultipleChoiceQuestion {...sub} onSubmit={(a) => handleSubmit(q, a)} feedbackResult={fr} />;
       case "multi_select":
         return <MultiSelectQuestion {...sub} onSubmit={(a) => handleSubmit(q, a)} feedbackResult={fr} />;
+      case "ordering":
+        return <OrderingQuestion key={q.id} {...sub} onSubmit={(a) => handleSubmit(q, a)} feedbackResult={fr} />;
       case "true_false":
         return <TrueFalseQuestion {...sub} onSubmit={(a) => handleSubmit(q, a)} feedbackResult={fr} />;
       case "matching":

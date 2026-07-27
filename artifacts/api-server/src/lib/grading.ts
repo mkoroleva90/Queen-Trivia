@@ -73,6 +73,23 @@ export function gradeAnswer(
         return { isCorrect, pointsEarned };
     }
 
+    // ── Ordering: positional partial credit ───────────────────────────────
+    if (questionType === "ordering") {
+        const correctItems = correctAnswer.split("|").map((v) => v.trim()).filter(Boolean);
+        const userItems    = userAnswer.split("|").map((v) => v.trim()).filter(Boolean);
+        const total = correctItems.length;
+        if (total === 0) return { isCorrect: true, pointsEarned: points };
+        let correctPositions = 0;
+        for (let i = 0; i < total; i++) {
+            if (normalize(userItems[i] ?? "") === normalize(correctItems[i] ?? "")) {
+                correctPositions++;
+            }
+        }
+        const isCorrect    = correctPositions === total;
+        const pointsEarned = Math.floor((correctPositions / total) * points);
+        return { isCorrect, pointsEarned };
+    }
+
     // ── Multi-select: exact set match, all-or-nothing ────────────────────
     if (questionType === "multi_select") {
         const parseSet = (s: string): Set<string> =>
