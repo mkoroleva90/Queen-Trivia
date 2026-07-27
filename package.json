@@ -11,7 +11,7 @@
   "private": true,
   "pnpm": {
     "overrides": {
-      "js-yaml": ">=4.3.0",
+      "js-yaml": ">=5.2.2",
       "esbuild": ">=0.28.1"
     }
   },
