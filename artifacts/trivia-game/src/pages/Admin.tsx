@@ -1431,30 +1431,6 @@ const statCards = [
 
 return (
  <div className="space-y-6">
-     {activeGame && (
-     <Card className="border-primary/60 bg-primary/5">
-      <CardContent className="p-4 flex items-center justify-between gap-3 flex-wrap">
-       <div className="flex items-center gap-3">
-        <div className="h-2.5 w-2.5 rounded-full bg-primary animate-pulse" />
-        <div>
-         <p className="text-xs font-semibold uppercase tracking-widest text-primary">
-           Game In Progress
-         </p>
-         <p className="font-bold text-lg">{activeGame.topic}</p>
-        </div>
-       </div>
-       <div className="flex items-center gap-2">
-         <Badge variant="outline" className="uppercase">{activeGame.difficulty}</Badge>
-         <span className="text-sm text-muted-foreground">
-         {activeGame.questionCount} questions
-         </span>
-         <Button size="sm" onClick={() => onNavigate("manage")}>
-         Manage <ChevronRight className="ml-1 h-3.5 w-3.5" />
-         </Button>
-     </div>
-     </CardContent>
- </Card>
-)}
 
 
 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -1484,7 +1460,6 @@ return (
   <div className="grid gap-4 md:grid-cols-3">
    {[
     { id: "create" as Section, icon: PlusCircle, title: "New Game", sub: "Set up a freshround", color: "bg-primary/10 text-primary", border: "hover:border-primary/50" },
-    { id: "manage" as Section, icon: Gamepad2, title: "Manage Games", sub:`${waitingGames.length} waiting · ${completedGames.length} done`, color: "bg-secondary/10 text-secondary", border: "hover:border-secondary/50" },
    ].map((item) => (
     <Card
         key={item.id}
@@ -1505,34 +1480,6 @@ return (
    ))}
   </div>
 
-
-  {import.meta.env.DEV && (
-   <Card className="border-dashed border-yellow-500/40 bg-yellow-500/5">
-    <CardContent className="p-4 flex items-center justify-between gap-4 flex-wrap">
-     <div className="flex items-center gap-3">
-         <div className="rounded-lg p-2 bg-yellow-500/10 text-yellow-400">
-         <FlaskConical className="h-5 w-5" />
-         </div>
-         <div>
-         <p className="font-semibold text-sm">Dev: Create Sample Structure</p>
-         <p className="text-xs text-muted-foreground">
-          Creates one game with 5 typed placeholder questions. Replace all{" "}
-         <span className="font-mono text-yellow-400">[bracketed]</span> text with realverified facts before going live.
-                  </p>
-               </div>
-              </div>
-              <Button
-               size="sm"
-               variant="outline"
-               className="border-yellow-500/40 text-yellow-400 hover:bg-yellow-500/10 shrink-0"
-               disabled={buildingSample}
-               onClick={handleCreateSampleStructure}
-              >
-               {buildingSample ? "Creating…" : "Create Sample"}
-              </Button>
-              </CardContent>
-          </Card>
-         )}
      </div>
     );
 }
