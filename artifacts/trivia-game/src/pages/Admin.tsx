@@ -2182,8 +2182,8 @@ function QuestionsSection({
  games: Game[];
  preferGameId?: number;
 }) {
- // Show waiting AND live games — completed games have locked question sets.
- const editableGames = games.filter((g) => g.status === "waiting" || g.status === "live");
+ // Show waiting AND active (live) games — completed games have locked question sets.
+ const editableGames = games.filter((g) => g.status === "waiting" || g.status === "active");
  const [selectedId, setSelectedId] = useState<number | null>(() => {
   if (preferGameId) return preferGameId;
   return editableGames[0]?.id ?? null;
@@ -2260,7 +2260,7 @@ function QuestionsSection({
           )}
           {g.topic}
           <span className="text-muted-foreground text-xs">
-           ({g.questionCount} {g.questionCount === 1 ? "question" : "questions"}{g.status === "live" ? " · live" : ""})
+           ({g.questionCount} {g.questionCount === 1 ? "question" : "questions"}{g.status === "active" ? " · live" : ""})
           </span>
          </span>
                     </SelectItem>
