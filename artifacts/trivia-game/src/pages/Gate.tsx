@@ -259,7 +259,18 @@ export default function Gate() {
           {onboardingStep === 0 && (
             <motion.div key="s0" {...slide} className="flex-1 flex flex-col justify-center gap-8">
               {/* Headline */}
-              <div>
+              <div className="flex flex-col gap-4">
+                {/* "TONIGHT ONLY" eyebrow pill */}
+                <span
+                  className="self-start font-extrabold uppercase"
+                  style={{
+                    fontSize: 10, letterSpacing: ".2em",
+                    background: "#ffe500", color: "#0a0510",
+                    borderRadius: 20, padding: "8px 12px",
+                  }}
+                >
+                  TONIGHT ONLY
+                </span>
                 <h1
                   className="font-extrabold"
                   style={{ fontSize: 56, letterSpacing: "-.03em", lineHeight: .88 }}
