@@ -21,7 +21,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 const serverUrl = process.env["CAPACITOR_SERVER_URL"];
 
 const config: CapacitorConfig = {
-  appId: "com.trivianight.app",
+  appId: "com.mktrivia.app",
   appName: "Trivia Night",
 
   // Vite writes its production build here (see artifacts/trivia-game/vite.config.ts)
