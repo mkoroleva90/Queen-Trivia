@@ -2182,17 +2182,18 @@ function QuestionsSection({
  games: Game[];
  preferGameId?: number;
 }) {
- const waitingGames = games.filter((g) => g.status === "waiting");
+ // Show waiting AND live games — completed games have locked question sets.
+ const editableGames = games.filter((g) => g.status === "waiting" || g.status === "live");
  const [selectedId, setSelectedId] = useState<number | null>(() => {
   if (preferGameId) return preferGameId;
-  return waitingGames[0]?.id ?? null;
+  return editableGames[0]?.id ?? null;
  });
 
 
  useEffect(() => {
   if (preferGameId) { setSelectedId(preferGameId); return; }
-  if (selectedId === null && waitingGames.length > 0) {
-       setSelectedId(waitingGames[0]!.id);
+  if (selectedId === null && editableGames.length > 0) {
+       setSelectedId(editableGames[0]!.id);
    }
  }, [games, preferGameId]);
 
@@ -2205,7 +2206,7 @@ function QuestionsSection({
 <div>
  <h2 className="text-xl font-bold tracking-tight">Add Questions</h2>
  <p className="text-muted-foreground text-sm mt-1">
-  Select a waiting game and build its question set manually.
+  Select a game and build its question set manually.
  </p>
 </div>
 
@@ -2228,14 +2229,14 @@ function QuestionsSection({
 </Card>
 
 
-{waitingGames.length === 0 ? (
+{editableGames.length === 0 ? (
  <Card className="border-dashed border-primary/30 bg-card/40">
  <CardContent className="py-12 text-center space-y-2">
   <Gamepad2 className="mx-auto h-10 w-10 text-primary/40" />
-  <p className="font-semibold">No games in waiting status</p>
+  <p className="font-semibold">No active games</p>
   <p className="text-sm text-muted-foreground">
-      Create a new game first, or games that are already live won't
-      appear here — end them to add more questions.
+      Create a new game first. Completed games are archived and cannot
+      be edited.
   </p>
  </CardContent>
 </Card>
@@ -2251,12 +2252,17 @@ function QuestionsSection({
        <SelectValue placeholder="Choose a game..." />
       </SelectTrigger>
       <SelectContent>
-       {waitingGames.map((g) => (
+       {editableGames.map((g) => (
         <SelectItem key={g.id} value={String(g.id)}>
-         {g.topic}
-         <span className="ml-2 text-muted-foreground text-xs">
-          ({g.questionCount} questions)
-                     </span>
+         <span className="flex items-center gap-2">
+          {g.status === "live" && (
+           <span className="inline-block w-2 h-2 rounded-full bg-pink-500 shrink-0" />
+          )}
+          {g.topic}
+          <span className="text-muted-foreground text-xs">
+           ({g.questionCount} {g.questionCount === 1 ? "question" : "questions"}{g.status === "live" ? " · live" : ""})
+          </span>
+         </span>
                     </SelectItem>
                    ))}
                    </SelectContent>
