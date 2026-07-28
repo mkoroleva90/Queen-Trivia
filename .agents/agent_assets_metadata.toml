@@ -2,19 +2,7 @@ uploads = []
 generated = []
 
 [[outputs]]
-id = "N1u1e3OU7WfxSxeBiI5iA"
-uri = "file://trivia-night-source.zip"
+id = "IgGJSOrXznjeF4vFFeByG"
+uri = "file://mktrivia-source.zip"
 type = "unspecified"
-title = "Trivia Night — Full Source Code"
-
-[[outputs]]
-id = "4Tx7mxJe00dQcOgqLTxwW"
-uri = "file://artifacts/trivia-game/src/pages/Results.tsx"
-type = "unspecified"
-title = "Results.tsx"
-
-[[outputs]]
-id = "inFKQWkxTHjJJKLByOJKE"
-uri = "file://trivia-game-source.zip"
-type = "unspecified"
-title = "trivia-game-source.zip"
+title = "MK Trivia — Full Source Code"
