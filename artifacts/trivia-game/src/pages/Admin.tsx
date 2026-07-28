@@ -4499,29 +4499,35 @@ function LiveGameView({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#0a1019] p-4 rounded-xl border border-[#1b2740]">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#ff2d8e]/10 border border-[#ff2d8e]/30">
-            <span className="h-2 w-2 rounded-full bg-[#ff2d8e] animate-pulse" />
-            <span className="text-xs font-bold tracking-wider text-[#ff2d8e]">LIVE NOW</span>
+      {/* Live banner — stacks tightly on mobile */}
+      <div className="bg-[#0a1019] p-4 rounded-xl border border-[#1b2740] space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-full bg-[#ff2d8e]/10 border border-[#ff2d8e]/30">
+              <span className="h-2 w-2 rounded-full bg-[#ff2d8e] animate-pulse" />
+              <span className="text-[10px] font-bold tracking-wider text-[#ff2d8e]">LIVE</span>
+            </div>
+            <h1 className="text-base font-bold text-white truncate">{activeGame.topic}</h1>
           </div>
-          <h1 className="text-lg font-bold text-white">{activeGame.topic}</h1>
-          <div className="flex items-center gap-2 bg-[#00d4f0]/10 text-[#00d4f0] px-3 py-1 rounded-md font-mono text-sm border border-[#00d4f0]/20">
-            ROOM <span className="font-bold">????</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-[#ff6b6b] hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 shrink-0 px-2"
+            onClick={() => endGame(activeGame.id)}
+          >
+            <Flag className="w-4 h-4 mr-1.5" />
+            <span className="hidden sm:inline">End game</span>
+          </Button>
+        </div>
+        <div className="flex items-center gap-3 text-sm">
+          <div className="flex items-center gap-1.5 bg-[#00d4f0]/10 text-[#00d4f0] px-2.5 py-1 rounded-md font-mono border border-[#00d4f0]/20 text-xs">
+            ROOM <span className="font-bold ml-1">????</span>
           </div>
           <div className="flex items-center gap-1 text-[#9aa6bc] text-sm">
             <Users className="w-4 h-4" />
-            {parts.length}
+            <span>{parts.length} players</span>
           </div>
         </div>
-        <Button
-          variant="ghost"
-          className="text-[#ff6b6b] hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10"
-          onClick={() => endGame(activeGame.id)}
-        >
-          <Flag className="w-4 h-4 mr-2" />
-          End game
-        </Button>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6 items-start">
@@ -4532,11 +4538,11 @@ function LiveGameView({
               QUESTION {0 + 1} / {questions.length || '?'}
             </div>
             
-            <div className="flex gap-6 items-start mb-8">
-              <div className="w-16 h-16 rounded-full border-4 border-[#ff2d8e]/20 border-t-[#ff2d8e] flex items-center justify-center shrink-0">
-                <span className="text-[#ff2d8e] font-mono font-bold">20</span>
+            <div className="flex gap-4 items-start mb-6">
+              <div className="w-12 h-12 shrink-0 rounded-full border-4 border-[#ff2d8e]/20 border-t-[#ff2d8e] flex items-center justify-center">
+                <span className="text-[#ff2d8e] font-mono font-bold text-sm">20</span>
               </div>
-              <h2 className="text-2xl font-extrabold text-white leading-tight">
+              <h2 className="text-lg sm:text-2xl font-extrabold text-white leading-tight">
                 {currentQ?.questionText || "Waiting for game to start…"}
               </h2>
             </div>
@@ -4557,21 +4563,25 @@ function LiveGameView({
               })}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 mt-8 pt-6 border-t border-[#1b2740]">
-              <Button variant="ghost" disabled className="text-[#9aa6bc]">
-                <ChevronRight className="w-4 h-4 mr-2 rotate-180" /> Prev
-              </Button>
-              <Button variant="ghost" className="text-[#ffe14d] hover:text-[#ffe14d] hover:bg-[#ffe14d]/10">
-                <Square className="w-4 h-4 mr-2" /> Pause
-              </Button>
-              <Button variant="ghost" className="text-[#00d4f0] hover:text-[#00d4f0] hover:bg-[#00d4f0]/10">
-                <Eye className="w-4 h-4 mr-2" /> Reveal
-              </Button>
-              <Button variant="ghost" className="text-[#ff6b6b] hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10">
-                <ShieldCheck className="w-4 h-4 mr-2" /> Lock
-              </Button>
-              <Button 
-                className="ml-auto bg-[#ff2d8e] hover:bg-[#ff2d8e]/90 text-white rounded-xl px-6"
+            <div className="mt-6 pt-5 border-t border-[#1b2740] space-y-3">
+              {/* 2×2 action grid on mobile, single row on sm+ */}
+              <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+                <Button variant="ghost" disabled size="sm" className="text-[#9aa6bc] justify-center">
+                  <ChevronRight className="w-4 h-4 mr-1.5 rotate-180" /> Prev
+                </Button>
+                <Button variant="ghost" size="sm" className="text-[#ffe14d] hover:text-[#ffe14d] hover:bg-[#ffe14d]/10 justify-center">
+                  <Square className="w-4 h-4 mr-1.5" /> Pause
+                </Button>
+                <Button variant="ghost" size="sm" className="text-[#00d4f0] hover:text-[#00d4f0] hover:bg-[#00d4f0]/10 justify-center">
+                  <Eye className="w-4 h-4 mr-1.5" /> Reveal
+                </Button>
+                <Button variant="ghost" size="sm" className="text-[#ff6b6b] hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 justify-center">
+                  <ShieldCheck className="w-4 h-4 mr-1.5" /> Lock
+                </Button>
+              </div>
+              {/* Next CTA — full width for easy tap */}
+              <Button
+                className="w-full bg-[#ff2d8e] hover:bg-[#ff2d8e]/90 text-white rounded-xl"
                 onClick={() => console.log('TODO: wire to host-advance endpoint')}
               >
                 Next question <ChevronRight className="w-4 h-4 ml-2" />
@@ -4780,14 +4790,14 @@ function BuildQuizView({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4 bg-[#0a1019] p-2 rounded-xl border border-[#1b2740] w-fit">
+      <div className="flex items-center gap-1 bg-[#0a1019] p-1.5 rounded-xl border border-[#1b2740]">
         {["setup", "questions", "review"].map(t => (
           <button
             key={t}
             onClick={() => setSubTab(t as any)}
-            className={`px-6 py-2 rounded-lg text-sm font-bold capitalize transition-all ${
-              subTab === t 
-                ? 'bg-[#1b2740] text-white shadow-sm' 
+            className={`flex-1 py-2 px-3 rounded-lg text-sm font-bold capitalize transition-all ${
+              subTab === t
+                ? 'bg-[#1b2740] text-white shadow-sm'
                 : 'text-[#66728a] hover:text-[#9aa6bc]'
             }`}
           >
@@ -4878,27 +4888,20 @@ function NewAdminDashboard() {
     }
   };
 
+  // Short labels for the bottom tab bar (≤6 chars fits comfortably)
+  const mobileNavLabels: Record<string, string> = {
+    games: "Games",
+    live: "Live",
+    build: "Build",
+    results: "Results",
+    rooms: "Rooms",
+  };
+
   return (
     <div className="min-h-[100dvh] flex bg-[#0a0c12] text-[#eef2f8] font-sans">
-      {/* Mobile Header */}
-      <header className="lg:hidden flex items-center justify-between p-4 bg-[#0a1019] border-b border-[#1b2740] sticky top-0 z-20">
-        <div className="flex items-center gap-3">
-          <Shield className="h-6 w-6 text-[#ff2d8e]" />
-          <span className="font-bold text-white tracking-widest text-sm">HOST CONSOLE</span>
-        </div>
-        <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-white p-2">
-          <div className="w-5 h-0.5 bg-white mb-1" />
-          <div className="w-5 h-0.5 bg-white mb-1" />
-          <div className="w-5 h-0.5 bg-white" />
-        </button>
-      </header>
 
-      {/* Persistent Left Rail */}
-      <aside className={`
-        fixed inset-y-0 left-0 z-30 w-[216px] bg-[#0a1019] border-r border-[#1b2740] flex flex-col
-        transition-transform duration-300 lg:translate-x-0 lg:static
-        ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
-      `}>
+      {/* ── Desktop: Persistent Left Rail ── */}
+      <aside className="hidden lg:flex w-[216px] shrink-0 bg-[#0a1019] border-r border-[#1b2740] flex-col">
         <div className="p-6 flex flex-col items-center pb-8 pt-8">
           <Shield className="h-10 w-10 text-[#ff2d8e] mb-3" />
           <div className="text-2xl font-black tracking-tight text-white mb-1">MK</div>
@@ -4927,12 +4930,12 @@ function NewAdminDashboard() {
 
         <div className="p-4 border-t border-[#1b2740]">
           <div className="bg-[#0f1724] rounded-xl p-3 flex items-center gap-3 border border-[#1b2740]">
-            <div className="w-8 h-8 rounded-full bg-[#ff2d8e] text-white flex items-center justify-center text-xs font-bold">
+            <div className="w-8 h-8 rounded-full bg-[#ff2d8e] text-white flex items-center justify-center text-xs font-bold shrink-0">
               HO
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-bold text-white truncate">Host</div>
-              <button 
+              <button
                 onClick={async () => { await logout(); setLocation("/"); }}
                 className="text-xs text-[#9aa6bc] hover:text-white transition-colors"
               >
@@ -4943,26 +4946,81 @@ function NewAdminDashboard() {
         </div>
       </aside>
 
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-20 bg-black/80 lg:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
+      {/* ── Mobile: thin sticky top bar ── */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-20 flex items-center justify-between px-4 h-12 bg-[#0a1019] border-b border-[#1b2740]">
+        <div className="flex items-center gap-2">
+          <Shield className="h-5 w-5 text-[#ff2d8e]" />
+          <span className="font-bold text-white text-sm tracking-widest">
+            {mobileNavLabels[section] ?? "HOST"}
+          </span>
+          {activeGame && section !== "live" && (
+            <button
+              onClick={() => navigate("live")}
+              className="ml-2 flex items-center gap-1 bg-[#ff2d8e]/10 border border-[#ff2d8e]/30 rounded-full px-2 py-0.5"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-[#ff2d8e] animate-pulse" />
+              <span className="text-[10px] font-bold text-[#ff2d8e] tracking-wider">LIVE</span>
+            </button>
+          )}
+        </div>
+        <button
+          onClick={async () => { await logout(); setLocation("/"); }}
+          className="text-[#9aa6bc] p-1.5 -mr-1"
+          aria-label="Sign out"
+        >
+          <LogOut className="h-4 w-4" />
+        </button>
+      </div>
 
-      {/* Main Content */}
+      {/* ── Main Content ── */}
       <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        <div className="p-6 md:p-8 lg:p-10 max-w-[1200px] w-full mx-auto flex-1 min-h-0">
+        {/* top padding clears the 48px fixed header on mobile; bottom clears the tab bar */}
+        <div className="pt-14 pb-24 px-4 md:p-8 lg:p-10 max-w-[1200px] w-full mx-auto flex-1">
           <AnimatePresence mode="wait">
             <motion.div
               key={section}
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.15 }}
             >
               {renderSection()}
             </motion.div>
           </AnimatePresence>
         </div>
       </main>
+
+      {/* ── Mobile: sticky bottom tab bar ── */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-20 flex items-stretch bg-[#0a1019] border-t border-[#1b2740]"
+           style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+        {navItems.map(item => {
+          const isActive = section === item.id;
+          const isLiveTab = item.id === "live";
+          return (
+            <button
+              key={item.id}
+              onClick={() => navigate(item.id)}
+              className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 transition-colors relative"
+              style={{ minWidth: 0 }}
+            >
+              {/* Live tab gets a pink glow dot when game is active */}
+              {isLiveTab && activeGame && !isActive && (
+                <span className="absolute top-2 right-[calc(50%-10px)] w-1.5 h-1.5 rounded-full bg-[#ff2d8e] animate-pulse" />
+              )}
+              <item.icon
+                className={`h-5 w-5 shrink-0 transition-colors ${isActive ? 'text-[#ff2d8e]' : 'text-[#66728a]'}`}
+              />
+              <span className={`text-[10px] font-bold transition-colors truncate ${isActive ? 'text-[#ff2d8e]' : 'text-[#66728a]'}`}>
+                {mobileNavLabels[item.id]}
+              </span>
+              {isActive && (
+                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-[2px] rounded-full bg-[#ff2d8e]" />
+              )}
+            </button>
+          );
+        })}
+      </nav>
+
     </div>
   );
 }
