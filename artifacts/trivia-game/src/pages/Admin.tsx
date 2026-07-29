@@ -1786,7 +1786,7 @@ return (
             <SelectValue placeholder="Select a category…" />
            </SelectTrigger>
            <SelectContent>
-      <SelectItem value="custom">� Custom Topic — Gemini AI generatesquestions</SelectItem>
+      <SelectItem value="custom">Custom Topic - AI-generated questions</SelectItem>
      <Separator className="my-1" />
      {OPENTDB_CATEGORIES.map((cat) => (
       <SelectItem key={cat.id} value={String(cat.id)}>
