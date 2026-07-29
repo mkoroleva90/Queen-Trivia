@@ -2,7 +2,8 @@ import { Router, type IRouter } from "express";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
-import { db, adminAccountsTable } from "@workspace/db";
+import { sql } from "drizzle-orm";
+import { db, adminAccountsTable, sessionsTable } from "@workspace/db";
 import {
   EmailRegisterBody,
   EmailLoginBody,
@@ -11,6 +12,7 @@ import {
   EmailResetPasswordBody,
 } from "@workspace/api-zod";
 import { authRateLimit } from "../middleware/authRateLimit";
+import { requireAdmin } from "../middleware/requireAdmin";
 import {
   sendVerificationEmail,
   sendPasswordResetEmail,
@@ -42,9 +44,11 @@ function appBaseUrl(req: import("express").Request): string {
 // ── routes ───────────────────────────────────────────────────────────────────
 
 // POST /api/auth/email/register
+// Requires an existing admin session — only authenticated admins may add new admin accounts.
 router.post(
   "/auth/email/register",
   authRateLimit,
+  requireAdmin,
   async (req, res): Promise<void> => {
     const parsed = EmailRegisterBody.safeParse(req.body);
     if (!parsed.success) {
@@ -285,6 +289,14 @@ router.post(
         resetTokenExpiry: null,
       })
       .where(eq(adminAccountsTable.id, account.id));
+
+    // Invalidate all existing sessions for this admin so stolen sessions cannot
+    // continue to be used after a password reset.
+    // connect-pg-simple stores session data as JSON in the `sess` column;
+    // we delete any row whose sess->>'adminEmail' matches the account directly.
+    await db
+      .delete(sessionsTable)
+      .where(sql`${sessionsTable.sess}->>'adminEmail' = ${account.email}`);
 
     res.json({ ok: true, message: "Password updated. You can now log in." });
   }
