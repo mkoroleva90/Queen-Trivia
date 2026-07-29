@@ -103,6 +103,7 @@ router.post("/auth/logout", (req, res): void => {
 router.post("/admin/login", authRateLimit, async (req, res): Promise<void> => {
  const code =
      typeof req.body?.code === "string" ? req.body.code.trim() : "";
+ const rememberMe = req.body?.rememberMe === true;
 
 
  if (!code) {
@@ -135,6 +136,10 @@ router.post("/admin/login", authRateLimit, async (req, res): Promise<void> => {
      req.session.isAdmin = true;
      req.session.userId = undefined;
      req.session.userName = undefined;
+     if (rememberMe) {
+         // 30 days for "remember me" — consistent with email login
+         req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000;
+     }
 
      res.json({ ok: true });
  });

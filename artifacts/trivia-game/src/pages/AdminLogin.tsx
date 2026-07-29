@@ -17,6 +17,7 @@ export default function AdminLogin() {
   // Access-code state
   const [code, setCode] = useState("");
   const [codeError, setCodeError] = useState("");
+  const [codeRememberMe, setCodeRememberMe] = useState(false);
 
   // Email+password state
   const [email, setEmail] = useState("");
@@ -44,7 +45,7 @@ export default function AdminLogin() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ code: trimmed }),
+        body: JSON.stringify({ code: trimmed, rememberMe: codeRememberMe }),
       });
 
       if (res.status === 401) {
@@ -182,6 +183,16 @@ export default function AdminLogin() {
                     </p>
                   )}
                 </div>
+
+                <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={codeRememberMe}
+                    onChange={(e) => setCodeRememberMe(e.target.checked)}
+                    className="h-4 w-4 rounded border-primary/30 accent-primary"
+                  />
+                  Remember me for 30 days
+                </label>
 
                 <Button
                   type="submit"
