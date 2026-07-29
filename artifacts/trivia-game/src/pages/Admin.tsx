@@ -50,6 +50,8 @@ import type {
  FactCheckSingleResult,
 } from "@workspace/api-client-react";
 import { useAuth } from "../lib/auth";
+import { CrownMark } from "@/components/Brand";
+import { useGameSocket } from "../hooks/useGameSocket";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -4121,7 +4123,7 @@ return (
      <div>
      <h2 className="text-xl font-bold tracking-tight">Host Guide</h2>
    <p className="text-muted-foreground text-sm mt-1">
-    How to build a great Trivia Night — from game setup to question writing.
+    How to build a great trivia night — from game setup to question writing.
    </p>
   </div>
 
@@ -4466,6 +4468,11 @@ function AdminGate() {
 // NEW DESIGN COMPONENTS
 // =========================================================================
 
+const AVATAR_COLORS: [string, string][] = [
+  ["#ff0080", "#ffffff"], ["#00ddff", "#062430"], ["#ffe500", "#3a2f00"],
+  ["#35d07f", "#08130c"], ["#a78bfa", "#1a0f3d"], ["#ff8a4c", "#2b1200"],
+];
+
 function LiveGameView({
   activeGame,
   endGame,
@@ -4473,14 +4480,61 @@ function LiveGameView({
   activeGame?: Game;
   endGame: (id: number) => void;
 }) {
+  const queryClient = useQueryClient();
   const { data: qData } = useListGameQuestions(activeGame?.id ?? 0, {
     query: { enabled: !!activeGame, queryKey: getListGameQuestionsQueryKey(activeGame?.id ?? 0) },
   });
   const questions = qData ?? [];
-  const currentQ = questions.find((q: any) => q.questionOrder === 0 + 1) || questions[0];
 
-  const { data: parts = [] } = useListGameParticipants(activeGame?.id ?? 0, {
-    query: { enabled: !!activeGame, queryKey: getListGameParticipantsQueryKey(activeGame?.id ?? 0) },
+  // Host monitors a question locally; there is no host-advance endpoint yet
+  // (players drive their own pace) — Prev/Next just move the monitored question.
+  const [qIndex, setQIndex] = useState(0);
+
+  // Reset live telemetry whenever a different game goes live.
+  useEffect(() => {
+    setQIndex(0);
+    setAnsweredBy({});
+    setCorrectCount({});
+  }, [activeGame?.id]);
+  const currentQ = questions[Math.min(qIndex, Math.max(questions.length - 1, 0))];
+
+  const { data: parts = [], refetch: refetchParts } = useListGameParticipants(activeGame?.id ?? 0, {
+    query: {
+      enabled: !!activeGame,
+      queryKey: getListGameParticipantsQueryKey(activeGame?.id ?? 0),
+      refetchInterval: 10000,
+    },
+  });
+
+  // Live answer tracking from the same socket events that power player GamePlay.
+  const [answeredBy, setAnsweredBy] = useState<Record<number, string[]>>({});
+  const [correctCount, setCorrectCount] = useState<Record<number, number>>({});
+  useGameSocket(activeGame?.id ?? null, {
+    onAnswerSubmitted: (p) => {
+      setAnsweredBy((prev) => {
+        const cur = prev[p.questionId] ?? [];
+        if (cur.includes(p.playerName)) return prev;
+        return { ...prev, [p.questionId]: [...cur, p.playerName] };
+      });
+      if (p.isCorrect) {
+        setCorrectCount((prev) => ({ ...prev, [p.questionId]: (prev[p.questionId] ?? 0) + 1 }));
+      }
+      refetchParts();
+    },
+    onGameEnded: () => {
+      queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
+    },
+  });
+
+  // Room code (global player access code)
+  const { data: settings } = useQuery<{ triviaAccessCode?: string }>({
+    queryKey: ["admin-settings-room"],
+    queryFn: async () => {
+      const res = await fetch("/api/settings", { credentials: "include" });
+      if (!res.ok) throw new Error("settings");
+      return res.json();
+    },
+    enabled: !!activeGame,
   });
 
   const sortedParticipants = [...parts].sort((a, b) => (b.totalScore ?? 0) - (a.totalScore ?? 0)).slice(0, 6);
@@ -4495,138 +4549,212 @@ function LiveGameView({
     );
   }
 
-  const accessCode = activeGame?.id ? "123456" : "WAIT"; // stub for now, actually it's global
+  const answeredNames = currentQ ? (answeredBy[currentQ.id] ?? []) : [];
+  const answeredCount = answeredNames.length;
+  const answeredPct = parts.length > 0 ? Math.round((answeredCount / parts.length) * 100) : 0;
+  const qCorrect = currentQ ? (correctCount[currentQ.id] ?? 0) : 0;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      {/* Live banner — stacks tightly on mobile */}
-      <div className="bg-[#0a1019] p-4 rounded-xl border border-[#1b2740] space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-full bg-[#ff2d8e]/10 border border-[#ff2d8e]/30">
-              <span className="h-2 w-2 rounded-full bg-[#ff2d8e] animate-pulse" />
-              <span className="text-[10px] font-bold tracking-wider text-[#ff2d8e]">LIVE</span>
-            </div>
-            <h1 className="text-base font-bold text-white truncate">{activeGame.topic}</h1>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-[#ff6b6b] hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 shrink-0 px-2"
-            onClick={() => endGame(activeGame.id)}
-          >
-            <Flag className="w-4 h-4 mr-1.5" />
-            <span className="hidden sm:inline">End game</span>
-          </Button>
+    <div className="space-y-5 animate-in fade-in duration-300">
+      {/* ── Topbar: LIVE badge · title · room chip · players · end ── */}
+      <div className="flex flex-wrap items-center gap-3 pb-4 border-b border-[#16223a]">
+        <div className="flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-full bg-[#ff0080]/15 border border-[#ff0080]/40">
+          <span className="h-[7px] w-[7px] rounded-full bg-[#ff0080] animate-pulse" />
+          <span className="text-[9px] font-extrabold tracking-[.16em] text-[#ff5aa8]">LIVE NOW</span>
         </div>
-        <div className="flex items-center gap-3 text-sm">
-          <div className="flex items-center gap-1 text-[#9aa6bc] text-sm">
-            <Users className="w-4 h-4" />
-            <span>{parts.length} players</span>
+        <h1 className="text-lg font-extrabold text-[#eef2f8] truncate">{activeGame.topic}</h1>
+        {settings?.triviaAccessCode && (
+          <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#00ddff]/10 border border-[#00ddff]/30">
+            <span className="text-[9px] font-semibold tracking-[.14em] text-[#5be9ff]">ROOM</span>
+            <span className="font-mono text-[13px] font-extrabold tracking-[.1em] text-[#00ddff]">
+              {settings.triviaAccessCode}
+            </span>
           </div>
+        )}
+        <div className="ml-auto flex items-center gap-3">
+          <div className="text-xs font-semibold text-[#9aa6bc]">
+            <span className="text-[#eef2f8] font-extrabold">{parts.length}</span> players
+          </div>
+          <button
+            onClick={() => endGame(activeGame.id)}
+            className="text-xs font-bold text-[#ff6b6b] bg-[#ff6b6b]/10 border border-[#ff6b6b]/30 rounded-lg px-3.5 py-2 hover:brightness-110 transition"
+          >
+            End game
+          </button>
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 items-start">
-        {/* LEFT COL */}
-        <div className="flex-1 w-full space-y-4">
-          <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl p-6">
-            <div className="text-[10px] tracking-wider text-[#9aa6bc] font-bold mb-6">
-              QUESTION {0 + 1} / {questions.length || '?'}
-            </div>
-            
-            <div className="flex gap-4 items-start mb-6">
-              <div className="w-12 h-12 shrink-0 rounded-full border-4 border-[#ff2d8e]/20 border-t-[#ff2d8e] flex items-center justify-center">
-                <span className="text-[#ff2d8e] font-mono font-bold text-sm">20</span>
+      <div className="flex flex-col lg:flex-row gap-4 items-start">
+        {/* ── LEFT: question card + transport ── */}
+        <div className="flex-1 w-full min-w-0 space-y-4">
+          <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl px-5 py-5 sm:px-6">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span className="text-[10px] font-bold tracking-[.22em] text-[#66728a]">
+                QUESTION {questions.length ? qIndex + 1 : 0} / {questions.length || "?"}
+              </span>
+              {currentQ?.questionType && (
+                <span className="px-2 py-[3px] rounded-md bg-[#00ddff]/10 border border-[#00ddff]/25 text-[9px] font-bold tracking-[.1em] text-[#5be9ff] uppercase">
+                  {currentQ.questionType}
+                </span>
+              )}
+              {currentQ?.points != null && (
+                <span className="px-2 py-[3px] rounded-md bg-[#ffe500]/10 border border-[#ffe500]/25 text-[9px] font-bold tracking-[.1em] text-[#ffe500]">
+                  {currentQ.points} PTS
+                </span>
+              )}
+              <div
+                className="ml-auto w-[52px] h-[52px] rounded-full flex items-center justify-center shrink-0"
+                style={{ background: `conic-gradient(#00ddff 0% ${answeredPct}%, rgba(255,255,255,.08) ${answeredPct}% 100%)` }}
+                title={`${answeredCount} of ${parts.length} answered`}
+              >
+                <div className="w-10 h-10 rounded-full bg-[#0f1724] flex items-center justify-center font-mono text-[13px] font-extrabold text-[#eef2f8]">
+                  {answeredPct}%
+                </div>
               </div>
-              <h2 className="text-lg sm:text-2xl font-extrabold text-white leading-tight">
-                {currentQ?.questionText || "Waiting for game to start…"}
-              </h2>
             </div>
 
-            <div className="space-y-3">
+            <h2 className="text-xl sm:text-2xl font-extrabold text-[#eef2f8] leading-snug my-5 tracking-tight">
+              {currentQ?.questionText || "Waiting for game to start…"}
+            </h2>
+
+            <div className="space-y-2.5">
               {(currentQ?.options as any)?.choices?.map((c: string, i: number) => {
                 const isCorrect = currentQ.correctAnswer === c;
+                // We only know correct-vs-wrong from the socket, not which wrong
+                // option was picked — so only the correct row shows a live tally.
+                const tallyPct = isCorrect && parts.length > 0 ? Math.round((qCorrect / parts.length) * 100) : 0;
                 return (
-                  <div key={i} className={`relative overflow-hidden rounded-xl border p-4 ${isCorrect ? 'border-[#35d07f] bg-[#35d07f]/10' : 'border-[#1b2740] bg-[#0a1019]'}`}>
-                    <div className="relative z-10 flex items-center justify-between">
-                      <span className="font-medium text-[#eef2f8]">{c}</span>
-                      {isCorrect && <CheckCircle2 className="w-5 h-5 text-[#35d07f]" />}
-                    </div>
-                    {/* Mock tally bar */}
-                    <div className="absolute inset-0 bg-white/5 w-1/3 z-0" />
+                  <div
+                    key={i}
+                    className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${
+                      isCorrect ? "border-[#35d07f]/50 bg-[#35d07f]/10" : "border-[#1b2740] bg-white/[.03]"
+                    }`}
+                  >
+                    <span
+                      className={`w-[27px] h-[27px] shrink-0 rounded-full flex items-center justify-center text-xs font-extrabold ${
+                        isCorrect ? "bg-[#35d07f] text-[#08130c]" : "border-[1.5px] border-[#3a4a63] text-[#9aa6bc]"
+                      }`}
+                    >
+                      {String.fromCharCode(65 + i)}
+                    </span>
+                    <span className={`flex-1 text-[15px] ${isCorrect ? "font-bold text-[#eef2f8]" : "font-semibold text-[#c9d1e0]"}`}>
+                      {c}
+                    </span>
+                    {isCorrect && (
+                      <>
+                        <div className="hidden sm:block w-20 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                          <div className="h-full rounded-full bg-[#35d07f]" style={{ width: `${tallyPct}%` }} />
+                        </div>
+                        <span className="font-mono text-[13px] font-extrabold text-[#35d07f] tabular-nums">{qCorrect}</span>
+                        <span className="text-[#35d07f]">✓</span>
+                      </>
+                    )}
                   </div>
                 );
               })}
             </div>
+          </div>
 
-            <div className="mt-6 pt-5 border-t border-[#1b2740] space-y-3">
-              {/* 2×2 action grid on mobile, single row on sm+ */}
-              <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
-                <Button variant="ghost" disabled size="sm" className="text-[#9aa6bc] justify-center">
-                  <ChevronRight className="w-4 h-4 mr-1.5 rotate-180" /> Prev
-                </Button>
-                <Button variant="ghost" size="sm" className="text-[#ffe14d] hover:text-[#ffe14d] hover:bg-[#ffe14d]/10 justify-center">
-                  <Square className="w-4 h-4 mr-1.5" /> Pause
-                </Button>
-                <Button variant="ghost" size="sm" className="text-[#00d4f0] hover:text-[#00d4f0] hover:bg-[#00d4f0]/10 justify-center">
-                  <Eye className="w-4 h-4 mr-1.5" /> Reveal
-                </Button>
-                <Button variant="ghost" size="sm" className="text-[#ff6b6b] hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 justify-center">
-                  <ShieldCheck className="w-4 h-4 mr-1.5" /> Lock
-                </Button>
-              </div>
-              {/* Next CTA — full width for easy tap */}
-              <Button
-                className="w-full bg-[#ff2d8e] hover:bg-[#ff2d8e]/90 text-white rounded-xl"
-                onClick={() => console.log('TODO: wire to host-advance endpoint')}
-              >
-                Next question <ChevronRight className="w-4 h-4 ml-2" />
-              </Button>
-            </div>
+          {/* transport bar */}
+          <div className="flex flex-wrap items-center gap-2 bg-[#0f1724] border border-[#1b2740] rounded-2xl px-3.5 py-3">
+            <button
+              disabled={qIndex === 0}
+              onClick={() => setQIndex((i) => Math.max(0, i - 1))}
+              className="text-xs font-bold text-[#9aa6bc] bg-white/[.04] border border-[#1b2740] rounded-[10px] px-3.5 py-2.5 disabled:opacity-40 hover:brightness-110 transition"
+            >
+              ‹ Prev
+            </button>
+            {/* TODO: pause / reveal / lock need host-control endpoints — not in the API yet */}
+            <button disabled title="Coming soon — needs a host-control endpoint" className="text-xs font-bold text-[#ffe500] bg-[#ffe500]/10 border border-[#ffe500]/30 rounded-[10px] px-3.5 py-2.5 opacity-50 cursor-not-allowed">
+              ⏸ Pause timer
+            </button>
+            <button disabled title="Coming soon — needs a host-control endpoint" className="text-xs font-bold text-[#00ddff] bg-[#00ddff]/10 border border-[#00ddff]/30 rounded-[10px] px-3.5 py-2.5 opacity-50 cursor-not-allowed">
+              ◎ Reveal answer
+            </button>
+            <button disabled title="Coming soon — needs a host-control endpoint" className="text-xs font-bold text-[#9aa6bc] bg-white/[.04] border border-[#1b2740] rounded-[10px] px-3.5 py-2.5 opacity-50 cursor-not-allowed">
+              🔒 Lock
+            </button>
+            <button
+              disabled={qIndex >= questions.length - 1}
+              onClick={() => setQIndex((i) => Math.min(questions.length - 1, i + 1))}
+              className="ml-auto text-[13px] font-extrabold text-[#08130c] bg-[#ff0080] rounded-[10px] px-5 py-3 shadow-[0_8px_22px_-6px_rgba(255,0,128,.6)] disabled:opacity-40 hover:brightness-110 transition"
+            >
+              Next question ›
+            </button>
           </div>
         </div>
 
-        {/* RIGHT COL */}
-        <div className="w-full lg:w-72 shrink-0 space-y-6">
-          <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl p-5">
-            <h3 className="text-sm font-bold text-[#9aa6bc] mb-4 uppercase tracking-wider">Answered</h3>
-            <div className="text-4xl font-mono font-bold text-[#00d4f0] mb-4">
-              {parts.length} <span className="text-lg text-[#66728a]">/ {parts.length}</span>
+        {/* ── RIGHT: answered + standings ── */}
+        <div className="w-full lg:w-[300px] shrink-0 space-y-4">
+          <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl p-4">
+            <div className="flex items-baseline justify-between mb-3">
+              <span className="text-[10px] font-bold tracking-[.16em] text-[#66728a]">ANSWERED</span>
+              <span className="font-mono text-[15px] font-extrabold text-[#eef2f8] tabular-nums">
+                <span className="text-[#35d07f]">{answeredCount}</span> / {parts.length}
+              </span>
             </div>
-            <div className="h-2 bg-[#0a1019] rounded-full overflow-hidden mb-6">
-              <div className="h-full bg-[#00d4f0] w-full" />
+            <div className="h-1.5 rounded-full bg-white/10 overflow-hidden mb-3.5">
+              <div className="h-full rounded-full bg-[#35d07f] transition-all" style={{ width: `${answeredPct}%` }} />
             </div>
-            <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
-              {parts.map(p => (
-                <div key={p.id} className="flex items-center gap-3 p-2 rounded-lg bg-[#0a1019] border border-[#1b2740]">
-                  <div className="w-6 h-6 rounded-full bg-[#35d07f]/20 flex items-center justify-center shrink-0">
-                    <CheckCircle2 className="w-3 h-3 text-[#35d07f]" />
+            <div className="flex flex-wrap gap-1.5">
+              {parts.length === 0 && <p className="text-sm text-[#66728a] py-2">No players yet</p>}
+              {parts.map((p, idx) => {
+                const done = answeredNames.includes(p.userName);
+                const [av, avtx] = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+                return (
+                  <div
+                    key={p.id}
+                    className={`flex items-center gap-1.5 pl-1.5 pr-2.5 py-[5px] rounded-full border transition ${
+                      done ? "bg-[#35d07f]/10 border-[#35d07f]/30" : "bg-white/[.02] border-[#1b2740] opacity-50"
+                    }`}
+                  >
+                    <span
+                      className="w-[18px] h-[18px] rounded-full flex items-center justify-center text-[8px] font-extrabold"
+                      style={done ? { background: av, color: avtx } : { background: "#2a3a52", color: "#8a97ad" }}
+                    >
+                      {p.userName.substring(0, 1).toUpperCase()}
+                    </span>
+                    <span className={`text-[11px] font-semibold ${done ? "text-[#dfe5f0]" : "text-[#8a97ad]"}`}>
+                      {p.userName}
+                    </span>
                   </div>
-                  <span className="text-sm font-medium text-[#eef2f8] truncate">{p.userName}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
-          <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl p-5">
-            <h3 className="text-sm font-bold text-[#9aa6bc] mb-4 uppercase tracking-wider">Live Standings</h3>
-            <div className="space-y-3">
+          <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl p-4">
+            <div className="flex items-baseline justify-between mb-2.5">
+              <span className="text-[10px] font-bold tracking-[.16em] text-[#66728a]">STANDINGS</span>
+              <span className="text-[10px] font-semibold text-[#66728a]">top 6</span>
+            </div>
+            <div className="space-y-0.5">
               {sortedParticipants.length === 0 && (
                 <p className="text-sm text-[#66728a] text-center py-4">No players yet</p>
               )}
-              {sortedParticipants.map((p, i) => (
-                <div key={p.id} className="flex items-center gap-3">
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${i === 0 ? 'bg-[#ffe14d] text-black' : 'bg-[#1b2740] text-[#9aa6bc]'}`}>
-                    {i + 1}
+              {sortedParticipants.map((p, i) => {
+                const [av, avtx] = AVATAR_COLORS[i % AVATAR_COLORS.length];
+                const win = i === 0;
+                return (
+                  <div key={p.id} className={`flex items-center gap-2.5 px-1.5 py-2 rounded-lg ${win ? "bg-[#ff0080]/[.08]" : ""}`}>
+                    <span className={`w-4 text-center font-mono text-xs font-extrabold ${win ? "text-[#ff5aa8]" : "text-[#66728a]"}`}>
+                      {i + 1}
+                    </span>
+                    <span
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-extrabold shrink-0"
+                      style={{ background: av, color: avtx }}
+                    >
+                      {p.userName.substring(0, 1).toUpperCase()}
+                    </span>
+                    <span className={`flex-1 truncate text-[13px] font-bold ${win ? "text-[#eef2f8]" : "text-[#dfe5f0]"}`}>
+                      {p.userName}
+                    </span>
+                    <span className={`font-mono text-[13px] tabular-nums ${win ? "font-extrabold text-[#eef2f8]" : "font-bold text-[#9aa6bc]"}`}>
+                      {p.totalScore}
+                    </span>
                   </div>
-                  <div className="w-7 h-7 rounded-full bg-[#ff2d8e] text-white flex items-center justify-center text-xs font-bold shrink-0">
-                    {p.userName.substring(0, 2).toUpperCase()}
-                  </div>
-                  <span className="text-sm font-medium text-[#eef2f8] flex-1 truncate">{p.userName}</span>
-                  <span className="text-sm font-mono text-[#00d4f0] font-bold">{p.totalScore}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -4646,6 +4774,18 @@ function GamesView({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const updateGame = useUpdateGame();
+  const deleteGame = useDeleteGame();
+
+  const handleDelete = (game: Game) => {
+    if (!window.confirm(`Delete "${game.topic}" and all its questions? This can't be undone.`)) return;
+    deleteGame.mutate(
+      { gameId: game.id },
+      {
+        onSuccess: () => { invalidate(); toast({ title: `Deleted "${game.topic}"` }); },
+        onError: () => toast({ variant: "destructive", title: "Failed to delete game" }),
+      }
+    );
+  };
   
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
@@ -4674,7 +4814,7 @@ function GamesView({
           <h1 className="text-3xl font-extrabold text-white">Your games</h1>
           <span className="bg-[#1b2740] text-[#9aa6bc] px-3 py-1 rounded-full text-sm font-bold">{games.length}</span>
         </div>
-        <Button className="bg-[#ff2d8e] hover:bg-[#ff2d8e]/90 text-white rounded-xl" onClick={() => onNavigate("build")}>
+        <Button className="bg-[#ff0080] hover:bg-[#ff0080]/90 text-white rounded-xl" onClick={() => onNavigate("build")}>
           <Plus className="w-4 h-4 mr-2" /> New quiz
         </Button>
       </div>
@@ -4686,7 +4826,7 @@ function GamesView({
             onClick={() => setFilter(f as any)}
             className={`px-4 py-2 text-sm font-bold capitalize transition-colors border-b-2 -mb-px ${
               filter === f 
-                ? 'border-[#ff2d8e] text-white' 
+                ? 'border-[#ff0080] text-white' 
                 : 'border-transparent text-[#66728a] hover:text-[#9aa6bc]'
             }`}
           >
@@ -4717,7 +4857,7 @@ function GamesView({
               key={game.id} 
               className={`rounded-2xl p-5 flex flex-col ${
                 isLive 
-                  ? 'bg-[#0f1724] border border-[#ff2d8e]/50 ring-1 ring-[#ff2d8e]/20' 
+                  ? 'bg-[#0f1724] border border-[#ff0080]/50 ring-1 ring-[#ff0080]/20' 
                   : isCompleted
                   ? 'bg-[#0a1019] border border-[#1b2740] opacity-75'
                   : 'bg-[#0f1724] border border-[#1b2740]'
@@ -4725,8 +4865,8 @@ function GamesView({
             >
               <div className="flex justify-between items-start mb-4">
                 {isLive && (
-                  <div className="flex items-center gap-1.5 bg-[#ff2d8e]/10 text-[#ff2d8e] px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#ff2d8e] animate-pulse" /> LIVE
+                  <div className="flex items-center gap-1.5 bg-[#ff0080]/10 text-[#ff0080] px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#ff0080] animate-pulse" /> LIVE
                   </div>
                 )}
                 {isDraft && <div className="bg-[#1b2740] text-[#9aa6bc] px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider">DRAFT</div>}
@@ -4742,7 +4882,7 @@ function GamesView({
 
               <div className="mt-auto">
                 {isLive && (
-                  <Button className="w-full bg-[#ff2d8e] hover:bg-[#ff2d8e]/90 text-white" onClick={() => onNavigate("live", game.id)}>
+                  <Button className="w-full bg-[#ff0080] hover:bg-[#ff0080]/90 text-white" onClick={() => onNavigate("live", game.id)}>
                     Open live control <ChevronRight className="w-4 h-4 ml-1" />
                   </Button>
                 )}
@@ -4754,12 +4894,20 @@ function GamesView({
                     <Button className="flex-1 bg-[#35d07f] hover:bg-[#35d07f]/90 text-black font-bold" onClick={() => handleGoLive(game)} disabled={game.questionCount === 0}>
                       <Play className="w-4 h-4 mr-2" /> Go Live
                     </Button>
+                    <Button variant="outline" size="icon" aria-label="Delete quiz" className="shrink-0 border-[#1b2740] bg-[#0a1019] text-[#ff6b6b] hover:bg-[#ff6b6b]/10 hover:text-[#ff6b6b]" onClick={() => handleDelete(game)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
                 )}
                 {isCompleted && (
-                  <Button variant="outline" className="w-full border-[#1b2740] bg-[#0a1019] text-[#eef2f8] hover:bg-[#1b2740]" onClick={() => onNavigate("results", game.id)}>
-                    <BarChart3 className="w-4 h-4 mr-2" /> Results
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" className="flex-1 border-[#1b2740] bg-[#0a1019] text-[#eef2f8] hover:bg-[#1b2740]" onClick={() => onNavigate("results", game.id)}>
+                      <BarChart3 className="w-4 h-4 mr-2" /> Results
+                    </Button>
+                    <Button variant="outline" size="icon" aria-label="Delete quiz" className="shrink-0 border-[#1b2740] bg-[#0a1019] text-[#ff6b6b] hover:bg-[#ff6b6b]/10 hover:text-[#ff6b6b]" onClick={() => handleDelete(game)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 )}
               </div>
             </div>
@@ -4819,19 +4967,216 @@ function BuildQuizView({
 }
 
 function NewResultsSection({ games }: { games: Game[] }) {
-  // Wrapping existing ResultsSection for now, but adding style tweaks if possible
+  const [selectedGameId, setSelectedGameId] = useState<number | null>(null);
+  const completedGames = games.filter((g) => g.status === "completed");
+
+  // Default to the most recent completed game
+  useEffect(() => {
+    if (selectedGameId === null && completedGames.length > 0) {
+      setSelectedGameId(completedGames[completedGames.length - 1].id);
+    }
+  }, [completedGames, selectedGameId]);
+
+  const { data: resultsData, isLoading: loadingResults } = useQuery<GameResultsData>({
+    queryKey: ["admin-results", selectedGameId],
+    queryFn: async () => {
+      const res = await fetch(`/api/games/${selectedGameId}/results`);
+      if (!res.ok) throw new Error("Failed to fetch results");
+      return res.json();
+    },
+    enabled: selectedGameId !== null,
+  });
+
+  const { data: questionStats = [] } = useQuery<QuestionStat[]>({
+    queryKey: ["admin-question-stats", selectedGameId],
+    queryFn: async () => {
+      const res = await fetch(`/api/games/${selectedGameId}/questions/stats`);
+      if (!res.ok) throw new Error("Failed to fetch stats");
+      return res.json();
+    },
+    enabled: selectedGameId !== null,
+  });
+
+  if (completedGames.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 text-center">
+        <BarChart3 className="h-16 w-16 text-[#66728a] mb-4" />
+        <h2 className="text-xl font-bold text-[#eef2f8] mb-2">No completed games yet</h2>
+        <p className="text-[#9aa6bc]">Finish a game to see final results here.</p>
+      </div>
+    );
+  }
+
+  const participants = resultsData?.participants ?? [];
+  const totalQ = resultsData?.totalQuestions ?? 0;
+  const avgScore = participants.length
+    ? Math.round(participants.reduce((s, p) => s + p.totalScore, 0) / participants.length)
+    : 0;
+  const avgCorrect = (() => {
+    const answered = participants.filter((p) => p.totalAnswered > 0);
+    if (!answered.length) return null;
+    const pct = answered.reduce((s, p) => s + p.correctCount / p.totalAnswered, 0) / answered.length;
+    return Math.round(pct * 100);
+  })();
+  const hardest = [...questionStats]
+    .filter((q) => q.percentCorrect !== null)
+    .sort((a, b) => (a.percentCorrect ?? 0) - (b.percentCorrect ?? 0))
+    .slice(0, 5);
+  const pctColor = (pct: number) => (pct < 45 ? "#ff5aa8" : pct < 65 ? "#ffe500" : "#35d07f");
+
   return (
-    <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl p-6">
-      <ResultsSection games={games} />
+    <div className="space-y-5">
+      {/* header */}
+      <div className="flex flex-wrap items-center gap-3 pb-4 border-b border-[#16223a]">
+        <div>
+          <div className="text-[10px] font-bold tracking-[.24em] text-[#66728a] mb-1">FINAL RESULTS</div>
+          <div className="text-[22px] font-extrabold text-[#eef2f8]">{resultsData?.game.topic ?? "…"}</div>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <select
+            value={selectedGameId ?? ""}
+            onChange={(e) => setSelectedGameId(Number(e.target.value))}
+            className="bg-white/[.05] border border-[#1b2740] rounded-[10px] px-3 py-2.5 text-xs font-bold text-[#c9d1e0] outline-none"
+          >
+            {completedGames.map((g) => (
+              <option key={g.id} value={g.id} className="bg-[#0f1724]">
+                {g.topic}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => selectedGameId && window.open(`/api/games/${selectedGameId}/results/export.csv`, "_blank")}
+            className="text-xs font-bold text-[#c9d1e0] bg-white/[.05] border border-[#1b2740] rounded-[10px] px-4 py-2.5 hover:brightness-110 transition"
+          >
+            Export CSV
+          </button>
+        </div>
+      </div>
+
+      {loadingResults ? (
+        <p className="text-sm text-[#66728a] text-center py-16">Loading results…</p>
+      ) : (
+        <div className="flex flex-col xl:flex-row gap-5 items-start">
+          <div className="flex-1 w-full min-w-0 space-y-4">
+            {/* stat tiles */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                { v: participants.length, l: "PLAYERS", c: "#ff5aa8" },
+                { v: totalQ, l: "QUESTIONS", c: "#00ddff" },
+                { v: avgScore, l: "AVG SCORE", c: "#ffe500" },
+                { v: avgCorrect !== null ? `${avgCorrect}%` : "—", l: "AVG CORRECT", c: "#35d07f" },
+              ].map((t) => (
+                <div key={t.l} className="bg-[#0f1724] border border-[#1b2740] rounded-[14px] p-4">
+                  <div className="font-mono text-[26px] font-extrabold tabular-nums" style={{ color: t.c }}>{t.v}</div>
+                  <div className="text-[10px] font-semibold tracking-[.12em] text-[#66728a] mt-0.5">{t.l}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* leaderboard */}
+            <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl overflow-hidden">
+              <div className="px-4.5 py-3.5 border-b border-[#1b2740] text-[13px] font-extrabold text-[#eef2f8] px-5">
+                Final leaderboard
+              </div>
+              <div className="p-2">
+                {participants.length === 0 && (
+                  <p className="text-sm text-[#66728a] text-center py-6">No participants recorded.</p>
+                )}
+                {participants.map((p, idx) => {
+                  const win = p.rank === 1;
+                  const [av, avtx] = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+                  return (
+                    <div key={p.userId} className={`flex items-center gap-3 px-2.5 py-2.5 rounded-[10px] ${win ? "bg-[#ff0080]/[.08]" : ""}`}>
+                      <span className={`w-5 text-center font-mono text-[13px] font-extrabold ${win ? "text-[#ff5aa8]" : "text-[#66728a]"}`}>{p.rank}</span>
+                      <span className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-extrabold shrink-0" style={{ background: av, color: avtx }}>
+                        {p.userName.substring(0, 1).toUpperCase()}
+                      </span>
+                      <span className={`flex-1 truncate text-sm ${win ? "font-extrabold text-[#eef2f8]" : "font-bold text-[#dfe5f0]"}`}>{p.userName}</span>
+                      <span className="text-xs font-semibold text-[#66728a]">{p.correctCount}/{totalQ}</span>
+                      <span className={`w-[70px] text-right font-mono text-[15px] font-extrabold tabular-nums ${win ? "text-[#eef2f8]" : "text-[#9aa6bc]"}`}>{p.totalScore}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* hardest questions */}
+          <div className="w-full xl:w-[280px] shrink-0 bg-[#0f1724] border border-[#1b2740] rounded-2xl p-4.5 p-5">
+            <div className="text-[13px] font-extrabold text-[#eef2f8] mb-4">Hardest questions</div>
+            {hardest.length === 0 && <p className="text-sm text-[#66728a]">No question data yet.</p>}
+            {hardest.map((h) => {
+              const pct = h.percentCorrect ?? 0;
+              const c = pctColor(pct);
+              return (
+                <div key={h.id} className="mb-4 last:mb-0">
+                  <div className="flex justify-between gap-2 mb-1.5">
+                    <span className="flex-1 text-xs font-semibold text-[#c9d1e0] leading-snug line-clamp-2">{h.questionText}</span>
+                    <span className="font-mono text-xs font-extrabold tabular-nums" style={{ color: c }}>{pct}%</span>
+                  </div>
+                  <div className="h-[5px] rounded-full bg-white/10 overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: c }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function NewSettingsSection() {
-  // Wrapping existing SettingsSection
+  const { toast } = useToast();
+  const { data: settings } = useQuery<{ triviaAccessCode?: string }>({
+    queryKey: ["admin-settings-room"],
+    queryFn: async () => {
+      const res = await fetch("/api/settings", { credentials: "include" });
+      if (!res.ok) throw new Error("settings");
+      return res.json();
+    },
+  });
+  const roomCode = settings?.triviaAccessCode ?? "";
+
+  const copyLink = async () => {
+    try {
+      const base = new URL(import.meta.env.BASE_URL, window.location.origin).href;
+      await navigator.clipboard.writeText(base);
+      toast({ title: "Join link copied" });
+    } catch {
+      toast({ variant: "destructive", title: "Couldn't copy link" });
+    }
+  };
+
   return (
-    <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl p-6">
-      <SettingsSection />
+    <div className="space-y-5">
+      <div className="pb-4 border-b border-[#16223a]">
+        <div className="text-[22px] font-extrabold text-[#eef2f8]">Rooms &amp; codes</div>
+        <div className="text-xs font-medium text-[#66728a] mt-0.5">Share the code so players can join.</div>
+      </div>
+
+      <div className="flex flex-col xl:flex-row gap-5 items-start">
+        {/* active room card */}
+        <div className="w-full xl:w-[340px] shrink-0 bg-[#0f1724] border border-[#00ddff]/35 rounded-2xl p-6 text-center">
+          <div className="text-[10px] font-bold tracking-[.2em] text-[#5be9ff] mb-1.5">ACTIVE ROOM CODE</div>
+          <div className="text-[13px] font-semibold text-[#9aa6bc] mb-4">Players enter this on the home page</div>
+          <div className="font-mono text-[40px] font-extrabold tracking-[.14em] text-[#00ddff] break-all" style={{ textShadow: "0 0 26px rgba(0,221,255,.4)" }}>
+            {roomCode || "· · · ·"}
+          </div>
+          <div className="flex gap-2 mt-5">
+            <button onClick={copyLink} className="flex-1 text-xs font-bold text-[#08130c] bg-[#00ddff] rounded-[10px] py-2.5 hover:brightness-110 transition">
+              Copy join link
+            </button>
+          </div>
+          <div className="mt-3.5 text-xs font-semibold text-[#66728a]">Change it in the settings on the right →</div>
+        </div>
+
+        {/* settings form (existing logic, untouched) */}
+        <div className="flex-1 w-full min-w-0 bg-[#0f1724] border border-[#1b2740] rounded-2xl p-6">
+          <SettingsSection />
+        </div>
+      </div>
     </div>
   );
 }
@@ -4877,7 +5222,7 @@ function NewAdminDashboard() {
   const renderSection = () => {
     switch (section) {
       case "games": return <GamesView games={games} onNavigate={navigate} />;
-      case "live": return <LiveGameView activeGame={activeGame} endGame={(id) => {}} />;
+      case "live": return <LiveGameView activeGame={activeGame} endGame={endGame} />;
       case "build": return <BuildQuizView games={games} preferGameId={preferredGameId} onNavigate={navigate} />;
       case "results": return <NewResultsSection games={games} />;
       case "rooms": return <NewSettingsSection />;
@@ -4899,10 +5244,12 @@ function NewAdminDashboard() {
 
       {/* ── Desktop: Persistent Left Rail ── */}
       <aside className="hidden lg:flex w-[216px] shrink-0 bg-[#0a1019] border-r border-[#1b2740] flex-col">
-        <div className="p-6 flex flex-col items-center pb-8 pt-8">
-          <Shield className="h-10 w-10 text-[#ff2d8e] mb-3" />
-          <div className="text-2xl font-black tracking-tight text-white mb-1">MK</div>
-          <div className="text-[10px] text-[#9aa6bc] uppercase tracking-widest font-bold">HOST CONSOLE</div>
+        <div className="flex items-center gap-2.5 px-5 pt-6 pb-7">
+          <CrownMark width={30} />
+          <div>
+            <div className="text-[13px] font-extrabold tracking-wide text-[#eef2f8]">Queen Trivia</div>
+            <div className="font-mono text-[8px] font-bold tracking-[.22em] text-[#66728a] mt-px">HOST CONSOLE</div>
+          </div>
         </div>
 
         <nav className="flex-1 px-4 space-y-2">
@@ -4914,11 +5261,11 @@ function NewAdminDashboard() {
                 onClick={() => navigate(item.id)}
                 className={`
                   w-full flex items-center gap-3 h-[44px] px-4 rounded-lg text-sm font-medium transition-all relative overflow-hidden group
-                  ${isActive ? 'bg-[#ff2d8e]/10 text-[#eef2f8] font-bold' : 'text-[#9aa6bc] hover:bg-white/5'}
+                  ${isActive ? 'bg-[#ff0080]/10 text-[#eef2f8] font-bold' : 'text-[#9aa6bc] hover:bg-white/5'}
                 `}
               >
-                {isActive && <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#ff2d8e]" />}
-                <item.icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? 'text-[#ff2d8e]' : 'text-[#66728a] group-hover:text-[#9aa6bc]'}`} />
+                {isActive && <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#ff0080]" />}
+                <item.icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? 'text-[#ff0080]' : 'text-[#66728a] group-hover:text-[#9aa6bc]'}`} />
                 {item.label}
               </button>
             );
@@ -4927,7 +5274,7 @@ function NewAdminDashboard() {
 
         <div className="p-4 border-t border-[#1b2740]">
           <div className="bg-[#0f1724] rounded-xl p-3 flex items-center gap-3 border border-[#1b2740]">
-            <div className="w-8 h-8 rounded-full bg-[#ff2d8e] text-white flex items-center justify-center text-xs font-bold shrink-0">
+            <div className="w-8 h-8 rounded-full bg-[#ff0080] text-white flex items-center justify-center text-xs font-bold shrink-0">
               HO
             </div>
             <div className="flex-1 min-w-0">
@@ -4946,17 +5293,17 @@ function NewAdminDashboard() {
       {/* ── Mobile: thin sticky top bar ── */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-20 flex items-center justify-between px-4 h-12 bg-[#0a1019] border-b border-[#1b2740]">
         <div className="flex items-center gap-2">
-          <Shield className="h-5 w-5 text-[#ff2d8e]" />
+          <CrownMark width={20} />
           <span className="font-bold text-white text-sm tracking-widest">
             {mobileNavLabels[section] ?? "HOST"}
           </span>
           {activeGame && section !== "live" && (
             <button
               onClick={() => navigate("live")}
-              className="ml-2 flex items-center gap-1 bg-[#ff2d8e]/10 border border-[#ff2d8e]/30 rounded-full px-2 py-0.5"
+              className="ml-2 flex items-center gap-1 bg-[#ff0080]/10 border border-[#ff0080]/30 rounded-full px-2 py-0.5"
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-[#ff2d8e] animate-pulse" />
-              <span className="text-[10px] font-bold text-[#ff2d8e] tracking-wider">LIVE</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-[#ff0080] animate-pulse" />
+              <span className="text-[10px] font-bold text-[#ff0080] tracking-wider">LIVE</span>
             </button>
           )}
         </div>
@@ -5002,16 +5349,16 @@ function NewAdminDashboard() {
             >
               {/* Live tab gets a pink glow dot when game is active */}
               {isLiveTab && activeGame && !isActive && (
-                <span className="absolute top-2 right-[calc(50%-10px)] w-1.5 h-1.5 rounded-full bg-[#ff2d8e] animate-pulse" />
+                <span className="absolute top-2 right-[calc(50%-10px)] w-1.5 h-1.5 rounded-full bg-[#ff0080] animate-pulse" />
               )}
               <item.icon
-                className={`h-5 w-5 shrink-0 transition-colors ${isActive ? 'text-[#ff2d8e]' : 'text-[#66728a]'}`}
+                className={`h-5 w-5 shrink-0 transition-colors ${isActive ? 'text-[#ff0080]' : 'text-[#66728a]'}`}
               />
-              <span className={`text-[10px] font-bold transition-colors truncate ${isActive ? 'text-[#ff2d8e]' : 'text-[#66728a]'}`}>
+              <span className={`text-[10px] font-bold transition-colors truncate ${isActive ? 'text-[#ff0080]' : 'text-[#66728a]'}`}>
                 {mobileNavLabels[item.id]}
               </span>
               {isActive && (
-                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-[2px] rounded-full bg-[#ff2d8e]" />
+                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-[2px] rounded-full bg-[#ff0080]" />
               )}
             </button>
           );

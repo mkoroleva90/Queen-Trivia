@@ -1524,7 +1524,7 @@ export default function GamePlay() {
                   <div
                     className="rounded-[20px] p-10 text-center space-y-5"
                     style={{
-                      background: "linear-gradient(160deg,rgba(255,229,0,.12),rgba(255,229,0,.04))",
+                      background: "rgba(255,229,0,.08)",
                       border: "1.5px solid rgba(255,229,0,.4)",
                     }}
                   >

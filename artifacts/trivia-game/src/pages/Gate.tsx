@@ -1,10 +1,11 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../lib/auth";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { CrownMark } from "@/components/Brand";
 import { Loader2, AlertCircle, ChevronLeft } from "lucide-react";
 
 // ─── Avatar colour swatches (local UI state only) ────────────────────────────
@@ -78,6 +79,18 @@ export default function Gate() {
   const { loginUser } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+
+  // Code handed off from the Home page (?code=XXXX, already verified there)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const preCode = params.get("code");
+    if (preCode) {
+      setCode(preCode.toUpperCase());
+      setStep("name");
+      setOnboardingStep(3);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Existing handlers (logic unchanged; only UI state calls added) ────────
   const handleCodeSubmit = async (e: React.FormEvent) => {
@@ -189,28 +202,13 @@ export default function Gate() {
   return (
     <div
       className="min-h-[100dvh] flex flex-col relative overflow-hidden"
-      style={{ background: "linear-gradient(165deg,#2a0a3d 0%,#12061f 55%,#0a0510 100%)" }}
+      style={{ background: "#0d0f15" }}
     >
-      {/* ── Ambient blobs ── */}
+      {/* ── Ambient sparkles (flat, subtle) ── */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div
-          className="absolute"
-          style={{
-            top: "-60px", left: "-60px",
-            width: 280, height: 280, borderRadius: "50%",
-            background: "radial-gradient(circle,rgba(255,0,128,.22) 0%,transparent 70%)",
-            filter: "blur(22px)",
-          }}
-        />
-        <div
-          className="absolute"
-          style={{
-            bottom: "-60px", right: "-60px",
-            width: 240, height: 240, borderRadius: "50%",
-            background: "radial-gradient(circle,rgba(0,221,255,.16) 0%,transparent 70%)",
-            filter: "blur(22px)",
-          }}
-        />
+        <div className="absolute animate-pulse" style={{ top: "14%", left: "16%", width: 5, height: 5, borderRadius: "50%", background: "#ffe500", opacity: 0.5 }} />
+        <div className="absolute animate-pulse" style={{ top: "28%", right: "20%", width: 4, height: 4, borderRadius: "50%", background: "#ff0080", opacity: 0.5 }} />
+        <div className="absolute animate-pulse" style={{ bottom: "22%", left: "30%", width: 4, height: 4, borderRadius: "50%", background: "#ffe500", opacity: 0.5 }} />
       </div>
       {/* ── Top bar: back + progress dots ── */}
       <div className="relative z-10 flex items-center justify-between px-[22px] pt-14 pb-2">
@@ -255,43 +253,63 @@ export default function Gate() {
       <div className="relative z-10 flex-1 flex flex-col px-[22px] pb-8">
         <AnimatePresence mode="wait">
 
-          {/* ── Step 0: Welcome ── */}
+          {/* ── Step 0: Welcome (mirrors the Home hero) ── */}
           {onboardingStep === 0 && (
-            <motion.div key="s0" {...slide} className="flex-1 flex flex-col justify-center gap-8">
-              {/* Headline */}
-              <div className="flex flex-col gap-4">
-                {/* "TONIGHT ONLY" eyebrow pill */}
-                <span
-                  className="self-start font-extrabold uppercase"
-                  style={{
-                    fontSize: 10, letterSpacing: ".2em",
-                    background: "#ffe500", color: "#0a0510",
-                    borderRadius: 20, padding: "8px 12px",
-                  }}
-                >
-                  TONIGHT ONLY
-                </span>
-                <h1
-                  className="font-extrabold"
-                  style={{ fontSize: 56, letterSpacing: "-.03em", lineHeight: .88 }}
-                >
-                  <span style={{ color: "#ffffff" }}>MK</span>
-                  <br />
-                  <span
-                    style={{ color: "#00ddff", textShadow: "0 0 30px rgba(0,221,255,.6)" }}
-                    className="text-[65px]">
-                    TRIVIA
-                  </span>
-                </h1>
-              </div>
-
-              {/* Body */}
-              <p style={{ fontSize: 16, fontWeight: 500, color: "#c7b8e0", lineHeight: 1.5 }}>
-                Big questions. Bigger bragging rights. Let's find out who's actually smart.
+            <motion.div key="s0" {...slide} className="flex-1 flex flex-col items-center justify-center gap-4 text-center">
+              <CrownMark width={78} gemHoles />
+              <h1
+                className="font-extrabold"
+                style={{ fontSize: 44, letterSpacing: "-.035em", lineHeight: 0.88, margin: 0 }}
+              >
+                <span style={{ color: "#ffe500" }}>QUEEN</span>
+                <br />
+                <span style={{ color: "#ff0080" }}>TRIVIA</span>
+              </h1>
+              <p style={{ fontSize: 15, fontWeight: 500, color: "#b7a8d0", lineHeight: 1.4, margin: 0 }}>
+                Enter the code. Answer fast. Take the throne.
               </p>
 
-              {/* CTA */}
-              <Cta bg="#ffe500" color="#0a0510" onClick={goNext}>Let's go →</Cta>
+              <div
+                className="w-full flex flex-col items-center"
+                style={{
+                  gap: 13,
+                  padding: "18px 16px",
+                  borderRadius: 20,
+                  background: "rgba(255,255,255,.03)",
+                  border: "1px solid #2a2233",
+                  boxShadow: "0 20px 50px -24px rgba(255,0,128,.45)",
+                }}
+              >
+                <div className="font-bold" style={{ fontSize: 10, letterSpacing: ".16em", color: "#66728a" }}>
+                  ENTER ROOM CODE
+                </div>
+                <div className="flex" style={{ gap: 8 }}>
+                  {[0, 1, 2, 3].map((i) => {
+                    const ch = code.trim().toUpperCase()[i] ?? "";
+                    const yellow = i >= 2;
+                    return (
+                      <div
+                        key={i}
+                        className="flex items-center justify-center"
+                        style={{
+                          width: 52, height: 60, borderRadius: 13,
+                          background: ch
+                            ? (yellow ? "rgba(255,229,0,.08)" : "rgba(255,0,128,.1)")
+                            : "rgba(0,0,0,.25)",
+                          border: `1.5px solid ${ch
+                            ? (yellow ? "rgba(255,229,0,.45)" : "rgba(255,0,128,.5)")
+                            : "#2a2233"}`,
+                          fontFamily: "ui-monospace,monospace",
+                          fontWeight: 800, fontSize: 25, color: "#fff",
+                        }}
+                      >
+                        {ch}
+                      </div>
+                    );
+                  })}
+                </div>
+                <Cta bg="#ffe500" color="#041016" onClick={goNext}>Let's play →</Cta>
+              </div>
             </motion.div>
           )}
 
@@ -456,13 +474,13 @@ export default function Gate() {
       </div>
       {/* ── Footer ── */}
       <div className="relative z-10 pb-10 text-center px-[22px]">
-        <p style={{ fontSize: 13, color: "#475569" }}>
+        <p style={{ fontSize: 12, fontWeight: 500, color: "#66728a" }}>
           Hosting tonight?{" "}
           <Link
             href="/admin-login"
-            style={{ color: "#00ddff", fontWeight: 600, textDecoration: "underline" }}
+            style={{ color: "#ffe500", fontWeight: 700 }}
           >
-            Admin login
+            Create a quiz free →
           </Link>
         </p>
       </div>

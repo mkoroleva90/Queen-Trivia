@@ -193,7 +193,7 @@ function ActiveGameCard({
         className="rounded-[20px] overflow-hidden"
         style={{
           padding: 18,
-          background: "linear-gradient(160deg,rgba(255,0,128,.16),rgba(255,0,128,.04))",
+          background: "rgba(255,0,128,.1)",
           border: "1.5px solid rgba(255,0,128,.4)",
         }}
       >
@@ -243,7 +243,7 @@ function ActiveGameCard({
                     width: 30, height: 30,
                     background: avatarColor(i),
                     color: "#ffffff",
-                    border: "2px solid #1a0728",
+                    border: "2px solid #0d0f15",
                     marginLeft: i > 0 ? -8 : 0,
                     zIndex: displayParticipants.length - i,
                     position: "relative",
@@ -259,7 +259,7 @@ function ActiveGameCard({
                     width: 30, height: 30,
                     background: "rgba(255,255,255,.12)",
                     color: "#ffffff",
-                    border: "2px solid #1a0728",
+                    border: "2px solid #0d0f15",
                     marginLeft: -8,
                     position: "relative",
                     zIndex: 0,

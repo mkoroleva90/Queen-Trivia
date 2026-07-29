@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import { AuthProvider, useAuth } from "./lib/auth";
+import Home from "./pages/Home";
 import Gate from "./pages/Gate";
 import AdminLogin from "./pages/AdminLogin";
 import Lobby from "./pages/Lobby";
@@ -56,7 +57,8 @@ function AdminRoute() {
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Gate} />
+      <Route path="/" component={Home} />
+      <Route path="/join" component={Gate} />
       <Route path="/admin-login" component={AdminLogin} />
       <Route path="/lobby">
         <PlayerRoute component={Lobby} />

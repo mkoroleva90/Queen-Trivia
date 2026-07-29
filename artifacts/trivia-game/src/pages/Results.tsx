@@ -160,7 +160,7 @@ export default function Results() {
   void accuracy; void streak; void bestType;
 
   const handleShare = async () => {
-    const text = `I scored ${myScore} points${totalQ > 0 ? ` (${myCorrect}/${totalQ} correct)` : ""} on "${results?.game.topic ?? "Trivia Night"}!" 🏆`;
+    const text = `I scored ${myScore} points${totalQ > 0 ? ` (${myCorrect}/${totalQ} correct)` : ""} on "${results?.game.topic ?? "Queen Trivia"}!" 🏆`;
     try {
       await navigator.clipboard.writeText(text);
       toast({ title: "Copied to clipboard!", description: text });
@@ -254,7 +254,7 @@ export default function Results() {
                     paddingTop: 14,
                     paddingBottom: 14,
                     background: isWinner
-                      ? "linear-gradient(120deg,rgba(255,0,128,.16),rgba(255,0,128,.03))"
+                      ? "rgba(255,0,128,.12)"
                       : isMe
                         ? "rgba(255,255,255,.04)"
                         : "rgba(15,10,22,.6)",

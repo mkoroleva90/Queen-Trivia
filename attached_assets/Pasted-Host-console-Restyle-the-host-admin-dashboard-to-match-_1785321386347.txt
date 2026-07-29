@@ -1,0 +1,19 @@
+Host console
+```
+Restyle the host/admin dashboard to match Host Console.dc.html and the Queen Trivia brand. UI/UX ONLY — do not change data fetching, auth, sockets, quiz generation, or delete logic. Reuse existing Tailwind tokens, shadcn/ui, Manrope, wouter routes, hooks.
+
+Palette (calmer control-room): app bg #0a0c12, panels #0f1724, rail/topbar #0a1019, border #1b2740. Accents by meaning — pink #ff0080 = live/primary, cyan #00ddff = codes/info, yellow #ffe500 = timer/go-live-secondary, green #35d07f = answered/correct, red #ff6b6b = destructive. Numbers in mono + tabular-nums.
+
+1. Wrap admin pages in a 216px persistent left rail: crown mark + "Queen Trivia" / "HOST CONSOLE", nav = Games / Live game / Build a quiz / Results / Rooms & codes, host chip bottom. Active item = pink left bar + rgba(255,0,128,.12) tint. Drive active state from the current route.
+
+2. NEW "Live game control" view: topbar (pulsing LIVE badge, title, ROOM code chip, player count, red End game). Left: question card (Q x/total, category+points chips, circular countdown, question, 4 answer rows with correct = green border + live tally bar/count) + transport bar (Prev, Pause timer, Reveal answer, Lock, Next = pink). Right 300px: "Answered X/N" with player pills that dim until they answer + live Standings top-6. Wire to the existing game/socket state that powers player GamePlay; if there's no host-advance endpoint, stub + TODO — do not invent backend. Keep the view SCROLLABLE; do NOT force 100vh (answers must not overlap the transport bar).
+
+3. Games list: header + All/Live/Drafts filter + New quiz; 3-col status cards (LIVE/DRAFT/SCHEDULED) with existing edit/delete/go-live actions.
+
+4. Build a quiz: segmented "From categories / AI prompt" toggle over EXISTING generation logic, count stepper + difficulty, editable generated-question list (correct = green, add/edit/reorder). Keep generation endpoints untouched.
+
+5. Results: stat tiles (players/questions/avg score/avg correct) + full leaderboard (winner pink-washed, correct/total) + "Hardest questions" %-bars from existing answer data.
+
+6. Rooms & codes: active-room card (big cyan code, QR, copy/rotate, joined count) + all-codes list with status pills. Wire to existing access-code logic.
+
+Match spacing/radii/typography to the prototype. Keep existing loading/error/toast handling.
