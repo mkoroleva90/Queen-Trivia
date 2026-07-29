@@ -50,14 +50,14 @@ router.post(
   authRateLimit,
   requireAdmin,
   async (req, res): Promise<void> => {
-    const parsed = EmailRegisterBody.safeParse(req.body);
+    const parsed = EmailResetPasswordBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(400).json({ error: "Invalid request" });
       return;
     }
 
     const { email, password } = parsed.data;
-    const normalised = email.toLowerCase().trim();
+    const normalised = parsed.data.email.toLowerCase().trim();
 
     // Check for existing account — always respond generically to avoid enumeration
     const [existing] = await db
@@ -72,18 +72,15 @@ router.post(
       return;
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
+    const passwordHash = await bcrypt.hash(parsed.data.password, 12);
     const token = generateToken();
-    const tokenHash = hashToken(token);
-    const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 h
+    const tokenHash = hashToken(parsed.data.token);
+    const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 h
 
-    await db.insert(adminAccountsTable).values({
-      email: normalised,
-      passwordHash,
-      emailVerified: false,
-      verificationTokenHash: tokenHash,
-      verificationTokenExpiry: expiry,
-    });
+    await db
+      .update(adminAccountsTable)
+      .set({ resetTokenHash: tokenHash, resetTokenExpiry: expiry })
+      .where(eq(adminAccountsTable.id, account.id));
 
     const base = appBaseUrl(req);
     const verifyUrl = `${base}/verify-email?token=${token}`;
@@ -106,9 +103,9 @@ router.post(
   "/auth/email/verify",
   authRateLimit,
   async (req, res): Promise<void> => {
-    const parsed = EmailVerifyBody.safeParse(req.body);
+    const parsed = EmailResetPasswordBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: "Invalid request" });
+      res.status(400).json({ error: parsed.error.message });
       return;
     }
 
@@ -118,7 +115,7 @@ router.post(
     const [account] = await db
       .select()
       .from(adminAccountsTable)
-      .where(eq(adminAccountsTable.verificationTokenHash, tokenHash))
+      .where(eq(adminAccountsTable.resetTokenHash, tokenHash))
       .limit(1);
 
     if (
@@ -157,24 +154,24 @@ router.post(
   "/auth/email/login",
   authRateLimit,
   async (req, res): Promise<void> => {
-    const parsed = EmailLoginBody.safeParse(req.body);
+    const parsed = EmailResetPasswordBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Invalid request" });
       return;
     }
 
     const { email, password } = parsed.data;
-    const normalised = email.toLowerCase().trim();
+    const normalised = parsed.data.email.toLowerCase().trim();
 
     const [account] = await db
       .select()
       .from(adminAccountsTable)
-      .where(eq(adminAccountsTable.email, normalised))
+      .where(eq(adminAccountsTable.resetTokenHash, tokenHash))
       .limit(1);
 
     // Constant-time path: always run bcrypt.compare to avoid timing attacks
     const dummyHash = "$2b$12$invalidhashpaddingtoensureconstanttimepath000000000000";
-    const passwordHash = account?.passwordHash ?? dummyHash;
+    const passwordHash = await bcrypt.hash(parsed.data.password, 12);
     const passwordOk = await bcrypt.compare(password, passwordHash);
 
     if (!account || !passwordOk) {
@@ -194,6 +191,10 @@ router.post(
       }
       req.session.isAdmin = true;
       req.session.adminEmail = account.email;
+      if (rememberMe) {
+        // 30 days for "remember me"
+        req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000;
+      }
       res.json({ ok: true, email: account.email });
     });
   }
@@ -204,7 +205,7 @@ router.post(
   "/auth/email/forgot-password",
   authRateLimit,
   async (req, res): Promise<void> => {
-    const parsed = EmailForgotPasswordBody.safeParse(req.body);
+    const parsed = EmailResetPasswordBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Invalid request" });
       return;
@@ -216,9 +217,9 @@ router.post(
     const genericOk = { ok: true, message: "If that address is registered, a reset link is on its way." };
 
     const [account] = await db
-      .select({ id: adminAccountsTable.id })
+      .select()
       .from(adminAccountsTable)
-      .where(eq(adminAccountsTable.email, normalised))
+      .where(eq(adminAccountsTable.resetTokenHash, tokenHash))
       .limit(1);
 
     if (!account) {
@@ -227,7 +228,7 @@ router.post(
     }
 
     const token = generateToken();
-    const tokenHash = hashToken(token);
+    const tokenHash = hashToken(parsed.data.token);
     const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 h
 
     await db

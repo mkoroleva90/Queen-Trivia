@@ -23,6 +23,7 @@ export const EmailVerifyResponse = zod.object({
 export const EmailLoginBody = zod.object({
   email: zod.string().email(),
   password: zod.string().min(1),
+  rememberMe: zod.boolean().optional().default(false),
 });
 export const EmailLoginResponse = zod.object({
   ok: zod.boolean(),

@@ -21,6 +21,7 @@ export default function AdminLogin() {
   // Email+password state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [emailError, setEmailError] = useState("");
 
   const [pending, setPending] = useState(false);
@@ -78,7 +79,7 @@ export default function AdminLogin() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({ email: email.trim(), password, rememberMe }),
       });
 
       if (res.status === 403) {
@@ -245,6 +246,16 @@ export default function AdminLogin() {
                     </p>
                   )}
                 </div>
+
+                <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="h-4 w-4 rounded border-primary/30 accent-primary"
+                  />
+                  Remember me for 30 days
+                </label>
 
                 <Button
                   type="submit"
