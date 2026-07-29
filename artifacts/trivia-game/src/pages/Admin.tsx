@@ -4520,9 +4520,6 @@ function LiveGameView({
           </Button>
         </div>
         <div className="flex items-center gap-3 text-sm">
-          <div className="flex items-center gap-1.5 bg-[#00d4f0]/10 text-[#00d4f0] px-2.5 py-1 rounded-md font-mono border border-[#00d4f0]/20 text-xs">
-            ROOM <span className="font-bold ml-1">????</span>
-          </div>
           <div className="flex items-center gap-1 text-[#9aa6bc] text-sm">
             <Users className="w-4 h-4" />
             <span>{parts.length} players</span>
