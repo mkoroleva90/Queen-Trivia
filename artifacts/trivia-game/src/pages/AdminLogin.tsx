@@ -124,7 +124,7 @@ return (
          </Card>
 
 
-         <div className="text-center">
+         <div className="text-center space-y-2">
           <Link
            href="/"
      className="inline-flex items-center gap-1.5 text-sm text-muted-foregroundhover:text-foreground transition-colors"
@@ -132,6 +132,15 @@ return (
            <ArrowLeft className="h-4 w-4" />
            Back to player login
           </Link>
+          <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
+            <Link href="/register" className="hover:text-foreground transition-colors">
+              Create account
+            </Link>
+            <span>·</span>
+            <Link href="/forgot-password" className="hover:text-foreground transition-colors">
+              Forgot password?
+            </Link>
+          </div>
          </div>
          </div>
      </div>

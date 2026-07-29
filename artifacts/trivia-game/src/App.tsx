@@ -11,6 +11,10 @@ import Lobby from "./pages/Lobby";
 import GamePlay from "./pages/GamePlay";
 import Results from "./pages/Results";
 import Admin from "./pages/Admin";
+import Register from "./pages/Register";
+import VerifyEmail from "./pages/VerifyEmail";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -64,6 +68,10 @@ function Router() {
         <PlayerRoute component={Results} />
       </Route>
       <Route path="/admin" component={AdminRoute} />
+      <Route path="/register" component={Register} />
+      <Route path="/verify-email" component={VerifyEmail} />
+      <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/reset-password" component={ResetPassword} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -12,12 +12,14 @@ import settingsRouter from "./settings";
 import resultsRouter from "./results";
 import opentdbRouter from "./opentdb";
 import geminiRouter from "./gemini";
+import emailAuthRouter from "./emailAuth";
 
 
 const router: IRouter = Router();
 router.use(healthRouter);
 router.use(authRouter);
 router.use(sessionRouter);
+router.use(emailAuthRouter);
 router.use(settingsRouter);
 router.use(usersRouter);
 router.use(gamesRouter);
