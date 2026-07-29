@@ -1,8 +1,7 @@
 import { Router, type IRouter } from "express";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db, adminAccountsTable, sessionsTable } from "@workspace/db";
 import {
   EmailRegisterBody,
@@ -44,20 +43,21 @@ function appBaseUrl(req: import("express").Request): string {
 // ── routes ───────────────────────────────────────────────────────────────────
 
 // POST /api/auth/email/register
-// Requires an existing admin session — only authenticated admins may add new admin accounts.
+// Requires an existing admin session — only authenticated admins may add new
+// admin accounts.
 router.post(
   "/auth/email/register",
   authRateLimit,
   requireAdmin,
   async (req, res): Promise<void> => {
-    const parsed = EmailResetPasswordBody.safeParse(req.body);
+    const parsed = EmailRegisterBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: "Invalid request" });
+      res.status(400).json({ error: parsed.error.message });
       return;
     }
 
     const { email, password } = parsed.data;
-    const normalised = parsed.data.email.toLowerCase().trim();
+    const normalised = email.toLowerCase().trim();
 
     // Check for existing account — always respond generically to avoid enumeration
     const [existing] = await db
@@ -72,15 +72,18 @@ router.post(
       return;
     }
 
-    const passwordHash = await bcrypt.hash(parsed.data.password, 12);
+    const passwordHash = await bcrypt.hash(password, 12);
     const token = generateToken();
-    const tokenHash = hashToken(parsed.data.token);
-    const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 h
+    const tokenHash = hashToken(token);
+    const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 h
 
-    await db
-      .update(adminAccountsTable)
-      .set({ resetTokenHash: tokenHash, resetTokenExpiry: expiry })
-      .where(eq(adminAccountsTable.id, account.id));
+    await db.insert(adminAccountsTable).values({
+      email: normalised,
+      passwordHash,
+      emailVerified: false,
+      verificationTokenHash: tokenHash,
+      verificationTokenExpiry: expiry,
+    });
 
     const base = appBaseUrl(req);
     const verifyUrl = `${base}/verify-email?token=${token}`;
@@ -103,9 +106,9 @@ router.post(
   "/auth/email/verify",
   authRateLimit,
   async (req, res): Promise<void> => {
-    const parsed = EmailResetPasswordBody.safeParse(req.body);
+    const parsed = EmailVerifyBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(400).json({ error: "Invalid request" });
       return;
     }
 
@@ -115,7 +118,7 @@ router.post(
     const [account] = await db
       .select()
       .from(adminAccountsTable)
-      .where(eq(adminAccountsTable.resetTokenHash, tokenHash))
+      .where(eq(adminAccountsTable.verificationTokenHash, tokenHash))
       .limit(1);
 
     if (
@@ -154,24 +157,24 @@ router.post(
   "/auth/email/login",
   authRateLimit,
   async (req, res): Promise<void> => {
-    const parsed = EmailResetPasswordBody.safeParse(req.body);
+    const parsed = EmailLoginBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Invalid request" });
       return;
     }
 
-    const { email, password } = parsed.data;
-    const normalised = parsed.data.email.toLowerCase().trim();
+    const { email, password, rememberMe } = parsed.data;
+    const normalised = email.toLowerCase().trim();
 
     const [account] = await db
       .select()
       .from(adminAccountsTable)
-      .where(eq(adminAccountsTable.resetTokenHash, tokenHash))
+      .where(eq(adminAccountsTable.email, normalised))
       .limit(1);
 
     // Constant-time path: always run bcrypt.compare to avoid timing attacks
     const dummyHash = "$2b$12$invalidhashpaddingtoensureconstanttimepath000000000000";
-    const passwordHash = await bcrypt.hash(parsed.data.password, 12);
+    const passwordHash = account?.passwordHash ?? dummyHash;
     const passwordOk = await bcrypt.compare(password, passwordHash);
 
     if (!account || !passwordOk) {
@@ -205,7 +208,7 @@ router.post(
   "/auth/email/forgot-password",
   authRateLimit,
   async (req, res): Promise<void> => {
-    const parsed = EmailResetPasswordBody.safeParse(req.body);
+    const parsed = EmailForgotPasswordBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Invalid request" });
       return;
@@ -217,9 +220,9 @@ router.post(
     const genericOk = { ok: true, message: "If that address is registered, a reset link is on its way." };
 
     const [account] = await db
-      .select()
+      .select({ id: adminAccountsTable.id })
       .from(adminAccountsTable)
-      .where(eq(adminAccountsTable.resetTokenHash, tokenHash))
+      .where(eq(adminAccountsTable.email, normalised))
       .limit(1);
 
     if (!account) {
@@ -228,7 +231,7 @@ router.post(
     }
 
     const token = generateToken();
-    const tokenHash = hashToken(parsed.data.token);
+    const tokenHash = hashToken(token);
     const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 h
 
     await db
@@ -300,6 +303,65 @@ router.post(
       .where(sql`${sessionsTable.sess}->>'adminEmail' = ${account.email}`);
 
     res.json({ ok: true, message: "Password updated. You can now log in." });
+  }
+);
+
+// GET /api/auth/email/config-check
+// Requires the ADMIN_ACCESS_KEY header — no email session needed so it can be
+// called before any admin has ever registered.
+router.get("/auth/email/config-check", (req, res): void => {
+  const envKey = process.env["ADMIN_ACCESS_KEY"]?.trim();
+  const provided = (req.headers["x-admin-key"] as string | undefined)?.trim();
+
+  if (!envKey || provided !== envKey) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  const resendKey = process.env["RESEND_API_KEY"];
+  const emailFrom = process.env["EMAIL_FROM"];
+  const replitDomains = process.env["REPLIT_DOMAINS"];
+
+  const issues: string[] = [];
+  if (!resendKey) issues.push("RESEND_API_KEY is not set");
+  if (!emailFrom) issues.push("EMAIL_FROM is not set");
+  if (!replitDomains) issues.push("REPLIT_DOMAINS is not set — email links will fall back to request host");
+
+  if (issues.length > 0) {
+    res.status(503).json({ ok: false, issues });
+    return;
+  }
+
+  const primaryDomain = replitDomains!.split(",")[0]!.trim();
+  res.json({
+    ok: true,
+    emailFrom,
+    baseUrl: `https://${primaryDomain}`,
+    sampleVerifyUrl: `https://${primaryDomain}/verify-email?token=<token>`,
+    sampleResetUrl: `https://${primaryDomain}/reset-password?token=<token>`,
+  });
+});
+
+// DELETE /api/auth/email/admin-account
+// Requires an active admin session. Deletes the signed-in admin's own account
+// so test registrations can be cleaned up after end-to-end verification.
+router.delete(
+  "/auth/email/admin-account",
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const email = req.session.adminEmail;
+    if (!email) {
+      res.status(400).json({ error: "No admin email in session" });
+      return;
+    }
+
+    await db
+      .delete(adminAccountsTable)
+      .where(eq(adminAccountsTable.email, email));
+
+    req.session.destroy(() => {
+      res.json({ ok: true, message: `Account ${email} deleted and session cleared.` });
+    });
   }
 );
 
