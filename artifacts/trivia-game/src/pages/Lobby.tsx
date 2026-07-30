@@ -34,6 +34,7 @@ import {
   Clock,
   Hourglass,
   Trophy,
+  Plus,
 } from "lucide-react";
 
 // ─── Avatar colors ────────────────────────────────────────────────────────────
@@ -392,7 +393,7 @@ export default function Lobby() {
               <ChevronLeft className="h-5 w-5 text-white" />
             </button>
 
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <h1
                 className="font-extrabold leading-none"
                 style={{ fontSize: 30, color: "#ffffff", letterSpacing: "-.01em" }}
@@ -404,6 +405,26 @@ export default function Lobby() {
                 <span style={{ color: "#00ddff", fontWeight: 700 }}>{user.name}</span>
               </p>
             </div>
+
+            {/* Join another game */}
+            <button
+              onClick={() => setLocation("/")}
+              className="shrink-0 flex items-center gap-1.5 font-bold mt-1"
+              style={{
+                fontSize: 12,
+                color: "#ffe500",
+                background: "rgba(255,229,0,.08)",
+                border: "1px solid rgba(255,229,0,.25)",
+                borderRadius: 10,
+                padding: "6px 10px",
+                cursor: "pointer",
+                letterSpacing: ".02em",
+              }}
+              aria-label="Join another game"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Join game
+            </button>
           </motion.div>
 
           {/* ── Stat chips ── */}

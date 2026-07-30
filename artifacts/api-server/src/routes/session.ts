@@ -7,7 +7,10 @@ import { authRateLimit } from "../middleware/authRateLimit";
 
 
 const router: IRouter = Router();
-// POST /api/auth/login — verify trivia code + create/retrieve user, start session
+// POST /api/auth/login — verify trivia code + create/retrieve user, start session.
+// If the caller already has a valid player session (req.session.userId is set),
+// this endpoint simply appends the new game to their allowedGameIds list and
+// returns the existing user — no regenerate, no new user row.
 router.post("/auth/login", authRateLimit, async (req, res): Promise<void> => {
 const code =
     typeof req.body?.code === "string" ? req.body.code.trim() : "";
@@ -15,12 +18,8 @@ const name =
     typeof req.body?.name === "string" ? req.body.name.trim() : "";
 
 
-if (!code || !name) {
-    res.status(400).json({ error: "Name and access code are required" });
-    return;
-}
-if (name.length > 50) {
-    res.status(400).json({ error: "Name must be 50 characters or fewer" });
+if (!code) {
+    res.status(400).json({ error: "Access code is required" });
     return;
 }
 
@@ -45,6 +44,56 @@ if (!isGlobalCode && !matchedGame) {
 }
 
 
+// ── Already-logged-in path: append game to session without regenerating ──
+if (req.session.userId) {
+    if (matchedGame) {
+        // Seed from the legacy single-game field if the new list hasn't been
+        // written yet (sessions created before the multi-game update only have
+        // the old allowedGameId).
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const legacyId: number | undefined = (req.session as any).allowedGameId;
+        const existing: number[] = req.session.allowedGameIds
+            ?? (typeof legacyId === "number" ? [legacyId] : []);
+        if (!existing.includes(matchedGame.id)) {
+            req.session.allowedGameIds = [...existing, matchedGame.id];
+        } else {
+            req.session.allowedGameIds = existing;
+        }
+    } else {
+        // Global code while already logged in — remove game restriction entirely
+        req.session.allowedGameIds = undefined;
+    }
+
+    const [existingUser] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, req.session.userId));
+
+    if (!existingUser) {
+        res.status(401).json({ error: "Session user not found" });
+        return;
+    }
+
+    req.session.save((err) => {
+        if (err) {
+            res.status(500).json({ error: "Failed to save session" });
+            return;
+        }
+        res.json(toJsonSafe({ id: existingUser.id, name: existingUser.name, gameId: matchedGame?.id ?? null }));
+    });
+    return;
+}
+
+// ── Fresh login path: name is required ──
+if (!name) {
+    res.status(400).json({ error: "Name and access code are required" });
+    return;
+}
+if (name.length > 50) {
+    res.status(400).json({ error: "Name must be 50 characters or fewer" });
+    return;
+}
+
 // Always create a new user row — name is a display label, not an identity key.
 // Reusing an existing row by name would let any caller impersonate another
 // player just by knowing their display name.
@@ -59,8 +108,8 @@ const [user] = await db.insert(usersTable).values({ name }).returning();
      req.session.userId = user!.id;
      req.session.userName = user!.name;
      req.session.isAdmin = false;
-     // Per-game code: bind this session to that game only
-     req.session.allowedGameId = matchedGame?.id;
+     // Per-game code: restrict this session to that game initially
+     req.session.allowedGameIds = matchedGame ? [matchedGame.id] : undefined;
 
      res.json(toJsonSafe({ id: user!.id, name: user!.name, gameId: matchedGame?.id ?? null }));
  });
@@ -162,5 +211,4 @@ router.post("/admin/logout", (req, res): void => {
 
 
 export default router;
-
 

@@ -12,8 +12,10 @@ declare module "express-session" {
         // Not set for legacy code-based (ADMIN_ACCESS_KEY) admin sessions.
         adminAccountId?: number;
         // Set when the player logged in with a per-game access code;
-        // restricts join access to that single game.
-        allowedGameId?: number;
+        // restricts join access to only the listed games. A player may
+        // accumulate multiple games by joining additional rooms without
+        // losing their existing session.
+        allowedGameIds?: number[];
     }
 }
 

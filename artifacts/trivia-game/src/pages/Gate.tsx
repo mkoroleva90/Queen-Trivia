@@ -84,11 +84,68 @@ export default function Gate() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const preCode = params.get("code");
-    if (preCode) {
-      setCode(preCode.toUpperCase());
-      setStep("name");
-      setOnboardingStep(3);
+    if (!preCode) return;
+
+    const upper = preCode.toUpperCase();
+
+    // Fast path: player is already logged in — just add this game to their session
+    const storedUser = (() => {
+      try {
+        const s = localStorage.getItem("trivia_user");
+        return s ? (JSON.parse(s) as { id: number; name: string }) : null;
+      } catch { return null; }
+    })();
+
+    if (storedUser) {
+      setPending(true);
+      fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ code: upper }),
+      })
+        .then(async (res) => {
+          if (!res.ok) {
+            // Code invalid/expired — fall through to full onboarding
+            setCode(upper);
+            setStep("name");
+            setOnboardingStep(3);
+            return;
+          }
+          const data = await res.json() as { id: number; name: string; gameId: number | null };
+          if (data.gameId) {
+            try {
+              const joinRes = await fetch(`/api/games/${data.gameId}/join`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({}),
+              });
+              // 201 = joined, 409 = already a participant — both are success
+              if (joinRes.ok || joinRes.status === 409) {
+                setLocation(`/game/${data.gameId}`);
+                return;
+              }
+            } catch {
+              // Network error — fall through to lobby
+            }
+          }
+          setLocation("/lobby");
+        })
+        .catch(() => {
+          // Network error — fall through to full onboarding
+          setCode(upper);
+          setStep("name");
+          setOnboardingStep(3);
+        })
+        .finally(() => setPending(false));
+      return;
     }
+
+    // Normal path: not logged in — skip to name entry step
+    setCode(upper);
+    setStep("name");
+    setOnboardingStep(3);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -283,30 +340,20 @@ export default function Gate() {
                 <div className="font-bold" style={{ fontSize: 10, letterSpacing: ".16em", color: "#66728a" }}>
                   ENTER ROOM CODE
                 </div>
-                <div className="flex" style={{ gap: 8 }}>
-                  {[0, 1, 2, 3].map((i) => {
-                    const ch = code.trim().toUpperCase()[i] ?? "";
-                    const yellow = i >= 2;
-                    return (
-                      <div
-                        key={i}
-                        className="flex items-center justify-center"
-                        style={{
-                          width: 52, height: 60, borderRadius: 13,
-                          background: ch
-                            ? (yellow ? "rgba(255,229,0,.08)" : "rgba(255,0,128,.1)")
-                            : "rgba(0,0,0,.25)",
-                          border: `1.5px solid ${ch
-                            ? (yellow ? "rgba(255,229,0,.45)" : "rgba(255,0,128,.5)")
-                            : "#2a2233"}`,
-                          fontFamily: "ui-monospace,monospace",
-                          fontWeight: 800, fontSize: 25, color: "#fff",
-                        }}
-                      >
-                        {ch}
-                      </div>
-                    );
-                  })}
+                <div
+                  className="w-full text-center font-extrabold"
+                  style={{
+                    fontFamily: "ui-monospace,monospace",
+                    fontSize: 22,
+                    letterSpacing: "0.18em",
+                    color: "rgba(255,255,255,.2)",
+                    background: "rgba(0,0,0,.25)",
+                    border: "1.5px solid #2a2233",
+                    borderRadius: 13,
+                    padding: "12px",
+                  }}
+                >
+                  A1B2…
                 </div>
                 <Cta bg="#ffe500" color="#041016" onClick={goNext}>Let's play →</Cta>
               </div>
