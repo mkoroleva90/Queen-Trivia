@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
 import {
   Users,
   Gamepad2,
@@ -35,6 +36,7 @@ import {
   Hourglass,
   Trophy,
   Plus,
+  AlertCircle,
 } from "lucide-react";
 
 // ─── Avatar colors ────────────────────────────────────────────────────────────
@@ -307,6 +309,165 @@ function ActiveGameCard({
   );
 }
 
+// ─── Join game modal ──────────────────────────────────────────────────────────
+function JoinGameModal({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const [code, setCode] = useState("");
+  const [codeError, setCodeError] = useState("");
+  const [pending, setPending] = useState(false);
+
+  // Reset state whenever the modal opens
+  const handleOpenChange = (v: boolean) => {
+    if (!v) {
+      setCode("");
+      setCodeError("");
+      setPending(false);
+      onClose();
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = code.trim().toUpperCase();
+    if (!trimmed) {
+      setCodeError("Enter a room code");
+      return;
+    }
+    setCodeError("");
+    setPending(true);
+    try {
+      // The already-logged-in path: POST /api/auth/login with just the code
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ code: trimmed }),
+      });
+
+      if (res.status === 401) {
+        setCodeError("That code isn't right — try again");
+        return;
+      }
+      if (!res.ok) {
+        toast({ variant: "destructive", title: "Something went wrong — please retry" });
+        return;
+      }
+
+      const data = await res.json() as { id: number; name: string; gameId: number | null };
+
+      if (data.gameId) {
+        // Auto-join the game
+        try {
+          const joinRes = await fetch(`/api/games/${data.gameId}/join`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({}),
+          });
+          if (joinRes.ok || joinRes.status === 409) {
+            onClose();
+            setLocation(`/game/${data.gameId}`);
+            return;
+          }
+        } catch {
+          // Network error — still joined via session, go to lobby
+        }
+      }
+
+      // Global code or join step failed — just close the modal
+      onClose();
+      toast({ title: "✓ Code accepted", description: "You've been added to the game." });
+    } catch {
+      toast({ variant: "destructive", title: "Connection error — please retry" });
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-w-sm w-full p-0 overflow-hidden">
+        <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/50">
+          <DialogTitle className="flex items-center gap-2 text-base font-bold tracking-tight">
+            <Plus className="h-4 w-4 text-accent" /> Join another game
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="px-5 py-5">
+          <p className="text-sm text-muted-foreground mb-4">
+            Enter the room code your host shared to jump straight into the game.
+          </p>
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Input
+                value={code}
+                onChange={(e) => { setCode(e.target.value); setCodeError(""); }}
+                placeholder="ROOM CODE"
+                autoCapitalize="characters"
+                autoComplete="off"
+                autoFocus
+                aria-invalid={!!codeError}
+                className="text-center font-extrabold uppercase"
+                style={{
+                  height: 64,
+                  fontSize: 26,
+                  letterSpacing: ".16em",
+                  background: "rgba(0,0,0,.35)",
+                  border: codeError
+                    ? "2px solid rgba(239,68,68,.7)"
+                    : "2px solid #00ddff",
+                  borderRadius: 14,
+                  color: "#ffffff",
+                  boxShadow: codeError ? "none" : "0 0 14px rgba(0,221,255,.18)",
+                }}
+              />
+              {codeError && (
+                <p className="flex items-center gap-1.5 text-sm" style={{ color: "#f87171" }}>
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  {codeError}
+                </p>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              disabled={pending}
+              className="w-full font-extrabold uppercase disabled:opacity-60"
+              style={{
+                height: 52,
+                borderRadius: 14,
+                background: "#00ddff",
+                color: "#0a0510",
+                letterSpacing: ".08em",
+                fontSize: 14,
+                boxShadow: "0 8px 24px rgba(0,221,255,.3)",
+                border: "none",
+                cursor: pending ? "not-allowed" : "pointer",
+              }}
+            >
+              {pending ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Checking…
+                </span>
+              ) : (
+                "Join →"
+              )}
+            </button>
+          </form>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Lobby ────────────────────────────────────────────────────────────────────
 export default function Lobby() {
   const { user, logout } = useAuth();
@@ -315,6 +476,7 @@ export default function Lobby() {
   const queryClient = useQueryClient();
   const userId = user?.id ?? 0;
   const [showPlayers, setShowPlayers] = useState(false);
+  const [showJoinModal, setShowJoinModal] = useState(false);
 
   const { data: games, isLoading } = useListGames(undefined, {
     query: { refetchInterval: 5000, queryKey: getListGamesQueryKey() },
@@ -408,7 +570,7 @@ export default function Lobby() {
 
             {/* Join another game */}
             <button
-              onClick={() => setLocation("/")}
+              onClick={() => setShowJoinModal(true)}
               className="shrink-0 flex items-center gap-1.5 font-bold mt-1"
               style={{
                 fontSize: 12,
@@ -569,6 +731,11 @@ export default function Lobby() {
         activeGames={activeGames.map((g) => ({
           id: g.id, topic: g.topic, questionCount: g.questionCount,
         }))}
+      />
+
+      <JoinGameModal
+        open={showJoinModal}
+        onClose={() => setShowJoinModal(false)}
       />
     </>
   );
