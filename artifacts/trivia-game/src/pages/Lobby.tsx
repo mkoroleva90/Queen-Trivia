@@ -212,7 +212,7 @@ function ActiveGameCard({
         </div>
 
         {/* Title */}
-        <h2 className="font-extrabold text-white mb-2" style={{ fontSize: 24 }}>
+        <h2 className="font-extrabold text-white mb-2 break-words" style={{ fontSize: 24 }}>
           {game.topic}
         </h2>
 
@@ -490,7 +490,7 @@ export default function Lobby() {
                   </div>
                   <div>
                     <h3
-                      className="font-extrabold text-white"
+                      className="font-extrabold text-white break-words"
                       style={{ fontSize: 22, letterSpacing: "-.01em" }}
                     >
                       {waitingGames[0]!.topic}

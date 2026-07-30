@@ -846,7 +846,7 @@ return (
 
   {/* Content */}
   <div className="flex-1 min-w-0 space-y-1">
-   <p className="font-medium leading-snug text-sm">{q.questionText}</p>
+   <p className="font-medium leading-snug text-sm break-words">{q.questionText}</p>
    <div className="flex flex-wrap items-center gap-2">
     <Badge variant="outline" className="uppercase text-[10px]">
      {label}
@@ -1033,7 +1033,7 @@ return (
      {/* Header */}
      <div className="flex items-center justify-between gap-3 flex-wrap">
    <div>
-    <h3 className="font-bold text-lg leading-tight">{game.topic}</h3>
+    <h3 className="font-bold text-lg leading-tight break-words">{game.topic}</h3>
     <div className="flex items-center gap-3 text-sm text-muted-foreground mt-0.5">
      <span>{localOrder.length} {localOrder.length === 1 ? "question" :"questions"}</span>
        {localOrder.length > 0 && (
@@ -1286,8 +1286,8 @@ function ResultsPanel({ game, onClose }: { game: Game; onClose: () => void }) {
      <div className="space-y-4">
          <div className="flex items-center justify-between gap-3">
           <div>
-              <h3 className="font-bold text-lg flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-accent" /> Results — {game.topic}
+              <h3 className="font-bold text-lg flex items-start gap-2">
+              <Trophy className="h-5 w-5 text-accent shrink-0 mt-0.5" /> <span className="break-words min-w-0">Results — {game.topic}</span>
               </h3>
               <p className="text-sm text-muted-foreground">
               {sorted.length} {sorted.length === 1 ? "player" : "players"} competed
@@ -1315,7 +1315,7 @@ function ResultsPanel({ game, onClose }: { game: Game; onClose: () => void }) {
          `#${i + 1}`
        )}
       </span>
-      <span className="flex-1 font-medium">{p.userName}</span>
+      <span className="flex-1 min-w-0 font-medium truncate">{p.userName}</span>
       <span className="font-bold tabular-nums text-accent text-lg">
        {p.totalScore}
                 </span>
@@ -3070,7 +3070,7 @@ return (
             </div>
           {/* Content */}
           <div className="flex-1 min-w-0 space-y-2">
-           <p className="font-medium leading-snug text-sm">{q.questionText}</p>
+           <p className="font-medium leading-snug text-sm break-words">{q.questionText}</p>
            <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" className="uppercase text-[10px]">{typeLabel}</Badge>
              <Badge variant="outline" className={`text-[10px]${src.cls}`}>{src.label}</Badge>

@@ -46,7 +46,7 @@ export default function ForgotPassword() {
             <CheckCircle className="w-12 h-12 text-[#35d07f] mx-auto" />
             <h2 className="text-xl font-bold text-white">Check your email</h2>
             <p className="text-[#9aa6bc] text-sm">
-              If <strong className="text-white">{email}</strong> is registered, a password reset link is on its way. Check your spam folder if you don't see it within a minute.
+              If <strong className="text-white break-all">{email}</strong> is registered, a password reset link is on its way. Check your spam folder if you don't see it within a minute.
             </p>
             <Button
               variant="outline"

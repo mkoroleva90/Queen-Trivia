@@ -220,7 +220,7 @@ export default function Results() {
           >
             Final Scores
           </p>
-          <h1 className="font-extrabold text-white" style={{ fontSize: 26, letterSpacing: "-.02em" }}>
+          <h1 className="font-extrabold text-white break-words" style={{ fontSize: 26, letterSpacing: "-.02em" }}>
             {game.topic}
           </h1>
           <p style={{ fontSize: 13, fontWeight: 500, color: "#a3aec2" }}>
@@ -292,7 +292,7 @@ export default function Results() {
 
                   {/* Name */}
                   <span
-                    className="flex-1 font-bold truncate"
+                    className="flex-1 min-w-0 font-bold truncate"
                     style={{
                       fontSize: isWinner ? 16 : 15,
                       color: isMe ? "#ffe500" : isWinner ? "#ffffff" : "#e2e8f0",
@@ -416,7 +416,7 @@ export default function Results() {
                                   <div className="px-14 pb-4 space-y-2">
                                     {myAns ? (
                                       <>
-                                        <div className="grid grid-cols-2 gap-3">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                           <div className={`rounded-lg border p-3 text-sm ${
                                             status === "correct" ? "border-emerald-500/40 bg-emerald-500/5"
                                             : status === "partial" ? "border-amber-500/40 bg-amber-500/5"
@@ -425,14 +425,14 @@ export default function Results() {
                                             <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">
                                               Your answer
                                             </p>
-                                            <p className="font-medium leading-snug">{myAns.userAnswer}</p>
+                                            <p className="font-medium leading-snug break-words">{myAns.userAnswer}</p>
                                           </div>
                                           {myAns.correctAnswer !== undefined && (
                                             <div className="rounded-lg border border-secondary/30 bg-secondary/5 p-3 text-sm">
                                               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">
                                                 Correct answer
                                               </p>
-                                              <p className="font-medium leading-snug">{myAns.correctAnswer}</p>
+                                              <p className="font-medium leading-snug break-words">{myAns.correctAnswer}</p>
                                             </div>
                                           )}
                                         </div>
@@ -458,7 +458,7 @@ export default function Results() {
                                             <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">
                                               Correct answer
                                             </p>
-                                            <p className="font-medium leading-snug">{q.correctAnswer}</p>
+                                            <p className="font-medium leading-snug break-words">{q.correctAnswer}</p>
                                           </div>
                                         )}
                                         <p className="text-sm text-muted-foreground italic">

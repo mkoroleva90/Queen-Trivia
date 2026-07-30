@@ -1415,7 +1415,7 @@ export default function GamePlay() {
 
                   {/* Question text */}
                   <h2
-                    className="font-extrabold text-white"
+                    className="font-extrabold text-white break-words"
                     style={{ fontSize: 22, lineHeight: 1.22, letterSpacing: "-.01em" }}
                   >
                     {current.questionText}
@@ -1616,7 +1616,7 @@ export default function GamePlay() {
                             ? <Crown className="h-3.5 w-3.5 text-accent mx-auto" />
                             : <span className="text-xs">{i + 1}</span>}
                         </span>
-                        <span className="flex-1 truncate text-sm font-medium" style={{ color: isMe ? "#ffe500" : undefined }}>
+                        <span className="flex-1 min-w-0 truncate text-sm font-medium" style={{ color: isMe ? "#ffe500" : undefined }}>
                           {p.userName}
                           {isMe && <span className="text-[10px] ml-1 opacity-70">(you)</span>}
                         </span>
