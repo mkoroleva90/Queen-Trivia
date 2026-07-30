@@ -23,6 +23,7 @@ import {
  factCheckSingleQuestion,
 } from "../services/geminiApi";
 import { logger } from "../lib/logger";
+import { assertGameOwnership } from "../lib/assertGameOwnership";
 
 
 const router: IRouter = Router();
@@ -96,6 +97,7 @@ if (!game) {
     return;
 }
 
+if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
 const result = await generateGeminiQuestions({
     topic: body.data.topic,
@@ -188,6 +190,8 @@ router.post(
 
         const [game] = await db.select().from(gamesTable).where(eq(gamesTable.id, gameId));
         if (!game) { res.status(404).json({ error: "Game not found" }); return; }
+
+        if (!await assertGameOwnership(req, res, gameId)) return;
 
         const validTypes = ["multiple_choice", "true_false", "write_in"];
         const validDiffs = ["easy", "medium", "hard"];
@@ -286,6 +290,7 @@ if (!game) {
     return;
 }
 
+if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
 const difficulty =
     body.data.difficulty ?? (game.difficulty as "easy" | "medium" | "hard") ?? "medium";
@@ -348,6 +353,7 @@ if (!params.success) {
     return;
 }
 
+if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
 const [question] = await db
     .select()
@@ -410,6 +416,7 @@ async (req, res): Promise<void> => {
      return;
  }
 
+ if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
  const [question] = await db
      .select()

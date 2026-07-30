@@ -10,6 +10,7 @@ import {
 import { fetchOpenTdbQuestions } from "../services/triviaApi";
 import { requireAdmin } from "../middleware/requireAdmin";
 import { opentdbRateLimit } from "../middleware/providerRateLimit";
+import { assertGameOwnership } from "../lib/assertGameOwnership";
 
 
 const router: IRouter = Router();
@@ -55,6 +56,7 @@ router.post(
      return;
  }
 
+ if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
  const result = await fetchOpenTdbQuestions({
      amount: body.data.amount,

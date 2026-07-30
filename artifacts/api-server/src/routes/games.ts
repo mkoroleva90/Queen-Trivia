@@ -1,12 +1,13 @@
 
 import { Router, type IRouter } from "express";
-import { eq, desc, count } from "drizzle-orm";
+import { and, eq, desc, count, isNull } from "drizzle-orm";
 import {
  db,
  gamesTable,
  gameParticipantsTable,
 } from "@workspace/db";
 import { safeEmit } from "../lib/socket";
+import { assertGameOwnership } from "../lib/assertGameOwnership";
 import {
  ListGamesQueryParams,
  ListGamesResponse,
@@ -35,16 +36,23 @@ router.get("/games", requireAuth, async (req, res): Promise<void> => {
      return;
  }
 
-
  const status = query.data.status;
- const games = status
-     ? await db
-      .select()
-      .from(gamesTable)
-      .where(eq(gamesTable.status, status))
-      .orderBy(desc(gamesTable.createdAt))
-     : await db.select().from(gamesTable).orderBy(desc(gamesTable.createdAt));
+ const ownerAdminId = req.session.adminAccountId;
 
+ // Email-auth admins see only their own games.
+ // Code-based (legacy) admins and players see all games.
+ const ownerFilter = ownerAdminId != null
+     ? eq(gamesTable.ownerAdminId, ownerAdminId)
+     : undefined;
+
+ const statusFilter = status ? eq(gamesTable.status, status) : undefined;
+ const whereClause = ownerFilter && statusFilter
+     ? and(ownerFilter, statusFilter)
+     : ownerFilter ?? statusFilter;
+
+ const games = whereClause
+     ? await db.select().from(gamesTable).where(whereClause).orderBy(desc(gamesTable.createdAt))
+     : await db.select().from(gamesTable).orderBy(desc(gamesTable.createdAt));
 
  // Access codes are admin-only — never expose them to players
  const sanitized = req.session.isAdmin === true
@@ -80,6 +88,7 @@ router.post("/games", requireAdmin, async (req, res): Promise<void> => {
      createdByAdmin: parsed.data.createdByAdmin ?? true,
      accessCode: randomAccessCode(),
      brief: parsed.data.brief ?? null,
+     ownerAdminId: req.session.adminAccountId ?? null,
     })
     .returning();
    break;
@@ -113,6 +122,7 @@ if (!game) {
     return;
 }
 
+if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
 const [participants] = await db
     .select({ value: count() })
@@ -137,13 +147,13 @@ router.patch("/games/:gameId", requireAdmin, async (req, res): Promise<void> => 
      return;
  }
 
-
  const parsed = UpdateGameBody.safeParse(req.body);
  if (!parsed.success) {
      res.status(400).json({ error: parsed.error.message });
      return;
  }
 
+ if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
  const [game] = await db
      .update(gamesTable)
@@ -151,13 +161,11 @@ router.patch("/games/:gameId", requireAdmin, async (req, res): Promise<void> => 
      .where(eq(gamesTable.id, params.data.gameId))
      .returning();
 
-
  if (!game) {
      res.status(404).json({ error: "Game not found" });
      return;
  }
  res.json(UpdateGameResponse.parse(toJsonSafe(game)));
-
 
  // Real-time: notify relevant rooms when status changes
  if (game.status === "active") {
@@ -175,12 +183,12 @@ router.delete("/games/:gameId", requireAdmin, async (req, res): Promise<void> =>
      return;
  }
 
+ if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
  const [game] = await db
      .delete(gamesTable)
      .where(eq(gamesTable.id, params.data.gameId))
      .returning();
-
 
  if (!game) {
      res.status(404).json({ error: "Game not found" });

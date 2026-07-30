@@ -145,6 +145,7 @@ router.post(
       }
       req.session.isAdmin = true;
       req.session.adminEmail = account.email;
+      req.session.adminAccountId = account.id;
       res.json({ ok: true, message: "Email verified. You are now logged in." });
     });
   }
@@ -192,6 +193,7 @@ router.post(
       }
       req.session.isAdmin = true;
       req.session.adminEmail = account.email;
+      req.session.adminAccountId = account.id;
       if (rememberMe) {
         // 30 days for "remember me"
         req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000;

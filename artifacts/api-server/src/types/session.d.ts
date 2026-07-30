@@ -8,6 +8,9 @@ declare module "express-session" {
         userName?: string;
         isAdmin?: boolean;
         adminEmail?: string;
+        // Set for email-authenticated admins; used to scope game ownership.
+        // Not set for legacy code-based (ADMIN_ACCESS_KEY) admin sessions.
+        adminAccountId?: number;
         // Set when the player logged in with a per-game access code;
         // restricts join access to that single game.
         allowedGameId?: number;

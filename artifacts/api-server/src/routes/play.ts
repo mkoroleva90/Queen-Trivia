@@ -13,6 +13,7 @@ import {
 import { safeEmit } from "../lib/socket";
 import { requireUser } from "../middleware/requireUser";
 import { requireAuth } from "../middleware/requireAuth";
+import { assertGameOwnership } from "../lib/assertGameOwnership";
 const answerRateLimit = rateLimit({
     windowMs: 60_000,
     max: 30,
@@ -122,6 +123,7 @@ router.get("/games/:gameId/participants", requireAuth, async (req, res): Promise
      return;
  }
 
+ if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
  const rows = await db
      .select({
@@ -312,8 +314,10 @@ router.get(
       res.status(400).json({ error: "Invalid params" });
       return;
   }
-// Only admins or game participants may view per-question answer telemetry
-if (!req.session.isAdmin) {
+// Admins: enforce game ownership. Players: must be a participant in the game.
+if (req.session.isAdmin) {
+    if (!await assertGameOwnership(req, res, gameId)) return;
+} else {
     const [participant] = await db
         .select({ id: gameParticipantsTable.id })
         .from(gameParticipantsTable)

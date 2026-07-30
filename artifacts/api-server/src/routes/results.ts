@@ -12,6 +12,7 @@ import {
  gameParticipantsTable,
 } from "@workspace/db";
 import { toJsonSafe } from "../lib/serialize";
+import { assertGameOwnership } from "../lib/assertGameOwnership";
 
 
 const router: IRouter = Router();
@@ -29,6 +30,7 @@ router.get("/games/:gameId/results", requireAuth, async (req, res): Promise<void
  const [game] = await db.select().from(gamesTable).where(eq(gamesTable.id, gameId));
  if (!game) { res.status(404).json({ error: "Game not found" }); return; }
 
+ if (!await assertGameOwnership(req, res, gameId)) return;
 
  // Participants ordered by score desc
  const participants = await db
@@ -90,6 +92,7 @@ router.get("/games/:gameId/questions/stats", requireAdmin, async (req, res):Prom
  const gameId = parseInt(String(req.params.gameId ?? ""), 10);
  if (isNaN(gameId)) { res.status(400).json({ error: "Invalid gameId" }); return; }
 
+ if (!await assertGameOwnership(req, res, gameId)) return;
 
  const questions = await db
   .select({
@@ -147,6 +150,7 @@ router.get("/games/:gameId/results/export.csv", requireAdmin, async (req, res):P
  const [game] = await db.select().from(gamesTable).where(eq(gamesTable.id, gameId));
  if (!game) { res.status(404).json({ error: "Game not found" }); return; }
 
+ if (!await assertGameOwnership(req, res, gameId)) return;
 
  const participants = await db
   .select({

@@ -15,6 +15,7 @@ import {
 } from "@workspace/api-zod";
 import { requireAdmin } from "../middleware/requireAdmin";
 import { requireAuth } from "../middleware/requireAuth";
+import { assertGameOwnership } from "../lib/assertGameOwnership";
 
 
 const router: IRouter = Router();
@@ -54,9 +55,16 @@ router.get("/games/:gameId/questions", requireAuth, async (req, res): Promise<vo
             .orderBy(asc(questionsTable.orderIndex)),
     ]);
 
+    if (!game) {
+        res.status(404).json({ error: "Game not found" });
+        return;
+    }
+
+    if (!await assertGameOwnership(req, res, params.data.gameId)) return;
+
     const isAdmin = req.session.isAdmin === true;
     // Reveal correct answers once the game is over — safe to show players their results
-    const revealAnswers = isAdmin || game?.status === "completed";
+    const revealAnswers = isAdmin || game.status === "completed";
 
     const response = revealAnswers
         ? questions
@@ -93,6 +101,7 @@ if (!game) {
     return;
 }
 
+if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
 const [question] = await db
     .insert(questionsTable)
@@ -121,13 +130,25 @@ router.patch("/questions/:questionId", requireAdmin, async (req, res): Promise<v
      return;
  }
 
-
  const parsed = UpdateQuestionBody.safeParse(req.body);
  if (!parsed.success) {
      res.status(400).json({ error: parsed.error.message });
      return;
  }
 
+ // Resolve the question's parent game so we can enforce ownership before mutating.
+ const [existing] = await db
+     .select({ gameId: questionsTable.gameId })
+     .from(questionsTable)
+     .where(eq(questionsTable.id, params.data.questionId))
+     .limit(1);
+
+ if (!existing) {
+     res.status(404).json({ error: "Question not found" });
+     return;
+ }
+
+ if (!await assertGameOwnership(req, res, existing.gameId)) return;
 
  const [question] = await db
      .update(questionsTable)
@@ -135,12 +156,10 @@ router.patch("/questions/:questionId", requireAdmin, async (req, res): Promise<v
      .where(eq(questionsTable.id, params.data.questionId))
      .returning();
 
-
  if (!question) {
      res.status(404).json({ error: "Question not found" });
      return;
  }
-
 
  res.json(UpdateQuestionResponse.parse(question));
 });
@@ -153,21 +172,31 @@ router.delete("/questions/:questionId", requireAdmin, async (req, res): Promise<
      return;
  }
 
+ // Resolve the question's parent game so we can enforce ownership before deleting.
+ const [existing] = await db
+     .select({ gameId: questionsTable.gameId })
+     .from(questionsTable)
+     .where(eq(questionsTable.id, params.data.questionId))
+     .limit(1);
+
+ if (!existing) {
+     res.status(404).json({ error: "Question not found" });
+     return;
+ }
+
+ if (!await assertGameOwnership(req, res, existing.gameId)) return;
 
  const [question] = await db
      .delete(questionsTable)
      .where(eq(questionsTable.id, params.data.questionId))
      .returning();
 
-
  if (!question) {
      res.status(404).json({ error: "Question not found" });
      return;
  }
 
-
  await syncQuestionCount(question.gameId);
-
 
  res.sendStatus(204);
 });

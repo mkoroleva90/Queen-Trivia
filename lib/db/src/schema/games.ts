@@ -27,6 +27,9 @@ export const gamesTable = pgTable("games", {
   .notNull()
   .defaultNow(),
  createdByAdmin: boolean("created_by_admin").notNull().default(true),
+ // Nullable so legacy/code-based-admin games remain valid.
+ // When set, this game belongs exclusively to that admin account.
+ ownerAdminId: integer("owner_admin_id"),
 });
 
 
