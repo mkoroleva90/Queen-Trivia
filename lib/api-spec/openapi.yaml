@@ -172,6 +172,8 @@ paths:
                 $ref: "#/components/schemas/Game"
         "404":
           description: Not found
+        "409":
+          description: Room code already in use by another game
     delete:
       operationId: deleteGame
       tags: [games]
@@ -564,6 +566,7 @@ components:
           type: string
           enum: [waiting, active, completed]
         brief: { type: ["string", "null"], maxLength: 2000 }
+        accessCode: { type: string, minLength: 4, maxLength: 12, pattern: "^[A-Za-z0-9]+$" }
     Game:
       type: object
       required: [id, topic, difficulty, questionCount, status, createdAt, createdByAdmin]

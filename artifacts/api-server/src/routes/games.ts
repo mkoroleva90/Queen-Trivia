@@ -155,11 +155,29 @@ router.patch("/games/:gameId", requireAdmin, async (req, res): Promise<void> => 
 
  if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
- const [game] = await db
-     .update(gamesTable)
-     .set(parsed.data)
-     .where(eq(gamesTable.id, params.data.gameId))
-     .returning();
+ // Normalize custom room codes to uppercase — players enter codes uppercased.
+ const updates = parsed.data.accessCode !== undefined
+     ? { ...parsed.data, accessCode: parsed.data.accessCode.trim().toUpperCase() }
+     : parsed.data;
+
+ let game;
+ try {
+  [game] = await db
+      .update(gamesTable)
+      .set(updates)
+      .where(eq(gamesTable.id, params.data.gameId))
+      .returning();
+ } catch (err) {
+  // Unique-constraint violation: another game already uses this room code.
+  // Drizzle may wrap the pg error, so check the cause chain too.
+  const pgCode = (err as { code?: string }).code
+      ?? ((err as { cause?: { code?: string } }).cause?.code);
+  if (pgCode === "23505") {
+      res.status(409).json({ error: "That room code is already in use by another game" });
+      return;
+  }
+  throw err;
+ }
 
  if (!game) {
      res.status(404).json({ error: "Game not found" });

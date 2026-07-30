@@ -120,6 +120,8 @@ FlaskConical,
 Loader2,
 Database,
 RefreshCw,
+Copy,
+Check,
 ShieldCheck,
 Link,
 Square,
@@ -4775,6 +4777,48 @@ function GamesView({
   const queryClient = useQueryClient();
   const updateGame = useUpdateGame();
   const deleteGame = useDeleteGame();
+  const [editingCodeId, setEditingCodeId] = useState<number | null>(null);
+  const [codeDraft, setCodeDraft] = useState("");
+  const [copiedCodeId, setCopiedCodeId] = useState<number | null>(null);
+
+  const startEditCode = (game: Game) => {
+    setEditingCodeId(game.id);
+    setCodeDraft(game.accessCode ?? "");
+  };
+
+  const saveCode = (game: Game) => {
+    const code = codeDraft.trim().toUpperCase();
+    if (!/^[A-Z0-9]{4,12}$/.test(code)) {
+      toast({ variant: "destructive", title: "Room codes must be 4–12 letters or numbers" });
+      return;
+    }
+    if (code === (game.accessCode ?? "")) { setEditingCodeId(null); return; }
+    updateGame.mutate(
+      { gameId: game.id, data: { accessCode: code } },
+      {
+        onSuccess: () => {
+          setEditingCodeId(null);
+          invalidate();
+          toast({ title: `Room code updated to ${code}` });
+        },
+        onError: (err: any) => {
+          const msg = err?.response?.data?.error ?? "Failed to update room code";
+          toast({ variant: "destructive", title: msg });
+        },
+      }
+    );
+  };
+
+  const copyCode = async (game: Game) => {
+    if (!game.accessCode) return;
+    try {
+      await navigator.clipboard.writeText(game.accessCode);
+      setCopiedCodeId(game.id);
+      setTimeout(() => setCopiedCodeId((id) => (id === game.id ? null : id)), 1500);
+    } catch {
+      toast({ variant: "destructive", title: "Couldn't copy code" });
+    }
+  };
 
   const handleDelete = (game: Game) => {
     if (!window.confirm(`Delete "${game.topic}" and all its questions? This can't be undone.`)) return;
@@ -4876,9 +4920,73 @@ function GamesView({
               </div>
               
               <h3 className="text-lg font-bold text-white mb-1 line-clamp-2 leading-tight">{game.topic}</h3>
-              <p className="text-[#9aa6bc] text-sm mb-6 flex-1">
+              <p className="text-[#9aa6bc] text-sm mb-3">
                 {game.questionCount} {game.questionCount === 1 ? 'question' : 'questions'}
               </p>
+
+              <div className="mb-6 flex-1">
+                  {editingCodeId === game.id ? (
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        value={codeDraft}
+                        onChange={(e) => setCodeDraft(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12))}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveCode(game);
+                          if (e.key === "Escape") setEditingCodeId(null);
+                        }}
+                        autoFocus
+                        className="h-8 flex-1 font-mono text-sm tracking-widest bg-[#0a1019] border-[#1b2740] text-white"
+                        aria-label="Room code"
+                      />
+                      <Button
+                        size="icon"
+                        className="h-8 w-8 shrink-0 bg-[#35d07f] hover:bg-[#35d07f]/90 text-black"
+                        aria-label="Save room code"
+                        disabled={updateGame.isPending}
+                        onClick={() => saveCode(game)}
+                      >
+                        <Check className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        className="h-8 w-8 shrink-0 border-[#1b2740] bg-[#0a1019] text-[#9aa6bc] hover:bg-[#1b2740]"
+                        aria-label="Cancel editing room code"
+                        onClick={() => setEditingCodeId(null)}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ) : game.accessCode != null ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold tracking-wider text-[#66728a]">CODE</span>
+                      <button
+                        onClick={() => copyCode(game)}
+                        className="font-mono text-sm tracking-widest text-[#eef2f8] bg-[#0a1019] border border-[#1b2740] rounded-md px-2 py-0.5 hover:border-[#66728a] transition-colors inline-flex items-center gap-1.5"
+                        aria-label="Copy room code"
+                      >
+                        {game.accessCode}
+                        {copiedCodeId === game.id
+                          ? <Check className="w-3 h-3 text-[#35d07f]" />
+                          : <Copy className="w-3 h-3 text-[#66728a]" />}
+                      </button>
+                      <button
+                        onClick={() => startEditCode(game)}
+                        className="text-[#66728a] hover:text-white transition-colors p-1"
+                        aria-label="Edit room code"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => startEditCode(game)}
+                      className="text-xs font-bold text-[#9aa6bc] hover:text-white transition-colors inline-flex items-center gap-1.5 border border-dashed border-[#1b2740] rounded-md px-2 py-1"
+                    >
+                      <Pencil className="w-3 h-3" /> Set room code
+                    </button>
+                  )}
+                </div>
 
               <div className="mt-auto">
                 {isLive && (

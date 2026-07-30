@@ -149,7 +149,8 @@ export const UpdateGameBody = zod.object({
   "topic": zod.string().min(1).optional(),
   "difficulty": zod.enum(['easy', 'medium', 'hard']).optional(),
   "status": zod.enum(['waiting', 'active', 'completed']).optional(),
-  "brief": zod.string().max(2000).nullish()
+  "brief": zod.string().max(2000).nullish(),
+  "accessCode": zod.string().min(4).max(12).regex(/^[A-Za-z0-9]+$/).optional()
 })
 
 export const UpdateGameResponse = zod.object({
@@ -160,6 +161,7 @@ export const UpdateGameResponse = zod.object({
   "status": zod.enum(['waiting', 'active', 'completed']),
   "createdAt": zod.string(),
   "createdByAdmin": zod.boolean(),
+  "accessCode": zod.string().nullish(),
   "brief": zod.string().nullish()
 })
 

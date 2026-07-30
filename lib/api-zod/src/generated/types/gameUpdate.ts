@@ -13,4 +13,7 @@ export interface GameUpdate {
   topic?: string;
   difficulty?: GameUpdateDifficulty;
   status?: GameUpdateStatus;
+  brief?: string | null;
+  /** @minLength 4 @maxLength 12 @pattern ^[A-Za-z0-9]+$ */
+  accessCode?: string;
 }
