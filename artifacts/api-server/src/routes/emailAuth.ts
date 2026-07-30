@@ -43,12 +43,10 @@ function appBaseUrl(req: import("express").Request): string {
 // ── routes ───────────────────────────────────────────────────────────────────
 
 // POST /api/auth/email/register
-// Requires an existing admin session — only authenticated admins may add new
-// admin accounts.
+// Open registration — anyone can create an admin account.
 router.post(
   "/auth/email/register",
   authRateLimit,
-  requireAdmin,
   async (req, res): Promise<void> => {
     const parsed = EmailRegisterBody.safeParse(req.body);
     if (!parsed.success) {
