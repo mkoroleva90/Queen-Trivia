@@ -13,7 +13,7 @@ const STEPS = [
   {
     glyph: "⌗",
     title: "Enter the code",
-    desc: "Your host shares a 4-character room code. Type it in — no download, no sign-up.",
+    desc: "Your host shares a room code. Type it in — no download, no sign-up.",
     bg: "rgba(255,0,128,.1)",
     bd: "rgba(255,0,128,.3)",
     ic: "#ff4d9d",
@@ -44,15 +44,6 @@ export default function Home() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
-  const cells = [0, 1, 2, 3].map((i) => {
-    const ch = code[i] ?? "";
-    const yellow = i >= 2;
-    return {
-      ch,
-      bg: ch ? (yellow ? "rgba(255,229,0,.08)" : "rgba(255,0,128,.1)") : "rgba(0,0,0,.25)",
-      bd: ch ? (yellow ? "rgba(255,229,0,.45)" : "rgba(255,0,128,.5)") : "#2a2233",
-    };
-  });
 
   const handleJoin = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -108,9 +99,8 @@ export default function Home() {
           .qt-hero{padding:20px 20px 12px!important}
           .qt-motif{display:none}
         }
-        @media (max-width:420px){
-          .qt-code-cell{width:clamp(48px,18vw,56px)!important;height:clamp(56px,21vw,64px)!important}
-        }
+        .qt-code-input::placeholder{color:#3a3550}
+        .qt-code-input:focus{outline:none;border-color:rgba(255,0,128,.6)!important;box-shadow:0 0 0 3px rgba(255,0,128,.12)}
       `}</style>
 
       {/* floating answer-tile motifs */}
@@ -169,48 +159,34 @@ export default function Home() {
           <div className="font-bold" style={{ fontSize: 10, letterSpacing: ".16em", color: "#66728a" }}>
             ENTER ROOM CODE
           </div>
-          <div
-            className="relative flex"
-            style={{ gap: "clamp(7px,2.5vw,10px)", cursor: "text" }}
-            onClick={() => inputRef.current?.focus()}
-          >
-            {/* Hidden real input drives the cells */}
-            <input
-              ref={inputRef}
-              value={code}
-              onChange={(e) => {
-                setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4));
-                setError("");
-              }}
-              autoCapitalize="characters"
-              autoComplete="off"
-              inputMode="text"
-              enterKeyHint="go"
-              aria-label="Room code"
-              className="absolute inset-0 opacity-0"
-              style={{ width: "100%", height: "100%", cursor: "text" }}
-            />
-            {cells.map((c, i) => (
-              <div
-                key={i}
-                className="qt-code-cell flex items-center justify-center"
-                style={{
-                  width: 56,
-                  height: 64,
-                  borderRadius: 13,
-                  background: c.bg,
-                  border: `1.5px solid ${c.bd}`,
-                  fontFamily: "ui-monospace,monospace",
-                  fontWeight: 800,
-                  fontSize: "clamp(24px,7vw,28px)",
-                  color: "#fff",
-                  pointerEvents: "none",
-                }}
-              >
-                {c.ch}
-              </div>
-            ))}
-          </div>
+          <input
+            ref={inputRef}
+            value={code}
+            onChange={(e) => {
+              setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12));
+              setError("");
+            }}
+            onKeyDown={(e) => { if (e.key === "Enter") handleJoin(); }}
+            autoCapitalize="characters"
+            autoComplete="off"
+            inputMode="text"
+            enterKeyHint="go"
+            aria-label="Room code"
+            placeholder="A1B2C3…"
+            className="qt-code-input w-full text-center"
+            style={{
+              fontFamily: "ui-monospace,monospace",
+              fontWeight: 800,
+              fontSize: "clamp(22px,6vw,28px)",
+              letterSpacing: "0.18em",
+              color: code ? "#fff" : undefined,
+              background: code ? "rgba(255,0,128,.07)" : "rgba(0,0,0,.25)",
+              border: `1.5px solid ${code ? "rgba(255,0,128,.45)" : "#2a2233"}`,
+              borderRadius: 13,
+              padding: "14px 12px 14px",
+              transition: "border-color .15s, background .15s",
+            }}
+          />
           {error && (
             <p className="flex items-center gap-1.5" style={{ fontSize: 13, color: "#f87171", margin: 0 }}>
               <AlertCircle style={{ width: 16, height: 16, flexShrink: 0 }} />
