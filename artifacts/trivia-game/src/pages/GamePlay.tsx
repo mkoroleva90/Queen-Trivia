@@ -14,8 +14,12 @@ import {
   useListUserAnswers,
   getListUserAnswersQueryKey,
   useSubmitAnswer,
+  useListGames,
+  getListGamesQueryKey,
+  listGameParticipants,
 } from "@workspace/api-client-react";
 import type { Question } from "@workspace/api-client-react";
+import { useQueries } from "@tanstack/react-query";
 import { useAuth } from "../lib/auth";
 import { useGameSocket } from "../hooks/useGameSocket";
 import { Input } from "@/components/ui/input";
@@ -29,6 +33,8 @@ import {
   Star,
   Check,
   X,
+  Gamepad2,
+  ChevronDown,
 } from "lucide-react";
 import {
   Select,
@@ -1137,6 +1143,157 @@ function MatchingBoard({
   );
 }
 
+// ─── Game Switcher ────────────────────────────────────────────────────────────
+
+// Pill + dropdown listing only active games the current user has actually joined
+// (excluding the game they're currently playing). Uses useQueries to batch-fetch
+// participant lists for all other active games so the count is accurate before
+// the dropdown is ever opened.
+function GameSwitcher({ currentGameId, userId }: { currentGameId: number; userId: number }) {
+  const [open, setOpen] = useState(false);
+  const [, setLocation] = useLocation();
+  const ref = useRef<HTMLDivElement>(null);
+
+  // All active games
+  const { data: games } = useListGames(undefined, {
+    query: { refetchInterval: 15000, queryKey: getListGamesQueryKey() },
+  });
+
+  const otherActiveGames = useMemo(
+    () => (games ?? []).filter((g) => g.status === "active" && g.id !== currentGameId),
+    [games, currentGameId],
+  );
+
+  // Batch-fetch participants for every other active game in parallel so we can
+  // determine membership before the dropdown is opened.
+  const participantQueries = useQueries({
+    queries: otherActiveGames.map((g) => ({
+      queryKey: getListGameParticipantsQueryKey(g.id),
+      queryFn: ({ signal }: { signal?: AbortSignal }) =>
+        listGameParticipants(g.id, { signal }),
+      staleTime: 20000,
+      refetchInterval: 15000,
+    })),
+  });
+
+  // Reduce to only the games where this user appears in the participant list
+  const joinedOtherGames = useMemo(
+    () =>
+      otherActiveGames.filter((_, i) => {
+        const participants = participantQueries[i]?.data ?? [];
+        return participants.some((p) => p.userId === userId);
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [otherActiveGames, participantQueries, userId],
+  );
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  // Only render if the player is in at least one other active game
+  if (joinedOtherGames.length === 0) return null;
+
+  const handleNavigate = (gameId: number) => {
+    setOpen(false);
+    setLocation(`/game/${gameId}`);
+  };
+
+  return (
+    <div ref={ref} className="relative shrink-0">
+      {/* Pill trigger */}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 font-bold"
+        style={{
+          fontSize: 12,
+          color: "#00ddff",
+          background: "rgba(0,221,255,.10)",
+          border: "1px solid rgba(0,221,255,.3)",
+          borderRadius: 20,
+          padding: "5px 12px",
+          cursor: "pointer",
+          letterSpacing: ".02em",
+          whiteSpace: "nowrap",
+        }}
+        aria-label="Switch game"
+      >
+        <Gamepad2 className="h-3.5 w-3.5" />
+        {joinedOtherGames.length} more
+        <ChevronDown
+          className="h-3 w-3 transition-transform duration-150"
+          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+        />
+      </button>
+
+      {/* Dropdown */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -6, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.97 }}
+            transition={{ duration: 0.12 }}
+            style={{
+              position: "absolute",
+              top: "calc(100% + 8px)",
+              right: 0,
+              minWidth: 230,
+              borderRadius: 16,
+              padding: "12px 10px 6px",
+              background: "#12111a",
+              border: "1px solid rgba(255,255,255,.14)",
+              boxShadow: "0 12px 40px rgba(0,0,0,.6)",
+              zIndex: 50,
+            }}
+          >
+            <p
+              className="font-extrabold uppercase mb-3 px-1"
+              style={{ fontSize: 9, letterSpacing: ".18em", color: "#8b7ea3" }}
+            >
+              Switch to
+            </p>
+            {joinedOtherGames.map((g) => (
+              <button
+                key={g.id}
+                onClick={() => handleNavigate(g.id)}
+                className="w-full flex items-center gap-3 text-left transition-colors duration-100"
+                style={{
+                  borderRadius: 12,
+                  padding: "10px 14px",
+                  background: "rgba(255,255,255,.06)",
+                  border: "1px solid rgba(255,255,255,.1)",
+                  cursor: "pointer",
+                  marginBottom: 6,
+                }}
+              >
+                <Gamepad2 className="h-4 w-4 shrink-0" style={{ color: "#00ddff" }} />
+                <span className="flex-1 min-w-0">
+                  <span className="block font-bold text-white text-[13px] leading-snug truncate">
+                    {g.topic}
+                  </span>
+                  <span className="text-[11px]" style={{ color: "#8b7ea3" }}>
+                    {g.questionCount} {g.questionCount === 1 ? "question" : "questions"}
+                  </span>
+                </span>
+                <ArrowLeft className="h-3.5 w-3.5 shrink-0 rotate-180" style={{ color: "#00ddff" }} />
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 // ─── Main GamePlay ────────────────────────────────────────────────────────────
 
 export default function GamePlay() {
@@ -1305,18 +1462,21 @@ export default function GamePlay() {
           {/* ── Main question column ── */}
           <div className="px-[22px] pt-12 pb-16 space-y-5">
 
-            {/* Back button */}
-            <button
-              onClick={() => setLocation("/lobby")}
-              className="flex items-center justify-center"
-              style={{
-                width: 36, height: 36, borderRadius: "50%",
-                background: "rgba(255,255,255,.08)", border: "none", cursor: "pointer",
-              }}
-              aria-label="Back to lobby"
-            >
-              <ArrowLeft className="h-5 w-5 text-white" />
-            </button>
+            {/* Back button + game switcher row */}
+            <div className="flex items-center justify-between gap-3">
+              <button
+                onClick={() => setLocation("/lobby")}
+                className="flex items-center justify-center shrink-0"
+                style={{
+                  width: 36, height: 36, borderRadius: "50%",
+                  background: "rgba(255,255,255,.08)", border: "none", cursor: "pointer",
+                }}
+                aria-label="Back to lobby"
+              >
+                <ArrowLeft className="h-5 w-5 text-white" />
+              </button>
+              <GameSwitcher currentGameId={gameId} userId={userId} />
+            </div>
 
             {/* Header row: question counter + score pill */}
             {total > 0 && (
