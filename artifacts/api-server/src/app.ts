@@ -6,6 +6,7 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 import { sessionMiddleware } from "./lib/session";
 import { corsOrigin } from "./lib/cors";
+import { injectMobileSession } from "./lib/mobileAuth";
 
 
 const app: Express = express();
@@ -41,7 +42,9 @@ app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(sessionMiddleware);
-
+// Inject mobile player session from Bearer token when no cookie session exists.
+// Must run after sessionMiddleware so req.session is available.
+app.use(injectMobileSession);
 
 app.use("/api", router);
 

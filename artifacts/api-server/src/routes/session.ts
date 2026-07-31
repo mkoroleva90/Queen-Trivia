@@ -4,6 +4,7 @@ import { and, eq, ne } from "drizzle-orm";
 import { db, adminSettingsTable, usersTable, gamesTable } from "@workspace/db";
 import { toJsonSafe } from "../lib/serialize";
 import { authRateLimit } from "../middleware/authRateLimit";
+import { generateMobileToken } from "../lib/mobileAuth";
 
 
 const router: IRouter = Router();
@@ -79,7 +80,10 @@ if (req.session.userId) {
             res.status(500).json({ error: "Failed to save session" });
             return;
         }
-        res.json(toJsonSafe({ id: existingUser.id, name: existingUser.name, gameId: matchedGame?.id ?? null }));
+        // Refresh the mobile token so it reflects the latest allowedGameIds
+        const newAllowed = req.session.allowedGameIds ?? null;
+        const mobileToken = generateMobileToken(req.session.userId!, newAllowed);
+        res.json(toJsonSafe({ id: existingUser.id, name: existingUser.name, gameId: matchedGame?.id ?? null, mobileToken }));
     });
     return;
 }
@@ -111,7 +115,11 @@ const [user] = await db.insert(usersTable).values({ name }).returning();
      // Per-game code: restrict this session to that game initially
      req.session.allowedGameIds = matchedGame ? [matchedGame.id] : undefined;
 
-     res.json(toJsonSafe({ id: user!.id, name: user!.name, gameId: matchedGame?.id ?? null }));
+     const mobileToken = generateMobileToken(
+         user!.id,
+         matchedGame ? [matchedGame.id] : null,
+     );
+     res.json(toJsonSafe({ id: user!.id, name: user!.name, gameId: matchedGame?.id ?? null, mobileToken }));
  });
 });
 

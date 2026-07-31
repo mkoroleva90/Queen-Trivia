@@ -1876,7 +1876,6 @@ return (
      <CardContent className="p-4 text-sm space-y-1.5 flex gap-3">
       <Lightbulb className="h-4 w-4 text-purple-400 shrink-0 mt-0.5" />
       <div className="space-y-1">
-       <p className="font-semibold text-purple-400">Gemini AI will generate {amount}questions</p>
          <p className="text-muted-foreground">
          Questions will be marked as AI-generated and unverified. Review them in the
          Review Questions tab before going live.
@@ -2214,23 +2213,6 @@ function QuestionsSection({
  </p>
 </div>
 
-
-{/* Verified facts notice */}
-<Card className="border-destructive/30 bg-destructive/5">
- <CardContent className="p-4 flex gap-3">
-  <ShieldAlert className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-  <div className="space-y-1">
-   <p className="font-semibold text-sm text-destructive">
-    All questions must be based on verified real-world facts
-   </p>
-   <p className="text-xs text-muted-foreground">
-    Do not use AI-generated or unverified content. Every answer must be
-    factually correct and confirmable from a reliable source. Players
-    trust the host to get it right.
-   </p>
-  </div>
- </CardContent>
-</Card>
 
 
 {editableGames.length === 0 ? (
