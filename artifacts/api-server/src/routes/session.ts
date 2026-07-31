@@ -4,7 +4,7 @@ import { and, eq, ne } from "drizzle-orm";
 import { db, adminSettingsTable, usersTable, gamesTable } from "@workspace/db";
 import { toJsonSafe } from "../lib/serialize";
 import { authRateLimit } from "../middleware/authRateLimit";
-import { generateMobileToken } from "../lib/mobileAuth";
+import { generateMobileToken, generateAdminToken } from "../lib/mobileAuth";
 
 
 const router: IRouter = Router();
@@ -198,7 +198,8 @@ router.post("/admin/login", authRateLimit, async (req, res): Promise<void> => {
          req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000;
      }
 
-     res.json({ ok: true });
+     const adminToken = generateAdminToken();
+     res.json({ ok: true, adminToken });
  });
 });
 

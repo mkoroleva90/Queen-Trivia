@@ -365,4 +365,51 @@ router.delete(
   }
 );
 
+// POST /api/auth/email/admin-mobile-login
+// Mobile-only: validate email + password, return a Bearer token scoped to the
+// admin's account ID.  The token embeds adminAccountId so injectMobileSession
+// can hydrate req.session.adminAccountId and assertGameOwnership enforces game
+// ownership correctly (same as the cookie-based email login path).
+router.post(
+  "/auth/email/admin-mobile-login",
+  authRateLimit,
+  async (req, res): Promise<void> => {
+    const parsed = EmailLoginBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid request" });
+      return;
+    }
+
+    const { email, password } = parsed.data;
+    const normalised = email.toLowerCase().trim();
+
+    const [account] = await db
+      .select()
+      .from(adminAccountsTable)
+      .where(eq(adminAccountsTable.email, normalised))
+      .limit(1);
+
+    // Constant-time path to prevent timing attacks.
+    const dummyHash = "$2b$12$invalidhashpaddingtoensureconstanttimepath000000000000";
+    const passwordHash = account?.passwordHash ?? dummyHash;
+    const passwordOk = await bcrypt.compare(password, passwordHash);
+
+    if (!account || !passwordOk) {
+      res.status(401).json({ error: "Invalid email or password." });
+      return;
+    }
+
+    if (!account.emailVerified) {
+      res
+        .status(403)
+        .json({ error: "Please verify your email address before logging in." });
+      return;
+    }
+
+    const { generateAdminToken } = await import("../lib/mobileAuth.js");
+    const adminToken = generateAdminToken(account.id);
+    res.json({ ok: true, adminToken, email: account.email });
+  }
+);
+
 export default router;

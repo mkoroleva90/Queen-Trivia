@@ -8,6 +8,7 @@ import { db, gameParticipantsTable } from "@workspace/db";
 import { logger } from "./logger";
 import { sessionMiddleware } from "./session";
 import { corsOrigin, isOriginAllowed } from "./cors";
+import { injectMobileSession } from "./mobileAuth";
 
 
 // ── Typed event maps ─────────────────────────────────────────────────────────
@@ -70,6 +71,23 @@ io.use((socket, next) => {
   {} as Response,
   next as NextFunction,
  );
+});
+
+// Inject mobile Bearer-token auth for Expo/React Native clients that
+// cannot carry cookies.  The token is passed in socket.handshake.auth.token
+// (set by useSocket.ts on every connect/reconnect).
+io.use(async (socket, next) => {
+ const token = (socket.handshake.auth as { token?: string })?.token;
+ if (token) {
+  const req = socket.request as Request;
+  // Temporarily set the Authorization header so injectMobileSession can
+  // validate the HMAC token and populate req.session identically to HTTP.
+  req.headers.authorization = `Bearer ${token}`;
+  await new Promise<void>((resolve) => {
+   void injectMobileSession(req, {} as Response, () => resolve());
+  });
+ }
+ next();
 });
 
 

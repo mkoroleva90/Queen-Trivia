@@ -375,6 +375,56 @@ function SliderQ({
   );
 }
 
+// ─── Image Recognition (text answer) ─────────────────────────────────────────
+
+function ImageRecognitionQ({
+  question, onSubmit, disabled, lockedAnswer,
+}: { question: Question; onSubmit: (a: string) => void; disabled: boolean; lockedAnswer: string | null }) {
+  const colors = useColors();
+  const [answer, setAnswer] = useState(lockedAnswer ?? '');
+  const answered = !!lockedAnswer;
+
+  return (
+    <View style={styles.writeInContainer}>
+      {question.imageUrl ? (
+        <Image
+          source={{ uri: question.imageUrl }}
+          style={{ width: '100%', height: 180, borderRadius: 14 }}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={{ width: '100%', height: 120, borderRadius: 14, backgroundColor: colors.muted, alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="image-outline" size={36} color={colors.mutedForeground} />
+        </View>
+      )}
+      <Text style={[styles.hint, { color: colors.mutedForeground }]}>TYPE YOUR ANSWER BELOW</Text>
+      <TextInput
+        style={[styles.writeInInput, {
+          backgroundColor: colors.card,
+          color: colors.foreground,
+          borderColor: answered ? colors.secondary : colors.border,
+        }]}
+        value={answer}
+        onChangeText={setAnswer}
+        placeholder="Your answer…"
+        placeholderTextColor={colors.mutedForeground}
+        editable={!disabled && !answered}
+        returnKeyType="done"
+        onSubmitEditing={() => { if (answer.trim() && !answered) onSubmit(answer.trim()); }}
+      />
+      {!answered && (
+        <TouchableOpacity
+          onPress={() => { if (answer.trim()) onSubmit(answer.trim()); }}
+          disabled={disabled || !answer.trim()}
+          style={[styles.confirmBtn, { backgroundColor: colors.secondary, opacity: (!answer.trim() || disabled) ? 0.5 : 1 }]}
+        >
+          <Text style={styles.confirmBtnText}>Submit Answer</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
 // ─── Image Hotspot ────────────────────────────────────────────────────────────
 
 function ImageHotspotQ({
@@ -758,8 +808,11 @@ export default function GamePlayScreen() {
               {current.questionType === 'slider' && (
                 <SliderQ question={current} onSubmit={handleSubmit} disabled={submitAnswer.isPending} lockedAnswer={lockedAnswer} />
               )}
-              {(current.questionType === 'image_hotspot' || current.questionType === 'image_recognition') && (
+              {current.questionType === 'image_hotspot' && (
                 <ImageHotspotQ question={current} onSubmit={handleSubmit} disabled={submitAnswer.isPending} lockedAnswer={lockedAnswer} />
+              )}
+              {current.questionType === 'image_recognition' && (
+                <ImageRecognitionQ question={current} onSubmit={handleSubmit} disabled={submitAnswer.isPending} lockedAnswer={lockedAnswer} />
               )}
               {current.questionType === 'matching' && (
                 <MatchingQ question={current} onSubmit={handleSubmit} disabled={submitAnswer.isPending} lockedAnswer={lockedAnswer} />

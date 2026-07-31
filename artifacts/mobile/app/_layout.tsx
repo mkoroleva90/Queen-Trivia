@@ -14,24 +14,31 @@ import {
 } from '@expo-google-fonts/manrope';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { setBaseUrl } from '@workspace/api-client-react';
+import * as SecureStore from 'expo-secure-store';
+import { setBaseUrl, setAuthTokenGetter } from '@workspace/api-client-react';
 import { AuthProvider } from '@/context/AuthContext';
+import { AdminAuthProvider } from '@/context/AdminAuthContext';
+import { PLAYER_TOKEN_KEY } from '@/context/AuthContext';
 
 // Set API base URL at module load — before any component mounts.
-// EXPO_PUBLIC_DOMAIN is injected by the dev script as $REPLIT_DEV_DOMAIN.
-// setAuthTokenGetter is wired in AuthContext.tsx at module level so it is
-// registered as soon as that module is imported (before any hooks run).
 setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN ?? ''}`);
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
+// Default auth getter uses the PLAYER token only.
+// AdminAuthContext.loginAdmin() switches this to the admin token for the
+// duration of the admin session, then restores it on logout.
+setAuthTokenGetter(async () => {
+  try {
+    return await SecureStore.getItemAsync(PLAYER_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+});
+
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: {
-      retry: 2,
-      staleTime: 5000,
-    },
+    queries: { retry: 2, staleTime: 5000 },
   },
 });
 
@@ -42,6 +49,8 @@ function RootLayoutNav() {
       <Stack.Screen name="lobby" />
       <Stack.Screen name="game/[id]" />
       <Stack.Screen name="results/[id]" />
+      <Stack.Screen name="admin-login" />
+      <Stack.Screen name="admin" />
     </Stack>
   );
 }
@@ -67,13 +76,15 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <KeyboardProvider>
-                <RootLayoutNav />
-              </KeyboardProvider>
-            </GestureHandlerRootView>
-          </AuthProvider>
+          <AdminAuthProvider queryClient={queryClient}>
+            <AuthProvider>
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <KeyboardProvider>
+                  <RootLayoutNav />
+                </KeyboardProvider>
+              </GestureHandlerRootView>
+            </AuthProvider>
+          </AdminAuthProvider>
         </QueryClientProvider>
       </ErrorBoundary>
     </SafeAreaProvider>

@@ -210,6 +210,20 @@ export default function WelcomeScreen() {
                   Let's play →
                 </CTAButton>
               </View>
+
+              {/* Admin / host access */}
+              <Pressable
+                onPress={() => router.push('/admin-login')}
+                hitSlop={12}
+                style={{ alignSelf: 'center', paddingVertical: 4 }}
+              >
+                <Text style={{ color: colors.muted, fontSize: 13 }}>
+                  Hosting tonight?{' '}
+                  <Text style={{ color: colors.primary, fontFamily: 'Manrope_600SemiBold' }}>
+                    Admin sign-in →
+                  </Text>
+                </Text>
+              </Pressable>
             </View>
           )}
 

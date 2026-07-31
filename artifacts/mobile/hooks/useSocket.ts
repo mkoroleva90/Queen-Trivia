@@ -1,5 +1,24 @@
+/**
+ * Socket.IO hooks with explicit role-scoped token resolution.
+ *
+ * Two separate singleton connections are maintained:
+ *  - Player socket → reads PLAYER_TOKEN_KEY only (no admin bleed)
+ *  - Admin socket  → reads ADMIN_TOKEN_KEY only  (no player bleed)
+ *
+ * Room joins (`game:join`, `lobby:join`) are emitted from the `connect`
+ * event so they fire after the authenticated handshake completes and are
+ * automatically retried on every reconnect.
+ *
+ * Player screens use `useLobbySocket` / `useGameSocket`.
+ * Admin screens use `useAdminGameSocket`.
+ */
 import { useEffect, useRef } from 'react';
 import { io, type Socket } from 'socket.io-client';
+import * as SecureStore from 'expo-secure-store';
+import { PLAYER_TOKEN_KEY } from '@/context/AuthContext';
+import { ADMIN_TOKEN_KEY } from '@/context/AdminAuthContext';
+
+// ─── Typed event maps ─────────────────────────────────────────────────────────
 
 type ServerToClientEvents = {
   'game:started': (payload: { gameId: number; topic: string }) => void;
@@ -24,25 +43,64 @@ type ClientToServerEvents = {
 
 type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
-let _socket: AppSocket | null = null;
+// ─── Socket factories ─────────────────────────────────────────────────────────
 
-function getSocket(): AppSocket {
-  if (!_socket) {
-    const domain = process.env.EXPO_PUBLIC_DOMAIN;
-    const url = domain ? `https://${domain}` : 'http://localhost:8080';
-    _socket = io(url, {
-      path: '/api/socket.io',
-      autoConnect: false,
-      transports: ['polling', 'websocket'],
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-    }) as AppSocket;
-  }
-  return _socket;
+function makeSocketUrl() {
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  return domain ? `https://${domain}` : 'http://localhost:8080';
 }
 
+const BASE_OPTS = {
+  path: '/api/socket.io',
+  autoConnect: false,
+  transports: ['polling', 'websocket'] as ('polling' | 'websocket')[],
+  reconnection: true,
+  reconnectionAttempts: 10,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+};
+
+// Player-only socket: always reads the player token. Never picks up admin token.
+let _playerSocket: AppSocket | null = null;
+
+function getPlayerSocket(): AppSocket {
+  if (!_playerSocket) {
+    _playerSocket = io(makeSocketUrl(), {
+      ...BASE_OPTS,
+      auth: (cb: (data: Record<string, string>) => void) => {
+        SecureStore.getItemAsync(PLAYER_TOKEN_KEY)
+          .then((t) => cb({ token: t ?? '' }))
+          .catch(() => cb({}));
+      },
+    }) as AppSocket;
+  }
+  return _playerSocket;
+}
+
+// Admin-only socket: always reads the admin token. Never picks up player token.
+let _adminSocket: AppSocket | null = null;
+
+function getAdminSocket(): AppSocket {
+  if (!_adminSocket) {
+    _adminSocket = io(makeSocketUrl(), {
+      ...BASE_OPTS,
+      auth: (cb: (data: Record<string, string>) => void) => {
+        SecureStore.getItemAsync(ADMIN_TOKEN_KEY)
+          .then((t) => cb({ token: t ?? '' }))
+          .catch(() => cb({}));
+      },
+    }) as AppSocket;
+  }
+  return _adminSocket;
+}
+
+// ─── Player hooks ─────────────────────────────────────────────────────────────
+
+/**
+ * Player-scoped lobby socket.
+ * `lobby:join` is emitted on every successful connection so reconnects
+ * automatically re-enter the lobby room.
+ */
 export function useLobbySocket(callbacks: {
   onGameStarted?: (p: { gameId: number; topic: string }) => void;
 }) {
@@ -50,23 +108,39 @@ export function useLobbySocket(callbacks: {
   cbRef.current = callbacks;
 
   useEffect(() => {
-    const socket = getSocket();
-    socket.connect();
-    socket.emit('lobby:join');
+    const socket = getPlayerSocket();
+
+    function onConnect() {
+      socket.emit('lobby:join');
+    }
 
     function onGameStarted(p: { gameId: number; topic: string }) {
       cbRef.current.onGameStarted?.(p);
     }
 
+    socket.on('connect', onConnect);
     socket.on('game:started', onGameStarted);
 
+    // If already connected, join immediately.
+    if (socket.connected) {
+      socket.emit('lobby:join');
+    } else {
+      socket.connect();
+    }
+
     return () => {
+      socket.off('connect', onConnect);
       socket.off('game:started', onGameStarted);
       socket.disconnect();
     };
   }, []);
 }
 
+/**
+ * Player-scoped game socket.
+ * `game:join` is emitted from the `connect` event so it fires after the
+ * authenticated handshake and is retried on every reconnect.
+ */
 export function useGameSocket(
   gameId: number | null,
   callbacks: {
@@ -85,9 +159,11 @@ export function useGameSocket(
   useEffect(() => {
     if (!gameId) return;
 
-    const socket = getSocket();
-    socket.connect();
-    socket.emit('game:join', gameId);
+    const socket = getPlayerSocket();
+
+    function onConnect() {
+      socket.emit('game:join', gameId!);
+    }
 
     function onAnswerSubmitted(p: {
       gameId: number;
@@ -102,10 +178,82 @@ export function useGameSocket(
       if (p.gameId === gameId) cbRef.current.onGameEnded?.(p);
     }
 
+    socket.on('connect', onConnect);
     socket.on('answer:submitted', onAnswerSubmitted);
     socket.on('game:ended', onGameEnded);
 
+    if (socket.connected) {
+      socket.emit('game:join', gameId);
+    } else {
+      socket.connect();
+    }
+
     return () => {
+      socket.off('connect', onConnect);
+      socket.off('answer:submitted', onAnswerSubmitted);
+      socket.off('game:ended', onGameEnded);
+      socket.disconnect();
+    };
+  }, [gameId]);
+}
+
+// ─── Admin hooks ──────────────────────────────────────────────────────────────
+
+/**
+ * Admin-scoped game socket.
+ * Uses the admin-only socket singleton. `game:join` is emitted from the
+ * `connect` event so it fires after the authenticated handshake and is
+ * retried on every reconnect.
+ */
+export function useAdminGameSocket(
+  gameId: number | null,
+  callbacks: {
+    onAnswerSubmitted?: (p: {
+      gameId: number;
+      questionId: number;
+      playerName: string;
+      isCorrect: boolean;
+    }) => void;
+    onGameEnded?: (p: { gameId: number }) => void;
+  },
+) {
+  const cbRef = useRef(callbacks);
+  cbRef.current = callbacks;
+
+  useEffect(() => {
+    if (!gameId) return;
+
+    const socket = getAdminSocket();
+
+    function onConnect() {
+      socket.emit('game:join', gameId!);
+    }
+
+    function onAnswerSubmitted(p: {
+      gameId: number;
+      questionId: number;
+      playerName: string;
+      isCorrect: boolean;
+    }) {
+      cbRef.current.onAnswerSubmitted?.(p);
+    }
+
+    function onGameEnded(p: { gameId: number }) {
+      if (p.gameId === gameId) cbRef.current.onGameEnded?.(p);
+    }
+
+    socket.on('connect', onConnect);
+    socket.on('answer:submitted', onAnswerSubmitted);
+    socket.on('game:ended', onGameEnded);
+
+    if (socket.connected) {
+      socket.emit('game:join', gameId);
+    } else {
+      socket.connect();
+    }
+
+    return () => {
+      socket.off('connect', onConnect);
       socket.off('answer:submitted', onAnswerSubmitted);
       socket.off('game:ended', onGameEnded);
       socket.disconnect();

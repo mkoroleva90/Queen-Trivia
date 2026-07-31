@@ -1,9 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import { setAuthTokenGetter } from '@workspace/api-client-react';
 
+export const PLAYER_TOKEN_KEY = 'trivia_mobile_token';
 const USER_KEY = 'trivia_user';
-const TOKEN_KEY = 'trivia_mobile_token';
 
 type User = { id: number; name: string };
 
@@ -16,15 +15,9 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-// Wire up the Bearer token getter at module level so it's set before
-// any React Query hooks fire. The getter is called lazily per request.
-setAuthTokenGetter(async () => {
-  try {
-    return await SecureStore.getItemAsync(TOKEN_KEY);
-  } catch {
-    return null;
-  }
-});
+// Note: setAuthTokenGetter is registered in app/_layout.tsx as a unified
+// getter that checks the admin token first, then the player token.
+// Do not call setAuthTokenGetter here — it would race with the layout.
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -39,12 +32,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const [stored, token] = await Promise.all([
           SecureStore.getItemAsync(USER_KEY),
-          SecureStore.getItemAsync(TOKEN_KEY),
+          SecureStore.getItemAsync(PLAYER_TOKEN_KEY),
         ]);
 
         if (stored && token) {
           const parsed = JSON.parse(stored) as User;
-          // Verify with server using Bearer token
           try {
             const r = await fetch(`${baseUrl}/api/auth/me`, {
               headers: { Authorization: `Bearer ${token}` },
@@ -55,11 +47,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             } else {
               await Promise.all([
                 SecureStore.deleteItemAsync(USER_KEY),
-                SecureStore.deleteItemAsync(TOKEN_KEY),
+                SecureStore.deleteItemAsync(PLAYER_TOKEN_KEY),
               ]);
             }
           } catch {
-            // Network error — trust the stored user until next successful call
+            // Network error — trust stored user
             setUser(parsed);
           }
         }
@@ -75,13 +67,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loginUser = async (u: User, mobileToken: string) => {
     await Promise.all([
       SecureStore.setItemAsync(USER_KEY, JSON.stringify(u)),
-      SecureStore.setItemAsync(TOKEN_KEY, mobileToken),
+      SecureStore.setItemAsync(PLAYER_TOKEN_KEY, mobileToken),
     ]);
     setUser(u);
   };
 
   const logout = async () => {
-    const token = await SecureStore.getItemAsync(TOKEN_KEY).catch(() => null);
+    const token = await SecureStore.getItemAsync(PLAYER_TOKEN_KEY).catch(() => null);
     try {
       await fetch(`${baseUrl}/api/auth/logout`, {
         method: 'POST',
@@ -92,7 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     await Promise.all([
       SecureStore.deleteItemAsync(USER_KEY).catch(() => {}),
-      SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {}),
+      SecureStore.deleteItemAsync(PLAYER_TOKEN_KEY).catch(() => {}),
     ]);
     setUser(null);
   };
