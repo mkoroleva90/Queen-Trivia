@@ -16,17 +16,9 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
+import { CrownMark } from '@/components/CrownMark';
 
 const AVATAR_COLORS = ['#ff0080', '#00ddff', '#8b5cf6', '#22c55e'];
-
-function CrownIcon({ size = 48 }: { size?: number }) {
-  const colors = useColors();
-  return (
-    <View style={{ alignItems: 'center', justifyContent: 'center', width: size, height: size }}>
-      <Ionicons name="medal" size={size} color={colors.accent} />
-    </View>
-  );
-}
 
 type Step = 0 | 1 | 2 | 3;
 
@@ -192,7 +184,7 @@ export default function WelcomeScreen() {
           {/* ── Step 0: Welcome ── */}
           {step === 0 && (
             <View style={styles.stepContainer}>
-              <CrownIcon size={72} />
+              <CrownMark size={72} />
               <Text style={[styles.heroTitle, { color: colors.foreground }]}>
                 <Text style={{ color: colors.accent }}>QUEEN</Text>{'\n'}
                 <Text style={{ color: colors.primary }}>TRIVIA</Text>
