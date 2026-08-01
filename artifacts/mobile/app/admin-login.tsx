@@ -66,7 +66,7 @@ export default function AdminLoginScreen() {
         body: JSON.stringify({ email: email.trim().toLowerCase(), password, rememberMe: true }),
       });
       if (res.status === 401) { setError('Incorrect email or password'); return; }
-      if (res.status === 403) { setError('Please verify your email address first'); return; }
+      if (res.status === 403) { setError('Account not verified — check your inbox for the verification email (or spam folder)'); return; }
       if (!res.ok) { setError('Something went wrong — please retry'); return; }
       const data = (await res.json()) as { ok: boolean; adminToken: string };
       await loginAdmin(data.adminToken);
@@ -189,6 +189,10 @@ export default function AdminLoginScreen() {
               >
                 {pending ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>SIGN IN</Text>}
               </Pressable>
+
+              <TouchableOpacity onPress={() => router.push('/admin-forgot-password')} style={s.textLink}>
+                <Text style={[s.textLinkText, { color: colors.primary }]}>Forgot password?</Text>
+              </TouchableOpacity>
             </>
           ) : (
             <>
@@ -225,6 +229,15 @@ export default function AdminLoginScreen() {
             </>
           )}
         </View>
+
+        {mode === 'email' && (
+          <TouchableOpacity onPress={() => router.push('/admin-register')} style={s.footerLink}>
+            <Text style={[s.footerText, { color: colors.muted }]}>
+              New here?{' '}
+              <Text style={{ color: colors.secondary }}>Create an account →</Text>
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {mode === 'code' && (
           <Text style={[s.hint2, { color: colors.muted }]}>
@@ -267,4 +280,8 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     btn: { borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 4 },
     btnText: { color: '#fff', fontSize: 16, fontFamily: 'Manrope_800ExtraBold', letterSpacing: 1 },
     hint2: { fontSize: 12, textAlign: 'center', marginTop: 16, lineHeight: 18 },
+    textLink: { alignItems: 'center', paddingVertical: 4 },
+    textLinkText: { fontSize: 13 },
+    footerLink: { marginTop: 20, alignItems: 'center' },
+    footerText: { fontSize: 14, textAlign: 'center' },
   });
