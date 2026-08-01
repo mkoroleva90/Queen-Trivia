@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Text, TextInput } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -71,6 +72,14 @@ export default function RootLayout() {
   }, [fontsLoaded, fontError]);
 
   if (!fontsLoaded && !fontError) return null;
+
+  // Apply Manrope as the default font for every Text and TextInput in the app.
+  // React Native doesn't inherit fonts via CSS — this is the global baseline.
+  // Individual styles that explicitly set fontFamily override this correctly.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (Text as any).defaultProps = { style: { fontFamily: 'Manrope_400Regular' } };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (TextInput as any).defaultProps = { style: { fontFamily: 'Manrope_400Regular' } };
 
   return (
     <SafeAreaProvider>
