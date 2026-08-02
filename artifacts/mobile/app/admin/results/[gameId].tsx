@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +13,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as SecureStore from 'expo-secure-store';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import { ADMIN_TOKEN_KEY } from '@/context/AdminAuthContext';
 import { useColors } from '@/hooks/useColors';
 
@@ -61,6 +64,7 @@ export default function AdminResultsScreen() {
   const gameId = parseInt(gameIdStr ?? '', 10);
 
   const [showStats, setShowStats] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const baseUrl = process.env.EXPO_PUBLIC_DOMAIN
     ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
@@ -89,6 +93,32 @@ export default function AdminResultsScreen() {
     enabled: !isNaN(gameId),
     retry: 1,
   });
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const token = await SecureStore.getItemAsync(ADMIN_TOKEN_KEY).catch(() => null);
+      const r = await fetch(`${baseUrl}/api/games/${gameId}/results/export.csv`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const csv = await r.text();
+      const topic = results?.game.topic?.replace(/[^a-z0-9]/gi, '_') ?? 'results';
+      const fileName = `${topic}_results.csv`;
+      const fileUri = FileSystem.cacheDirectory + fileName;
+      await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(fileUri, { mimeType: 'text/csv', dialogTitle: 'Export results CSV' });
+      } else {
+        Alert.alert('Sharing unavailable', 'File sharing is not available on this device.');
+      }
+    } catch (e) {
+      Alert.alert('Export failed', e instanceof Error ? e.message : 'Could not export results.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const s = styles(colors);
 
@@ -130,7 +160,17 @@ export default function AdminResultsScreen() {
         <Text style={[s.headerTitle, { color: colors.foreground }]} numberOfLines={1}>
           {results?.game.topic ?? 'Results'}
         </Text>
-        <Ionicons name="trophy" size={22} color={colors.accent} />
+        <Pressable
+          onPress={handleExport}
+          disabled={exporting}
+          style={[s.exportBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+          hitSlop={8}
+        >
+          {exporting
+            ? <ActivityIndicator size="small" color={colors.primary} />
+            : <Ionicons name="share-outline" size={18} color={colors.primary} />
+          }
+        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={s.list}>
@@ -244,7 +284,8 @@ const styles = (colors: ReturnType<typeof useColors>) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     center: { alignItems: 'center', justifyContent: 'center' },
-    header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 10 },
+    header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 10, flexWrap: 'nowrap' },
+    exportBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
     backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
     headerTitle: { flex: 1, fontSize: 18, fontFamily: 'Manrope_700Bold' },
     list: { paddingHorizontal: 16, paddingTop: 8, gap: 10 },

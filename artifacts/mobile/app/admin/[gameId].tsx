@@ -1,6 +1,7 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -16,6 +17,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
+import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
+import type { RenderItemParams } from 'react-native-draggable-flatlist';
+import * as SecureStore from 'expo-secure-store';
 import {
   useListGames,
   getListGamesQueryKey,
@@ -25,8 +29,18 @@ import {
   useUpdateQuestion,
   useDeleteQuestion,
   useUpdateGame,
+  useGenerateGeminiQuestions,
+  useRegenerateQuestion,
+  useEnhanceQuestion,
+  useFactCheckQuestion,
 } from '@workspace/api-client-react';
-import type { Question } from '@workspace/api-client-react';
+import type {
+  Question,
+  EnhanceQuestionResult,
+  FactCheckSingleResult,
+  RegenerateQuestionPreview,
+} from '@workspace/api-client-react';
+import { ADMIN_TOKEN_KEY } from '@/context/AdminAuthContext';
 import { useColors } from '@/hooks/useColors';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -42,27 +56,19 @@ type QForm = {
   questionText: string;
   questionType: QType;
   points: string;
-  // Multiple choice / multi-select
   choices: string[];
-  correctAnswer: string;     // MC: single correct choice
-  correctChoices: string[];  // multi-select: correct choices
-  // True/false
+  correctAnswer: string;
+  correctChoices: string[];
   tfAnswer: 'true' | 'false';
-  // Write-in alternates
   alternateAnswers: string;
-  // Ordering
   orderedItems: string[];
-  // Slider
   sliderMin: string;
   sliderMax: string;
   sliderCorrect: string;
-  // Image
   imageUrl: string;
-  hotspotX: string; // 0–1 percentage
+  hotspotX: string;
   hotspotY: string;
-  // Matching
   pairs: { left: string; right: string }[];
-  // Meta
   source: string;
 };
 
@@ -117,8 +123,6 @@ function formFromQuestion(q: Question): QForm {
 
   let hotspotX = '0.5'; let hotspotY = '0.5';
   if (type === 'image_hotspot') {
-    // correctAnswer is stored as "x,y" in 0–100 range (matching player + grader format).
-    // Form state keeps 0–1 fractions for the HotspotPicker.
     const parts = ca.split(',').map(Number);
     hotspotX = String((isNaN(parts[0]!) ? 50 : parts[0]!) / 100);
     hotspotY = String((isNaN(parts[1]!) ? 50 : parts[1]!) / 100);
@@ -194,7 +198,6 @@ function buildPayload(form: QForm, orderIndex: number) {
       return { ...base, options: { pairs }, correctAnswer };
     }
     case 'image_hotspot': {
-      // Player submits "x,y" as 0–100 percentages; grader parses same format.
       const hx = (parseFloat(form.hotspotX) * 100).toFixed(1);
       const hy = (parseFloat(form.hotspotY) * 100).toFixed(1);
       return {
@@ -214,7 +217,6 @@ function buildPayload(form: QForm, orderIndex: number) {
       };
     }
     default: {
-      // write_in, short_response
       const alts = form.alternateAnswers.split(',').map((s) => s.trim()).filter(Boolean);
       return {
         ...base,
@@ -264,11 +266,79 @@ function validateForm(form: QForm): string | null {
       if (form.questionType === 'image_recognition' && !form.correctAnswer.trim()) return 'Correct answer is required';
       break;
     case 'true_false':
-      break; // always valid
+      break;
     default:
       if (!form.correctAnswer.trim()) return 'Correct answer is required';
   }
   return null;
+}
+
+// ─── Preview fill: map API response to QForm ─────────────────────────────────
+
+type PreviewResponse = {
+  questionType: string;
+  questionText: string;
+  correctAnswer: string;
+  options?: { choices?: string[] } | null;
+  points: number;
+  source?: string | null;
+};
+
+function previewToForm(p: PreviewResponse): QForm {
+  const type = (ALL_TYPES.includes(p.questionType as QType) ? p.questionType : 'multiple_choice') as QType;
+  const base = emptyForm(type);
+  base.questionText = p.questionText;
+  base.points = String(p.points);
+  base.source = p.source ?? '';
+  const choices = p.options?.choices ?? [];
+  if (type === 'multiple_choice') {
+    base.choices = choices.length ? choices : ['', '', '', ''];
+    base.correctAnswer = p.correctAnswer;
+  } else if (type === 'true_false') {
+    base.tfAnswer = p.correctAnswer === 'false' ? 'false' : 'true';
+  } else {
+    base.correctAnswer = p.correctAnswer;
+  }
+  return base;
+}
+
+// ─── HotspotPicker ────────────────────────────────────────────────────────────
+
+function HotspotPicker({ imageUrl, x, y, onChange, colors }: {
+  imageUrl: string; x: number; y: number;
+  onChange: (x: number, y: number) => void;
+  colors: ReturnType<typeof useColors>;
+}) {
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  return (
+    <View
+      style={{ borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}
+      onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
+    >
+      <Pressable
+        onPress={(e) => {
+          if (size.w && size.h) {
+            const px = e.nativeEvent.locationX / size.w;
+            const py = e.nativeEvent.locationY / size.h;
+            onChange(Math.min(1, Math.max(0, px)), Math.min(1, Math.max(0, py)));
+          }
+        }}
+      >
+        <Image source={{ uri: imageUrl }} style={{ width: '100%', aspectRatio: 16 / 9 }} resizeMode="cover" />
+        {size.w > 0 && (
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill]}>
+            <View style={{
+              position: 'absolute',
+              left: x * size.w - 12, top: y * size.h - 12,
+              width: 24, height: 24, borderRadius: 12,
+              backgroundColor: colors.primary + 'cc',
+              borderWidth: 2, borderColor: '#fff',
+            }} />
+          </View>
+        )}
+      </Pressable>
+    </View>
+  );
 }
 
 // ─── QuestionFormModal ────────────────────────────────────────────────────────
@@ -280,6 +350,8 @@ function QuestionFormModal({
   onSave,
   pending,
   title,
+  gameId,
+  gameTopic,
 }: {
   visible: boolean;
   initial: QForm;
@@ -287,13 +359,19 @@ function QuestionFormModal({
   onSave: (form: QForm) => void;
   pending: boolean;
   title: string;
+  gameId: number;
+  gameTopic?: string;
 }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [form, setForm] = useState<QForm>(initial);
   const [error, setError] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
 
-  // Reset form when initial changes (new question vs edit)
+  const baseUrl = process.env.EXPO_PUBLIC_DOMAIN
+    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+    : '';
+
   React.useEffect(() => {
     if (visible) { setForm(initial); setError(''); }
   }, [visible, initial]);
@@ -305,6 +383,34 @@ function QuestionFormModal({
     const err = validateForm(form);
     if (err) { setError(err); return; }
     onSave(form);
+  };
+
+  const handleFillWithAI = async () => {
+    setAiLoading(true);
+    setError('');
+    try {
+      const token = await SecureStore.getItemAsync(ADMIN_TOKEN_KEY).catch(() => null);
+      const validTypes = ['multiple_choice', 'true_false', 'write_in'];
+      const qType = validTypes.includes(form.questionType) ? form.questionType : 'multiple_choice';
+      const r = await fetch(`${baseUrl}/api/games/${gameId}/questions/generate-preview`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ questionType: qType }),
+      });
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? `HTTP ${r.status}`);
+      }
+      const preview = await r.json() as PreviewResponse;
+      setForm(previewToForm(preview));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'AI generation failed — try again');
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   const s = fStyles(colors);
@@ -358,6 +464,22 @@ function QuestionFormModal({
             ))}
           </ScrollView>
 
+          {/* AI Fill button */}
+          <Pressable
+            onPress={handleFillWithAI}
+            disabled={aiLoading || pending}
+            style={[s.aiFillBtn, { borderColor: '#a855f7' + '44', backgroundColor: '#a855f7' + '12' }]}
+          >
+            {aiLoading ? (
+              <ActivityIndicator size="small" color="#a855f7" />
+            ) : (
+              <Ionicons name="sparkles" size={15} color="#a855f7" />
+            )}
+            <Text style={[s.aiFillText, { color: '#a855f7' }]}>
+              {aiLoading ? 'Generating…' : `Fill with AI${gameTopic ? ` (${gameTopic})` : ''}`}
+            </Text>
+          </Pressable>
+
           {/* Question text */}
           <Text style={[s.fieldLabel, { color: colors.muted }]}>QUESTION</Text>
           <TextInput
@@ -370,14 +492,10 @@ function QuestionFormModal({
             numberOfLines={3}
           />
 
-          {/* Type-specific fields */}
-
-          {/* Multiple Choice */}
+          {/* Multiple Choice / Multi-Select */}
           {(form.questionType === 'multiple_choice' || form.questionType === 'multi_select') && (
             <>
-              <Text style={[s.fieldLabel, { color: colors.muted }]}>
-                {form.questionType === 'multi_select' ? 'CHOICES (tap to mark correct)' : 'CHOICES (tap to mark correct)'}
-              </Text>
+              <Text style={[s.fieldLabel, { color: colors.muted }]}>CHOICES (tap to mark correct)</Text>
               {form.choices.map((choice, i) => {
                 const isCorrect = form.questionType === 'multi_select'
                   ? form.correctChoices.includes(choice.trim())
@@ -571,7 +689,7 @@ function QuestionFormModal({
                   <TextInput
                     style={[s.pairInput, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
                     value={pair.left}
-                    onChangeText={(v) => { const next = [...form.pairs]; next[i] = { ...next[i], left: v }; set('pairs', next); }}
+                    onChangeText={(v) => { const next = [...form.pairs]; next[i] = { ...next[i]!, left: v }; set('pairs', next); }}
                     placeholder="Left"
                     placeholderTextColor={colors.muted}
                   />
@@ -579,7 +697,7 @@ function QuestionFormModal({
                   <TextInput
                     style={[s.pairInput, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
                     value={pair.right}
-                    onChangeText={(v) => { const next = [...form.pairs]; next[i] = { ...next[i], right: v }; set('pairs', next); }}
+                    onChangeText={(v) => { const next = [...form.pairs]; next[i] = { ...next[i]!, right: v }; set('pairs', next); }}
                     placeholder="Right"
                     placeholderTextColor={colors.muted}
                   />
@@ -692,44 +810,460 @@ function QuestionFormModal({
   );
 }
 
-// ─── HotspotPicker ────────────────────────────────────────────────────────────
+// ─── BulkGenerateModal ────────────────────────────────────────────────────────
 
-function HotspotPicker({ imageUrl, x, y, onChange, colors }: {
-  imageUrl: string; x: number; y: number;
-  onChange: (x: number, y: number) => void;
-  colors: ReturnType<typeof useColors>;
+function BulkGenerateModal({
+  visible,
+  gameId,
+  gameTopic,
+  gameDifficulty,
+  onClose,
+  onGenerated,
+}: {
+  visible: boolean;
+  gameId: number;
+  gameTopic: string;
+  gameDifficulty: string;
+  onClose: () => void;
+  onGenerated: (count: number) => void;
 }) {
-  const [size, setSize] = useState({ w: 0, h: 0 });
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const [topic, setTopic] = useState('');
+  const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
+  const [amount, setAmount] = useState('10');
+  const [result, setResult] = useState<{ imported: number; discarded: number } | null>(null);
+  const [error, setError] = useState('');
+  const generateGemini = useGenerateGeminiQuestions();
+
+  React.useEffect(() => {
+    if (visible) {
+      setTopic(gameTopic);
+      setDifficulty((gameDifficulty as 'easy' | 'medium' | 'hard') ?? 'medium');
+      setAmount('10');
+      setResult(null);
+      setError('');
+    }
+  }, [visible, gameTopic, gameDifficulty]);
+
+  const handleGenerate = async () => {
+    setError('');
+    const n = parseInt(amount, 10);
+    if (isNaN(n) || n < 1 || n > 20) { setError('Enter a number between 1 and 20'); return; }
+    if (!topic.trim()) { setError('Topic is required'); return; }
+    try {
+      const res = await generateGemini.mutateAsync({
+        gameId,
+        data: { topic: topic.trim(), difficulty, amount: n, existingQuestions: [] },
+      });
+      setResult({ imported: res.imported, discarded: res.discarded ?? 0 });
+      onGenerated(res.imported);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Generation failed';
+      setError(msg.includes('429') ? 'AI rate limit reached — wait a moment and try again.' : msg);
+    }
+  };
+
+  const s = bgStyles(colors);
+
   return (
-    <View
-      style={{ borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}
-      onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
-    >
-      <Pressable
-        onPress={(e) => {
-          if (size.w && size.h) {
-            const px = e.nativeEvent.locationX / size.w;
-            const py = e.nativeEvent.locationY / size.h;
-            onChange(Math.min(1, Math.max(0, px)), Math.min(1, Math.max(0, py)));
-          }
-        }}
-      >
-        <Image source={{ uri: imageUrl }} style={{ width: '100%', aspectRatio: 16 / 9 }} resizeMode="cover" />
-        {/* Hotspot marker */}
-        {size.w > 0 && (
-          <View pointerEvents="none" style={[StyleSheet.absoluteFill]}>
-            <View style={{
-              position: 'absolute',
-              left: x * size.w - 12,
-              top: y * size.h - 12,
-              width: 24, height: 24, borderRadius: 12,
-              backgroundColor: colors.primary + 'cc',
-              borderWidth: 2, borderColor: '#fff',
-            }} />
+    <Modal visible={visible} animationType="slide" transparent presentationStyle="overFullScreen">
+      <View style={s.overlay}>
+        <Pressable style={s.backdrop} onPress={onClose} />
+        <View style={[s.sheet, { backgroundColor: colors.card, paddingBottom: insets.bottom + 24 }]}>
+          <View style={s.handle} />
+          <View style={s.sheetHeader}>
+            <View style={[s.aiIcon, { backgroundColor: '#a855f7' + '22' }]}>
+              <Ionicons name="sparkles" size={20} color="#a855f7" />
+            </View>
+            <Text style={[s.sheetTitle, { color: colors.foreground }]}>Generate Questions with AI</Text>
           </View>
-        )}
-      </Pressable>
-    </View>
+
+          {result ? (
+            <View style={[s.resultCard, { backgroundColor: colors.secondary + '15', borderColor: colors.secondary + '30' }]}>
+              <Ionicons name="checkmark-circle" size={32} color={colors.secondary} />
+              <Text style={[s.resultTitle, { color: colors.secondary }]}>
+                {result.imported} question{result.imported !== 1 ? 's' : ''} added
+              </Text>
+              {result.discarded > 0 && (
+                <Text style={[s.resultSub, { color: colors.muted }]}>
+                  {result.discarded} discarded (invalid or duplicate)
+                </Text>
+              )}
+              <Pressable style={[s.closeResultBtn, { borderColor: colors.secondary }]} onPress={onClose}>
+                <Text style={[s.closeResultText, { color: colors.secondary }]}>Done</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <>
+              <Text style={[s.fieldLabel, { color: colors.muted }]}>TOPIC</Text>
+              <TextInput
+                style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
+                value={topic}
+                onChangeText={(v) => { setTopic(v); setError(''); }}
+                placeholder="e.g. 90s Pop Music"
+                placeholderTextColor={colors.muted}
+              />
+
+              <Text style={[s.fieldLabel, { color: colors.muted }]}>DIFFICULTY</Text>
+              <View style={s.diffRow}>
+                {(['easy', 'medium', 'hard'] as const).map((d) => (
+                  <Pressable
+                    key={d}
+                    style={[s.diffChip, { borderColor: difficulty === d ? '#a855f7' : colors.border, backgroundColor: difficulty === d ? '#a855f7' + '22' : 'transparent' }]}
+                    onPress={() => setDifficulty(d)}
+                  >
+                    <Text style={[s.diffChipText, { color: difficulty === d ? '#a855f7' : colors.muted }]}>
+                      {d.charAt(0).toUpperCase() + d.slice(1)}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <Text style={[s.fieldLabel, { color: colors.muted }]}>NUMBER OF QUESTIONS (1–20)</Text>
+              <TextInput
+                style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border, width: 100 }]}
+                value={amount}
+                onChangeText={(v) => { setAmount(v); setError(''); }}
+                keyboardType="numeric"
+                placeholder="10"
+                placeholderTextColor={colors.muted}
+              />
+
+              {!!error && (
+                <View style={[s.errorRow, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}>
+                  <Ionicons name="alert-circle" size={14} color={colors.destructive} />
+                  <Text style={[s.errorText, { color: colors.destructive }]}>{error}</Text>
+                </View>
+              )}
+
+              <Pressable
+                style={[s.genBtn, { backgroundColor: '#a855f7', opacity: generateGemini.isPending ? 0.7 : 1 }]}
+                onPress={handleGenerate}
+                disabled={generateGemini.isPending}
+              >
+                {generateGemini.isPending ? (
+                  <>
+                    <ActivityIndicator color="#fff" size="small" />
+                    <Text style={s.genBtnText}>Generating… this may take a moment</Text>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons name="sparkles" size={16} color="#fff" />
+                    <Text style={s.genBtnText}>Generate</Text>
+                  </>
+                )}
+              </Pressable>
+            </>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ─── AIActionMenu ─────────────────────────────────────────────────────────────
+
+type AIAction = 'regenerate' | 'enhance' | 'fact-check';
+
+function AIActionMenu({
+  visible,
+  question,
+  gameId,
+  onClose,
+  onUpdate,
+}: {
+  visible: boolean;
+  question: Question | null;
+  gameId: number;
+  onClose: () => void;
+  onUpdate: (q: Question) => void;
+}) {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const [action, setAction] = useState<AIAction | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // Results
+  const [regenPreview, setRegenPreview] = useState<RegenerateQuestionPreview | null>(null);
+  const [enhanceResult, setEnhanceResult] = useState<EnhanceQuestionResult | null>(null);
+  const [factCheckResult, setFactCheckResult] = useState<FactCheckSingleResult | null>(null);
+
+  const updateQuestion = useUpdateQuestion();
+  const regenerate = useRegenerateQuestion();
+  const enhance = useEnhanceQuestion();
+  const factCheck = useFactCheckQuestion();
+
+  React.useEffect(() => {
+    if (!visible) {
+      setAction(null);
+      setRegenPreview(null);
+      setEnhanceResult(null);
+      setFactCheckResult(null);
+      setError('');
+    }
+  }, [visible]);
+
+  if (!question) return null;
+
+  const runAction = async (a: AIAction) => {
+    setAction(a);
+    setLoading(true);
+    setError('');
+    setRegenPreview(null);
+    setEnhanceResult(null);
+    setFactCheckResult(null);
+    try {
+      if (a === 'regenerate') {
+        const res = await regenerate.mutateAsync({ gameId, questionId: question.id, data: {} });
+        setRegenPreview(res);
+      } else if (a === 'enhance') {
+        const res = await enhance.mutateAsync({ gameId, questionId: question.id });
+        setEnhanceResult(res);
+      } else {
+        const res = await factCheck.mutateAsync({ gameId, questionId: question.id });
+        setFactCheckResult(res);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Request failed';
+      setError(msg.includes('429') ? 'Rate limit reached — wait a moment and try again.' : msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const applyRegenerate = async () => {
+    if (!regenPreview) return;
+    setLoading(true);
+    try {
+      const updated = await updateQuestion.mutateAsync({
+        questionId: question.id,
+        data: {
+          questionType: regenPreview.questionType as Parameters<typeof updateQuestion.mutateAsync>[0]['data']['questionType'],
+          questionText: regenPreview.questionText,
+          correctAnswer: regenPreview.correctAnswer,
+          // Wrap string[] choices; if null (true_false / write_in), pass null — do NOT
+          // fall back to the old question's options, which may be from a different type.
+          options: regenPreview.options?.length
+            ? { choices: regenPreview.options }
+            : null,
+          points: regenPreview.points,
+          source: regenPreview.source || undefined,
+        },
+      });
+      onUpdate(updated);
+      onClose();
+    } catch {
+      setError('Failed to apply — please retry.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const applyEnhance = async () => {
+    if (!enhanceResult) return;
+    setLoading(true);
+    try {
+      const opts = enhanceResult.improvedOptions?.length
+        ? { choices: enhanceResult.improvedOptions }
+        : (question.options as Record<string, unknown> | null);
+      const updated = await updateQuestion.mutateAsync({
+        questionId: question.id,
+        data: {
+          questionText: enhanceResult.improvedQuestionText,
+          options: opts,
+          source: enhanceResult.suggestedSource || (question.source ?? undefined),
+        },
+      });
+      onUpdate(updated);
+      onClose();
+    } catch {
+      setError('Failed to apply — please retry.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const s = bgStyles(colors);
+
+  const verdictColor = factCheckResult
+    ? factCheckResult.verdict === 'CORRECT' ? colors.secondary
+      : factCheckResult.verdict === 'INCORRECT' ? colors.destructive
+      : colors.accent
+    : colors.muted;
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent presentationStyle="overFullScreen">
+      <View style={s.overlay}>
+        <Pressable style={s.backdrop} onPress={onClose} />
+        <View style={[s.sheet, { backgroundColor: colors.card, paddingBottom: insets.bottom + 24 }]}>
+          <View style={s.handle} />
+
+          {/* Menu header */}
+          <View style={s.sheetHeader}>
+            <View style={[s.aiIcon, { backgroundColor: '#a855f7' + '22' }]}>
+              <Ionicons name="sparkles" size={18} color="#a855f7" />
+            </View>
+            <Text style={[s.sheetTitle, { color: colors.foreground }]} numberOfLines={2}>
+              AI Tools
+            </Text>
+          </View>
+          <Text style={[s.questionPreview, { color: colors.muted }]} numberOfLines={2}>
+            {question.questionText}
+          </Text>
+
+          {/* Action selection */}
+          {!action && (
+            <View style={s.actionList}>
+              {[
+                { id: 'regenerate' as AIAction, icon: 'refresh', label: 'Regenerate', desc: 'Replace with a new AI-written question on the same topic' },
+                { id: 'enhance' as AIAction, icon: 'sparkles', label: 'Enhance', desc: 'Improve wording, fix options, add a source suggestion' },
+                { id: 'fact-check' as AIAction, icon: 'shield-checkmark-outline', label: 'Fact-Check', desc: 'Verify the question and correct answer with AI' },
+              ].map(({ id, icon, label, desc }) => (
+                <Pressable
+                  key={id}
+                  style={[s.actionItem, { borderColor: colors.border }]}
+                  onPress={() => runAction(id)}
+                >
+                  <Ionicons name={icon as 'refresh'} size={20} color="#a855f7" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.actionLabel, { color: colors.foreground }]}>{label}</Text>
+                    <Text style={[s.actionDesc, { color: colors.muted }]}>{desc}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+                </Pressable>
+              ))}
+            </View>
+          )}
+
+          {/* Loading */}
+          {action && loading && (
+            <View style={s.loadingBox}>
+              <ActivityIndicator color="#a855f7" size="large" />
+              <Text style={[s.loadingText, { color: colors.muted }]}>
+                {action === 'regenerate' ? 'Generating new question…'
+                  : action === 'enhance' ? 'Enhancing question…'
+                  : 'Fact-checking…'}
+              </Text>
+            </View>
+          )}
+
+          {/* Error */}
+          {!!error && (
+            <View style={[s.errorRow, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30', margin: 4 }]}>
+              <Ionicons name="alert-circle" size={14} color={colors.destructive} />
+              <Text style={[s.errorText, { color: colors.destructive }]}>{error}</Text>
+            </View>
+          )}
+
+          {/* Regenerate result */}
+          {action === 'regenerate' && !loading && regenPreview && (
+            <ScrollView style={{ maxHeight: 300 }} contentContainerStyle={{ gap: 12, paddingVertical: 4 }}>
+              <View style={[s.previewCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Text style={[s.previewLabel, { color: colors.muted }]}>NEW QUESTION</Text>
+                <Text style={[s.previewText, { color: colors.foreground }]}>{regenPreview.questionText}</Text>
+                <Text style={[s.previewLabel, { color: colors.muted }]}>CORRECT ANSWER</Text>
+                <Text style={[s.previewAnswer, { color: colors.secondary }]}>{regenPreview.correctAnswer}</Text>
+                {regenPreview.options && Array.isArray(regenPreview.options) && regenPreview.options.length > 0 && (
+                  <>
+                    <Text style={[s.previewLabel, { color: colors.muted }]}>OPTIONS</Text>
+                    {(regenPreview.options as unknown as string[]).map((o, i) => (
+                      <Text key={i} style={[s.previewOption, { color: colors.foreground }]}>• {o}</Text>
+                    ))}
+                  </>
+                )}
+              </View>
+              <View style={s.applyRow}>
+                <Pressable style={[s.discardBtn, { borderColor: colors.border }]} onPress={onClose}>
+                  <Text style={[s.discardText, { color: colors.muted }]}>Discard</Text>
+                </Pressable>
+                <Pressable style={[s.applyBtn, { backgroundColor: '#a855f7' }]} onPress={applyRegenerate} disabled={loading}>
+                  <Ionicons name="checkmark" size={16} color="#fff" />
+                  <Text style={s.applyText}>Apply</Text>
+                </Pressable>
+              </View>
+            </ScrollView>
+          )}
+
+          {/* Enhance result */}
+          {action === 'enhance' && !loading && enhanceResult && (
+            <ScrollView style={{ maxHeight: 320 }} contentContainerStyle={{ gap: 12, paddingVertical: 4 }}>
+              <View style={[s.previewCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Text style={[s.previewLabel, { color: colors.muted }]}>IMPROVED QUESTION</Text>
+                <Text style={[s.previewText, { color: colors.foreground }]}>{enhanceResult.improvedQuestionText}</Text>
+                {enhanceResult.improvedOptions && enhanceResult.improvedOptions.length > 0 && (
+                  <>
+                    <Text style={[s.previewLabel, { color: colors.muted }]}>IMPROVED OPTIONS</Text>
+                    {enhanceResult.improvedOptions.map((o, i) => (
+                      <Text key={i} style={[s.previewOption, { color: colors.foreground }]}>• {o}</Text>
+                    ))}
+                  </>
+                )}
+                {!!enhanceResult.factCheckNotes && (
+                  <>
+                    <Text style={[s.previewLabel, { color: colors.muted }]}>NOTES</Text>
+                    <Text style={[s.previewOption, { color: colors.muted }]}>{enhanceResult.factCheckNotes}</Text>
+                  </>
+                )}
+                {!!enhanceResult.suggestedSource && (
+                  <>
+                    <Text style={[s.previewLabel, { color: colors.muted }]}>SUGGESTED SOURCE</Text>
+                    <Text style={[s.previewOption, { color: colors.accent }]}>{enhanceResult.suggestedSource}</Text>
+                  </>
+                )}
+              </View>
+              <View style={s.applyRow}>
+                <Pressable style={[s.discardBtn, { borderColor: colors.border }]} onPress={onClose}>
+                  <Text style={[s.discardText, { color: colors.muted }]}>Discard</Text>
+                </Pressable>
+                <Pressable style={[s.applyBtn, { backgroundColor: '#a855f7' }]} onPress={applyEnhance} disabled={loading}>
+                  <Ionicons name="checkmark" size={16} color="#fff" />
+                  <Text style={s.applyText}>Apply</Text>
+                </Pressable>
+              </View>
+            </ScrollView>
+          )}
+
+          {/* Fact-check result */}
+          {action === 'fact-check' && !loading && factCheckResult && (
+            <ScrollView style={{ maxHeight: 320 }} contentContainerStyle={{ gap: 12, paddingVertical: 4 }}>
+              <View style={[s.previewCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <View style={[s.verdictRow, { backgroundColor: verdictColor + '22' }]}>
+                  <Ionicons
+                    name={factCheckResult.verdict === 'CORRECT' ? 'checkmark-circle' : factCheckResult.verdict === 'INCORRECT' ? 'close-circle' : 'help-circle'}
+                    size={22}
+                    color={verdictColor}
+                  />
+                  <Text style={[s.verdictText, { color: verdictColor }]}>
+                    {factCheckResult.verdict.charAt(0).toUpperCase() + factCheckResult.verdict.slice(1)}
+                    {' · '}
+                    {factCheckResult.confidence} confidence
+                  </Text>
+                </View>
+                <Text style={[s.previewLabel, { color: colors.muted }]}>EXPLANATION</Text>
+                <Text style={[s.previewText, { color: colors.foreground }]}>{factCheckResult.explanation}</Text>
+                {!!factCheckResult.correctAnswerIfWrong && (
+                  <>
+                    <Text style={[s.previewLabel, { color: colors.muted }]}>CORRECT ANSWER SHOULD BE</Text>
+                    <Text style={[s.previewAnswer, { color: colors.secondary }]}>{factCheckResult.correctAnswerIfWrong}</Text>
+                  </>
+                )}
+                {!!factCheckResult.groundingUrl && (
+                  <>
+                    <Text style={[s.previewLabel, { color: colors.muted }]}>SOURCE</Text>
+                    <Text style={[s.previewOption, { color: colors.accent }]} numberOfLines={2}>{factCheckResult.groundingUrl}</Text>
+                  </>
+                )}
+              </View>
+              <Pressable style={[s.applyBtn, { backgroundColor: colors.primary, alignSelf: 'flex-end' }]} onPress={onClose}>
+                <Text style={s.applyText}>Done</Text>
+              </Pressable>
+            </ScrollView>
+          )}
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -748,6 +1282,8 @@ export default function GameDetailScreen() {
   const [editingRoomCode, setEditingRoomCode] = useState(false);
   const [roomCode, setRoomCode] = useState('');
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [aiMenuQuestion, setAiMenuQuestion] = useState<Question | null>(null);
+  const [generateOpen, setGenerateOpen] = useState(false);
 
   const { data: games } = useListGames();
   const game = useMemo(() => games?.find((g) => g.id === gameId), [games, gameId]);
@@ -761,6 +1297,15 @@ export default function GameDetailScreen() {
     () => [...(questions ?? [])].sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0)),
     [questions],
   );
+
+  // Optimistic local order for immediate feedback during drags
+  const [localQs, setLocalQs] = useState<Question[]>([]);
+  const isSyncing = useRef(false);
+
+  // Keep local list in sync with server data unless we're mid-sync
+  React.useEffect(() => {
+    if (!isSyncing.current) setLocalQs(sortedQs);
+  }, [sortedQs]);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: getListGameQuestionsQueryKey(gameId) });
@@ -798,16 +1343,22 @@ export default function GameDetailScreen() {
     }
   };
 
-  const handleReorder = async (idx: number, dir: 'up' | 'down') => {
-    const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= sortedQs.length) return;
-    const a = sortedQs[idx]!;
-    const b = sortedQs[swapIdx]!;
-    await Promise.all([
-      updateQuestion.mutateAsync({ questionId: a.id, data: { orderIndex: b.orderIndex ?? swapIdx } }),
-      updateQuestion.mutateAsync({ questionId: b.id, data: { orderIndex: a.orderIndex ?? idx } }),
-    ]);
-    invalidate();
+  const handleDragEnd = async ({ data }: { data: Question[] }) => {
+    setLocalQs(data);
+    isSyncing.current = true;
+    try {
+      const changed = data
+        .map((q, idx) => ({ q, newIdx: idx }))
+        .filter(({ q, newIdx }) => (q.orderIndex ?? 0) !== newIdx);
+      await Promise.all(
+        changed.map(({ q, newIdx }) =>
+          updateQuestion.mutateAsync({ questionId: q.id, data: { orderIndex: newIdx } }),
+        ),
+      );
+      invalidate();
+    } finally {
+      isSyncing.current = false;
+    }
   };
 
   const handleSaveRoomCode = async () => {
@@ -817,7 +1368,7 @@ export default function GameDetailScreen() {
       qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
       setEditingRoomCode(false);
     } catch {
-      // silently ignore for now
+      // silently ignore
     }
   };
 
@@ -828,11 +1379,83 @@ export default function GameDetailScreen() {
     if (status === 'completed') router.push(`/admin/results/${gameId}`);
   };
 
+  const handleConfirmDelete = (id: number) => {
+    Alert.alert('Delete Question', 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => handleDelete(id) },
+    ]);
+  };
+
   const s = styles(colors);
 
   const initialForm = useMemo(
     () => editingQuestion ? formFromQuestion(editingQuestion) : emptyForm(),
     [editingQuestion],
+  );
+
+  const renderItem = useCallback(
+    ({ item: q, drag, isActive, getIndex }: RenderItemParams<Question>) => {
+      const idx = getIndex() ?? 0;
+      const qtype = q.questionType as QType;
+      return (
+        <ScaleDecorator activeScale={0.97}>
+          <View
+            style={[
+              s.qCard,
+              {
+                backgroundColor: isActive ? colors.card + 'ee' : colors.card,
+                borderColor: isActive ? colors.primary + '88' : colors.border,
+                opacity: isActive ? 0.95 : 1,
+              },
+            ]}
+          >
+            <View style={s.qHeader}>
+              {/* Drag handle — long press to drag */}
+              <Pressable onLongPress={drag} delayLongPress={150} hitSlop={6} style={s.dragHandle}>
+                <Ionicons name="reorder-two" size={20} color={colors.muted} />
+              </Pressable>
+
+              <View style={[s.typeTag, { backgroundColor: colors.primary + '22' }]}>
+                <Ionicons name={TYPE_ICONS[qtype] as 'checkmark-circle'} size={12} color={colors.primary} />
+                <Text style={[s.typeTagText, { color: colors.primary }]}>{TYPE_LABELS[qtype]}</Text>
+              </View>
+              <Text style={[s.qPoints, { color: colors.accent }]}>{q.points}pts</Text>
+              <Text style={[s.qNum, { color: colors.muted }]}>#{idx + 1}</Text>
+            </View>
+
+            <Text style={[s.qText, { color: colors.foreground }]} numberOfLines={2}>
+              {q.questionText}
+            </Text>
+
+            <View style={s.qActions}>
+              {/* AI menu */}
+              <Pressable
+                style={[s.aiChip, { borderColor: '#a855f7' + '44', backgroundColor: '#a855f7' + '15' }]}
+                onPress={() => setAiMenuQuestion(q)}
+              >
+                <Ionicons name="sparkles" size={13} color="#a855f7" />
+                <Text style={[s.aiChipText, { color: '#a855f7' }]}>AI</Text>
+              </Pressable>
+
+              <Pressable style={[s.qActionBtn, { borderColor: colors.border }]} onPress={() => openEdit(q)}>
+                <Ionicons name="pencil" size={15} color={colors.foreground} />
+                <Text style={[s.qActionText, { color: colors.foreground }]}>Edit</Text>
+              </Pressable>
+
+              {deletingId === q.id ? (
+                <ActivityIndicator size="small" color={colors.destructive} />
+              ) : (
+                <Pressable style={[s.qActionBtn, { borderColor: colors.destructive + '44' }]} onPress={() => handleConfirmDelete(q.id)}>
+                  <Ionicons name="trash-outline" size={15} color={colors.destructive} />
+                </Pressable>
+              )}
+            </View>
+          </View>
+        </ScaleDecorator>
+      );
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [colors, deletingId],
   );
 
   return (
@@ -916,81 +1539,58 @@ export default function GameDetailScreen() {
         </View>
       </View>
 
-      {/* Questions */}
+      {/* AI Generate + Add row */}
+      <View style={[s.toolbarRow, { borderBottomColor: colors.border }]}>
+        <Text style={[s.listTitle, { color: colors.foreground }]}>
+          {localQs.length} Question{localQs.length !== 1 ? 's' : ''}
+        </Text>
+        <View style={s.toolbarActions}>
+          <Pressable
+            style={[s.genAiBtn, { borderColor: '#a855f7' + '55', backgroundColor: '#a855f7' + '15' }]}
+            onPress={() => setGenerateOpen(true)}
+          >
+            <Ionicons name="sparkles" size={14} color="#a855f7" />
+            <Text style={[s.genAiBtnText, { color: '#a855f7' }]}>AI Generate</Text>
+          </Pressable>
+          <Pressable style={[s.addBtn, { backgroundColor: colors.primary }]} onPress={openAdd}>
+            <Ionicons name="add" size={16} color="#fff" />
+            <Text style={s.addBtnText}>Add</Text>
+          </Pressable>
+        </View>
+      </View>
+
+      {/* Questions list */}
       {isLoading ? (
         <View style={s.center}>
           <ActivityIndicator color={colors.primary} />
         </View>
-      ) : (
-        <ScrollView contentContainerStyle={s.list}>
-          <View style={s.listHeader}>
-            <Text style={[s.listTitle, { color: colors.foreground }]}>
-              {sortedQs.length} Question{sortedQs.length !== 1 ? 's' : ''}
-            </Text>
+      ) : localQs.length === 0 ? (
+        <View style={s.emptyBox}>
+          <Ionicons name="help-circle-outline" size={40} color={colors.muted} />
+          <Text style={[s.emptyText, { color: colors.muted }]}>No questions yet</Text>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <Pressable style={[s.addBtn, { backgroundColor: '#a855f7' }]} onPress={() => setGenerateOpen(true)}>
+              <Ionicons name="sparkles" size={14} color="#fff" />
+              <Text style={s.addBtnText}>AI Generate</Text>
+            </Pressable>
             <Pressable style={[s.addBtn, { backgroundColor: colors.primary }]} onPress={openAdd}>
               <Ionicons name="add" size={16} color="#fff" />
-              <Text style={s.addBtnText}>Add</Text>
+              <Text style={s.addBtnText}>Add manually</Text>
             </Pressable>
           </View>
-
-          {sortedQs.length === 0 && (
-            <View style={s.emptyBox}>
-              <Ionicons name="help-circle-outline" size={40} color={colors.muted} />
-              <Text style={[s.emptyText, { color: colors.muted }]}>No questions yet</Text>
-              <Pressable style={[s.addBtn, { backgroundColor: colors.primary }]} onPress={openAdd}>
-                <Ionicons name="add" size={16} color="#fff" />
-                <Text style={s.addBtnText}>Add first question</Text>
-              </Pressable>
-            </View>
-          )}
-
-          {sortedQs.map((q, idx) => {
-            const qtype = q.questionType as QType;
-            return (
-              <View key={q.id} style={[s.qCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <View style={s.qHeader}>
-                  <View style={[s.typeTag, { backgroundColor: colors.primary + '22' }]}>
-                    <Ionicons name={TYPE_ICONS[qtype] as 'checkmark-circle'} size={12} color={colors.primary} />
-                    <Text style={[s.typeTagText, { color: colors.primary }]}>{TYPE_LABELS[qtype]}</Text>
-                  </View>
-                  <Text style={[s.qPoints, { color: colors.accent }]}>{q.points}pts</Text>
-                  <Text style={[s.qNum, { color: colors.muted }]}>#{idx + 1}</Text>
-                </View>
-
-                <Text style={[s.qText, { color: colors.foreground }]} numberOfLines={2}>
-                  {q.questionText}
-                </Text>
-
-                <View style={s.qActions}>
-                  {/* Reorder */}
-                  <View style={s.reorderBtns}>
-                    <Pressable disabled={idx === 0} onPress={() => handleReorder(idx, 'up')} hitSlop={8}>
-                      <Ionicons name="chevron-up" size={18} color={idx === 0 ? colors.border : colors.muted} />
-                    </Pressable>
-                    <Pressable disabled={idx === sortedQs.length - 1} onPress={() => handleReorder(idx, 'down')} hitSlop={8}>
-                      <Ionicons name="chevron-down" size={18} color={idx === sortedQs.length - 1 ? colors.border : colors.muted} />
-                    </Pressable>
-                  </View>
-
-                  <Pressable style={[s.qActionBtn, { borderColor: colors.border }]} onPress={() => openEdit(q)}>
-                    <Ionicons name="pencil" size={15} color={colors.foreground} />
-                    <Text style={[s.qActionText, { color: colors.foreground }]}>Edit</Text>
-                  </Pressable>
-
-                  {deletingId === q.id ? (
-                    <ActivityIndicator size="small" color={colors.destructive} />
-                  ) : (
-                    <Pressable style={[s.qActionBtn, { borderColor: colors.destructive + '44' }]} onPress={() => handleDelete(q.id)}>
-                      <Ionicons name="trash-outline" size={15} color={colors.destructive} />
-                    </Pressable>
-                  )}
-                </View>
-              </View>
-            );
-          })}
-
-          <View style={{ height: insets.bottom + 24 }} />
-        </ScrollView>
+          <Text style={[{ color: colors.muted, fontSize: 12, marginTop: 4 }]}>
+            Long-press any question card to drag and reorder
+          </Text>
+        </View>
+      ) : (
+        <DraggableFlatList
+          data={localQs}
+          keyExtractor={(item) => String(item.id)}
+          onDragEnd={handleDragEnd}
+          renderItem={renderItem}
+          contentContainerStyle={s.list}
+          ListFooterComponent={<View style={{ height: insets.bottom + 24 }} />}
+        />
       )}
 
       {/* Question form modal */}
@@ -1001,6 +1601,27 @@ export default function GameDetailScreen() {
         onSave={handleSave}
         pending={createQuestion.isPending || updateQuestion.isPending}
         title={editingQuestion ? 'Edit Question' : 'New Question'}
+        gameId={gameId}
+        gameTopic={game?.topic}
+      />
+
+      {/* Bulk AI generate modal */}
+      <BulkGenerateModal
+        visible={generateOpen}
+        gameId={gameId}
+        gameTopic={game?.topic ?? ''}
+        gameDifficulty={game?.difficulty ?? 'medium'}
+        onClose={() => setGenerateOpen(false)}
+        onGenerated={() => { invalidate(); }}
+      />
+
+      {/* Per-question AI action menu */}
+      <AIActionMenu
+        visible={!!aiMenuQuestion}
+        question={aiMenuQuestion}
+        gameId={gameId}
+        onClose={() => setAiMenuQuestion(null)}
+        onUpdate={() => { invalidate(); setAiMenuQuestion(null); }}
       />
     </View>
   );
@@ -1019,29 +1640,34 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     statusText: { fontSize: 11, fontFamily: 'Manrope_700Bold', textTransform: 'uppercase' },
     liveBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
     liveBtnText: { fontSize: 13, fontFamily: 'Manrope_700Bold' },
-    roomRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 12, borderRadius: 14, borderWidth: 1, padding: 12 },
+    roomRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 8, borderRadius: 14, borderWidth: 1, padding: 12 },
     roomCode: { flex: 1, fontSize: 15, fontFamily: 'Manrope_700Bold', letterSpacing: 3 },
     roomInput: { flex: 1, fontSize: 15, fontFamily: 'Manrope_700Bold', letterSpacing: 3, borderBottomWidth: 1, paddingVertical: 2 },
     statusActions: { flexDirection: 'row', gap: 6 },
     actionChip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
     actionChipText: { fontSize: 12, fontFamily: 'Manrope_600SemiBold' },
-    center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    list: { paddingHorizontal: 16, gap: 10 },
-    listHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-    listTitle: { fontSize: 16, fontFamily: 'Manrope_700Bold' },
+    toolbarRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+    listTitle: { fontSize: 15, fontFamily: 'Manrope_700Bold' },
+    toolbarActions: { flexDirection: 'row', gap: 8 },
+    genAiBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 10, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 7 },
+    genAiBtnText: { fontSize: 13, fontFamily: 'Manrope_600SemiBold' },
     addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
-    addBtnText: { color: '#fff', fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
-    emptyBox: { alignItems: 'center', gap: 12, paddingVertical: 40 },
+    addBtnText: { color: '#fff', fontSize: 13, fontFamily: 'Manrope_600SemiBold' },
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    emptyBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, paddingVertical: 40 },
     emptyText: { fontSize: 15, fontFamily: 'Manrope_500Medium' },
+    list: { paddingHorizontal: 16, paddingTop: 10, gap: 10 },
     qCard: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 10 },
     qHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    dragHandle: { padding: 2 },
     typeTag: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
     typeTagText: { fontSize: 11, fontFamily: 'Manrope_700Bold' },
     qPoints: { marginLeft: 'auto', fontSize: 13, fontFamily: 'Manrope_600SemiBold' },
     qNum: { fontSize: 12 },
     qText: { fontSize: 14, lineHeight: 20 },
     qActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    reorderBtns: { flexDirection: 'row', gap: 2 },
+    aiChip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 8, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 5 },
+    aiChipText: { fontSize: 12, fontFamily: 'Manrope_700Bold' },
     qActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 5 },
     qActionText: { fontSize: 13, fontFamily: 'Manrope_600SemiBold' },
   });
@@ -1058,6 +1684,8 @@ const fStyles = (colors: ReturnType<typeof useColors>) =>
     typeScroll: { marginBottom: 4 },
     typeChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7, marginRight: 8 },
     typeChipText: { fontSize: 13, fontFamily: 'Manrope_600SemiBold' },
+    aiFillBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 10, borderWidth: 1, paddingVertical: 10, paddingHorizontal: 16 },
+    aiFillText: { fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
     textArea: { borderWidth: 1, borderRadius: 12, padding: 12, fontSize: 15, minHeight: 80, textAlignVertical: 'top' },
     input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
     choiceRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -1079,6 +1707,52 @@ const fStyles = (colors: ReturnType<typeof useColors>) =>
     hint: { fontSize: 13, fontStyle: 'italic', textAlign: 'center', paddingVertical: 16 },
     errorRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 10, padding: 12 },
     errorText: { flex: 1, fontSize: 13 },
-    saveRow: { borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 8 },
+    saveRow: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
     saveRowText: { color: '#fff', fontSize: 16, fontFamily: 'Manrope_700Bold' },
+  });
+
+const bgStyles = (colors: ReturnType<typeof useColors>) =>
+  StyleSheet.create({
+    overlay: { flex: 1, justifyContent: 'flex-end' },
+    backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)' },
+    sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 14, maxHeight: '90%' },
+    handle: { width: 40, height: 4, backgroundColor: '#555', borderRadius: 2, alignSelf: 'center', marginBottom: 4 },
+    sheetHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    aiIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+    sheetTitle: { flex: 1, fontSize: 18, fontFamily: 'Manrope_700Bold' },
+    questionPreview: { fontSize: 13, lineHeight: 18, marginTop: -6 },
+    fieldLabel: { fontSize: 11, fontFamily: 'Manrope_700Bold', letterSpacing: 1.5, textTransform: 'uppercase' },
+    input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
+    diffRow: { flexDirection: 'row', gap: 8 },
+    diffChip: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
+    diffChipText: { fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
+    errorRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 10, padding: 12 },
+    errorText: { flex: 1, fontSize: 13 },
+    genBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, paddingVertical: 14, marginTop: 4 },
+    genBtnText: { color: '#fff', fontSize: 15, fontFamily: 'Manrope_700Bold' },
+    resultCard: { borderWidth: 1, borderRadius: 16, padding: 20, alignItems: 'center', gap: 8 },
+    resultTitle: { fontSize: 20, fontFamily: 'Manrope_800ExtraBold', textAlign: 'center' },
+    resultSub: { fontSize: 13, textAlign: 'center' },
+    closeResultBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 10, marginTop: 4 },
+    closeResultText: { fontSize: 15, fontFamily: 'Manrope_600SemiBold' },
+    // AI action menu
+    actionList: { gap: 8 },
+    actionItem: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 14, padding: 14 },
+    actionLabel: { fontSize: 15, fontFamily: 'Manrope_600SemiBold' },
+    actionDesc: { fontSize: 12, marginTop: 2, lineHeight: 16 },
+    loadingBox: { alignItems: 'center', gap: 12, paddingVertical: 24 },
+    loadingText: { fontSize: 14 },
+    // Results
+    previewCard: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 8 },
+    previewLabel: { fontSize: 10, fontFamily: 'Manrope_700Bold', letterSpacing: 1.5, textTransform: 'uppercase' },
+    previewText: { fontSize: 14, lineHeight: 20 },
+    previewAnswer: { fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
+    previewOption: { fontSize: 13, lineHeight: 18 },
+    verdictRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, padding: 10 },
+    verdictText: { flex: 1, fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
+    applyRow: { flexDirection: 'row', gap: 10, justifyContent: 'flex-end' },
+    discardBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 10 },
+    discardText: { fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
+    applyBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 10 },
+    applyText: { color: '#fff', fontSize: 14, fontFamily: 'Manrope_700Bold' },
   });

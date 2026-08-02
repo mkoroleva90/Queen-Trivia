@@ -131,6 +131,12 @@ export default function AdminHomeScreen() {
           </Pressable>
           <Pressable
             style={[s.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={() => router.push('/admin/settings')}
+          >
+            <Ionicons name="settings-outline" size={20} color={colors.muted} />
+          </Pressable>
+          <Pressable
+            style={[s.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={logoutAdmin}
           >
             <Ionicons name="log-out-outline" size={20} color={colors.muted} />

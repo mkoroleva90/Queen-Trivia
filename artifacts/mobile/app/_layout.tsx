@@ -54,6 +54,7 @@ function RootLayoutNav() {
       <Stack.Screen name="admin-register" />
       <Stack.Screen name="admin-forgot-password" />
       <Stack.Screen name="admin" />
+      <Stack.Screen name="admin/settings" />
     </Stack>
   );
 }
