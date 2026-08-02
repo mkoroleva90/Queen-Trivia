@@ -1029,7 +1029,18 @@ function ImportOpenTdbModal({
       onImported(res.imported);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Import failed';
-      if (msg.includes('429') || msg.toLowerCase().includes('rate limit')) {
+      const isNetworkError =
+        e instanceof TypeError ||
+        msg.toLowerCase().includes('network request failed') ||
+        msg.toLowerCase().includes('failed to fetch') ||
+        msg.toLowerCase().includes('network error');
+      const isTimeoutError =
+        (e instanceof Error && e.name === 'AbortError') ||
+        msg.toLowerCase().includes('timeout') ||
+        msg.toLowerCase().includes('timed out');
+      if (isNetworkError || isTimeoutError) {
+        setError('No internet connection — check your network and try again.');
+      } else if (msg.includes('429') || msg.toLowerCase().includes('rate limit')) {
         setError('Open Trivia DB rate limit reached — wait a few seconds and try again.');
       } else if (msg.includes('422') || msg.toLowerCase().includes('no questions')) {
         setError('No questions available for this combination — try a different difficulty.');
