@@ -6,7 +6,7 @@ Trivia Night is a multiplayer pub-quiz web application. Players join live games 
 
 - **Stack:** Node.js 24 / TypeScript, Express 5, PostgreSQL + Drizzle ORM, Socket.IO, React frontend (Vite), pnpm workspaces.
 - **Auth model:** Two parallel admin auth paths: (1) shared admin access code stored in `admin_settings`; (2) new email/password accounts in `admin_accounts` table (commit da8aba1). Players authenticate via a shared trivia code or per-game code.
-- **Deployment:** Publicly deployed at `https://mktrivia.com` (autoscale, Replit-managed TLS).
+- **Deployment:** Publicly deployed at `https://mktrivia.com` (autoscale, Replit-managed TLS). Mobile Expo update server deployed at `/mobile/`.
 
 ## Assets
 
@@ -24,11 +24,12 @@ Trivia Night is a multiplayer pub-quiz web application. Players join live games 
 - **API → External services** — Gemini API (Google) and OpenTDB are called server-side. Image URLs from Gemini are allowlisted to `upload.wikimedia.org/wikipedia/commons/` before any outbound fetch. OpenTDB is a fixed upstream endpoint. Resend (email) is called server-side for verification and password-reset emails.
 - **Public / Authenticated** — `/api/health`, `/api/auth/*`, `/api/admin/me`, and the new `/api/auth/email/*` routes are public. All gameplay and admin endpoints require a valid session.
 - **Player / Admin** — Admins have full CRUD over games, questions, and settings. Players can only join games, submit answers, and read leaderboards. Enforced server-side via `requireAdmin` and `requireUser` middleware.
+- **Mobile server** — The Expo update server at `/mobile/` is a separate Node.js HTTP process (`artifacts/mobile/server/serve.js`). It serves static build assets and platform manifests. The `expo-platform` header is attacker-controlled input at this boundary.
 
 ## Scan Anchors
 
-- **Entry points:** `artifacts/api-server/src/routes/` (all route files), `artifacts/api-server/src/app.ts` (Express setup and CORS)
-- **Highest-risk areas:** Email auth routes in `routes/emailAuth.ts` (open registration — CRITICAL open finding); Admin session logic in `routes/session.ts`; access code comparison in `routes/session.ts` and `routes/auth.ts`; per-game access code generation in `routes/games.ts`; AI grading in `services/geminiApi.ts` (`gradeWithAI` — prompt injection, open MEDIUM finding)
+- **Entry points:** `artifacts/api-server/src/routes/` (all route files), `artifacts/api-server/src/app.ts` (Express setup and CORS), `artifacts/mobile/server/serve.js` (mobile update server)
+- **Highest-risk areas:** Email auth routes in `routes/emailAuth.ts` (open registration — CRITICAL open finding); Admin session logic in `routes/session.ts`; access code comparison in `routes/session.ts` and `routes/auth.ts`; per-game access code generation in `routes/games.ts`; AI grading in `services/geminiApi.ts` (`gradeWithAI` — residual prompt injection, open MEDIUM finding); manifest path construction in `artifacts/mobile/server/serve.js` (path traversal, open MEDIUM finding)
 - **Public surface:** `/api/health`, `/api/auth/verify`, `/api/auth/login`, `/api/admin/login`, `/api/auth/me`, `/api/admin/me`, `/api/auth/email/register`, `/api/auth/email/verify`, `/api/auth/email/login`, `/api/auth/email/forgot-password`, `/api/auth/email/reset-password`
 - **Admin surface:** `/api/settings`, `/api/games` (POST/PATCH/DELETE), `/api/questions` (POST/PATCH/DELETE), `/api/stats/summary`, Gemini and OpenTDB import routes, `/api/games/:id/results/export.csv`
 - **Player surface:** `/api/games` (GET), `/api/games/:id/join`, `/api/games/:id/answers`, `/api/games/:id/results`
@@ -53,7 +54,7 @@ Players and admins authenticate with shared access codes (original path). A seco
 
 Correct answers and question data are fetched from the database server-side. Score updates are computed server-side. Player submissions are scoped to the session user ID.
 
-- **AI grader prompt injection:** `short_response` questions use Gemini AI to grade answers (`gradeWithAI` in `services/geminiApi.ts`). The player-controlled `userAnswer` is directly interpolated into the Gemini prompt without sanitization. A player can inject override instructions to receive full points without knowing the correct answer. ⚠️ Open MEDIUM finding (`ai-grader-prompt-injection-short-response`).
+- **AI grader prompt injection:** `short_response` questions use Gemini AI to grade answers (`gradeWithAI` in `services/geminiApi.ts`). The player-controlled `userAnswer` is JSON-encoded before embedding in the prompt, which mitigates structural injection. However, the model is instructed to mentally decode the JSON and treat the content as text to evaluate — making semantic-level prompt injection (override instructions embedded in the answer) still viable. ⚠️ Open MEDIUM finding (`ai-grader-prompt-injection-short-response`).
 
 ### Information Disclosure
 
@@ -62,6 +63,7 @@ Correct answers and question data are fetched from the database server-side. Sco
 - **User enumeration:** Both GET and POST `/api/users/:userId` require `requireAdmin`. ✅
 - **Image SSRF:** Gemini-generated image URLs are validated against a strict allowlist (`upload.wikimedia.org/wikipedia/commons/`) before any outbound fetch. ✅
 - **CSV formula injection:** The results export sanitizes formula trigger characters in player names via `escapeCsv()`. ✅
+- **Mobile manifest path traversal:** The `expo-platform` header is used as a path component in `serveManifest` without a `startsWith(STATIC_ROOT)` boundary check, allowing traversal to read any `manifest.json` file on the filesystem. ⚠️ Open MEDIUM finding (`mobile-server-manifest-path-traversal`).
 
 ### Elevation of Privilege
 
@@ -70,7 +72,7 @@ Correct answers and question data are fetched from the database server-side. Sco
 - `requireAuth` accepts either an admin or a player session for shared read-only endpoints.
 - Answer history (`GET /games/:gameId/users/:userId/answers`) checks `req.session.userId === params.data.userId`.
 - Socket.IO `game:join` events verify participant membership in the DB.
-- **Password reset does not invalidate existing sessions.** ⚠️ Open MEDIUM finding (`no-session-invalidation-password-reset`).
+- **Password reset invalidates existing sessions** — `POST /api/auth/email/reset-password` deletes all session rows for the account from the sessions table via `DELETE FROM sessions WHERE sess->>'adminEmail' = ?`. ✅ Fixed.
 
 ### Denial of Service
 
