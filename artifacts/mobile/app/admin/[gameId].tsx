@@ -444,7 +444,7 @@ function QuestionFormModal({
         {/* Modal header */}
         <View style={[s.mHeader, { paddingTop: insets.top + 8, borderBottomColor: colors.border }]}>
           <Pressable onPress={onClose} hitSlop={12}>
-            <Text style={[s.cancelBtn, { color: colors.muted }]}>Cancel</Text>
+            <Text style={[s.cancelBtn, { color: colors.mutedForeground }]}>Cancel</Text>
           </Pressable>
           <Text style={[s.mTitle, { color: colors.foreground }]}>{title}</Text>
           <Pressable onPress={handleSave} disabled={pending} hitSlop={12}>
@@ -458,7 +458,7 @@ function QuestionFormModal({
 
         <ScrollView contentContainerStyle={s.mBody} keyboardShouldPersistTaps="handled">
           {/* Type selector */}
-          <Text style={[s.fieldLabel, { color: colors.muted }]}>QUESTION TYPE</Text>
+          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>QUESTION TYPE</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.typeScroll}>
             {ALL_TYPES.map((t) => (
               <Pressable
@@ -501,7 +501,7 @@ function QuestionFormModal({
           </Pressable>
 
           {/* Question text */}
-          <Text style={[s.fieldLabel, { color: colors.muted }]}>QUESTION</Text>
+          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>QUESTION</Text>
           <TextInput
             style={[s.textArea, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
             value={form.questionText}
@@ -515,7 +515,7 @@ function QuestionFormModal({
           {/* Multiple Choice / Multi-Select */}
           {(form.questionType === 'multiple_choice' || form.questionType === 'multi_select') && (
             <>
-              <Text style={[s.fieldLabel, { color: colors.muted }]}>CHOICES (tap to mark correct)</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>CHOICES (tap to mark correct)</Text>
               {form.choices.map((choice, i) => {
                 const isCorrect = form.questionType === 'multi_select'
                   ? form.correctChoices.includes(choice.trim())
@@ -583,7 +583,7 @@ function QuestionFormModal({
           {/* True / False */}
           {form.questionType === 'true_false' && (
             <>
-              <Text style={[s.fieldLabel, { color: colors.muted }]}>CORRECT ANSWER</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>CORRECT ANSWER</Text>
               <View style={s.tfRow}>
                 {(['true', 'false'] as const).map((v) => (
                   <Pressable
@@ -609,7 +609,7 @@ function QuestionFormModal({
           {/* Write-in / Short Response */}
           {(form.questionType === 'write_in' || form.questionType === 'short_response') && (
             <>
-              <Text style={[s.fieldLabel, { color: colors.muted }]}>CORRECT ANSWER</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>CORRECT ANSWER</Text>
               <TextInput
                 style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
                 value={form.correctAnswer}
@@ -617,7 +617,7 @@ function QuestionFormModal({
                 placeholder="The exact correct answer"
                 placeholderTextColor={colors.muted}
               />
-              <Text style={[s.fieldLabel, { color: colors.muted }]}>ALTERNATE ANSWERS (comma-separated)</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>ALTERNATE ANSWERS (comma-separated)</Text>
               <TextInput
                 style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
                 value={form.alternateAnswers}
@@ -631,10 +631,10 @@ function QuestionFormModal({
           {/* Ordering */}
           {form.questionType === 'ordering' && (
             <>
-              <Text style={[s.fieldLabel, { color: colors.muted }]}>ITEMS IN CORRECT ORDER</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>ITEMS IN CORRECT ORDER</Text>
               {form.orderedItems.map((item, i) => (
                 <View key={i} style={s.choiceRow}>
-                  <Text style={[s.choiceLetter, { color: colors.muted }]}>{i + 1}</Text>
+                  <Text style={[s.choiceLetter, { color: colors.mutedForeground }]}>{i + 1}</Text>
                   <TextInput
                     style={[s.choiceInput, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
                     value={item}
@@ -677,7 +677,7 @@ function QuestionFormModal({
           {/* Slider */}
           {form.questionType === 'slider' && (
             <>
-              <Text style={[s.fieldLabel, { color: colors.muted }]}>RANGE & CORRECT VALUE</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>RANGE & CORRECT VALUE</Text>
               <View style={s.sliderRow}>
                 {[
                   { label: 'Min', key: 'sliderMin' as const },
@@ -685,7 +685,7 @@ function QuestionFormModal({
                   { label: 'Answer', key: 'sliderCorrect' as const },
                 ].map(({ label, key }) => (
                   <View key={key} style={s.sliderField}>
-                    <Text style={[s.sliderLabel, { color: colors.muted }]}>{label}</Text>
+                    <Text style={[s.sliderLabel, { color: colors.mutedForeground }]}>{label}</Text>
                     <TextInput
                       style={[s.sliderInput, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
                       value={form[key]}
@@ -703,7 +703,7 @@ function QuestionFormModal({
           {/* Matching */}
           {form.questionType === 'matching' && (
             <>
-              <Text style={[s.fieldLabel, { color: colors.muted }]}>MATCHING PAIRS</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>MATCHING PAIRS</Text>
               {form.pairs.map((pair, i) => (
                 <View key={i} style={s.pairRow}>
                   <TextInput
@@ -740,7 +740,7 @@ function QuestionFormModal({
           {/* Image Recognition / Image Hotspot */}
           {(form.questionType === 'image_recognition' || form.questionType === 'image_hotspot') && (
             <>
-              <Text style={[s.fieldLabel, { color: colors.muted }]}>IMAGE URL</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>IMAGE URL</Text>
               <TextInput
                 style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
                 value={form.imageUrl}
@@ -752,7 +752,7 @@ function QuestionFormModal({
               />
               {form.questionType === 'image_recognition' && (
                 <>
-                  <Text style={[s.fieldLabel, { color: colors.muted }]}>CORRECT ANSWER</Text>
+                  <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>CORRECT ANSWER</Text>
                   <TextInput
                     style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
                     value={form.correctAnswer}
@@ -760,7 +760,7 @@ function QuestionFormModal({
                     placeholder="What is in the image?"
                     placeholderTextColor={colors.muted}
                   />
-                  <Text style={[s.fieldLabel, { color: colors.muted }]}>ALTERNATE ANSWERS (comma-separated)</Text>
+                  <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>ALTERNATE ANSWERS (comma-separated)</Text>
                   <TextInput
                     style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
                     value={form.alternateAnswers}
@@ -772,7 +772,7 @@ function QuestionFormModal({
               )}
               {form.questionType === 'image_hotspot' && !!form.imageUrl.trim() && (
                 <>
-                  <Text style={[s.fieldLabel, { color: colors.muted }]}>TAP IMAGE TO SET HOTSPOT</Text>
+                  <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>TAP IMAGE TO SET HOTSPOT</Text>
                   <HotspotPicker
                     imageUrl={form.imageUrl.trim()}
                     x={parseFloat(form.hotspotX) || 0.5}
@@ -783,13 +783,13 @@ function QuestionFormModal({
                 </>
               )}
               {form.questionType === 'image_hotspot' && !form.imageUrl.trim() && (
-                <Text style={[s.hint, { color: colors.muted }]}>Enter an image URL above to set the hotspot location.</Text>
+                <Text style={[s.hint, { color: colors.mutedForeground }]}>Enter an image URL above to set the hotspot location.</Text>
               )}
             </>
           )}
 
           {/* Points & Source */}
-          <Text style={[s.fieldLabel, { color: colors.muted }]}>POINTS</Text>
+          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>POINTS</Text>
           <TextInput
             style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border, width: 120 }]}
             value={form.points}
@@ -799,7 +799,7 @@ function QuestionFormModal({
             placeholderTextColor={colors.muted}
           />
 
-          <Text style={[s.fieldLabel, { color: colors.muted }]}>SOURCE (optional)</Text>
+          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>SOURCE (optional)</Text>
           <TextInput
             style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
             value={form.source}
@@ -906,7 +906,7 @@ function BulkGenerateModal({
                 {result.imported} question{result.imported !== 1 ? 's' : ''} added
               </Text>
               {result.discarded > 0 && (
-                <Text style={[s.resultSub, { color: colors.muted }]}>
+                <Text style={[s.resultSub, { color: colors.mutedForeground }]}>
                   {result.discarded} discarded (invalid or duplicate)
                 </Text>
               )}
@@ -916,7 +916,7 @@ function BulkGenerateModal({
             </View>
           ) : (
             <>
-              <Text style={[s.fieldLabel, { color: colors.muted }]}>TOPIC</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>TOPIC</Text>
               <TextInput
                 style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
                 value={topic}
@@ -925,7 +925,7 @@ function BulkGenerateModal({
                 placeholderTextColor={colors.muted}
               />
 
-              <Text style={[s.fieldLabel, { color: colors.muted }]}>DIFFICULTY</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>DIFFICULTY</Text>
               <View style={s.diffRow}>
                 {(['easy', 'medium', 'hard'] as const).map((d) => (
                   <Pressable
@@ -940,7 +940,7 @@ function BulkGenerateModal({
                 ))}
               </View>
 
-              <Text style={[s.fieldLabel, { color: colors.muted }]}>NUMBER OF QUESTIONS (1–20)</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>NUMBER OF QUESTIONS (1–20)</Text>
               <TextInput
                 style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border, width: 100 }]}
                 value={amount}
@@ -1079,7 +1079,7 @@ function ImportOpenTdbModal({
           ) : (
             <>
               {/* Category picker */}
-              <Text style={[s.fieldLabel, { color: colors.muted }]}>CATEGORY</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>CATEGORY</Text>
               <Pressable
                 style={[s.input, { backgroundColor: colors.background, borderColor: colors.border, flexDirection: 'row', alignItems: 'center' }]}
                 onPress={() => setCategoryOpen((v) => !v)}
@@ -1108,7 +1108,7 @@ function ImportOpenTdbModal({
               )}
 
               {/* Difficulty */}
-              <Text style={[s.fieldLabel, { color: colors.muted }]}>DIFFICULTY</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>DIFFICULTY</Text>
               <View style={s.diffRow}>
                 {(['easy', 'medium', 'hard'] as const).map((d) => (
                   <Pressable
@@ -1124,7 +1124,7 @@ function ImportOpenTdbModal({
               </View>
 
               {/* Amount */}
-              <Text style={[s.fieldLabel, { color: colors.muted }]}>NUMBER OF QUESTIONS (1–50)</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>NUMBER OF QUESTIONS (1–50)</Text>
               <TextInput
                 style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border, width: 100 }]}
                 value={amount}
@@ -1313,7 +1313,7 @@ function AIActionMenu({
               AI Tools
             </Text>
           </View>
-          <Text style={[s.questionPreview, { color: colors.muted }]} numberOfLines={2}>
+          <Text style={[s.questionPreview, { color: colors.mutedForeground }]} numberOfLines={2}>
             {question.questionText}
           </Text>
 
@@ -1333,7 +1333,7 @@ function AIActionMenu({
                   <Ionicons name={icon as 'refresh'} size={20} color="#a855f7" />
                   <View style={{ flex: 1 }}>
                     <Text style={[s.actionLabel, { color: colors.foreground }]}>{label}</Text>
-                    <Text style={[s.actionDesc, { color: colors.muted }]}>{desc}</Text>
+                    <Text style={[s.actionDesc, { color: colors.mutedForeground }]}>{desc}</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={16} color={colors.muted} />
                 </Pressable>
@@ -1345,7 +1345,7 @@ function AIActionMenu({
           {action && loading && (
             <View style={s.loadingBox}>
               <ActivityIndicator color="#a855f7" size="large" />
-              <Text style={[s.loadingText, { color: colors.muted }]}>
+              <Text style={[s.loadingText, { color: colors.mutedForeground }]}>
                 {action === 'regenerate' ? 'Generating new question…'
                   : action === 'enhance' ? 'Enhancing question…'
                   : 'Fact-checking…'}
@@ -1365,13 +1365,13 @@ function AIActionMenu({
           {action === 'regenerate' && !loading && regenPreview && (
             <ScrollView style={{ maxHeight: 300 }} contentContainerStyle={{ gap: 12, paddingVertical: 4 }}>
               <View style={[s.previewCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <Text style={[s.previewLabel, { color: colors.muted }]}>NEW QUESTION</Text>
+                <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>NEW QUESTION</Text>
                 <Text style={[s.previewText, { color: colors.foreground }]}>{regenPreview.questionText}</Text>
-                <Text style={[s.previewLabel, { color: colors.muted }]}>CORRECT ANSWER</Text>
+                <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>CORRECT ANSWER</Text>
                 <Text style={[s.previewAnswer, { color: colors.secondary }]}>{regenPreview.correctAnswer}</Text>
                 {regenPreview.options && Array.isArray(regenPreview.options) && regenPreview.options.length > 0 && (
                   <>
-                    <Text style={[s.previewLabel, { color: colors.muted }]}>OPTIONS</Text>
+                    <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>OPTIONS</Text>
                     {(regenPreview.options as unknown as string[]).map((o, i) => (
                       <Text key={i} style={[s.previewOption, { color: colors.foreground }]}>• {o}</Text>
                     ))}
@@ -1380,7 +1380,7 @@ function AIActionMenu({
               </View>
               <View style={s.applyRow}>
                 <Pressable style={[s.discardBtn, { borderColor: colors.border }]} onPress={onClose}>
-                  <Text style={[s.discardText, { color: colors.muted }]}>Discard</Text>
+                  <Text style={[s.discardText, { color: colors.mutedForeground }]}>Discard</Text>
                 </Pressable>
                 <Pressable style={[s.applyBtn, { backgroundColor: '#a855f7' }]} onPress={applyRegenerate} disabled={loading}>
                   <Ionicons name="checkmark" size={16} color="#fff" />
@@ -1394,11 +1394,11 @@ function AIActionMenu({
           {action === 'enhance' && !loading && enhanceResult && (
             <ScrollView style={{ maxHeight: 320 }} contentContainerStyle={{ gap: 12, paddingVertical: 4 }}>
               <View style={[s.previewCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <Text style={[s.previewLabel, { color: colors.muted }]}>IMPROVED QUESTION</Text>
+                <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>IMPROVED QUESTION</Text>
                 <Text style={[s.previewText, { color: colors.foreground }]}>{enhanceResult.improvedQuestionText}</Text>
                 {enhanceResult.improvedOptions && enhanceResult.improvedOptions.length > 0 && (
                   <>
-                    <Text style={[s.previewLabel, { color: colors.muted }]}>IMPROVED OPTIONS</Text>
+                    <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>IMPROVED OPTIONS</Text>
                     {enhanceResult.improvedOptions.map((o, i) => (
                       <Text key={i} style={[s.previewOption, { color: colors.foreground }]}>• {o}</Text>
                     ))}
@@ -1406,20 +1406,20 @@ function AIActionMenu({
                 )}
                 {!!enhanceResult.factCheckNotes && (
                   <>
-                    <Text style={[s.previewLabel, { color: colors.muted }]}>NOTES</Text>
-                    <Text style={[s.previewOption, { color: colors.muted }]}>{enhanceResult.factCheckNotes}</Text>
+                    <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>NOTES</Text>
+                    <Text style={[s.previewOption, { color: colors.mutedForeground }]}>{enhanceResult.factCheckNotes}</Text>
                   </>
                 )}
                 {!!enhanceResult.suggestedSource && (
                   <>
-                    <Text style={[s.previewLabel, { color: colors.muted }]}>SUGGESTED SOURCE</Text>
+                    <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>SUGGESTED SOURCE</Text>
                     <Text style={[s.previewOption, { color: colors.accent }]}>{enhanceResult.suggestedSource}</Text>
                   </>
                 )}
               </View>
               <View style={s.applyRow}>
                 <Pressable style={[s.discardBtn, { borderColor: colors.border }]} onPress={onClose}>
-                  <Text style={[s.discardText, { color: colors.muted }]}>Discard</Text>
+                  <Text style={[s.discardText, { color: colors.mutedForeground }]}>Discard</Text>
                 </Pressable>
                 <Pressable style={[s.applyBtn, { backgroundColor: '#a855f7' }]} onPress={applyEnhance} disabled={loading}>
                   <Ionicons name="checkmark" size={16} color="#fff" />
@@ -1445,17 +1445,17 @@ function AIActionMenu({
                     {factCheckResult.confidence} confidence
                   </Text>
                 </View>
-                <Text style={[s.previewLabel, { color: colors.muted }]}>EXPLANATION</Text>
+                <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>EXPLANATION</Text>
                 <Text style={[s.previewText, { color: colors.foreground }]}>{factCheckResult.explanation}</Text>
                 {!!factCheckResult.correctAnswerIfWrong && (
                   <>
-                    <Text style={[s.previewLabel, { color: colors.muted }]}>CORRECT ANSWER SHOULD BE</Text>
+                    <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>CORRECT ANSWER SHOULD BE</Text>
                     <Text style={[s.previewAnswer, { color: colors.secondary }]}>{factCheckResult.correctAnswerIfWrong}</Text>
                   </>
                 )}
                 {!!factCheckResult.groundingUrl && (
                   <>
-                    <Text style={[s.previewLabel, { color: colors.muted }]}>SOURCE</Text>
+                    <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>SOURCE</Text>
                     <Text style={[s.previewOption, { color: colors.accent }]} numberOfLines={2}>{factCheckResult.groundingUrl}</Text>
                   </>
                 )}
@@ -1625,7 +1625,7 @@ export default function GameDetailScreen() {
                 <Text style={[s.typeTagText, { color: colors.primary }]}>{TYPE_LABELS[qtype]}</Text>
               </View>
               <Text style={[s.qPoints, { color: colors.accent }]}>{q.points}pts</Text>
-              <Text style={[s.qNum, { color: colors.muted }]}>#{idx + 1}</Text>
+              <Text style={[s.qNum, { color: colors.mutedForeground }]}>#{idx + 1}</Text>
             </View>
 
             <Text style={[s.qText, { color: colors.foreground }]} numberOfLines={2}>
@@ -1779,7 +1779,7 @@ export default function GameDetailScreen() {
       ) : localQs.length === 0 ? (
         <View style={s.emptyBox}>
           <Ionicons name="help-circle-outline" size={40} color={colors.muted} />
-          <Text style={[s.emptyText, { color: colors.muted }]}>No questions yet</Text>
+          <Text style={[s.emptyText, { color: colors.mutedForeground }]}>No questions yet</Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <Pressable style={[s.addBtn, { backgroundColor: '#a855f7' }]} onPress={() => setGenerateOpen(true)}>
               <Ionicons name="sparkles" size={14} color="#fff" />
@@ -1790,7 +1790,7 @@ export default function GameDetailScreen() {
               <Text style={s.addBtnText}>Add manually</Text>
             </Pressable>
           </View>
-          <Text style={[{ color: colors.muted, fontSize: 12, marginTop: 4 }]}>
+          <Text style={[{ color: colors.mutedForeground, fontSize: 12, marginTop: 4 }]}>
             Long-press any question card to drag and reorder
           </Text>
         </View>

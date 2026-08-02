@@ -121,12 +121,12 @@ export default function SettingsScreen() {
               <Ionicons name="key-outline" size={18} color={colors.primary} />
               <Text style={[s.sectionTitle, { color: colors.foreground }]}>Access Codes</Text>
             </View>
-            <Text style={[s.sectionDesc, { color: colors.muted }]}>
+            <Text style={[s.sectionDesc, { color: colors.mutedForeground }]}>
               Players use the trivia code to join games. The admin code is your login password.
               Both must be at least 8 characters and must differ from each other.
             </Text>
 
-            <Text style={[s.fieldLabel, { color: colors.muted }]}>TRIVIA ACCESS CODE</Text>
+            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>TRIVIA ACCESS CODE</Text>
             <TextInput
               style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
               value={triviaCode}
@@ -137,7 +137,7 @@ export default function SettingsScreen() {
               autoCorrect={false}
             />
 
-            <Text style={[s.fieldLabel, { color: colors.muted }]}>ADMIN ACCESS CODE</Text>
+            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>ADMIN ACCESS CODE</Text>
             <TextInput
               style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
               value={adminCode}

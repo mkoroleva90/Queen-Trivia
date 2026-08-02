@@ -84,7 +84,7 @@ export default function AdminRegisterScreen() {
 
       <Pressable onPress={() => router.back()} style={s.backBtn}>
         <Ionicons name="chevron-back" size={22} color={colors.muted} />
-        <Text style={[s.backText, { color: colors.muted }]}>Back</Text>
+        <Text style={[s.backText, { color: colors.mutedForeground }]}>Back</Text>
       </Pressable>
 
       <View style={s.content}>
@@ -92,7 +92,7 @@ export default function AdminRegisterScreen() {
           <Ionicons name="person-add" size={48} color={colors.primary} />
         </View>
         <Text style={[s.title, { color: colors.foreground }]}>CREATE ACCOUNT</Text>
-        <Text style={[s.subtitle, { color: colors.muted }]}>
+        <Text style={[s.subtitle, { color: colors.mutedForeground }]}>
           Register as a host to create and manage trivia games
         </Text>
 
@@ -102,10 +102,10 @@ export default function AdminRegisterScreen() {
               <Ionicons name="mail" size={36} color={colors.primary} />
             </View>
             <Text style={[s.successTitle, { color: colors.foreground }]}>Check your inbox</Text>
-            <Text style={[s.successBody, { color: colors.muted }]}>
+            <Text style={[s.successBody, { color: colors.mutedForeground }]}>
               Click the verification link in the email we just sent you, then come back here to sign in.
             </Text>
-            <Text style={[s.successBody, { color: colors.muted, marginTop: 4 }]}>
+            <Text style={[s.successBody, { color: colors.mutedForeground, marginTop: 4 }]}>
               Don't see it? Check your spam folder.
             </Text>
             <Pressable
@@ -117,7 +117,7 @@ export default function AdminRegisterScreen() {
           </View>
         ) : (
           <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[s.label, { color: colors.muted }]}>EMAIL</Text>
+            <Text style={[s.label, { color: colors.mutedForeground }]}>EMAIL</Text>
             <TextInput
               style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
               value={email}
@@ -131,7 +131,7 @@ export default function AdminRegisterScreen() {
               returnKeyType="next"
             />
 
-            <Text style={[s.label, { color: colors.muted, marginTop: 4 }]}>PASSWORD</Text>
+            <Text style={[s.label, { color: colors.mutedForeground, marginTop: 4 }]}>PASSWORD</Text>
             <TextInput
               style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
               value={password}
@@ -144,7 +144,7 @@ export default function AdminRegisterScreen() {
               returnKeyType="next"
             />
 
-            <Text style={[s.label, { color: colors.muted, marginTop: 4 }]}>CONFIRM PASSWORD</Text>
+            <Text style={[s.label, { color: colors.mutedForeground, marginTop: 4 }]}>CONFIRM PASSWORD</Text>
             <TextInput
               style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
               value={confirm}
@@ -178,7 +178,7 @@ export default function AdminRegisterScreen() {
         )}
 
         <Pressable onPress={() => router.replace('/admin-login')} style={s.footerLink}>
-          <Text style={[s.footerText, { color: colors.muted }]}>
+          <Text style={[s.footerText, { color: colors.mutedForeground }]}>
             Already have an account?{' '}
             <Text style={{ color: colors.primary }}>Sign in →</Text>
           </Text>

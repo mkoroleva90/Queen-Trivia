@@ -117,7 +117,7 @@ export default function AdminHomeScreen() {
         <View>
           <Text style={[s.headerTitle, { color: colors.foreground }]}>Games</Text>
           {stats && (
-            <Text style={[s.headerSub, { color: colors.muted }]}>
+            <Text style={[s.headerSub, { color: colors.mutedForeground }]}>
               {stats.activeGames} live · {stats.totalPlayers} players
             </Text>
           )}
@@ -152,7 +152,7 @@ export default function AdminHomeScreen() {
       ) : sorted.length === 0 ? (
         <View style={s.center}>
           <Ionicons name="game-controller-outline" size={48} color={colors.muted} />
-          <Text style={[s.emptyText, { color: colors.muted }]}>No games yet</Text>
+          <Text style={[s.emptyText, { color: colors.mutedForeground }]}>No games yet</Text>
           <Pressable style={[s.emptyBtn, { backgroundColor: colors.primary }]} onPress={() => setCreateOpen(true)}>
             <Text style={s.emptyBtnText}>Create your first game</Text>
           </Pressable>
@@ -174,7 +174,7 @@ export default function AdminHomeScreen() {
                     {STATUS_LABELS[game.status] ?? game.status}
                   </Text>
                 </View>
-                <Text style={[s.cardCode, { color: colors.muted }]}>
+                <Text style={[s.cardCode, { color: colors.mutedForeground }]}>
                   {game.accessCode ?? '——'}
                 </Text>
               </View>
@@ -186,15 +186,15 @@ export default function AdminHomeScreen() {
               <View style={s.cardMeta}>
                 <View style={s.metaItem}>
                   <Ionicons name="help-circle-outline" size={14} color={colors.muted} />
-                  <Text style={[s.metaText, { color: colors.muted }]}>{game.questionCount ?? 0} Qs</Text>
+                  <Text style={[s.metaText, { color: colors.mutedForeground }]}>{game.questionCount ?? 0} Qs</Text>
                 </View>
                 <View style={s.metaItem}>
                   <Ionicons name="people-outline" size={14} color={colors.muted} />
-                  <Text style={[s.metaText, { color: colors.muted }]}>
+                  <Text style={[s.metaText, { color: colors.mutedForeground }]}>
                     {(game as Game & { participantCount?: number }).participantCount ?? 0}
                   </Text>
                 </View>
-                <Text style={[s.metaText, { color: colors.muted }]}>{game.difficulty}</Text>
+                <Text style={[s.metaText, { color: colors.mutedForeground }]}>{game.difficulty}</Text>
               </View>
 
               {/* Action buttons */}
@@ -222,7 +222,7 @@ export default function AdminHomeScreen() {
                       onPress={() => handleStatus(game, 'completed')}
                     >
                       <Ionicons name="flag" size={14} color={colors.muted} />
-                      <Text style={[s.actionText, { color: colors.muted }]}>End</Text>
+                      <Text style={[s.actionText, { color: colors.mutedForeground }]}>End</Text>
                     </Pressable>
                   </>
                 )}
@@ -259,7 +259,7 @@ export default function AdminHomeScreen() {
             <View style={s.sheetHandle} />
             <Text style={[s.sheetTitle, { color: colors.foreground }]}>New Game</Text>
 
-            <Text style={[s.fieldLabel, { color: colors.muted }]}>Topic</Text>
+            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Topic</Text>
             <TextInput
               style={[s.textInput, { backgroundColor: colors.background, color: colors.foreground, borderColor: createError ? colors.destructive : colors.border }]}
               value={topic}
@@ -270,7 +270,7 @@ export default function AdminHomeScreen() {
               returnKeyType="next"
             />
 
-            <Text style={[s.fieldLabel, { color: colors.muted }]}>Difficulty</Text>
+            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Difficulty</Text>
             <View style={s.diffRow}>
               {(['easy', 'medium', 'hard'] as Difficulty[]).map((d) => (
                 <Pressable

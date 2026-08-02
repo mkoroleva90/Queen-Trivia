@@ -134,7 +134,7 @@ export default function AdminResultsScreen() {
     return (
       <View style={[s.container, s.center, { paddingTop: insets.top, gap: 16 }]}>
         <Ionicons name="alert-circle-outline" size={40} color={colors.destructive} />
-        <Text style={[{ color: colors.muted, fontSize: 15, textAlign: 'center', paddingHorizontal: 32 }]}>
+        <Text style={[{ color: colors.mutedForeground, fontSize: 15, textAlign: 'center', paddingHorizontal: 32 }]}>
           Could not load results. Check your connection and try again.
         </Text>
         <Pressable
@@ -144,7 +144,7 @@ export default function AdminResultsScreen() {
           <Text style={{ color: '#fff', fontFamily: 'Manrope_700Bold', fontSize: 15 }}>Retry</Text>
         </Pressable>
         <Pressable onPress={() => router.push('/admin')} hitSlop={12}>
-          <Text style={[{ color: colors.muted, fontSize: 14 }]}>← Back to games</Text>
+          <Text style={[{ color: colors.mutedForeground, fontSize: 14 }]}>← Back to games</Text>
         </Pressable>
       </View>
     );
@@ -181,37 +181,37 @@ export default function AdminResultsScreen() {
               <Text style={[s.summaryNum, { color: colors.primary }]}>
                 {results?.participants.length ?? 0}
               </Text>
-              <Text style={[s.summaryLabel, { color: colors.muted }]}>Players</Text>
+              <Text style={[s.summaryLabel, { color: colors.mutedForeground }]}>Players</Text>
             </View>
             <View style={s.summaryItem}>
               <Text style={[s.summaryNum, { color: colors.secondary }]}>
                 {results?.totalQuestions ?? 0}
               </Text>
-              <Text style={[s.summaryLabel, { color: colors.muted }]}>Questions</Text>
+              <Text style={[s.summaryLabel, { color: colors.mutedForeground }]}>Questions</Text>
             </View>
             <View style={s.summaryItem}>
               <Text style={[s.summaryNum, { color: colors.accent }]}>
                 {results?.participants[0]?.totalScore ?? 0}
               </Text>
-              <Text style={[s.summaryLabel, { color: colors.muted }]}>Top Score</Text>
+              <Text style={[s.summaryLabel, { color: colors.mutedForeground }]}>Top Score</Text>
             </View>
           </View>
         </View>
 
         {/* Leaderboard */}
-        <Text style={[s.sectionLabel, { color: colors.muted }]}>LEADERBOARD</Text>
+        <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>LEADERBOARD</Text>
         {(results?.participants ?? []).map((p) => (
           <View key={p.id} style={[s.playerCard, { backgroundColor: colors.card, borderColor: p.rank <= 3 ? (RANK_COLORS[p.rank - 1] + '44') : colors.border }]}>
             <View style={[s.rankBadge, { backgroundColor: p.rank <= 3 ? RANK_COLORS[p.rank - 1] + '33' : colors.background }]}>
               {p.rank <= 3 ? (
                 <Ionicons name="trophy" size={14} color={RANK_COLORS[p.rank - 1]} />
               ) : (
-                <Text style={[s.rankNum, { color: colors.muted }]}>#{p.rank}</Text>
+                <Text style={[s.rankNum, { color: colors.mutedForeground }]}>#{p.rank}</Text>
               )}
             </View>
             <View style={s.playerInfo}>
               <Text style={[s.playerName, { color: colors.foreground }]}>{p.userName}</Text>
-              <Text style={[s.playerSub, { color: colors.muted }]}>
+              <Text style={[s.playerSub, { color: colors.mutedForeground }]}>
                 {p.correctCount}/{results?.totalQuestions ?? p.totalAnswered} correct
               </Text>
             </View>
@@ -245,7 +245,7 @@ export default function AdminResultsScreen() {
             (qStats ?? []).map((q, idx) => (
               <View key={q.id} style={[s.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={s.statTop}>
-                  <Text style={[s.statQ, { color: colors.muted }]}>Q{idx + 1}</Text>
+                  <Text style={[s.statQ, { color: colors.mutedForeground }]}>Q{idx + 1}</Text>
                   <Text style={[s.statPts, { color: colors.accent }]}>{q.points}pts</Text>
                 </View>
                 <Text style={[s.statText, { color: colors.foreground }]} numberOfLines={2}>
@@ -255,7 +255,7 @@ export default function AdminResultsScreen() {
                   <Text style={[s.statFig, { color: colors.secondary }]}>
                     {q.correctCount}/{q.totalAnswered}
                   </Text>
-                  <Text style={[s.statLabel2, { color: colors.muted }]}>correct</Text>
+                  <Text style={[s.statLabel2, { color: colors.mutedForeground }]}>correct</Text>
                   {q.percentCorrect !== null && (
                     <View style={[s.pctBadge, { backgroundColor: q.percentCorrect >= 70 ? colors.secondary + '22' : colors.destructive + '22' }]}>
                       <Text style={[s.pctText, { color: q.percentCorrect >= 70 ? colors.secondary : colors.destructive }]}>

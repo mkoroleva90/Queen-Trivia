@@ -63,7 +63,7 @@ export default function AdminForgotPasswordScreen() {
 
       <Pressable onPress={() => router.back()} style={s.backBtn}>
         <Ionicons name="chevron-back" size={22} color={colors.muted} />
-        <Text style={[s.backText, { color: colors.muted }]}>Back</Text>
+        <Text style={[s.backText, { color: colors.mutedForeground }]}>Back</Text>
       </Pressable>
 
       <View style={s.content}>
@@ -71,7 +71,7 @@ export default function AdminForgotPasswordScreen() {
           <Ionicons name="lock-open" size={48} color={colors.primary} />
         </View>
         <Text style={[s.title, { color: colors.foreground }]}>FORGOT PASSWORD</Text>
-        <Text style={[s.subtitle, { color: colors.muted }]}>
+        <Text style={[s.subtitle, { color: colors.mutedForeground }]}>
           Enter your email and we'll send a reset link
         </Text>
 
@@ -81,10 +81,10 @@ export default function AdminForgotPasswordScreen() {
               <Ionicons name="mail" size={36} color={colors.primary} />
             </View>
             <Text style={[s.successTitle, { color: colors.foreground }]}>Check your inbox</Text>
-            <Text style={[s.successBody, { color: colors.muted }]}>
+            <Text style={[s.successBody, { color: colors.mutedForeground }]}>
               If that address is registered, a reset link is on its way.
             </Text>
-            <Text style={[s.successBody, { color: colors.muted, marginTop: 4 }]}>
+            <Text style={[s.successBody, { color: colors.mutedForeground, marginTop: 4 }]}>
               Don't see it? Check your spam folder.
             </Text>
             <Pressable
@@ -96,7 +96,7 @@ export default function AdminForgotPasswordScreen() {
           </View>
         ) : (
           <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[s.label, { color: colors.muted }]}>EMAIL ADDRESS</Text>
+            <Text style={[s.label, { color: colors.mutedForeground }]}>EMAIL ADDRESS</Text>
             <TextInput
               style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
               value={email}
@@ -131,7 +131,7 @@ export default function AdminForgotPasswordScreen() {
         )}
 
         <Pressable onPress={() => router.replace('/admin-login')} style={s.footerLink}>
-          <Text style={[s.footerText, { color: colors.muted }]}>
+          <Text style={[s.footerText, { color: colors.mutedForeground }]}>
             Remembered it?{' '}
             <Text style={{ color: colors.primary }}>Sign in →</Text>
           </Text>

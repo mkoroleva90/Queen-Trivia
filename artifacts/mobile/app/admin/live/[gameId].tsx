@@ -190,19 +190,19 @@ export default function AdminLiveScreen() {
       <View style={[s.statsBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={s.statItem}>
           <Text style={[s.statNum, { color: colors.secondary }]}>{totalPlayers}</Text>
-          <Text style={[s.statLabel, { color: colors.muted }]}>Players</Text>
+          <Text style={[s.statLabel, { color: colors.mutedForeground }]}>Players</Text>
         </View>
         <View style={[s.statDivider, { backgroundColor: colors.border }]} />
         <View style={s.statItem}>
           <Text style={[s.statNum, { color: colors.accent }]}>
             {Object.values(answerCounts).reduce((a, b) => a + b, 0)}
           </Text>
-          <Text style={[s.statLabel, { color: colors.muted }]}>Answers</Text>
+          <Text style={[s.statLabel, { color: colors.mutedForeground }]}>Answers</Text>
         </View>
         <View style={[s.statDivider, { backgroundColor: colors.border }]} />
         <View style={s.statItem}>
           <Text style={[s.statNum, { color: colors.primary }]}>{sortedQs.length}</Text>
-          <Text style={[s.statLabel, { color: colors.muted }]}>Questions</Text>
+          <Text style={[s.statLabel, { color: colors.mutedForeground }]}>Questions</Text>
         </View>
       </View>
 
@@ -211,9 +211,9 @@ export default function AdminLiveScreen() {
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
-        <Text style={[s.sectionLabel, { color: colors.muted }]}>ANSWER PROGRESS</Text>
+        <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>ANSWER PROGRESS</Text>
         {sortedQs.length === 0 ? (
-          <Text style={[s.emptyText, { color: colors.muted }]}>No questions in this game.</Text>
+          <Text style={[s.emptyText, { color: colors.mutedForeground }]}>No questions in this game.</Text>
         ) : (
           sortedQs.map((q, idx) => {
             const total = answerCounts[q.id] ?? 0;
@@ -222,7 +222,7 @@ export default function AdminLiveScreen() {
             return (
               <View key={q.id} style={[s.qCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={s.qTop}>
-                  <Text style={[s.qNum, { color: colors.muted }]}>Q{idx + 1}</Text>
+                  <Text style={[s.qNum, { color: colors.mutedForeground }]}>Q{idx + 1}</Text>
                   <Text style={[s.qAnswered, { color: colors.foreground }]}>
                     {total}/{totalPlayers} answered
                   </Text>
@@ -249,7 +249,7 @@ export default function AdminLiveScreen() {
         {/* Players */}
         {(participants?.length ?? 0) > 0 && (
           <>
-            <Text style={[s.sectionLabel, { color: colors.muted }]}>PLAYERS IN GAME</Text>
+            <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>PLAYERS IN GAME</Text>
             {participants!.map((p) => (
               <View key={p.id} style={[s.playerRow, { borderColor: colors.border }]}>
                 <Ionicons name="person-circle-outline" size={20} color={colors.muted} />

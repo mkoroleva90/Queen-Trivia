@@ -115,7 +115,7 @@ export default function AdminLoginScreen() {
 
       <Pressable onPress={() => router.back()} style={s.backBtn}>
         <Ionicons name="chevron-back" size={22} color={colors.muted} />
-        <Text style={[s.backText, { color: colors.muted }]}>Back</Text>
+        <Text style={[s.backText, { color: colors.mutedForeground }]}>Back</Text>
       </Pressable>
 
       <View style={s.content}>
@@ -123,7 +123,7 @@ export default function AdminLoginScreen() {
           <Ionicons name="shield-checkmark" size={48} color={colors.primary} />
         </View>
         <Text style={[s.title, { color: colors.foreground }]}>HOST ACCESS</Text>
-        <Text style={[s.subtitle, { color: colors.muted }]}>
+        <Text style={[s.subtitle, { color: colors.mutedForeground }]}>
           Sign in to manage tonight's games
         </Text>
 
@@ -150,7 +150,7 @@ export default function AdminLoginScreen() {
         <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {mode === 'email' ? (
             <>
-              <Text style={[s.label, { color: colors.muted }]}>EMAIL</Text>
+              <Text style={[s.label, { color: colors.mutedForeground }]}>EMAIL</Text>
               <TextInput
                 style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
                 value={email}
@@ -163,7 +163,7 @@ export default function AdminLoginScreen() {
                 autoComplete="email"
                 returnKeyType="next"
               />
-              <Text style={[s.label, { color: colors.muted, marginTop: 4 }]}>PASSWORD</Text>
+              <Text style={[s.label, { color: colors.mutedForeground, marginTop: 4 }]}>PASSWORD</Text>
               <TextInput
                 style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
                 value={password}
@@ -196,7 +196,7 @@ export default function AdminLoginScreen() {
             </>
           ) : (
             <>
-              <Text style={[s.label, { color: colors.muted }]}>ADMIN CODE</Text>
+              <Text style={[s.label, { color: colors.mutedForeground }]}>ADMIN CODE</Text>
               <TextInput
                 style={[s.codeInput, {
                   backgroundColor: colors.background,
@@ -232,7 +232,7 @@ export default function AdminLoginScreen() {
 
         {mode === 'email' && (
           <TouchableOpacity onPress={() => router.push('/admin-register')} style={s.footerLink}>
-            <Text style={[s.footerText, { color: colors.muted }]}>
+            <Text style={[s.footerText, { color: colors.mutedForeground }]}>
               New here?{' '}
               <Text style={{ color: colors.secondary }}>Create an account →</Text>
             </Text>
@@ -240,7 +240,7 @@ export default function AdminLoginScreen() {
         )}
 
         {mode === 'code' && (
-          <Text style={[s.hint2, { color: colors.muted }]}>
+          <Text style={[s.hint2, { color: colors.mutedForeground }]}>
             If you registered with email, use the Email tab for game-scoped access.
           </Text>
         )}

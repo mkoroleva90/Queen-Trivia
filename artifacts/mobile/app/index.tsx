@@ -209,7 +209,7 @@ export default function WelcomeScreen() {
                 hitSlop={12}
                 style={{ alignSelf: 'center', paddingVertical: 4 }}
               >
-                <Text style={{ color: colors.muted, fontSize: 13 }}>
+                <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>
                   Hosting tonight?{' '}
                   <Text style={{ color: colors.primary, fontFamily: 'Manrope_600SemiBold' }}>
                     Admin sign-in →
