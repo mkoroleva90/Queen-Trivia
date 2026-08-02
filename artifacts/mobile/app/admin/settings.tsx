@@ -132,7 +132,7 @@ export default function SettingsScreen() {
               value={triviaCode}
               onChangeText={(v) => { setTriviaCode(v); setError(''); setSuccess(''); }}
               placeholder="Minimum 8 characters"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={colors.mutedForeground}
               autoCapitalize="none"
               autoCorrect={false}
             />
@@ -143,7 +143,7 @@ export default function SettingsScreen() {
               value={adminCode}
               onChangeText={(v) => { setAdminCode(v); setError(''); setSuccess(''); }}
               placeholder="Minimum 8 characters"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={colors.mutedForeground}
               autoCapitalize="none"
               autoCorrect={false}
             />

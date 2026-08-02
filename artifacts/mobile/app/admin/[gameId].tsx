@@ -475,7 +475,7 @@ function QuestionFormModal({
                 <Ionicons
                   name={TYPE_ICONS[t] as 'checkmark-circle'}
                   size={14}
-                  color={form.questionType === t ? colors.primary : colors.muted}
+                  color={form.questionType === t ? colors.primary : colors.mutedForeground}
                 />
                 <Text style={[s.typeChipText, { color: form.questionType === t ? colors.primary : colors.muted }]}>
                   {TYPE_LABELS[t]}
@@ -507,7 +507,7 @@ function QuestionFormModal({
             value={form.questionText}
             onChangeText={(v) => set('questionText', v)}
             placeholder="Type the question players will see..."
-            placeholderTextColor={colors.muted}
+            placeholderTextColor={colors.mutedForeground}
             multiline
             numberOfLines={3}
           />
@@ -561,11 +561,11 @@ function QuestionFormModal({
                         });
                       }}
                       placeholder={`Choice ${String.fromCharCode(65 + i)}`}
-                      placeholderTextColor={colors.muted}
+                      placeholderTextColor={colors.mutedForeground}
                     />
                     {form.choices.length > 2 && (
                       <Pressable onPress={() => set('choices', form.choices.filter((_, j) => j !== i))} hitSlop={8}>
-                        <Ionicons name="close-circle" size={18} color={colors.muted} />
+                        <Ionicons name="close-circle" size={18} color={colors.mutedForeground} />
                       </Pressable>
                     )}
                   </View>
@@ -615,7 +615,7 @@ function QuestionFormModal({
                 value={form.correctAnswer}
                 onChangeText={(v) => set('correctAnswer', v)}
                 placeholder="The exact correct answer"
-                placeholderTextColor={colors.muted}
+                placeholderTextColor={colors.mutedForeground}
               />
               <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>ALTERNATE ANSWERS (comma-separated)</Text>
               <TextInput
@@ -623,7 +623,7 @@ function QuestionFormModal({
                 value={form.alternateAnswers}
                 onChangeText={(v) => set('alternateAnswers', v)}
                 placeholder="e.g. NYC, The Big Apple"
-                placeholderTextColor={colors.muted}
+                placeholderTextColor={colors.mutedForeground}
               />
             </>
           )}
@@ -640,7 +640,7 @@ function QuestionFormModal({
                     value={item}
                     onChangeText={(v) => { const next = [...form.orderedItems]; next[i] = v; set('orderedItems', next); }}
                     placeholder={`Item ${i + 1}`}
-                    placeholderTextColor={colors.muted}
+                    placeholderTextColor={colors.mutedForeground}
                   />
                   <View style={s.orderBtns}>
                     <Pressable disabled={i === 0} onPress={() => {
@@ -648,18 +648,18 @@ function QuestionFormModal({
                       [next[i - 1], next[i]] = [next[i], next[i - 1]];
                       set('orderedItems', next);
                     }} hitSlop={8}>
-                      <Ionicons name="chevron-up" size={18} color={i === 0 ? colors.border : colors.muted} />
+                      <Ionicons name="chevron-up" size={18} color={i === 0 ? colors.border : colors.mutedForeground} />
                     </Pressable>
                     <Pressable disabled={i === form.orderedItems.length - 1} onPress={() => {
                       const next = [...form.orderedItems];
                       [next[i], next[i + 1]] = [next[i + 1], next[i]];
                       set('orderedItems', next);
                     }} hitSlop={8}>
-                      <Ionicons name="chevron-down" size={18} color={i === form.orderedItems.length - 1 ? colors.border : colors.muted} />
+                      <Ionicons name="chevron-down" size={18} color={i === form.orderedItems.length - 1 ? colors.border : colors.mutedForeground} />
                     </Pressable>
                     {form.orderedItems.length > 2 && (
                       <Pressable onPress={() => set('orderedItems', form.orderedItems.filter((_, j) => j !== i))} hitSlop={8}>
-                        <Ionicons name="close-circle" size={16} color={colors.muted} />
+                        <Ionicons name="close-circle" size={16} color={colors.mutedForeground} />
                       </Pressable>
                     )}
                   </View>
@@ -692,7 +692,7 @@ function QuestionFormModal({
                       onChangeText={(v) => set(key, v)}
                       keyboardType="numeric"
                       placeholder="0"
-                      placeholderTextColor={colors.muted}
+                      placeholderTextColor={colors.mutedForeground}
                     />
                   </View>
                 ))}
@@ -711,19 +711,19 @@ function QuestionFormModal({
                     value={pair.left}
                     onChangeText={(v) => { const next = [...form.pairs]; next[i] = { ...next[i]!, left: v }; set('pairs', next); }}
                     placeholder="Left"
-                    placeholderTextColor={colors.muted}
+                    placeholderTextColor={colors.mutedForeground}
                   />
-                  <Ionicons name="arrow-forward" size={16} color={colors.muted} />
+                  <Ionicons name="arrow-forward" size={16} color={colors.mutedForeground} />
                   <TextInput
                     style={[s.pairInput, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
                     value={pair.right}
                     onChangeText={(v) => { const next = [...form.pairs]; next[i] = { ...next[i]!, right: v }; set('pairs', next); }}
                     placeholder="Right"
-                    placeholderTextColor={colors.muted}
+                    placeholderTextColor={colors.mutedForeground}
                   />
                   {form.pairs.length > 2 && (
                     <Pressable onPress={() => set('pairs', form.pairs.filter((_, j) => j !== i))} hitSlop={8}>
-                      <Ionicons name="close-circle" size={18} color={colors.muted} />
+                      <Ionicons name="close-circle" size={18} color={colors.mutedForeground} />
                     </Pressable>
                   )}
                 </View>
@@ -746,7 +746,7 @@ function QuestionFormModal({
                 value={form.imageUrl}
                 onChangeText={(v) => set('imageUrl', v)}
                 placeholder="https://example.com/image.jpg"
-                placeholderTextColor={colors.muted}
+                placeholderTextColor={colors.mutedForeground}
                 autoCapitalize="none"
                 keyboardType="url"
               />
@@ -758,7 +758,7 @@ function QuestionFormModal({
                     value={form.correctAnswer}
                     onChangeText={(v) => set('correctAnswer', v)}
                     placeholder="What is in the image?"
-                    placeholderTextColor={colors.muted}
+                    placeholderTextColor={colors.mutedForeground}
                   />
                   <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>ALTERNATE ANSWERS (comma-separated)</Text>
                   <TextInput
@@ -766,7 +766,7 @@ function QuestionFormModal({
                     value={form.alternateAnswers}
                     onChangeText={(v) => set('alternateAnswers', v)}
                     placeholder="Alternate accepted answers"
-                    placeholderTextColor={colors.muted}
+                    placeholderTextColor={colors.mutedForeground}
                   />
                 </>
               )}
@@ -796,7 +796,7 @@ function QuestionFormModal({
             onChangeText={(v) => set('points', v)}
             keyboardType="numeric"
             placeholder="10"
-            placeholderTextColor={colors.muted}
+            placeholderTextColor={colors.mutedForeground}
           />
 
           <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>SOURCE (optional)</Text>
@@ -805,7 +805,7 @@ function QuestionFormModal({
             value={form.source}
             onChangeText={(v) => set('source', v)}
             placeholder="e.g. Wikipedia — Capital cities"
-            placeholderTextColor={colors.muted}
+            placeholderTextColor={colors.mutedForeground}
           />
 
           {!!error && (
@@ -922,7 +922,7 @@ function BulkGenerateModal({
                 value={topic}
                 onChangeText={(v) => { setTopic(v); setError(''); }}
                 placeholder="e.g. 90s Pop Music"
-                placeholderTextColor={colors.muted}
+                placeholderTextColor={colors.mutedForeground}
               />
 
               <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>DIFFICULTY</Text>
@@ -947,7 +947,7 @@ function BulkGenerateModal({
                 onChangeText={(v) => { setAmount(v); setError(''); }}
                 keyboardType="numeric"
                 placeholder="10"
-                placeholderTextColor={colors.muted}
+                placeholderTextColor={colors.mutedForeground}
               />
 
               {!!error && (
@@ -1085,7 +1085,7 @@ function ImportOpenTdbModal({
                 onPress={() => setCategoryOpen((v) => !v)}
               >
                 <Text style={[{ flex: 1, fontSize: 15, color: colors.foreground }]}>{selectedCategory?.name ?? 'Select…'}</Text>
-                <Ionicons name={categoryOpen ? 'chevron-up' : 'chevron-down'} size={16} color={colors.muted} />
+                <Ionicons name={categoryOpen ? 'chevron-up' : 'chevron-down'} size={16} color={colors.mutedForeground} />
               </Pressable>
 
               {categoryOpen && (
@@ -1131,7 +1131,7 @@ function ImportOpenTdbModal({
                 onChangeText={(v) => { setAmount(v); setError(''); }}
                 keyboardType="numeric"
                 placeholder="10"
-                placeholderTextColor={colors.muted}
+                placeholderTextColor={colors.mutedForeground}
               />
 
               {!!error && (
@@ -1335,7 +1335,7 @@ function AIActionMenu({
                     <Text style={[s.actionLabel, { color: colors.foreground }]}>{label}</Text>
                     <Text style={[s.actionDesc, { color: colors.mutedForeground }]}>{desc}</Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+                  <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
                 </Pressable>
               ))}
             </View>
@@ -1617,7 +1617,7 @@ export default function GameDetailScreen() {
             <View style={s.qHeader}>
               {/* Drag handle — long press to drag */}
               <Pressable onLongPress={drag} delayLongPress={150} hitSlop={6} style={s.dragHandle}>
-                <Ionicons name="reorder-two" size={20} color={colors.muted} />
+                <Ionicons name="reorder-two" size={20} color={colors.mutedForeground} />
               </Pressable>
 
               <View style={[s.typeTag, { backgroundColor: colors.primary + '22' }]}>
@@ -1692,7 +1692,7 @@ export default function GameDetailScreen() {
 
       {/* Room code row */}
       <View style={[s.roomRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Ionicons name="key-outline" size={16} color={colors.muted} />
+        <Ionicons name="key-outline" size={16} color={colors.mutedForeground} />
         {editingRoomCode ? (
           <>
             <TextInput
@@ -1702,7 +1702,7 @@ export default function GameDetailScreen() {
               autoCapitalize="characters"
               autoFocus
               placeholder="NEW CODE"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={colors.mutedForeground}
               returnKeyType="done"
               onSubmitEditing={handleSaveRoomCode}
             />
@@ -1710,14 +1710,14 @@ export default function GameDetailScreen() {
               <Ionicons name="checkmark-circle" size={22} color={colors.secondary} />
             </Pressable>
             <Pressable onPress={() => setEditingRoomCode(false)}>
-              <Ionicons name="close-circle" size={22} color={colors.muted} />
+              <Ionicons name="close-circle" size={22} color={colors.mutedForeground} />
             </Pressable>
           </>
         ) : (
           <>
             <Text style={[s.roomCode, { color: colors.accent }]}>{game?.accessCode ?? '——'}</Text>
             <Pressable onPress={() => { setRoomCode(game?.accessCode ?? ''); setEditingRoomCode(true); }} hitSlop={8}>
-              <Ionicons name="pencil" size={16} color={colors.muted} />
+              <Ionicons name="pencil" size={16} color={colors.mutedForeground} />
             </Pressable>
           </>
         )}
@@ -1778,7 +1778,7 @@ export default function GameDetailScreen() {
         </View>
       ) : localQs.length === 0 ? (
         <View style={s.emptyBox}>
-          <Ionicons name="help-circle-outline" size={40} color={colors.muted} />
+          <Ionicons name="help-circle-outline" size={40} color={colors.mutedForeground} />
           <Text style={[s.emptyText, { color: colors.mutedForeground }]}>No questions yet</Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <Pressable style={[s.addBtn, { backgroundColor: '#a855f7' }]} onPress={() => setGenerateOpen(true)}>

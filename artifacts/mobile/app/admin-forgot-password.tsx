@@ -62,7 +62,7 @@ export default function AdminForgotPasswordScreen() {
       <View style={[s.blob2, { backgroundColor: colors.secondary }]} />
 
       <Pressable onPress={() => router.back()} style={s.backBtn}>
-        <Ionicons name="chevron-back" size={22} color={colors.muted} />
+        <Ionicons name="chevron-back" size={22} color={colors.mutedForeground} />
         <Text style={[s.backText, { color: colors.mutedForeground }]}>Back</Text>
       </Pressable>
 
@@ -102,7 +102,7 @@ export default function AdminForgotPasswordScreen() {
               value={email}
               onChangeText={(t) => { setEmail(t); setError(''); }}
               placeholder="you@example.com"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={colors.mutedForeground}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="email-address"

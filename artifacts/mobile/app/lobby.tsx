@@ -276,7 +276,7 @@ export default function LobbyScreen() {
         </View>
       ) : sortedGames.length === 0 ? (
         <View style={styles.centered}>
-          <Ionicons name="game-controller-outline" size={48} color={colors.muted} />
+          <Ionicons name="game-controller-outline" size={48} color={colors.mutedForeground} />
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No games yet</Text>
           <Text style={[styles.emptySub, { color: colors.mutedForeground }]}>
             Your host hasn't created a game yet. Check back soon.

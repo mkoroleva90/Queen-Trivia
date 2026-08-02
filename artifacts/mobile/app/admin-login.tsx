@@ -114,7 +114,7 @@ export default function AdminLoginScreen() {
       <View style={[s.blob2, { backgroundColor: colors.secondary }]} />
 
       <Pressable onPress={() => router.back()} style={s.backBtn}>
-        <Ionicons name="chevron-back" size={22} color={colors.muted} />
+        <Ionicons name="chevron-back" size={22} color={colors.mutedForeground} />
         <Text style={[s.backText, { color: colors.mutedForeground }]}>Back</Text>
       </Pressable>
 
@@ -156,7 +156,7 @@ export default function AdminLoginScreen() {
                 value={email}
                 onChangeText={(t) => { setEmail(t); setError(''); }}
                 placeholder="you@example.com"
-                placeholderTextColor={colors.muted}
+                placeholderTextColor={colors.mutedForeground}
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="email-address"
@@ -169,7 +169,7 @@ export default function AdminLoginScreen() {
                 value={password}
                 onChangeText={(t) => { setPassword(t); setError(''); }}
                 placeholder="••••••••"
-                placeholderTextColor={colors.muted}
+                placeholderTextColor={colors.mutedForeground}
                 secureTextEntry
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -206,7 +206,7 @@ export default function AdminLoginScreen() {
                 value={code}
                 onChangeText={(t) => { setCode(t); setError(''); }}
                 placeholder="ENTER CODE"
-                placeholderTextColor={colors.muted}
+                placeholderTextColor={colors.mutedForeground}
                 autoCapitalize="characters"
                 autoCorrect={false}
                 autoComplete="off"

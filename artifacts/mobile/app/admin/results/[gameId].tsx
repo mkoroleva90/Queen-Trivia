@@ -227,7 +227,7 @@ export default function AdminResultsScreen() {
           onPress={() => setShowStats((v) => !v)}
         >
           <Text style={[s.toggleText, { color: colors.foreground }]}>Question Breakdown</Text>
-          <Ionicons name={showStats ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
+          <Ionicons name={showStats ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
         </Pressable>
 
         {showStats && (

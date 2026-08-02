@@ -83,7 +83,7 @@ export default function AdminRegisterScreen() {
       <View style={[s.blob2, { backgroundColor: colors.secondary }]} />
 
       <Pressable onPress={() => router.back()} style={s.backBtn}>
-        <Ionicons name="chevron-back" size={22} color={colors.muted} />
+        <Ionicons name="chevron-back" size={22} color={colors.mutedForeground} />
         <Text style={[s.backText, { color: colors.mutedForeground }]}>Back</Text>
       </Pressable>
 
@@ -123,7 +123,7 @@ export default function AdminRegisterScreen() {
               value={email}
               onChangeText={(t) => { setEmail(t); setError(''); }}
               placeholder="you@example.com"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={colors.mutedForeground}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="email-address"
@@ -137,7 +137,7 @@ export default function AdminRegisterScreen() {
               value={password}
               onChangeText={(t) => { setPassword(t); setError(''); }}
               placeholder="8+ characters"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={colors.mutedForeground}
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
@@ -150,7 +150,7 @@ export default function AdminRegisterScreen() {
               value={confirm}
               onChangeText={(t) => { setConfirm(t); setError(''); }}
               placeholder="Repeat password"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={colors.mutedForeground}
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}

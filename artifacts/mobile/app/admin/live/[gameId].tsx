@@ -252,7 +252,7 @@ export default function AdminLiveScreen() {
             <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>PLAYERS IN GAME</Text>
             {participants!.map((p) => (
               <View key={p.id} style={[s.playerRow, { borderColor: colors.border }]}>
-                <Ionicons name="person-circle-outline" size={20} color={colors.muted} />
+                <Ionicons name="person-circle-outline" size={20} color={colors.mutedForeground} />
                 <Text style={[s.playerName, { color: colors.foreground }]}>{p.userName}</Text>
                 <Text style={[s.playerScore, { color: colors.accent }]}>{p.totalScore} pts</Text>
               </View>

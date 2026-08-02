@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -133,13 +135,13 @@ export default function AdminHomeScreen() {
             style={[s.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={() => router.push('/admin/settings')}
           >
-            <Ionicons name="settings-outline" size={20} color={colors.muted} />
+            <Ionicons name="settings-outline" size={20} color={colors.mutedForeground} />
           </Pressable>
           <Pressable
             style={[s.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={logoutAdmin}
           >
-            <Ionicons name="log-out-outline" size={20} color={colors.muted} />
+            <Ionicons name="log-out-outline" size={20} color={colors.mutedForeground} />
           </Pressable>
         </View>
       </View>
@@ -151,7 +153,7 @@ export default function AdminHomeScreen() {
         </View>
       ) : sorted.length === 0 ? (
         <View style={s.center}>
-          <Ionicons name="game-controller-outline" size={48} color={colors.muted} />
+          <Ionicons name="game-controller-outline" size={48} color={colors.mutedForeground} />
           <Text style={[s.emptyText, { color: colors.mutedForeground }]}>No games yet</Text>
           <Pressable style={[s.emptyBtn, { backgroundColor: colors.primary }]} onPress={() => setCreateOpen(true)}>
             <Text style={s.emptyBtnText}>Create your first game</Text>
@@ -185,11 +187,11 @@ export default function AdminHomeScreen() {
 
               <View style={s.cardMeta}>
                 <View style={s.metaItem}>
-                  <Ionicons name="help-circle-outline" size={14} color={colors.muted} />
+                  <Ionicons name="help-circle-outline" size={14} color={colors.mutedForeground} />
                   <Text style={[s.metaText, { color: colors.mutedForeground }]}>{game.questionCount ?? 0} Qs</Text>
                 </View>
                 <View style={s.metaItem}>
-                  <Ionicons name="people-outline" size={14} color={colors.muted} />
+                  <Ionicons name="people-outline" size={14} color={colors.mutedForeground} />
                   <Text style={[s.metaText, { color: colors.mutedForeground }]}>
                     {(game as Game & { participantCount?: number }).participantCount ?? 0}
                   </Text>
@@ -221,7 +223,7 @@ export default function AdminHomeScreen() {
                       style={[s.actionBtn, { backgroundColor: colors.muted + '22', borderColor: colors.muted + '44' }]}
                       onPress={() => handleStatus(game, 'completed')}
                     >
-                      <Ionicons name="flag" size={14} color={colors.muted} />
+                      <Ionicons name="flag" size={14} color={colors.mutedForeground} />
                       <Text style={[s.actionText, { color: colors.mutedForeground }]}>End</Text>
                     </Pressable>
                   </>
@@ -253,6 +255,10 @@ export default function AdminHomeScreen() {
 
       {/* Create Game Modal */}
       <Modal visible={createOpen} animationType="slide" transparent presentationStyle="overFullScreen">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
         <View style={s.modalOverlay}>
           <Pressable style={s.modalBackdrop} onPress={() => setCreateOpen(false)} />
           <View style={[s.sheet, { backgroundColor: colors.card, paddingBottom: insets.bottom + 24 }]}>
@@ -265,7 +271,7 @@ export default function AdminHomeScreen() {
               value={topic}
               onChangeText={(t) => { setTopic(t); setCreateError(''); }}
               placeholder="e.g. 90s Pop Music"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={colors.mutedForeground}
               autoFocus
               returnKeyType="next"
             />
@@ -278,7 +284,7 @@ export default function AdminHomeScreen() {
                   style={[s.diffChip, { borderColor: difficulty === d ? colors.primary : colors.border, backgroundColor: difficulty === d ? colors.primary + '22' : 'transparent' }]}
                   onPress={() => setDifficulty(d)}
                 >
-                  <Text style={[s.diffChipText, { color: difficulty === d ? colors.primary : colors.muted }]}>
+                  <Text style={[s.diffChipText, { color: difficulty === d ? colors.primary : colors.mutedForeground }]}>
                     {d.charAt(0).toUpperCase() + d.slice(1)}
                   </Text>
                 </Pressable>
@@ -300,6 +306,7 @@ export default function AdminHomeScreen() {
             </Pressable>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
