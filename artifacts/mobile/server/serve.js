@@ -64,6 +64,12 @@ function toScriptString(value) {
 }
 
 function serveManifest(platform, res) {
+  if (platform !== 'ios' && platform !== 'android') {
+    res.writeHead(403, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Forbidden' }));
+    return;
+  }
+
   const manifestPath = path.join(STATIC_ROOT, platform, 'manifest.json');
 
   if (!fs.existsSync(manifestPath)) {
