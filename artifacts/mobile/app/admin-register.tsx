@@ -11,7 +11,9 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as SecureStore from 'expo-secure-store';
 import { useColors } from '@/hooks/useColors';
+import { ADMIN_TOKEN_KEY } from '@/context/AdminAuthContext';
 
 export default function AdminRegisterScreen() {
   const colors = useColors();
@@ -38,9 +40,18 @@ export default function AdminRegisterScreen() {
     setError('');
     setPending(true);
     try {
+      // Registration requires an existing admin session — read the stored token.
+      const adminToken = await SecureStore.getItemAsync(ADMIN_TOKEN_KEY).catch(() => null);
+      if (!adminToken) {
+        setError('You must be signed in as an admin to register a new account');
+        return;
+      }
       const res = await fetch(`${baseUrl}/api/auth/email/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${adminToken}`,
+        },
         body: JSON.stringify({ email: trimmedEmail, password }),
       });
       if (res.status === 503) {

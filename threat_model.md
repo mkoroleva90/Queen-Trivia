@@ -22,15 +22,16 @@ Trivia Night is a multiplayer pub-quiz web application. Players join live games 
 - **Browser → API** — All game and admin actions cross this boundary. Express session cookies authenticate the caller. The client is fully untrusted.
 - **API → PostgreSQL** — Application code talks directly to Postgres via Drizzle ORM (parameterized queries). SQL injection risk is low given ORM usage.
 - **API → External services** — Gemini API (Google) and OpenTDB are called server-side. Image URLs from Gemini are allowlisted to `upload.wikimedia.org/wikipedia/commons/` before any outbound fetch. OpenTDB is a fixed upstream endpoint. Resend (email) is called server-side for verification and password-reset emails.
-- **Public / Authenticated** — `/api/health`, `/api/auth/*`, `/api/admin/me`, and the new `/api/auth/email/*` routes are public. All gameplay and admin endpoints require a valid session.
+- **Public / Authenticated** — `/api/health`, `/api/auth/*`, `/api/admin/me`, `/api/auth/email/verify`, `/api/auth/email/login`, `/api/auth/email/forgot-password`, and `/api/auth/email/reset-password` are public. `/api/auth/email/register` requires an active admin session. All gameplay and admin endpoints require a valid session.
 - **Player / Admin** — Admins have full CRUD over games, questions, and settings. Players can only join games, submit answers, and read leaderboards. Enforced server-side via `requireAdmin` and `requireUser` middleware.
 - **Mobile server** — The Expo update server at `/mobile/` is a separate Node.js HTTP process (`artifacts/mobile/server/serve.js`). It serves static build assets and platform manifests. The `expo-platform` header is attacker-controlled input at this boundary.
 
 ## Scan Anchors
 
 - **Entry points:** `artifacts/api-server/src/routes/` (all route files), `artifacts/api-server/src/app.ts` (Express setup and CORS), `artifacts/mobile/server/serve.js` (mobile update server)
-- **Highest-risk areas:** Email auth routes in `routes/emailAuth.ts` (open registration — CRITICAL open finding); Admin session logic in `routes/session.ts`; access code comparison in `routes/session.ts` and `routes/auth.ts`; per-game access code generation in `routes/games.ts`; AI grading in `services/geminiApi.ts` (`gradeWithAI` — residual prompt injection, open MEDIUM finding); manifest path construction in `artifacts/mobile/server/serve.js` (path traversal, open MEDIUM finding)
-- **Public surface:** `/api/health`, `/api/auth/verify`, `/api/auth/login`, `/api/admin/login`, `/api/auth/me`, `/api/admin/me`, `/api/auth/email/register`, `/api/auth/email/verify`, `/api/auth/email/login`, `/api/auth/email/forgot-password`, `/api/auth/email/reset-password`
+- **Highest-risk areas:** Admin session logic in `routes/session.ts`; access code comparison in `routes/session.ts` and `routes/auth.ts`; per-game access code generation in `routes/games.ts`; AI grading in `services/geminiApi.ts` (`gradeWithAI` — residual prompt injection, open MEDIUM finding)
+- **Public surface:** `/api/health`, `/api/auth/verify`, `/api/auth/login`, `/api/admin/login`, `/api/auth/me`, `/api/admin/me`, `/api/auth/email/verify`, `/api/auth/email/login`, `/api/auth/email/forgot-password`, `/api/auth/email/reset-password`
+- **Admin-only surface (email auth):** `/api/auth/email/register` — requires active admin session
 - **Admin surface:** `/api/settings`, `/api/games` (POST/PATCH/DELETE), `/api/questions` (POST/PATCH/DELETE), `/api/stats/summary`, Gemini and OpenTDB import routes, `/api/games/:id/results/export.csv`
 - **Player surface:** `/api/games` (GET), `/api/games/:id/join`, `/api/games/:id/answers`, `/api/games/:id/results`
 - **Dev-only:** `artifacts/mockup-sandbox/` — design canvas, not production-reachable
@@ -48,7 +49,7 @@ Players and admins authenticate with shared access codes (original path). A seco
 - Auth endpoints are rate-limited (10 req / 15 min per IP) — correctly implemented. ✅
 - **Session IDs MUST be regenerated on login** — `req.session.regenerate()` is called on all login paths. ✅
 - **Per-game access codes MUST use a CSPRNG** — `routes/games.ts` uses `crypto.randomBytes`. ✅
-- **Email admin registration MUST be gated** — `POST /api/auth/email/register` is currently open to anyone; no prior-admin approval, invite token, or domain restriction. ⚠️ CRITICAL open finding (`open-admin-registration-email-auth`).
+- **Email admin registration MUST be gated** — `POST /api/auth/email/register` requires an active admin session (`requireAdmin` middleware). Only authenticated admins can provision new admin accounts; unauthenticated callers receive 403. ✅ Fixed.
 
 ### Tampering
 
