@@ -33,6 +33,7 @@ import {
   useRegenerateQuestion,
   useEnhanceQuestion,
   useFactCheckQuestion,
+  useImportOpenTdbQuestions,
 } from '@workspace/api-client-react';
 import type {
   Question,
@@ -301,6 +302,25 @@ function previewToForm(p: PreviewResponse): QForm {
   }
   return base;
 }
+
+// ─── OpenTDB categories ───────────────────────────────────────────────────────
+
+const OPENTDB_CATEGORIES = [
+  { id: 9, name: 'General Knowledge' },
+  { id: 10, name: 'Books' },
+  { id: 11, name: 'Film' },
+  { id: 12, name: 'Music' },
+  { id: 14, name: 'Television' },
+  { id: 15, name: 'Video Games' },
+  { id: 17, name: 'Science & Nature' },
+  { id: 21, name: 'Sports' },
+  { id: 22, name: 'Geography' },
+  { id: 23, name: 'History' },
+  { id: 25, name: 'Art' },
+  { id: 26, name: 'Celebrities' },
+  { id: 27, name: 'Animals' },
+  { id: 28, name: 'Vehicles' },
+] as const;
 
 // ─── HotspotPicker ────────────────────────────────────────────────────────────
 
@@ -962,6 +982,179 @@ function BulkGenerateModal({
   );
 }
 
+// ─── ImportOpenTdbModal ───────────────────────────────────────────────────────
+
+function ImportOpenTdbModal({
+  visible,
+  gameId,
+  onClose,
+  onImported,
+}: {
+  visible: boolean;
+  gameId: number;
+  onClose: () => void;
+  onImported: (count: number) => void;
+}) {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const [categoryId, setCategoryId] = useState<number>(9);
+  const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
+  const [amount, setAmount] = useState('10');
+  const [result, setResult] = useState<{ imported: number } | null>(null);
+  const [error, setError] = useState('');
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const importMutation = useImportOpenTdbQuestions();
+
+  React.useEffect(() => {
+    if (visible) {
+      setCategoryId(9);
+      setDifficulty('medium');
+      setAmount('10');
+      setResult(null);
+      setError('');
+      setCategoryOpen(false);
+    }
+  }, [visible]);
+
+  const handleImport = async () => {
+    setError('');
+    const n = parseInt(amount, 10);
+    if (isNaN(n) || n < 1 || n > 50) { setError('Enter a number between 1 and 50'); return; }
+    try {
+      const res = await importMutation.mutateAsync({
+        gameId,
+        data: { categoryId, difficulty, amount: n },
+      });
+      setResult({ imported: res.imported });
+      onImported(res.imported);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Import failed';
+      if (msg.includes('429') || msg.toLowerCase().includes('rate limit')) {
+        setError('Open Trivia DB rate limit reached — wait a few seconds and try again.');
+      } else if (msg.includes('422') || msg.toLowerCase().includes('no questions')) {
+        setError('No questions available for this combination — try a different difficulty.');
+      } else {
+        setError(msg);
+      }
+    }
+  };
+
+  const selectedCategory = OPENTDB_CATEGORIES.find((c) => c.id === categoryId);
+  const s = bgStyles(colors);
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent presentationStyle="overFullScreen">
+      <View style={s.overlay}>
+        <Pressable style={s.backdrop} onPress={onClose} />
+        <View style={[s.sheet, { backgroundColor: colors.card, paddingBottom: insets.bottom + 24 }]}>
+          <View style={s.handle} />
+          <View style={s.sheetHeader}>
+            <View style={[s.aiIcon, { backgroundColor: colors.primary + '22' }]}>
+              <Ionicons name="cloud-download-outline" size={20} color={colors.primary} />
+            </View>
+            <Text style={[s.sheetTitle, { color: colors.foreground }]}>Import from Open Trivia DB</Text>
+          </View>
+
+          {result ? (
+            <View style={[s.resultCard, { backgroundColor: colors.secondary + '15', borderColor: colors.secondary + '30' }]}>
+              <Ionicons name="checkmark-circle" size={32} color={colors.secondary} />
+              <Text style={[s.resultTitle, { color: colors.secondary }]}>
+                {result.imported} question{result.imported !== 1 ? 's' : ''} imported
+              </Text>
+              <Pressable style={[s.closeResultBtn, { borderColor: colors.secondary }]} onPress={onClose}>
+                <Text style={[s.closeResultText, { color: colors.secondary }]}>Done</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <>
+              {/* Category picker */}
+              <Text style={[s.fieldLabel, { color: colors.muted }]}>CATEGORY</Text>
+              <Pressable
+                style={[s.input, { backgroundColor: colors.background, borderColor: colors.border, flexDirection: 'row', alignItems: 'center' }]}
+                onPress={() => setCategoryOpen((v) => !v)}
+              >
+                <Text style={[{ flex: 1, fontSize: 15, color: colors.foreground }]}>{selectedCategory?.name ?? 'Select…'}</Text>
+                <Ionicons name={categoryOpen ? 'chevron-up' : 'chevron-down'} size={16} color={colors.muted} />
+              </Pressable>
+
+              {categoryOpen && (
+                <ScrollView style={{ maxHeight: 180, borderWidth: 1, borderColor: colors.border, borderRadius: 12 }}>
+                  {OPENTDB_CATEGORIES.map((cat) => (
+                    <Pressable
+                      key={cat.id}
+                      style={[
+                        { paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+                        categoryId === cat.id && { backgroundColor: colors.primary + '18' },
+                      ]}
+                      onPress={() => { setCategoryId(cat.id); setCategoryOpen(false); setError(''); }}
+                    >
+                      <Text style={[{ fontSize: 14, color: categoryId === cat.id ? colors.primary : colors.foreground, fontFamily: categoryId === cat.id ? 'Manrope_600SemiBold' : undefined }]}>
+                        {cat.name}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              )}
+
+              {/* Difficulty */}
+              <Text style={[s.fieldLabel, { color: colors.muted }]}>DIFFICULTY</Text>
+              <View style={s.diffRow}>
+                {(['easy', 'medium', 'hard'] as const).map((d) => (
+                  <Pressable
+                    key={d}
+                    style={[s.diffChip, { borderColor: difficulty === d ? colors.primary : colors.border, backgroundColor: difficulty === d ? colors.primary + '22' : 'transparent' }]}
+                    onPress={() => setDifficulty(d)}
+                  >
+                    <Text style={[s.diffChipText, { color: difficulty === d ? colors.primary : colors.muted }]}>
+                      {d.charAt(0).toUpperCase() + d.slice(1)}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              {/* Amount */}
+              <Text style={[s.fieldLabel, { color: colors.muted }]}>NUMBER OF QUESTIONS (1–50)</Text>
+              <TextInput
+                style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border, width: 100 }]}
+                value={amount}
+                onChangeText={(v) => { setAmount(v); setError(''); }}
+                keyboardType="numeric"
+                placeholder="10"
+                placeholderTextColor={colors.muted}
+              />
+
+              {!!error && (
+                <View style={[s.errorRow, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}>
+                  <Ionicons name="alert-circle" size={14} color={colors.destructive} />
+                  <Text style={[s.errorText, { color: colors.destructive }]}>{error}</Text>
+                </View>
+              )}
+
+              <Pressable
+                style={[s.genBtn, { backgroundColor: colors.primary, opacity: importMutation.isPending ? 0.7 : 1 }]}
+                onPress={handleImport}
+                disabled={importMutation.isPending}
+              >
+                {importMutation.isPending ? (
+                  <>
+                    <ActivityIndicator color="#fff" size="small" />
+                    <Text style={s.genBtnText}>Importing…</Text>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons name="cloud-download-outline" size={16} color="#fff" />
+                    <Text style={s.genBtnText}>Import</Text>
+                  </>
+                )}
+              </Pressable>
+            </>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 // ─── AIActionMenu ─────────────────────────────────────────────────────────────
 
 type AIAction = 'regenerate' | 'enhance' | 'fact-check';
@@ -1284,6 +1477,7 @@ export default function GameDetailScreen() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [aiMenuQuestion, setAiMenuQuestion] = useState<Question | null>(null);
   const [generateOpen, setGenerateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const { data: games } = useListGames();
   const game = useMemo(() => games?.find((g) => g.id === gameId), [games, gameId]);
@@ -1546,6 +1740,13 @@ export default function GameDetailScreen() {
         </Text>
         <View style={s.toolbarActions}>
           <Pressable
+            style={[s.genAiBtn, { borderColor: colors.primary + '55', backgroundColor: colors.primary + '15' }]}
+            onPress={() => setImportOpen(true)}
+          >
+            <Ionicons name="cloud-download-outline" size={14} color={colors.primary} />
+            <Text style={[s.genAiBtnText, { color: colors.primary }]}>OpenTDB</Text>
+          </Pressable>
+          <Pressable
             style={[s.genAiBtn, { borderColor: '#a855f7' + '55', backgroundColor: '#a855f7' + '15' }]}
             onPress={() => setGenerateOpen(true)}
           >
@@ -1613,6 +1814,14 @@ export default function GameDetailScreen() {
         gameDifficulty={game?.difficulty ?? 'medium'}
         onClose={() => setGenerateOpen(false)}
         onGenerated={() => { invalidate(); }}
+      />
+
+      {/* OpenTDB import modal */}
+      <ImportOpenTdbModal
+        visible={importOpen}
+        gameId={gameId}
+        onClose={() => setImportOpen(false)}
+        onImported={() => { invalidate(); }}
       />
 
       {/* Per-question AI action menu */}
