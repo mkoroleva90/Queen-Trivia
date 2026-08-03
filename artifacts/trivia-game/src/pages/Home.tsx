@@ -112,13 +112,6 @@ export default function Home() {
         <div style={{ position: "absolute", top: "30%", right: "24%", width: 4, height: 4, borderRadius: "50%", background: "#ff0080", animation: "qt-twinkle 2.6s infinite .5s" }} />
         <div style={{ position: "absolute", bottom: "24%", left: "32%", width: 4, height: 4, borderRadius: "50%", background: "#ffe500", animation: "qt-twinkle 3.4s infinite .8s" }} />
       </div>
-      {/* nav */}
-      <div className="relative flex items-center" style={{ maxWidth: 1000, margin: "0 auto", padding: "24px 30px" }}>
-        <div className="flex items-center" style={{ gap: 9 }}>
-          <CrownMark width={26} />
-          <span className="font-extrabold" style={{ fontSize: 15, color: "#fff" }}>Queen Trivia</span>
-        </div>
-      </div>
       {/* hero */}
       <div
         className="qt-hero relative flex flex-col items-center text-center"
