@@ -102,7 +102,6 @@ export default function Home() {
         .qt-code-input::placeholder{color:#3a3550}
         .qt-code-input:focus{outline:none;border-color:rgba(255,0,128,.6)!important;box-shadow:0 0 0 3px rgba(255,0,128,.12)}
       `}</style>
-
       {/* floating answer-tile motifs */}
       <div className="qt-motif pointer-events-none absolute inset-0 overflow-hidden">
         <div style={{ position: "absolute", top: 120, left: -30, width: 150, height: 150, borderRadius: 24, background: "rgba(255,229,0,.06)", border: "1px solid rgba(255,229,0,.18)", animation: "qt-floaty2 7s ease-in-out infinite" }} />
@@ -113,7 +112,6 @@ export default function Home() {
         <div style={{ position: "absolute", top: "30%", right: "24%", width: 4, height: 4, borderRadius: "50%", background: "#ff0080", animation: "qt-twinkle 2.6s infinite .5s" }} />
         <div style={{ position: "absolute", bottom: "24%", left: "32%", width: 4, height: 4, borderRadius: "50%", background: "#ffe500", animation: "qt-twinkle 3.4s infinite .8s" }} />
       </div>
-
       {/* nav */}
       <div className="relative flex items-center" style={{ maxWidth: 1000, margin: "0 auto", padding: "24px 30px" }}>
         <div className="flex items-center" style={{ gap: 9 }}>
@@ -121,7 +119,6 @@ export default function Home() {
           <span className="font-extrabold" style={{ fontSize: 15, color: "#fff" }}>Queen Trivia</span>
         </div>
       </div>
-
       {/* hero */}
       <div
         className="qt-hero relative flex flex-col items-center text-center"
@@ -156,7 +153,7 @@ export default function Home() {
             boxShadow: "0 34px 80px -30px rgba(255,0,128,.45)",
           }}
         >
-          <div className="font-bold" style={{ fontSize: 10, letterSpacing: ".16em", color: "#66728a" }}>
+          <div className="font-bold text-[#ffffff]" style={{ fontSize: 10, letterSpacing: ".16em", color: "#66728a" }}>
             ENTER ROOM CODE
           </div>
           <input
@@ -223,7 +220,6 @@ export default function Home() {
           </Link>
         </div>
       </div>
-
       {/* how it works */}
       <div id="how-it-works" className="relative" style={{ maxWidth: 1000, margin: "0 auto", padding: "34px 30px 56px" }}>
         <div className="qt-steps">

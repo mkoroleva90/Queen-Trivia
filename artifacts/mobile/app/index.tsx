@@ -147,32 +147,6 @@ export default function WelcomeScreen() {
       <View style={[styles.blob, { top: 80, left: -60, backgroundColor: colors.primary }]} />
       <View style={[styles.blob2, { top: 300, right: -80, backgroundColor: colors.secondary }]} />
 
-      {/* Top bar */}
-      <View style={styles.topBar}>
-        {step > 0 ? (
-          <Pressable onPress={goBack} style={styles.backBtn} hitSlop={12}>
-            <Ionicons name="chevron-back" size={22} color={colors.foreground} />
-          </Pressable>
-        ) : (
-          <View style={styles.backBtn} />
-        )}
-        <View style={styles.dots}>
-          {([0, 1, 2, 3] as Step[]).map((s) => (
-            <View
-              key={s}
-              style={[
-                styles.dot,
-                {
-                  width: s === step ? 24 : 8,
-                  backgroundColor: s === step ? colors.accent : colors.muted,
-                },
-              ]}
-            />
-          ))}
-        </View>
-        <View style={styles.backBtn} />
-      </View>
-
       <Animated.View
         style={[styles.content, { transform: [{ translateY: slideAnim }], paddingBottom: botPad + 16 }]}
       >
@@ -184,7 +158,7 @@ export default function WelcomeScreen() {
           {/* ── Step 0: Welcome ── */}
           {step === 0 && (
             <View style={styles.stepContainer}>
-              <CrownMark size={72} />
+              <View style={{ alignItems: 'center' }}><CrownMark size={72} /></View>
               <Text style={[styles.heroTitle, { color: colors.foreground }]}>
                 <Text style={{ color: colors.accent }}>QUEEN</Text>{'\n'}
                 <Text style={{ color: colors.primary }}>TRIVIA</Text>
@@ -194,7 +168,7 @@ export default function WelcomeScreen() {
               </Text>
 
               <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[styles.cardLabel, { color: colors.mutedForeground }]}>ENTER ROOM CODE</Text>
+                <Text style={[styles.cardLabel, { color: '#ffffff' }]}>ENTER ROOM CODE</Text>
                 <View style={[styles.codePlaceholder, { backgroundColor: colors.muted, borderColor: colors.border }]}>
                   <Text style={[styles.codePlaceholderText, { color: colors.mutedForeground }]}>A1B2…</Text>
                 </View>
@@ -222,6 +196,9 @@ export default function WelcomeScreen() {
           {/* ── Step 1: How it works ── */}
           {step === 1 && (
             <View style={styles.stepContainer}>
+              <Pressable onPress={goBack} style={styles.backBtn} hitSlop={12}>
+                <Ionicons name="chevron-back" size={22} color={colors.foreground} />
+              </Pressable>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Here's the deal</Text>
               <View style={styles.rules}>
                 {[
@@ -247,6 +224,9 @@ export default function WelcomeScreen() {
           {/* ── Step 2: Code entry ── */}
           {step === 2 && (
             <View style={styles.stepContainer}>
+              <Pressable onPress={goBack} style={styles.backBtn} hitSlop={12}>
+                <Ionicons name="chevron-back" size={22} color={colors.foreground} />
+              </Pressable>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Magic word?</Text>
               <Text style={[styles.sectionSub, { color: colors.mutedForeground }]}>
                 Punch in tonight's access code.
@@ -293,6 +273,9 @@ export default function WelcomeScreen() {
           {/* ── Step 3: Name + avatar ── */}
           {step === 3 && (
             <View style={styles.stepContainer}>
+              <Pressable onPress={goBack} style={styles.backBtn} hitSlop={12}>
+                <Ionicons name="chevron-back" size={22} color={colors.foreground} />
+              </Pressable>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>You're in!</Text>
               <Text style={[styles.sectionSub, { color: colors.mutedForeground }]}>
                 Pick a color and a name.
@@ -403,10 +386,7 @@ const styles = StyleSheet.create({
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   blob: { position: 'absolute', width: 220, height: 220, borderRadius: 110, opacity: 0.08 },
   blob2: { position: 'absolute', width: 180, height: 180, borderRadius: 90, opacity: 0.07 },
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 22, paddingVertical: 8 },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  dots: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  dot: { height: 8, borderRadius: 4 },
   content: { flex: 1 },
   scrollContent: { flexGrow: 1, paddingHorizontal: 22 },
   stepContainer: { flex: 1, justifyContent: 'center', gap: 20, paddingTop: 16, paddingBottom: 32 },
