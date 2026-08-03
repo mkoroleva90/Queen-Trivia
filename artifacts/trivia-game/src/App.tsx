@@ -16,6 +16,7 @@ import Register from "./pages/Register";
 import VerifyEmail from "./pages/VerifyEmail";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import OwnerDashboard from "./pages/OwnerDashboard";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -74,6 +75,7 @@ function Router() {
       <Route path="/verify-email" component={VerifyEmail} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
+      <Route path="/owner-dashboard" component={OwnerDashboard} />
       <Route component={NotFound} />
     </Switch>
   );

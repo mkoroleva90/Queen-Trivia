@@ -1,6 +1,6 @@
 
 import { Router, type IRouter } from "express";
-import { and, eq, desc, count, isNull } from "drizzle-orm";
+import { and, eq, desc, count, isNull, or } from "drizzle-orm";
 import {
  db,
  gamesTable,
@@ -24,6 +24,7 @@ import { toJsonSafe } from "../lib/serialize";
 import { requireAdmin } from "../middleware/requireAdmin";
 import { requireAuth } from "../middleware/requireAuth";
 import { generateAccessCode } from "../lib/bootstrapAccessCodes";
+import { checkGameCreationLimit } from "../lib/usageLimits";
 
 
 const router: IRouter = Router();
@@ -39,10 +40,10 @@ router.get("/games", requireAuth, async (req, res): Promise<void> => {
  const status = query.data.status;
  const ownerAdminId = req.session.adminAccountId;
 
- // Email-auth admins see only their own games.
+ // Email-auth admins see their own games + unowned legacy games.
  // Code-based (legacy) admins and players see all games.
  const ownerFilter = ownerAdminId != null
-     ? eq(gamesTable.ownerAdminId, ownerAdminId)
+     ? or(eq(gamesTable.ownerAdminId, ownerAdminId), isNull(gamesTable.ownerAdminId))
      : undefined;
 
  const statusFilter = status ? eq(gamesTable.status, status) : undefined;
@@ -75,6 +76,12 @@ router.post("/games", requireAdmin, async (req, res): Promise<void> => {
      return;
  }
 
+ // Free-tier game creation limit (enforcement gated by ENFORCE_FREE_TIER_LIMITS env var).
+ const limitError = await checkGameCreationLimit(req.session.adminAccountId);
+ if (limitError) {
+     res.status(429).json({ error: limitError });
+     return;
+ }
 
  // Retry on the (rare) unique-constraint collision
  let game;
@@ -217,5 +224,3 @@ router.delete("/games/:gameId", requireAdmin, async (req, res): Promise<void> =>
 
 
 export default router;
-
-

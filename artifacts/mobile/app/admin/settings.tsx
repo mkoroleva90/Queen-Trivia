@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,7 +15,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
-import { ADMIN_TOKEN_KEY } from '@/context/AdminAuthContext';
+import { ADMIN_TOKEN_KEY, useAdminAuth } from '@/context/AdminAuthContext';
 import { useColors } from '@/hooks/useColors';
 
 type Settings = {
@@ -38,11 +39,13 @@ export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { logoutAdmin } = useAdminAuth();
 
   const [triviaCode, setTriviaCode] = useState('');
   const [adminCode, setAdminCode] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -94,6 +97,42 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete your account and all your games. This cannot be undone.\n\nAre you sure?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete My Account',
+          style: 'destructive',
+          onPress: confirmDeleteAccount,
+        },
+      ],
+    );
+  };
+
+  const confirmDeleteAccount = async () => {
+    setDeleting(true);
+    setError('');
+    try {
+      const r = await adminFetch(`${baseUrl}/api/auth/email/account`, {
+        method: 'DELETE',
+      });
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({})) as { error?: string };
+        setError(body.error ?? 'Failed to delete account. Please try again.');
+        return;
+      }
+      await logoutAdmin();
+      router.replace('/admin-login');
+    } catch {
+      setError('Connection error — please retry.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const s = styles(colors);
 
   return (
@@ -116,6 +155,7 @@ export default function SettingsScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
+          {/* Access Codes */}
           <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={s.sectionHeader}>
               <Ionicons name="key-outline" size={18} color={colors.primary} />
@@ -177,6 +217,33 @@ export default function SettingsScreen() {
             </Pressable>
           </View>
 
+          {/* Danger Zone */}
+          <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.destructive + '40' }]}>
+            <View style={s.sectionHeader}>
+              <Ionicons name="warning-outline" size={18} color={colors.destructive} />
+              <Text style={[s.sectionTitle, { color: colors.destructive }]}>Danger Zone</Text>
+            </View>
+            <Text style={[s.sectionDesc, { color: colors.mutedForeground }]}>
+              Deleting your account is permanent and cannot be undone. Your account and all
+              associated games will be removed immediately.
+            </Text>
+
+            <Pressable
+              style={[s.deleteBtn, { borderColor: colors.destructive, opacity: deleting ? 0.7 : 1 }]}
+              onPress={handleDeleteAccount}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <ActivityIndicator color={colors.destructive} />
+              ) : (
+                <>
+                  <Ionicons name="trash-outline" size={18} color={colors.destructive} />
+                  <Text style={[s.deleteBtnText, { color: colors.destructive }]}>Delete Account</Text>
+                </>
+              )}
+            </Pressable>
+          </View>
+
           <View style={{ height: insets.bottom + 24 }} />
         </ScrollView>
       )}
@@ -202,4 +269,6 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     msgText: { flex: 1, fontSize: 13, lineHeight: 18 },
     saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, paddingVertical: 14, marginTop: 4 },
     saveBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Manrope_700Bold' },
+    deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, paddingVertical: 14, borderWidth: 1.5 },
+    deleteBtnText: { fontSize: 16, fontFamily: 'Manrope_700Bold' },
   });

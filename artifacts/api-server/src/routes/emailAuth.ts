@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { eq, sql } from "drizzle-orm";
-import { db, adminAccountsTable, sessionsTable } from "@workspace/db";
+import { db, adminAccountsTable, sessionsTable, gamesTable } from "@workspace/db";
 import {
   EmailRegisterBody,
   EmailLoginBody,
@@ -43,12 +43,11 @@ function appBaseUrl(req: import("express").Request): string {
 // ── routes ───────────────────────────────────────────────────────────────────
 
 // POST /api/auth/email/register
-// Restricted to authenticated admins — only an existing admin may create a new
-// admin account. This prevents unauthenticated account takeover via open registration.
+// Open self-service registration — any visitor may create a host account.
+// Account is inactive until the email verification link is clicked.
 router.post(
   "/auth/email/register",
   authRateLimit,
-  requireAdmin,
   async (req, res): Promise<void> => {
     const parsed = EmailRegisterBody.safeParse(req.body);
     if (!parsed.success) {
@@ -363,6 +362,41 @@ router.delete(
 
     req.session.destroy(() => {
       res.json({ ok: true, message: `Account ${email} deleted and session cleared.` });
+    });
+  }
+);
+
+// DELETE /api/auth/email/account
+// User-facing account deletion for email-auth hosts (both web and mobile).
+// Requires a valid email-auth session/token (adminAccountId must be set).
+// 1. Null out owned games so they become legacy/shared games.
+// 2. Delete the account — ai_usage_log cascades automatically.
+// 3. Destroy the session / invalidate cookie.
+router.delete(
+  "/auth/email/account",
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const adminAccountId = req.session.adminAccountId;
+    if (adminAccountId == null) {
+      // Code-based legacy session — no account to delete
+      res.status(400).json({ error: "This endpoint requires an email-based account session." });
+      return;
+    }
+
+    // Detach owned games so they remain accessible as unowned legacy games
+    await db
+      .update(gamesTable)
+      .set({ ownerAdminId: null })
+      .where(eq(gamesTable.ownerAdminId, adminAccountId));
+
+    // Delete account — ai_usage_log cascades via FK
+    await db
+      .delete(adminAccountsTable)
+      .where(eq(adminAccountsTable.id, adminAccountId));
+
+    // Invalidate the session
+    req.session.destroy(() => {
+      res.json({ ok: true, message: "Account deleted." });
     });
   }
 );

@@ -6,65 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Loader2, AlertCircle, ArrowLeft, Mail, KeyRound } from "lucide-react";
+import { Shield, Loader2, AlertCircle, ArrowLeft } from "lucide-react";
 
-
-type SignInMode = "code" | "email";
 
 export default function AdminLogin() {
-  const [mode, setMode] = useState<SignInMode>("code");
-
-  // Access-code state
-  const [code, setCode] = useState("");
-  const [codeError, setCodeError] = useState("");
-  const [codeRememberMe, setCodeRememberMe] = useState(false);
-
-  // Email+password state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [emailError, setEmailError] = useState("");
-
   const [pending, setPending] = useState(false);
   const { loginAdmin } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-
-
-  const handleCodeSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = code.trim().toUpperCase();
-    if (!trimmed) {
-      setCodeError("Enter your admin code");
-      return;
-    }
-    setCodeError("");
-    setPending(true);
-    try {
-      const res = await fetch("/api/admin/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ code: trimmed, rememberMe: codeRememberMe }),
-      });
-
-      if (res.status === 401) {
-        setCodeError("That code isn't right — try again");
-        return;
-      }
-      if (!res.ok) {
-        toast({ variant: "destructive", title: "Something went wrong — please retry" });
-        return;
-      }
-
-      loginAdmin();
-      setLocation("/admin");
-    } catch {
-      toast({ variant: "destructive", title: "Connection error — please retry" });
-    } finally {
-      setPending(false);
-    }
-  };
 
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -117,175 +70,83 @@ export default function AdminLogin() {
             </h1>
           </div>
           <p className="text-muted-foreground">
-            {mode === "code"
-              ? "Enter your admin code to manage tonight's games"
-              : "Sign in with your email and password"}
+            Sign in with your email and password to manage your games
           </p>
         </div>
 
-        {/* Mode toggle */}
-        <div className="flex rounded-lg border border-primary/20 bg-card/50 backdrop-blur p-1 gap-1">
-          <button
-            type="button"
-            onClick={() => { setMode("code"); setCodeError(""); setEmailError(""); }}
-            className={`flex-1 flex items-center justify-center gap-2 rounded-md py-2 text-sm font-medium transition-colors ${
-              mode === "code"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <KeyRound className="h-4 w-4" />
-            Access Code
-          </button>
-          <button
-            type="button"
-            onClick={() => { setMode("email"); setCodeError(""); setEmailError(""); }}
-            className={`flex-1 flex items-center justify-center gap-2 rounded-md py-2 text-sm font-medium transition-colors ${
-              mode === "email"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Mail className="h-4 w-4" />
-            Email &amp; Password
-          </button>
-        </div>
+        <Card className="border-primary/20 bg-card/50 backdrop-blur">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-medium text-muted-foreground uppercase tracking-widest">
+              Sign In
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleEmailSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setEmailError("");
+                  }}
+                  placeholder="Email address"
+                  autoComplete="email"
+                  autoFocus
+                  aria-invalid={!!emailError}
+                  className={`h-12 bg-background border-primary/30 focus-visible:ring-primary ${
+                    emailError ? "border-destructive focus-visible:ring-destructive" : ""
+                  }`}
+                />
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setEmailError("");
+                  }}
+                  placeholder="Password"
+                  autoComplete="current-password"
+                  aria-invalid={!!emailError}
+                  className={`h-12 bg-background border-primary/30 focus-visible:ring-primary ${
+                    emailError ? "border-destructive focus-visible:ring-destructive" : ""
+                  }`}
+                />
+                {emailError && (
+                  <p className="flex items-center gap-1.5 text-sm text-destructive">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    {emailError}
+                  </p>
+                )}
+              </div>
 
-        {mode === "code" ? (
-          <Card className="border-primary/20 bg-card/50 backdrop-blur">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-medium text-muted-foreground uppercase tracking-widest">
-                Admin Code
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleCodeSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Input
-                    value={code}
-                    onChange={(e) => {
-                      setCode(e.target.value);
-                      setCodeError("");
-                    }}
-                    placeholder="ENTER ADMIN CODE"
-                    autoCapitalize="characters"
-                    autoComplete="off"
-                    autoFocus
-                    aria-invalid={!!codeError}
-                    className={`h-14 text-center text-2xl uppercase tracking-widest bg-background border-primary/30 focus-visible:ring-primary ${
-                      codeError ? "border-destructive focus-visible:ring-destructive" : ""
-                    }`}
-                  />
-                  {codeError && (
-                    <p className="flex items-center gap-1.5 text-sm text-destructive">
-                      <AlertCircle className="h-4 w-4 shrink-0" />
-                      {codeError}
-                    </p>
-                  )}
-                </div>
+              <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 rounded border-primary/30 accent-primary"
+                />
+                Remember me for 30 days
+              </label>
 
-                <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    checked={codeRememberMe}
-                    onChange={(e) => setCodeRememberMe(e.target.checked)}
-                    className="h-4 w-4 rounded border-primary/30 accent-primary"
-                  />
-                  Remember me for 30 days
-                </label>
-
-                <Button
-                  type="submit"
-                  className="w-full h-14 text-lg font-bold tracking-wide"
-                  disabled={pending}
-                >
-                  {pending ? (
-                    <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      VERIFYING...
-                    </>
-                  ) : (
-                    "UNLOCK DASHBOARD"
-                  )}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="border-primary/20 bg-card/50 backdrop-blur">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-medium text-muted-foreground uppercase tracking-widest">
-                Sign In
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleEmailSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Input
-                    type="email"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      setEmailError("");
-                    }}
-                    placeholder="Email address"
-                    autoComplete="email"
-                    autoFocus
-                    aria-invalid={!!emailError}
-                    className={`h-12 bg-background border-primary/30 focus-visible:ring-primary ${
-                      emailError ? "border-destructive focus-visible:ring-destructive" : ""
-                    }`}
-                  />
-                  <Input
-                    type="password"
-                    value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      setEmailError("");
-                    }}
-                    placeholder="Password"
-                    autoComplete="current-password"
-                    aria-invalid={!!emailError}
-                    className={`h-12 bg-background border-primary/30 focus-visible:ring-primary ${
-                      emailError ? "border-destructive focus-visible:ring-destructive" : ""
-                    }`}
-                  />
-                  {emailError && (
-                    <p className="flex items-center gap-1.5 text-sm text-destructive">
-                      <AlertCircle className="h-4 w-4 shrink-0" />
-                      {emailError}
-                    </p>
-                  )}
-                </div>
-
-                <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="h-4 w-4 rounded border-primary/30 accent-primary"
-                  />
-                  Remember me for 30 days
-                </label>
-
-                <Button
-                  type="submit"
-                  className="w-full h-14 text-lg font-bold tracking-wide"
-                  disabled={pending}
-                >
-                  {pending ? (
-                    <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      SIGNING IN...
-                    </>
-                  ) : (
-                    "SIGN IN"
-                  )}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        )}
+              <Button
+                type="submit"
+                className="w-full h-14 text-lg font-bold tracking-wide"
+                disabled={pending}
+              >
+                {pending ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    SIGNING IN...
+                  </>
+                ) : (
+                  "SIGN IN"
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
 
         <div className="text-center space-y-2">
           <Link

@@ -1,6 +1,12 @@
+/**
+ * Host account registration — open self-service signup.
+ * No existing admin session required.
+ */
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,9 +17,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import * as SecureStore from 'expo-secure-store';
 import { useColors } from '@/hooks/useColors';
-import { ADMIN_TOKEN_KEY } from '@/context/AdminAuthContext';
 
 export default function AdminRegisterScreen() {
   const colors = useColors();
@@ -23,6 +27,7 @@ export default function AdminRegisterScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState(false);
@@ -40,18 +45,9 @@ export default function AdminRegisterScreen() {
     setError('');
     setPending(true);
     try {
-      // Registration requires an existing admin session — read the stored token.
-      const adminToken = await SecureStore.getItemAsync(ADMIN_TOKEN_KEY).catch(() => null);
-      if (!adminToken) {
-        setError('You must be signed in as an admin to register a new account');
-        return;
-      }
       const res = await fetch(`${baseUrl}/api/auth/email/register`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${adminToken}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: trimmedEmail, password }),
       });
       if (res.status === 503) {
@@ -73,94 +69,101 @@ export default function AdminRegisterScreen() {
 
   const s = styles(colors);
 
-  return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={[s.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={[s.blob,  { backgroundColor: colors.primary }]} />
-      <View style={[s.blob2, { backgroundColor: colors.secondary }]} />
-
-      <Pressable onPress={() => router.back()} style={s.backBtn}>
-        <Ionicons name="chevron-back" size={22} color={colors.mutedForeground} />
-        <Text style={[s.backText, { color: colors.mutedForeground }]}>Back</Text>
-      </Pressable>
-
-      <View style={s.content}>
-        <View style={s.iconRow}>
-          <Ionicons name="person-add" size={48} color={colors.primary} />
+  if (done) {
+    return (
+      <View style={[s.doneContainer, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
+        <View style={[s.doneCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Ionicons name="mail" size={48} color={colors.primary} style={{ alignSelf: 'center' }} />
+          <Text style={[s.doneTitle, { color: colors.foreground }]}>Check your inbox</Text>
+          <Text style={[s.doneBody, { color: colors.mutedForeground }]}>
+            We sent a verification link to{' '}
+            <Text style={{ color: colors.foreground }}>{email}</Text>.
+            {'\n\n'}Click the link to activate your account, then sign in.
+          </Text>
+          <Pressable
+            style={[s.btn, { backgroundColor: colors.primary }]}
+            onPress={() => router.replace('/admin-login')}
+          >
+            <Text style={s.btnText}>GO TO SIGN IN</Text>
+          </Pressable>
         </View>
-        <Text style={[s.title, { color: colors.foreground }]}>CREATE ACCOUNT</Text>
-        <Text style={[s.subtitle, { color: colors.mutedForeground }]}>
-          Register as a host to create and manage trivia games
-        </Text>
+      </View>
+    );
+  }
 
-        {done ? (
-          <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={s.successIcon}>
-              <Ionicons name="mail" size={36} color={colors.primary} />
-            </View>
-            <Text style={[s.successTitle, { color: colors.foreground }]}>Check your inbox</Text>
-            <Text style={[s.successBody, { color: colors.mutedForeground }]}>
-              Click the verification link in the email we just sent you, then come back here to sign in.
-            </Text>
-            <Text style={[s.successBody, { color: colors.mutedForeground, marginTop: 4 }]}>
-              Don't see it? Check your spam folder.
-            </Text>
-            <Pressable
-              style={[s.btn, { backgroundColor: colors.primary }]}
-              onPress={() => router.replace('/admin-login')}
-            >
-              <Text style={s.btnText}>GO TO SIGN IN</Text>
-            </Pressable>
+  return (
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView
+        contentContainerStyle={[s.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 32 }]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={[s.blob,  { backgroundColor: colors.primary }]} />
+        <View style={[s.blob2, { backgroundColor: colors.secondary }]} />
+
+        <Pressable onPress={() => router.back()} style={s.backBtn}>
+          <Ionicons name="chevron-back" size={22} color={colors.mutedForeground} />
+          <Text style={[s.backText, { color: colors.mutedForeground }]}>Back</Text>
+        </Pressable>
+
+        <View style={s.content}>
+          <View style={s.iconRow}>
+            <Ionicons name="person-add" size={48} color={colors.primary} />
           </View>
-        ) : (
+          <Text style={[s.title, { color: colors.foreground }]}>CREATE ACCOUNT</Text>
+          <Text style={[s.subtitle, { color: colors.mutedForeground }]}>
+            Register as a host to create and manage trivia games
+          </Text>
+
           <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={[s.label, { color: colors.mutedForeground }]}>EMAIL</Text>
             <TextInput
-              style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
+              style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: error ? colors.destructive : colors.border }]}
               value={email}
               onChangeText={(t) => { setEmail(t); setError(''); }}
-              placeholder="you@example.com"
+              placeholder="your@email.com"
               placeholderTextColor={colors.mutedForeground}
-              autoCapitalize="none"
-              autoCorrect={false}
               keyboardType="email-address"
-              autoComplete="email"
-              returnKeyType="next"
-            />
-
-            <Text style={[s.label, { color: colors.mutedForeground, marginTop: 4 }]}>PASSWORD</Text>
-            <TextInput
-              style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
-              value={password}
-              onChangeText={(t) => { setPassword(t); setError(''); }}
-              placeholder="8+ characters"
-              placeholderTextColor={colors.mutedForeground}
-              secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="next"
             />
 
-            <Text style={[s.label, { color: colors.mutedForeground, marginTop: 4 }]}>CONFIRM PASSWORD</Text>
+            <Text style={[s.label, { color: colors.mutedForeground }]}>PASSWORD</Text>
+            <View style={s.passwordRow}>
+              <TextInput
+                style={[s.input, s.passwordInput, { backgroundColor: colors.background, color: colors.foreground, borderColor: error ? colors.destructive : colors.border }]}
+                value={password}
+                onChangeText={(t) => { setPassword(t); setError(''); }}
+                placeholder="At least 8 characters"
+                placeholderTextColor={colors.mutedForeground}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                returnKeyType="next"
+              />
+              <Pressable style={s.eyeBtn} onPress={() => setShowPassword(v => !v)} hitSlop={8}>
+                <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={20} color={colors.mutedForeground} />
+              </Pressable>
+            </View>
+
+            <Text style={[s.label, { color: colors.mutedForeground }]}>CONFIRM PASSWORD</Text>
             <TextInput
-              style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
+              style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: error ? colors.destructive : colors.border }]}
               value={confirm}
               onChangeText={(t) => { setConfirm(t); setError(''); }}
-              placeholder="Repeat password"
+              placeholder="Repeat your password"
               placeholderTextColor={colors.mutedForeground}
-              secureTextEntry
+              secureTextEntry={!showPassword}
               autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="go"
+              returnKeyType="done"
               onSubmitEditing={handleSubmit}
             />
 
             {!!error && (
               <View style={s.errorRow}>
-                <Ionicons name="alert-circle" size={14} color={colors.destructive} />
+                <Ionicons name="alert-circle" size={16} color={colors.destructive} />
                 <Text style={[s.errorText, { color: colors.destructive }]}>{error}</Text>
               </View>
             )}
@@ -175,22 +178,26 @@ export default function AdminRegisterScreen() {
                 : <Text style={s.btnText}>CREATE ACCOUNT</Text>}
             </Pressable>
           </View>
-        )}
 
-        <Pressable onPress={() => router.replace('/admin-login')} style={s.footerLink}>
-          <Text style={[s.footerText, { color: colors.mutedForeground }]}>
-            Already have an account?{' '}
-            <Text style={{ color: colors.primary }}>Sign in →</Text>
-          </Text>
-        </Pressable>
-      </View>
-    </ScrollView>
+          <Pressable onPress={() => router.replace('/admin-login')} style={s.footerLink}>
+            <Text style={[s.footerText, { color: colors.mutedForeground }]}>
+              Already have an account?{' '}
+              <Text style={{ color: colors.primary }}>Sign in →</Text>
+            </Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = (colors: ReturnType<typeof useColors>) =>
   StyleSheet.create({
-    container: { paddingHorizontal: 24, flexGrow: 1 },
+    container:     { paddingHorizontal: 24, flexGrow: 1 },
+    doneContainer: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 24, justifyContent: 'center' },
+    doneCard:      { borderRadius: 20, borderWidth: 1, padding: 28, gap: 16 },
+    doneTitle:     { fontSize: 22, fontFamily: 'Manrope_800ExtraBold', textAlign: 'center' },
+    doneBody:      { fontSize: 14, lineHeight: 21, textAlign: 'center' },
     blob:  { position: 'absolute', width: 220, height: 220, borderRadius: 110, top: 60,   left: -80, opacity: 0.12 },
     blob2: { position: 'absolute', width: 180, height: 180, borderRadius: 90,  bottom: 120, right: -60, opacity: 0.10 },
     backBtn:  { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 24 },
@@ -205,13 +212,13 @@ const styles = (colors: ReturnType<typeof useColors>) =>
       borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14,
       fontSize: 15, fontFamily: 'Manrope_600SemiBold',
     },
-    errorRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    errorText: { fontSize: 13 },
-    btn:      { borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 4 },
-    btnText:  { color: '#fff', fontSize: 16, fontFamily: 'Manrope_800ExtraBold', letterSpacing: 1 },
-    successIcon:  { alignItems: 'center', marginBottom: 8 },
-    successTitle: { fontSize: 20, fontFamily: 'Manrope_800ExtraBold', textAlign: 'center' },
-    successBody:  { fontSize: 14, textAlign: 'center', lineHeight: 20 },
-    footerLink: { marginTop: 20, alignItems: 'center' },
-    footerText: { fontSize: 14, textAlign: 'center' },
+    passwordRow:  { position: 'relative' },
+    passwordInput: { paddingRight: 48 },
+    eyeBtn:       { position: 'absolute', right: 14, top: 14 },
+    errorRow:     { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    errorText:    { flex: 1, fontSize: 13, lineHeight: 18 },
+    btn:          { borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 4 },
+    btnText:      { color: '#fff', fontSize: 16, fontFamily: 'Manrope_800ExtraBold', letterSpacing: 1 },
+    footerLink:   { marginTop: 24, alignItems: 'center' },
+    footerText:   { fontSize: 14, textAlign: 'center' },
   });

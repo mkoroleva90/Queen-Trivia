@@ -20,6 +20,9 @@ export const adminAccountsTable = pgTable("admin_accounts", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+  // Monetization: plan tier and per-host state.
+  // Enforcement is gated behind ENFORCE_FREE_TIER_LIMITS env var (default off).
+  plan: text("plan", { enum: ["free", "pro"] }).notNull().default("free"),
 });
 
 export type AdminAccount = typeof adminAccountsTable.$inferSelect;

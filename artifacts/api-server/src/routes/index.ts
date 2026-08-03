@@ -1,19 +1,18 @@
-
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
 import authRouter from "./auth";
 import sessionRouter from "./session";
+import emailAuthRouter from "./emailAuth";
+import settingsRouter from "./settings";
 import usersRouter from "./users";
 import gamesRouter from "./games";
-import questionsRouter from "./questions";
-import playRouter from "./play";
-import statsRouter from "./stats";
-import settingsRouter from "./settings";
-import resultsRouter from "./results";
 import opentdbRouter from "./opentdb";
 import geminiRouter from "./gemini";
-import emailAuthRouter from "./emailAuth";
-
+import questionsRouter from "./questions";
+import playRouter from "./play";
+import resultsRouter from "./results";
+import statsRouter from "./stats";
+import ownerRouter from "./owner";
 
 const router: IRouter = Router();
 router.use(healthRouter);
@@ -29,8 +28,6 @@ router.use(questionsRouter);
 router.use(playRouter);
 router.use(resultsRouter);
 router.use(statsRouter);
-
+router.use(ownerRouter);
 
 export default router;
-
-

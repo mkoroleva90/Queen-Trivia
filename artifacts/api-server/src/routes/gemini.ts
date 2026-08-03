@@ -24,6 +24,7 @@ import {
 } from "../services/geminiApi";
 import { logger } from "../lib/logger";
 import { assertGameOwnership } from "../lib/assertGameOwnership";
+import { checkAiUsageLimit, recordAiUsage } from "../lib/usageLimits";
 
 
 const router: IRouter = Router();
@@ -45,7 +46,7 @@ function geminiErrorResponse(
 ): void {
     if (error.code === "no_api_key") {
         res.status(503).json({
-  error: "Google Gemini API key not configured. Add GOOGLE_API_KEY to yourenvironment secrets.",
+            error: "Google Gemini API key not configured. Add GOOGLE_API_KEY to your environment secrets.",
         });
         return;
     }
@@ -66,7 +67,6 @@ function geminiErrorResponse(
 
 // ── Bulk generate questions ────────────────────────────────────────────────────
 
-
 router.post(
     "/games/:gameId/questions/generate-gemini",
     requireAdmin,
@@ -78,101 +78,100 @@ router.post(
             return;
         }
 
-
         const body = GenerateGeminiQuestionsBody.safeParse(req.body);
         if (!body.success) {
             res.status(400).json({ error: body.error.message });
-    return;
-}
+            return;
+        }
 
+        const [game] = await db
+            .select()
+            .from(gamesTable)
+            .where(eq(gamesTable.id, params.data.gameId));
 
-const [game] = await db
-    .select()
-    .from(gamesTable)
-    .where(eq(gamesTable.id, params.data.gameId));
+        if (!game) {
+            res.status(404).json({ error: "Game not found" });
+            return;
+        }
 
+        if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
-if (!game) {
-    res.status(404).json({ error: "Game not found" });
-    return;
-}
+        // Per-host AI usage limit (enforcement gated by ENFORCE_FREE_TIER_LIMITS env var).
+        const limitError = await checkAiUsageLimit(req.session.adminAccountId);
+        if (limitError) {
+            res.status(429).json({ error: limitError });
+            return;
+        }
 
-if (!await assertGameOwnership(req, res, params.data.gameId)) return;
+        const result = await generateGeminiQuestions({
+            topic: body.data.topic,
+            difficulty: body.data.difficulty,
+            amount: body.data.amount,
+            existingQuestions: body.data.existingQuestions,
+            brief: (body.data.brief as string | undefined) ?? game.brief ?? undefined,
+            skipFactCheck: (body.data as { skipFactCheck?: boolean }).skipFactCheck ?? false,
+        });
 
-const result = await generateGeminiQuestions({
-    topic: body.data.topic,
-    difficulty: body.data.difficulty,
-    amount: body.data.amount,
-    existingQuestions: body.data.existingQuestions,
-    brief: (body.data.brief as string | undefined) ?? game.brief ?? undefined,
-    skipFactCheck: (body.data as { skipFactCheck?: boolean }).skipFactCheck ?? false,
-});
+        if (!result.ok) {
+            logger.warn({ error: result.error }, "Gemini generation failed");
+            geminiErrorResponse(res, result.error);
+            return;
+        }
+        if (result.questions.length === 0) {
+            res.status(422).json({ error: "Gemini returned no valid questions. Try a different topic or retry." });
+            return;
+        }
 
+        // Drop image questions whose URLs don't actually resolve to an image
+        const questions = await filterValidImageQuestions(result.questions);
+        if (questions.length === 0) {
+            res.status(422).json({ error: "Gemini returned no valid questions. Try a different topic or retry." });
+            return;
+        }
 
-if (!result.ok) {
-    logger.warn({ error: result.error }, "Gemini generation failed");
-    geminiErrorResponse(res, result.error);
-    return;
-}
- if (result.questions.length === 0) {
-   res.status(422).json({ error: "Gemini returned no valid questions. Try a different topic orretry." });
-     return;
- }
+        const existing = await db
+            .select({ orderIndex: questionsTable.orderIndex })
+            .from(questionsTable)
+            .where(eq(questionsTable.gameId, game.id));
 
+        const maxOrder = existing.length > 0
+            ? Math.max(...existing.map((r) => r.orderIndex))
+            : -1;
 
- // Drop image questions whose URLs don't actually resolve to an image
- const questions = await filterValidImageQuestions(result.questions);
- if (questions.length === 0) {
-   res.status(422).json({ error: "Gemini returned no valid questions. Try a different topic orretry." });
-     return;
- }
+        const toInsert = questions.map((q, i) => ({
+            gameId: game.id,
+            questionText: q.questionText,
+            questionType: q.questionType,
+            correctAnswer: q.correctAnswer,
+            options: q.options as Record<string, unknown> | null,
+            imageUrl: q.imageUrl,
+            points: q.points,
+            orderIndex: maxOrder + 1 + i,
+            source: q.source,
+            factCheckUrl: q.factCheckUrl,
+            aiGenerated: q.aiGenerated,
+            verifiedByAdmin: q.verifiedByAdmin,
+        }));
 
+        await db.insert(questionsTable).values(toInsert);
+        await syncQuestionCount(game.id);
 
- const existing = await db
-     .select({ orderIndex: questionsTable.orderIndex })
-     .from(questionsTable)
-     .where(eq(questionsTable.gameId, game.id));
+        // Record AI usage (non-fatal)
+        await recordAiUsage(req.session.adminAccountId, game.id, "generate_bulk", questions.length);
 
+        const distinctTypes = new Set(questions.map((q) => q.questionType));
+        if (body.data.amount >= 5 && distinctTypes.size < 3) {
+            req.log.warn(
+                { gameId: game.id, types: [...distinctTypes], requested: body.data.amount },
+                "Generated questions lack variety (fewer than 3 question types)",
+            );
+        }
 
- const maxOrder = existing.length > 0
-     ? Math.max(...existing.map((r) => r.orderIndex))
-     : -1;
-
-
- const toInsert = questions.map((q, i) => ({
-     gameId: game.id,
-     questionText: q.questionText,
-     questionType: q.questionType,
-         correctAnswer: q.correctAnswer,
-         options: q.options as Record<string, unknown> | null,
-         imageUrl: q.imageUrl,
-         points: q.points,
-         orderIndex: maxOrder + 1 + i,
-         source: q.source,
-         factCheckUrl: q.factCheckUrl,
-         aiGenerated: q.aiGenerated,
-         verifiedByAdmin: q.verifiedByAdmin,
-     }));
-
-
-     await db.insert(questionsTable).values(toInsert);
-     await syncQuestionCount(game.id);
-
-
-     const distinctTypes = new Set(questions.map((q) => q.questionType));
-     if (body.data.amount >= 5 && distinctTypes.size < 3) {
-         req.log.warn(
-          { gameId: game.id, types: [...distinctTypes], requested: body.data.amount },
-          "Generated questions lack variety (fewer than 3 question types)",
-         );
-     }
-
-
-     const savedCount = questions.length;
-     const discardedCount = result.discarded;
-     logger.info({ gameId: game.id, saved: savedCount, discarded: discardedCount }, `${savedCount} saved, ${discardedCount} discarded`);
-     res.json({ imported: savedCount, total: result.questions.length + result.discarded, discarded: discardedCount });
- },
+        const savedCount = questions.length;
+        const discardedCount = result.discarded;
+        logger.info({ gameId: game.id, saved: savedCount, discarded: discardedCount }, `${savedCount} saved, ${discardedCount} discarded`);
+        res.json({ imported: savedCount, total: result.questions.length + result.discarded, discarded: discardedCount });
+    },
 );
 
 
@@ -192,6 +191,9 @@ router.post(
         if (!game) { res.status(404).json({ error: "Game not found" }); return; }
 
         if (!await assertGameOwnership(req, res, gameId)) return;
+
+        const limitError = await checkAiUsageLimit(req.session.adminAccountId);
+        if (limitError) { res.status(429).json({ error: limitError }); return; }
 
         const validTypes = ["multiple_choice", "true_false", "write_in"];
         const validDiffs = ["easy", "medium", "hard"];
@@ -230,6 +232,9 @@ router.post(
             return;
         }
 
+        // Record usage after success (non-fatal)
+        await recordAiUsage(req.session.adminAccountId, gameId, "generate_preview", 1);
+
         res.json({
             questionType: result.question.questionType,
             questionText: result.question.questionText,
@@ -244,229 +249,222 @@ router.post(
 
 // ── Regenerate single question (preview only, not saved) ──────────────────────
 router.post(
-"/games/:gameId/questions/:questionId/regenerate",
-requireAdmin,
-geminiOperationRateLimit,
-async (req, res): Promise<void> => {
- const params = RegenerateQuestionParams.safeParse(req.params);
- if (!params.success) {
-     res.status(400).json({ error: "Invalid IDs" });
-     return;
- }
+    "/games/:gameId/questions/:questionId/regenerate",
+    requireAdmin,
+    geminiOperationRateLimit,
+    async (req, res): Promise<void> => {
+        const params = RegenerateQuestionParams.safeParse(req.params);
+        if (!params.success) {
+            res.status(400).json({ error: "Invalid IDs" });
+            return;
+        }
 
+        const body = RegenerateQuestionBody.safeParse(req.body);
+        if (!body.success) {
+            res.status(400).json({ error: body.error.message });
+            return;
+        }
 
- const body = RegenerateQuestionBody.safeParse(req.body);
- if (!body.success) {
-     res.status(400).json({ error: body.error.message });
-     return;
- }
+        const [question] = await db
+            .select()
+            .from(questionsTable)
+            .where(
+                and(
+                    eq(questionsTable.id, params.data.questionId),
+                    eq(questionsTable.gameId, params.data.gameId),
+                ),
+            );
 
+        if (!question) {
+            res.status(404).json({ error: "Question not found" });
+            return;
+        }
 
- const [question] = await db
-     .select()
-     .from(questionsTable)
-     .where(
-      and(
-       eq(questionsTable.id, params.data.questionId),
-       eq(questionsTable.gameId, params.data.gameId),
-      ),
-    );
+        const [game] = await db
+            .select()
+            .from(gamesTable)
+            .where(eq(gamesTable.id, params.data.gameId));
 
+        if (!game) {
+            res.status(404).json({ error: "Game not found" });
+            return;
+        }
 
-if (!question) {
-    res.status(404).json({ error: "Question not found" });
-    return;
-}
+        if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
+        const limitError = await checkAiUsageLimit(req.session.adminAccountId);
+        if (limitError) { res.status(429).json({ error: limitError }); return; }
 
-const [game] = await db
-    .select()
-    .from(gamesTable)
-    .where(eq(gamesTable.id, params.data.gameId));
+        const difficulty =
+            body.data.difficulty ?? (game.difficulty as "easy" | "medium" | "hard") ?? "medium";
 
+        const questionType =
+            (body.data.questionType as "multiple_choice" | "true_false" | "write_in" | undefined) ??
+            (question.questionType as "multiple_choice" | "true_false" | "write_in");
 
-if (!game) {
-    res.status(404).json({ error: "Game not found" });
-    return;
-}
+        const allQuestions = await db
+            .select({ questionText: questionsTable.questionText })
+            .from(questionsTable)
+            .where(eq(questionsTable.gameId, params.data.gameId));
 
-if (!await assertGameOwnership(req, res, params.data.gameId)) return;
+        const avoidTexts = allQuestions
+            .map((q) => q.questionText)
+            .filter((t): t is string => typeof t === "string" && t.length > 0);
 
-const difficulty =
-    body.data.difficulty ?? (game.difficulty as "easy" | "medium" | "hard") ?? "medium";
+        const result = await regenerateSingleQuestion({
+            topic: game.topic,
+            difficulty,
+            questionType,
+            avoidTexts,
+            points: question.points,
+            brief: (req.body as { brief?: string }).brief ?? game.brief ?? undefined,
+        });
 
+        if (!result.ok) {
+            logger.warn({ error: result.error }, "Gemini regenerate failed");
+            geminiErrorResponse(res, result.error);
+            return;
+        }
 
-const questionType =
-    (body.data.questionType as "multiple_choice" | "true_false" | "write_in" | undefined) ??
-    (question.questionType as "multiple_choice" | "true_false" | "write_in");
+        await recordAiUsage(req.session.adminAccountId, params.data.gameId, "regenerate", 1);
 
-
-const allQuestions = await db
-    .select({ questionText: questionsTable.questionText })
-    .from(questionsTable)
-    .where(eq(questionsTable.gameId, params.data.gameId));
-
-const avoidTexts = allQuestions
-    .map((q) => q.questionText)
-    .filter((t): t is string => typeof t === "string" && t.length > 0);
-
-const result = await regenerateSingleQuestion({
-    topic: game.topic,
-         difficulty,
-         questionType,
-         avoidTexts,
-         points: question.points,
-         brief: (req.body as { brief?: string }).brief ?? game.brief ?? undefined,
-     });
-
-
-     if (!result.ok) {
-         logger.warn({ error: result.error }, "Gemini regenerate failed");
-         geminiErrorResponse(res, result.error);
-         return;
-     }
-
-
-     res.json({
-         questionType: result.question.questionType,
-         questionText: result.question.questionText,
-         correctAnswer: result.question.correctAnswer,
-         options: result.question.options,
-         points: result.question.points,
-         source: result.question.source,
-     });
- },
+        res.json({
+            questionType: result.question.questionType,
+            questionText: result.question.questionText,
+            correctAnswer: result.question.correctAnswer,
+            options: result.question.options,
+            points: result.question.points,
+            source: result.question.source,
+        });
+    },
 );
 
 
 // ── Enhance question (suggestions only, not saved) ────────────────────────────
-
-
 router.post(
-"/games/:gameId/questions/:questionId/enhance",
-requireAdmin,
-geminiOperationRateLimit,
-async (req, res): Promise<void> => {
-const params = EnhanceQuestionParams.safeParse(req.params);
-if (!params.success) {
-    res.status(400).json({ error: "Invalid IDs" });
-    return;
-}
+    "/games/:gameId/questions/:questionId/enhance",
+    requireAdmin,
+    geminiOperationRateLimit,
+    async (req, res): Promise<void> => {
+        const params = EnhanceQuestionParams.safeParse(req.params);
+        if (!params.success) {
+            res.status(400).json({ error: "Invalid IDs" });
+            return;
+        }
 
-if (!await assertGameOwnership(req, res, params.data.gameId)) return;
+        if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
-const [question] = await db
-    .select()
-    .from(questionsTable)
-    .where(
-     and(
-         eq(questionsTable.id, params.data.questionId),
-         eq(questionsTable.gameId, params.data.gameId),
-     ),
-    );
+        const limitError = await checkAiUsageLimit(req.session.adminAccountId);
+        if (limitError) { res.status(429).json({ error: limitError }); return; }
 
+        const [question] = await db
+            .select()
+            .from(questionsTable)
+            .where(
+                and(
+                    eq(questionsTable.id, params.data.questionId),
+                    eq(questionsTable.gameId, params.data.gameId),
+                ),
+            );
 
-if (!question) {
-    res.status(404).json({ error: "Question not found" });
-    return;
-}
+        if (!question) {
+            res.status(404).json({ error: "Question not found" });
+            return;
+        }
 
+        const choices =
+            (question.options as { choices?: string[] } | null)?.choices ?? [];
 
-const choices =
-         (question.options as { choices?: string[] } | null)?.choices ?? [];
+        const result = await enhanceQuestion({
+            questionType: question.questionType,
+            questionText: question.questionText,
+            correctAnswer: question.correctAnswer,
+            options: choices,
+            source: question.source,
+        });
 
+        if (!result.ok) {
+            logger.warn({ error: result.error }, "Gemini enhance failed");
+            geminiErrorResponse(res, result.error);
+            return;
+        }
 
-     const result = await enhanceQuestion({
-         questionType: question.questionType,
-         questionText: question.questionText,
-         correctAnswer: question.correctAnswer,
-         options: choices,
-         source: question.source,
-     });
+        await recordAiUsage(req.session.adminAccountId, params.data.gameId, "enhance", 1);
 
-
-     if (!result.ok) {
-         logger.warn({ error: result.error }, "Gemini enhance failed");
-         geminiErrorResponse(res, result.error);
-         return;
-     }
-
-
-     res.json({
-         improvedQuestionText: result.data.improvedQuestionText,
-         improvedOptions: result.data.improvedOptions,
-         factCheckResult: result.data.factCheckResult,
-         factCheckNotes: result.data.factCheckNotes,
-         suggestedSource: result.data.suggestedSource,
-         suggestions: result.data.suggestions,
-     });
- },
+        res.json({
+            improvedQuestionText: result.data.improvedQuestionText,
+            improvedOptions: result.data.improvedOptions,
+            factCheckResult: result.data.factCheckResult,
+            factCheckNotes: result.data.factCheckNotes,
+            suggestedSource: result.data.suggestedSource,
+            suggestions: result.data.suggestions,
+        });
+    },
 );
+
+
 // ── Fact-check single question ────────────────────────────────────────────────
-
-
 router.post(
-"/games/:gameId/questions/:questionId/fact-check",
-requireAdmin,
-geminiOperationRateLimit,
-async (req, res): Promise<void> => {
- const params = FactCheckQuestionParams.safeParse(req.params);
- if (!params.success) {
-     res.status(400).json({ error: "Invalid IDs" });
-     return;
- }
+    "/games/:gameId/questions/:questionId/fact-check",
+    requireAdmin,
+    geminiOperationRateLimit,
+    async (req, res): Promise<void> => {
+        const params = FactCheckQuestionParams.safeParse(req.params);
+        if (!params.success) {
+            res.status(400).json({ error: "Invalid IDs" });
+            return;
+        }
 
- if (!await assertGameOwnership(req, res, params.data.gameId)) return;
+        if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
- const [question] = await db
-     .select()
-     .from(questionsTable)
-     .where(
-      and(
-          eq(questionsTable.id, params.data.questionId),
-          eq(questionsTable.gameId, params.data.gameId),
-      ),
-     );
+        const limitError = await checkAiUsageLimit(req.session.adminAccountId);
+        if (limitError) { res.status(429).json({ error: limitError }); return; }
 
+        const [question] = await db
+            .select()
+            .from(questionsTable)
+            .where(
+                and(
+                    eq(questionsTable.id, params.data.questionId),
+                    eq(questionsTable.gameId, params.data.gameId),
+                ),
+            );
 
- if (!question) {
-     res.status(404).json({ error: "Question not found" });
-         return;
-     }
+        if (!question) {
+            res.status(404).json({ error: "Question not found" });
+            return;
+        }
 
+        const result = await factCheckSingleQuestion({
+            questionText: question.questionText,
+            correctAnswer: question.correctAnswer,
+        });
 
-     const result = await factCheckSingleQuestion({
-         questionText: question.questionText,
-         correctAnswer: question.correctAnswer,
-     });
+        if (!result.ok) {
+            logger.warn({ error: result.error }, "Gemini fact-check failed");
+            geminiErrorResponse(res, result.error);
+            return;
+        }
 
+        // Persist the grounding source URL so it appears as a link in the review UI
+        if (result.data.groundingUrl) {
+            await db
+                .update(questionsTable)
+                .set({ factCheckUrl: result.data.groundingUrl })
+                .where(eq(questionsTable.id, params.data.questionId));
+        }
 
-     if (!result.ok) {
-         logger.warn({ error: result.error }, "Gemini fact-check failed");
-         geminiErrorResponse(res, result.error);
-         return;
-     }
+        await recordAiUsage(req.session.adminAccountId, params.data.gameId, "fact_check", 1);
 
-
-     // Persist the grounding source URL so it appears as a link in the review UI
-     if (result.data.groundingUrl) {
-         await db
-             .update(questionsTable)
-             .set({ factCheckUrl: result.data.groundingUrl })
-             .where(eq(questionsTable.id, params.data.questionId));
-     }
-
-     res.json({
-         verdict: result.data.verdict,
-         confidence: result.data.confidence,
-         explanation: result.data.explanation,
-         correctAnswerIfWrong: result.data.correctAnswerIfWrong,
-         groundingUrl: result.data.groundingUrl ?? null,
-     });
- },
+        res.json({
+            verdict: result.data.verdict,
+            confidence: result.data.confidence,
+            explanation: result.data.explanation,
+            correctAnswerIfWrong: result.data.correctAnswerIfWrong,
+            groundingUrl: result.data.groundingUrl ?? null,
+        });
+    },
 );
 
 
 export default router;
-
-
