@@ -10,9 +10,9 @@
  *  - Free-tier hosts are capped at FREE_TIER_AI_ACTIONS_PER_MONTH AI operations per month
  *  - Pro hosts have no enforcement (unlimited)
  *
- * To enable limits: set ENFORCE_FREE_TIER_LIMITS=true in env vars.
- * To set limits:    set FREE_TIER_GAMES_PER_MONTH=N  (default 5)
- *                   set FREE_TIER_AI_ACTIONS_PER_MONTH=N  (default 30)
+ * To enable limits:  set ENFORCE_FREE_TIER_LIMITS=true in env vars.
+ * To change limits:  set FREE_TIER_GAMES_PER_MONTH=N  (default 20)
+ *                    set FREE_TIER_AI_ACTIONS_PER_MONTH=N  (default 150)
  */
 
 import { and, eq, gte, count, sql } from "drizzle-orm";
@@ -27,13 +27,13 @@ export function enforcementEnabled(): boolean {
 // ── Configurable limits ───────────────────────────────────────────────────────
 
 export function freeTierGamesPerMonth(): number {
-  const n = parseInt(process.env["FREE_TIER_GAMES_PER_MONTH"] ?? "5", 10);
-  return Number.isFinite(n) && n > 0 ? n : 5;
+  const n = parseInt(process.env["FREE_TIER_GAMES_PER_MONTH"] ?? "20", 10);
+  return Number.isFinite(n) && n > 0 ? n : 20;
 }
 
 export function freeTierAiActionsPerMonth(): number {
-  const n = parseInt(process.env["FREE_TIER_AI_ACTIONS_PER_MONTH"] ?? "30", 10);
-  return Number.isFinite(n) && n > 0 ? n : 30;
+  const n = parseInt(process.env["FREE_TIER_AI_ACTIONS_PER_MONTH"] ?? "150", 10);
+  return Number.isFinite(n) && n > 0 ? n : 150;
 }
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
@@ -41,6 +41,18 @@ export function freeTierAiActionsPerMonth(): number {
 function startOfCurrentMonth(): Date {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
+/** Returns a human-readable date string for the first day of next month (UTC). */
+function resetDateString(): string {
+  const now = new Date();
+  const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  return next.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 async function getAdminPlan(adminAccountId: number): Promise<"free" | "pro"> {
@@ -56,7 +68,7 @@ async function getAdminPlan(adminAccountId: number): Promise<"free" | "pro"> {
 
 /**
  * Check whether the host may create another game this month.
- * Returns null if allowed, or an error message string if blocked.
+ * Returns null if allowed, or a friendly error message string if blocked.
  * Always returns null when enforcement is off.
  */
 export async function checkGameCreationLimit(
@@ -83,7 +95,10 @@ export async function checkGameCreationLimit(
 
   const used = row?.value ?? 0;
   if (used >= limit) {
-    return `Free plan limit reached: ${limit} games per month. Upgrade to Pro for unlimited games.`;
+    return (
+      `You've created ${used} of ${limit} games allowed this month. ` +
+      `Your limit resets on ${resetDateString()}.`
+    );
   }
   return null;
 }
@@ -92,7 +107,7 @@ export async function checkGameCreationLimit(
 
 /**
  * Check whether the host may perform another AI action this month.
- * Returns null if allowed, or an error message string if blocked.
+ * Returns null if allowed, or a friendly error message string if blocked.
  * Always returns null when enforcement is off.
  */
 export async function checkAiUsageLimit(
@@ -119,7 +134,10 @@ export async function checkAiUsageLimit(
 
   const used = row?.value ?? 0;
   if (used >= limit) {
-    return `Free plan limit reached: ${limit} AI actions per month. Upgrade to Pro for unlimited AI.`;
+    return (
+      `You've used ${used} of ${limit} AI generation actions this month. ` +
+      `Your limit resets on ${resetDateString()}.`
+    );
   }
   return null;
 }
@@ -154,7 +172,6 @@ export async function recordAiUsage(
 // ── Aggregate helpers for owner dashboard ─────────────────────────────────────
 
 export async function getHostUsageSummaries() {
-  // Games per host this month
   const since = startOfCurrentMonth();
 
   const gameStats = await db
@@ -167,7 +184,6 @@ export async function getHostUsageSummaries() {
     .where(sql`${gamesTable.ownerAdminId} IS NOT NULL`)
     .groupBy(gamesTable.ownerAdminId);
 
-  // AI actions per host this month
   const aiStats = await db
     .select({
       adminAccountId: aiUsageLogTable.adminAccountId,
@@ -177,7 +193,6 @@ export async function getHostUsageSummaries() {
     .from(aiUsageLogTable)
     .groupBy(aiUsageLogTable.adminAccountId);
 
-  // All host accounts
   const hosts = await db
     .select({
       id: adminAccountsTable.id,
@@ -205,4 +220,24 @@ export async function getHostUsageSummaries() {
       aiActionsThisMonth: Number(a?.aiActionsThisMonth ?? 0),
     };
   });
+}
+
+export async function getOrphanedGames() {
+  const { isNull, desc } = await import("drizzle-orm");
+  const { questionsTable } = await import("@workspace/db");
+
+  const games = await db
+    .select({
+      id: gamesTable.id,
+      topic: gamesTable.topic,
+      difficulty: gamesTable.difficulty,
+      status: gamesTable.status,
+      questionCount: gamesTable.questionCount,
+      createdAt: gamesTable.createdAt,
+    })
+    .from(gamesTable)
+    .where(isNull(gamesTable.ownerAdminId))
+    .orderBy(desc(gamesTable.createdAt));
+
+  return games;
 }

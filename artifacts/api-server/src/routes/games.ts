@@ -1,6 +1,6 @@
 
 import { Router, type IRouter } from "express";
-import { and, eq, desc, count, isNull, or } from "drizzle-orm";
+import { and, eq, desc, count } from "drizzle-orm";
 import {
  db,
  gamesTable,
@@ -40,10 +40,10 @@ router.get("/games", requireAuth, async (req, res): Promise<void> => {
  const status = query.data.status;
  const ownerAdminId = req.session.adminAccountId;
 
- // Email-auth admins see their own games + unowned legacy games.
+ // Email-auth admins see only their own games.
  // Code-based (legacy) admins and players see all games.
  const ownerFilter = ownerAdminId != null
-     ? or(eq(gamesTable.ownerAdminId, ownerAdminId), isNull(gamesTable.ownerAdminId))
+     ? eq(gamesTable.ownerAdminId, ownerAdminId)
      : undefined;
 
  const statusFilter = status ? eq(gamesTable.status, status) : undefined;

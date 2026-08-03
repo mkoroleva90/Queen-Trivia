@@ -1,17 +1,17 @@
 /**
- * Owner-only usage dashboard.
+ * Owner-only management endpoints.
  *
  * Protected by the ADMIN_ACCESS_KEY environment variable — the same key the
  * app owner uses to manage the server. Pass it as a Bearer token:
  *   Authorization: Bearer <ADMIN_ACCESS_KEY>
  *
- * This endpoint is intentionally separate from the host-account auth system
- * so the owner can inspect usage without needing a host account.
+ * This is intentionally separate from the host-account auth system so the
+ * owner can inspect and manage the platform without needing a host account.
  */
 import { Router } from "express";
-import { getHostUsageSummaries } from "../lib/usageLimits";
-import { db, adminAccountsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { isNull, eq } from "drizzle-orm";
+import { getHostUsageSummaries, getOrphanedGames } from "../lib/usageLimits";
+import { db, adminAccountsTable, gamesTable } from "@workspace/db";
 
 const router = Router();
 
@@ -40,7 +40,7 @@ router.get("/owner/usage", requireOwnerKey, async (_req, res): Promise<void> => 
   res.json({ hosts: summaries });
 });
 
-// PATCH /api/owner/hosts/:id/plan — set a host's plan (free → pro or vice versa)
+// PATCH /api/owner/hosts/:id/plan — set a host's plan (free ↔ pro)
 router.patch("/owner/hosts/:id/plan", requireOwnerKey, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (!Number.isFinite(id)) {
@@ -63,6 +63,63 @@ router.patch("/owner/hosts/:id/plan", requireOwnerKey, async (req, res): Promise
     return;
   }
   res.json(updated);
+});
+
+// GET /api/owner/orphaned-games — games with no owner_admin_id
+router.get("/owner/orphaned-games", requireOwnerKey, async (_req, res): Promise<void> => {
+  const games = await getOrphanedGames();
+  res.json({ games });
+});
+
+// POST /api/owner/games/:id/assign — assign an ownerless game to a host account
+router.post("/owner/games/:id/assign", requireOwnerKey, async (req, res): Promise<void> => {
+  const gameId = parseInt(req.params.id, 10);
+  if (!Number.isFinite(gameId)) {
+    res.status(400).json({ error: "Invalid game ID" });
+    return;
+  }
+
+  const hostId = (req.body as { hostId?: unknown }).hostId;
+  if (typeof hostId !== "number" || !Number.isFinite(hostId)) {
+    res.status(400).json({ error: "hostId must be a number" });
+    return;
+  }
+
+  // Verify the game exists and is currently ownerless
+  const [game] = await db
+    .select({ id: gamesTable.id, ownerAdminId: gamesTable.ownerAdminId })
+    .from(gamesTable)
+    .where(eq(gamesTable.id, gameId))
+    .limit(1);
+
+  if (!game) {
+    res.status(404).json({ error: "Game not found" });
+    return;
+  }
+  if (game.ownerAdminId !== null) {
+    res.status(409).json({ error: "Game already has an owner. Only ownerless games can be assigned." });
+    return;
+  }
+
+  // Verify the host account exists
+  const [host] = await db
+    .select({ id: adminAccountsTable.id, email: adminAccountsTable.email })
+    .from(adminAccountsTable)
+    .where(eq(adminAccountsTable.id, hostId))
+    .limit(1);
+
+  if (!host) {
+    res.status(404).json({ error: "Host account not found" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(gamesTable)
+    .set({ ownerAdminId: hostId })
+    .where(eq(gamesTable.id, gameId))
+    .returning({ id: gamesTable.id, topic: gamesTable.topic, ownerAdminId: gamesTable.ownerAdminId });
+
+  res.json({ ok: true, game: updated, assignedTo: host.email });
 });
 
 export default router;

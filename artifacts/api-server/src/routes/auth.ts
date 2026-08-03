@@ -32,10 +32,6 @@ if (!settings) {
 const code = parsed.data.code.trim();
 
 
-if (code === settings.adminAccessCode) {
-    res.json(VerifyAccessCodeResponse.parse({ valid: true, role: "admin" }));
-    return;
-}
  if (code === settings.triviaAccessCode) {
      res.json(VerifyAccessCodeResponse.parse({ valid: true, role: "player" }));
      return;

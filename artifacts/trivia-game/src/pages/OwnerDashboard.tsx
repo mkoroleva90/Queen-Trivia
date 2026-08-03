@@ -1,5 +1,5 @@
 /**
- * Owner usage dashboard — shows per-host plan, game counts, and AI volume.
+ * Owner usage dashboard — hosts, plans, AI/game usage, and orphaned games.
  * Protected by the ADMIN_ACCESS_KEY (Bearer token) — not tied to a host account.
  *
  * Access: navigate to /owner-dashboard, enter the ADMIN_ACCESS_KEY when prompted.
@@ -27,6 +27,7 @@ import {
   Sparkles,
   Gamepad2,
   TrendingUp,
+  UserX,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -41,8 +42,18 @@ type HostSummary = {
   aiActionsThisMonth: number;
 };
 
-type UsageData = {
+type OrphanedGame = {
+  id: number;
+  topic: string;
+  difficulty: string;
+  status: string;
+  questionCount: number;
+  createdAt: string;
+};
+
+type DashboardData = {
   hosts: HostSummary[];
+  orphanedGames: OrphanedGame[];
 };
 
 function formatDate(iso: string) {
@@ -58,49 +69,57 @@ export default function OwnerDashboard() {
   const [authenticated, setAuthenticated] = useState(false);
   const [authError, setAuthError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<UsageData | null>(null);
+  const [data, setData] = useState<DashboardData | null>(null);
   const [fetchError, setFetchError] = useState("");
   const [updatingPlan, setUpdatingPlan] = useState<number | null>(null);
+  const [assigningGame, setAssigningGame] = useState<number | null>(null);
+  const [assignSelections, setAssignSelections] = useState<Record<number, string>>({});
   const { toast } = useToast();
 
-  const fetchUsage = useCallback(
-    async (key: string) => {
-      setLoading(true);
-      setFetchError("");
-      try {
-        const res = await fetch("/api/owner/usage", {
+  const fetchAll = useCallback(async (key: string) => {
+    setLoading(true);
+    setFetchError("");
+    try {
+      const [usageRes, orphanRes] = await Promise.all([
+        fetch("/api/owner/usage", {
           headers: { Authorization: `Bearer ${key}` },
           credentials: "include",
-        });
-        if (res.status === 401) {
-          setAuthError("Incorrect owner key — try again");
-          setAuthenticated(false);
-          return;
-        }
-        if (!res.ok) {
-          setFetchError("Failed to load usage data");
-          return;
-        }
-        const json = (await res.json()) as UsageData;
-        setData(json);
-        setAuthenticated(true);
-        setAuthError("");
-      } catch {
-        setFetchError("Connection error — please retry");
-      } finally {
-        setLoading(false);
+        }),
+        fetch("/api/owner/orphaned-games", {
+          headers: { Authorization: `Bearer ${key}` },
+          credentials: "include",
+        }),
+      ]);
+
+      if (usageRes.status === 401) {
+        setAuthError("Incorrect owner key — try again");
+        setAuthenticated(false);
+        return;
       }
-    },
-    [],
-  );
+      if (!usageRes.ok || !orphanRes.ok) {
+        setFetchError("Failed to load dashboard data");
+        return;
+      }
+
+      const [usage, orphans] = await Promise.all([
+        usageRes.json() as Promise<{ hosts: HostSummary[] }>,
+        orphanRes.json() as Promise<{ games: OrphanedGame[] }>,
+      ]);
+
+      setData({ hosts: usage.hosts, orphanedGames: orphans.games });
+      setAuthenticated(true);
+      setAuthError("");
+    } catch {
+      setFetchError("Connection error — please retry");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ownerKey.trim()) {
-      setAuthError("Enter the owner key");
-      return;
-    }
-    await fetchUsage(ownerKey.trim());
+    if (!ownerKey.trim()) { setAuthError("Enter the owner key"); return; }
+    await fetchAll(ownerKey.trim());
   };
 
   const togglePlan = async (host: HostSummary) => {
@@ -109,26 +128,13 @@ export default function OwnerDashboard() {
     try {
       const res = await fetch(`/api/owner/hosts/${host.id}/plan`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${ownerKey}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${ownerKey}` },
         credentials: "include",
         body: JSON.stringify({ plan: newPlan }),
       });
-      if (!res.ok) {
-        toast({ variant: "destructive", title: "Failed to update plan" });
-        return;
-      }
+      if (!res.ok) { toast({ variant: "destructive", title: "Failed to update plan" }); return; }
       setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              hosts: prev.hosts.map((h) =>
-                h.id === host.id ? { ...h, plan: newPlan } : h,
-              ),
-            }
-          : prev,
+        prev ? { ...prev, hosts: prev.hosts.map((h) => h.id === host.id ? { ...h, plan: newPlan } : h) } : prev,
       );
       toast({ title: `${host.email} moved to ${newPlan}` });
     } catch {
@@ -138,7 +144,38 @@ export default function OwnerDashboard() {
     }
   };
 
-  // ── Auth gate ────────────────────────────────────────────────────────────────
+  const assignGame = async (game: OrphanedGame) => {
+    const hostIdStr = assignSelections[game.id];
+    if (!hostIdStr) { toast({ variant: "destructive", title: "Select a host first" }); return; }
+    const hostId = parseInt(hostIdStr, 10);
+    setAssigningGame(game.id);
+    try {
+      const res = await fetch(`/api/owner/games/${game.id}/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${ownerKey}` },
+        credentials: "include",
+        body: JSON.stringify({ hostId }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        toast({ variant: "destructive", title: body.error ?? "Failed to assign game" });
+        return;
+      }
+      const result = await res.json() as { assignedTo: string };
+      toast({ title: `"${game.topic}" assigned to ${result.assignedTo}` });
+      // Remove from orphaned list
+      setData((prev) =>
+        prev ? { ...prev, orphanedGames: prev.orphanedGames.filter((g) => g.id !== game.id) } : prev,
+      );
+      setAssignSelections((prev) => { const n = { ...prev }; delete n[game.id]; return n; });
+    } catch {
+      toast({ variant: "destructive", title: "Connection error" });
+    } finally {
+      setAssigningGame(null);
+    }
+  };
+
+  // ── Auth gate ──────────────────────────────────────────────────────────────
   if (!authenticated) {
     return (
       <div className="min-h-[100dvh] flex items-center justify-center p-4">
@@ -160,10 +197,7 @@ export default function OwnerDashboard() {
                   <Input
                     type="password"
                     value={ownerKey}
-                    onChange={(e) => {
-                      setOwnerKey(e.target.value);
-                      setAuthError("");
-                    }}
+                    onChange={(e) => { setOwnerKey(e.target.value); setAuthError(""); }}
                     placeholder="Owner key (ADMIN_ACCESS_KEY)"
                     autoFocus
                     className={`pl-9 ${authError ? "border-destructive" : ""}`}
@@ -171,12 +205,11 @@ export default function OwnerDashboard() {
                 </div>
                 {authError && (
                   <p className="flex items-center gap-1.5 text-sm text-destructive">
-                    <AlertCircle className="h-4 w-4 shrink-0" />
-                    {authError}
+                    <AlertCircle className="h-4 w-4 shrink-0" />{authError}
                   </p>
                 )}
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Unlock Dashboard
                 </Button>
               </form>
@@ -187,8 +220,9 @@ export default function OwnerDashboard() {
     );
   }
 
-  // ── Dashboard ────────────────────────────────────────────────────────────────
+  // ── Dashboard ──────────────────────────────────────────────────────────────
   const hosts = data?.hosts ?? [];
+  const orphanedGames = data?.orphanedGames ?? [];
   const totalHosts = hosts.length;
   const proHosts = hosts.filter((h) => h.plan === "pro").length;
   const totalGamesMonth = hosts.reduce((s, h) => s + h.gamesThisMonth, 0);
@@ -205,25 +239,15 @@ export default function OwnerDashboard() {
             <p className="text-sm text-muted-foreground">Usage by host · this calendar month</p>
           </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => fetchUsage(ownerKey)}
-          disabled={loading}
-        >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4" />
-          )}
+        <Button variant="outline" size="sm" onClick={() => fetchAll(ownerKey)} disabled={loading}>
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           <span className="ml-2 hidden sm:inline">Refresh</span>
         </Button>
       </div>
 
       {fetchError && (
         <p className="flex items-center gap-1.5 text-sm text-destructive">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          {fetchError}
+          <AlertCircle className="h-4 w-4 shrink-0" />{fetchError}
         </p>
       )}
 
@@ -281,9 +305,7 @@ export default function OwnerDashboard() {
         </CardHeader>
         <CardContent className="p-0">
           {hosts.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-12">
-              No host accounts yet.
-            </p>
+            <p className="text-sm text-muted-foreground text-center py-12">No host accounts yet.</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -302,10 +324,7 @@ export default function OwnerDashboard() {
                     <TableRow key={host.id}>
                       <TableCell className="font-medium">{host.email}</TableCell>
                       <TableCell>
-                        <Badge
-                          variant={host.plan === "pro" ? "default" : "secondary"}
-                          className="capitalize"
-                        >
+                        <Badge variant={host.plan === "pro" ? "default" : "secondary"} className="capitalize">
                           {host.plan}
                         </Badge>
                       </TableCell>
@@ -326,13 +345,107 @@ export default function OwnerDashboard() {
                           disabled={updatingPlan === host.id}
                           className="text-xs"
                         >
-                          {updatingPlan === host.id ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : host.plan === "free" ? (
-                            "→ Pro"
-                          ) : (
-                            "→ Free"
-                          )}
+                          {updatingPlan === host.id
+                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                            : host.plan === "free" ? "→ Pro" : "→ Free"}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Orphaned games */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <UserX className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base">Unassigned Games</CardTitle>
+            {orphanedGames.length > 0 && (
+              <Badge variant="secondary">{orphanedGames.length}</Badge>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Games with no owner — created before per-account ownership was introduced,
+            or left behind by a deleted host. Assign each one to a host to make it
+            manageable again.
+          </p>
+        </CardHeader>
+        <CardContent className="p-0">
+          {orphanedGames.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-10">
+              No unassigned games — all good.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Topic</TableHead>
+                    <TableHead>Difficulty</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Questions</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead>Assign to</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {orphanedGames.map((game) => (
+                    <TableRow key={game.id}>
+                      <TableCell className="font-medium max-w-[160px] truncate">
+                        {game.topic}
+                      </TableCell>
+                      <TableCell className="capitalize text-muted-foreground text-sm">
+                        {game.difficulty}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            game.status === "active" ? "default" :
+                            game.status === "completed" ? "secondary" : "outline"
+                          }
+                          className="capitalize text-xs"
+                        >
+                          {game.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {game.questionCount}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {formatDate(game.createdAt)}
+                      </TableCell>
+                      <TableCell>
+                        <select
+                          value={assignSelections[game.id] ?? ""}
+                          onChange={(e) =>
+                            setAssignSelections((prev) => ({ ...prev, [game.id]: e.target.value }))
+                          }
+                          className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                          disabled={assigningGame === game.id}
+                        >
+                          <option value="">— select host —</option>
+                          {hosts.map((h) => (
+                            <option key={h.id} value={String(h.id)}>{h.email}</option>
+                          ))}
+                        </select>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => assignGame(game)}
+                          disabled={!assignSelections[game.id] || assigningGame === game.id}
+                          className="text-xs"
+                        >
+                          {assigningGame === game.id
+                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                            : "Assign"}
                         </Button>
                       </TableCell>
                     </TableRow>

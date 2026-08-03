@@ -4,7 +4,7 @@ import { and, eq, ne } from "drizzle-orm";
 import { db, adminSettingsTable, usersTable, gamesTable } from "@workspace/db";
 import { toJsonSafe } from "../lib/serialize";
 import { authRateLimit } from "../middleware/authRateLimit";
-import { generateMobileToken, generateAdminToken } from "../lib/mobileAuth";
+import { generateMobileToken } from "../lib/mobileAuth";
 
 
 const router: IRouter = Router();
@@ -156,51 +156,12 @@ router.post("/auth/logout", (req, res): void => {
 });
 
 
-// POST /api/admin/login — verify admin code, start admin session
-router.post("/admin/login", authRateLimit, async (req, res): Promise<void> => {
- const code =
-     typeof req.body?.code === "string" ? req.body.code.trim() : "";
- const rememberMe = req.body?.rememberMe === true;
-
-
- if (!code) {
-     res.status(400).json({ error: "Access code is required" });
-     return;
- }
-
-
- const envCode = (process.env.ADMIN_ACCESS_KEY ?? process.env.ADMIN_ACCESS_CODE)?.trim();
- if (envCode) {
-     if (code !== envCode) {
-      res.status(401).json({ error: "Invalid admin code" });
-      return;
-     }
- } else {
-     const [settings] = await db.select().from(adminSettingsTable).limit(1);
-     if (!settings || code !== settings.adminAccessCode) {
-         res.status(401).json({ error: "Invalid admin code" });
-         return;
-     }
- }
-
-
- // Regenerate the session ID on login to prevent session fixation attacks.
- req.session.regenerate((err) => {
-     if (err) {
-         res.status(500).json({ error: "Failed to establish session" });
-         return;
-     }
-     req.session.isAdmin = true;
-     req.session.userId = undefined;
-     req.session.userName = undefined;
-     if (rememberMe) {
-         // 30 days for "remember me" — consistent with email login
-         req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000;
-     }
-
-     const adminToken = generateAdminToken();
-     res.json({ ok: true, adminToken });
- });
+// POST /api/admin/login — removed.
+// Host login is now email + password only (POST /api/auth/email/login for web,
+// POST /api/auth/email/admin-mobile-login for mobile).
+// The shared ADMIN_ACCESS_KEY is reserved for the owner dashboard only.
+router.post("/admin/login", (_req, res): void => {
+  res.status(410).json({ error: "Shared access-code login is no longer supported. Please sign in with your email and password." });
 });
 
 

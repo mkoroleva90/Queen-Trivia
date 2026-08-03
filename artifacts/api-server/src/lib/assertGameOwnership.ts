@@ -4,12 +4,12 @@ import { db, gamesTable } from "@workspace/db";
 
 /**
  * For email-auth admins (those with `adminAccountId` in session), verify the
- * requested game belongs to them OR is an unowned legacy game (owner_admin_id IS NULL).
- * Unowned games are accessible to any email-auth admin — they are legacy games
- * created before per-account ownership was introduced.
+ * requested game belongs to them. Ownerless games are NOT accessible to regular
+ * hosts — they are surfaced only through the owner dashboard.
  *
  * Legacy code-based admins (no `adminAccountId`) are treated as super-admins
- * and bypass the check (backwards-compatibility path).
+ * and bypass the check (backwards-compatibility path — the login UI no longer
+ * exposes this route, but the session type can still exist until it expires).
  *
  * Returns `true` if access is allowed (caller may proceed).
  * Returns `false` if access was denied — a 403 or 404 response has already been
@@ -37,8 +37,11 @@ export async function assertGameOwnership(
     return false;
   }
 
-  // Unowned games (legacy) are accessible to any email-auth admin.
-  if (game.ownerAdminId == null) return true;
+  // Ownerless games are not accessible to regular hosts.
+  if (game.ownerAdminId == null) {
+    res.status(403).json({ error: "This game has no owner. Contact the app owner to have it assigned to your account." });
+    return false;
+  }
 
   if (game.ownerAdminId !== ownerAdminId) {
     res.status(403).json({ error: "You do not own this game" });

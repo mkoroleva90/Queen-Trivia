@@ -26,3 +26,6 @@ channel = "stable-25_05"
 
 [userenv.shared]
 CAPACITOR_SERVER_URL = "https://mktrivia.com"
+ENFORCE_FREE_TIER_LIMITS = "true"
+FREE_TIER_AI_ACTIONS_PER_MONTH = "150"
+FREE_TIER_GAMES_PER_MONTH = "20"

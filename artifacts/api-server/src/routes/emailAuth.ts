@@ -383,10 +383,9 @@ router.delete(
       return;
     }
 
-    // Detach owned games so they remain accessible as unowned legacy games
+    // Delete owned games — questions cascade via FK (ON DELETE CASCADE)
     await db
-      .update(gamesTable)
-      .set({ ownerAdminId: null })
+      .delete(gamesTable)
       .where(eq(gamesTable.ownerAdminId, adminAccountId));
 
     // Delete account — ai_usage_log cascades via FK
