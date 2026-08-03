@@ -189,6 +189,44 @@ function emptyFormForType(type: QuestionType): QuestionFormState {
 }
 
 
+// ─── Free-tier upgrade helpers ────────────────────────────────────────────────
+
+/** Returns the "Free plan limit reached: …" message from a 429 ApiError, or null. */
+function extractFreeTierLimitMsg(err: unknown): string | null {
+  if (!err || typeof err !== "object") return null;
+  const status = "status" in err ? (err as { status: number }).status : 0;
+  if (status !== 429) return null;
+  const data = "data" in err ? (err as { data: unknown }).data : null;
+  if (data && typeof data === "object" && "error" in data) {
+    const msg = String((data as { error: unknown }).error);
+    if (msg.includes("Free plan limit reached")) return msg;
+  }
+  return null;
+}
+
+function FreeTierLimitModal({ msg, onClose }: { msg: string | null; onClose: () => void }) {
+  return (
+    <Dialog open={!!msg} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Crown className="h-5 w-5 text-yellow-400" /> Plan Limit Reached
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground leading-relaxed">{msg}</p>
+          <div className="rounded-lg border border-yellow-400/20 bg-yellow-400/5 px-4 py-3 text-sm text-yellow-300 leading-relaxed">
+            To unlock unlimited access, ask your app administrator to upgrade this account to Pro.
+          </div>
+          <Button className="w-full" onClick={onClose}>Got it</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function formFromQuestion(q: Question): QuestionFormState {
     const opts = q.options as
      |{
@@ -376,6 +414,7 @@ function QuestionForm({
 }) {
  const [form, setForm] = useState<QuestionFormState>(initial);
  const [aiLoading, setAiLoading] = useState(false);
+ const [upgradeLimitMsg, setUpgradeLimitMsg] = useState<string | null>(null);
  const { toast } = useToast();
  const set = <K extends keyof QuestionFormState>(k: K, v: QuestionFormState[K]) =>
   setForm((f) => ({ ...f, [k]: v }));
@@ -386,8 +425,13 @@ function QuestionForm({
   try {
    const filled = await onFillWithAi(form.questionType);
    if (filled) setForm(filled);
-  } catch {
-   toast({ variant: "destructive", title: "AI generation failed. Please try again." });
+  } catch (err) {
+   const msg = err instanceof Error ? err.message : "";
+   if (msg.includes("Free plan limit reached")) {
+    setUpgradeLimitMsg(msg);
+   } else {
+    toast({ variant: "destructive", title: "AI generation failed. Please try again." });
+   }
   } finally {
    setAiLoading(false);
   }
@@ -407,6 +451,7 @@ const validChoices = form.choices.map((c) => c.trim()).filter(Boolean);
 
 return (
  <div className="space-y-5">
+  <FreeTierLimitModal msg={upgradeLimitMsg} onClose={() => setUpgradeLimitMsg(null)} />
   {/* Type selector */}
   <div className="space-y-2">
    <Label>Question Type</Label>
@@ -935,6 +980,7 @@ const [genCount, setGenCount] = useState(5);
 const [genDiff, setGenDiff] = useState<"easy" | "medium" | "hard" | "same">("same");
 const [genAvoid, setGenAvoid] = useState(true);
 const [genBrief, setGenBrief] = useState(game.brief ?? "");
+const [upgradeLimitMsg, setUpgradeLimitMsg] = useState<string | null>(null);
 
 const handleGenerate = async () => {
  const difficulty =
@@ -950,7 +996,9 @@ const handleGenerate = async () => {
   invalidate();
   setGenOpen(false);
   toast({ title: `Added ${result.imported} AI-generated questions` });
- } catch {
+ } catch (err: unknown) {
+  const limitMsg = extractFreeTierLimitMsg(err);
+  if (limitMsg) { setUpgradeLimitMsg(limitMsg); return; }
   toast({ variant: "destructive", title: "Generation failed. Please try again." });
  }
 };
@@ -1030,6 +1078,7 @@ const handleDelete = (id: number) => {
 
 return (
  <div className="space-y-4">
+     <FreeTierLimitModal msg={upgradeLimitMsg} onClose={() => setUpgradeLimitMsg(null)} />
      {/* Header */}
      <div className="flex items-center justify-between gap-3 flex-wrap">
    <div>
@@ -1508,6 +1557,7 @@ const [dailyQuotaExhausted, setDailyQuotaExhausted] = useState(false);
 const [brief, setBrief] = useState("");
 const [skipFactCheck, setSkipFactCheck] = useState(false);
 const [discardedCount, setDiscardedCount] = useState(0);
+const [upgradeLimitMsg, setUpgradeLimitMsg] = useState<string | null>(null);
 const { toast } = useToast();
 const queryClient = useQueryClient();
 const createGame = useCreateGame();
@@ -1553,6 +1603,8 @@ const handleSubmit = async (e: React.FormEvent) => {
       queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
   } catch (err: unknown) {
+    const limitMsg = extractFreeTierLimitMsg(err);
+    if (limitMsg) { setUpgradeLimitMsg(limitMsg); setWorking(false); return; }
     const status = err && typeof err === "object" && "status" in err ? (err as { status: number}).status : 0;
       toast({
        variant: "destructive",
@@ -1600,6 +1652,8 @@ const handleSubmit = async (e: React.FormEvent) => {
           const discMsg = result.discarded ? `, ${result.discarded} discarded by fact-check` : "";
           toast({ title: `${result.imported} saved${discMsg}` });
       } catch (err: unknown) {
+          const limitMsg = extractFreeTierLimitMsg(err);
+          if (limitMsg) { setUpgradeLimitMsg(limitMsg); setWorking(false); return; }
           const msg = err instanceof Error ? err.message : "Could not generate questions.";
           setImportError(msg);
           setImportSource("gemini");
@@ -1643,6 +1697,8 @@ const handleRetryGeneration = async () => {
    setImportSource("gemini");
    toast({ title: `${result.imported} questions generated!` });
   } catch (err: unknown) {
+   const limitMsg2 = extractFreeTierLimitMsg(err);
+   if (limitMsg2) { setUpgradeLimitMsg(limitMsg2); return; }
    const msg = err instanceof Error ? err.message : "Could not generate questions.";
    setImportError(msg);
    setImportSource("gemini");
@@ -1681,6 +1737,7 @@ if (created) {
          animate={{ opacity: 1, scale: 1 }}
          className="space-y-4"
      >
+         <FreeTierLimitModal msg={upgradeLimitMsg} onClose={() => setUpgradeLimitMsg(null)} />
          <Card className="border-2 border-secondary/50 bg-secondary/5">
     <CardContent className="py-10 text-center space-y-3">
      {working ? (
@@ -1776,6 +1833,7 @@ if (created) {
 
 return (
     <div className="space-y-6 max-w-xl">
+     <FreeTierLimitModal msg={upgradeLimitMsg} onClose={() => setUpgradeLimitMsg(null)} />
      <div>
          <h2 className="text-xl font-bold tracking-tight">Create a New Game</h2>
      </div>
@@ -2284,6 +2342,8 @@ const updateQuestion = useUpdateQuestion();
 const deleteQuestion = useDeleteQuestion();
 
 
+const [upgradeLimitMsg, setUpgradeLimitMsg] = useState<string | null>(null);
+
 // Regenerate modal state
 const [regenQ, setRegenQ] = useState<Question | null>(null);
 const [regenDiff, setRegenDiff] = useState<"same" | "easy" | "medium" | "hard">("same");
@@ -2473,6 +2533,8 @@ const handleRunRegen = async () => {
      });
      setRegenPreview(preview);
  } catch (err) {
+     const limitMsg = extractFreeTierLimitMsg(err);
+     if (limitMsg) { setUpgradeLimitMsg(limitMsg); setRegenLoading(false); return; }
      const msg = err instanceof Error ? err.message : "Generation failed. Please try again.";
   setRegenError(msg.includes("Too many requests") ? "Rate limited — please wait amoment and try again." : msg);
  } finally {
@@ -2526,6 +2588,8 @@ const handleRunEnhance = async (q: Question) => {
   const result = await enhanceMutation.mutateAsync({ gameId: selectedGameId,questionId: q.id });
      setEnhResult(result);
  } catch (err) {
+     const limitMsg = extractFreeTierLimitMsg(err);
+     if (limitMsg) { setUpgradeLimitMsg(limitMsg); setEnhLoading(false); return; }
      const msg = err instanceof Error ? err.message : "Enhancement failed. Please try again.";
   setEnhError(msg.includes("Too many requests") ? "Rate limited — please wait amoment and try again." : msg);
  } finally {
@@ -2583,7 +2647,9 @@ const handleGenerateMore = async () => {
      invalidate();
       setGenMoreOpen(false);
    { const dm = result.discarded ? `, ${result.discarded} discarded` : ""; toast({ title: `Added ${result.imported} questions${dm} — total now ${rawQuestions.length + result.imported}` }); }
-  } catch {
+  } catch (err: unknown) {
+      const limitMsg = extractFreeTierLimitMsg(err);
+      if (limitMsg) { setUpgradeLimitMsg(limitMsg); return; }
       toast({ variant: "destructive", title: "Generation failed. Please try again." });
   }
  };
@@ -2622,7 +2688,9 @@ const handleGenerateMore = async () => {
     invalidate();
     setRegenAllOpen(false);
     toast({ title: `Regenerated ${result.imported} questions for "${game.topic}"` });
-  } catch {
+  } catch (err: unknown) {
+    const limitMsg = extractFreeTierLimitMsg(err);
+    if (limitMsg) { setUpgradeLimitMsg(limitMsg); return; }
     toast({ variant: "destructive", title: "Regeneration failed. Please try again." });
   } finally {
     setRegenAllRunning(false);
@@ -2657,6 +2725,12 @@ const handleGenerateMore = async () => {
             done = true;
             break;
         } catch (err) {
+            const limitMsg = extractFreeTierLimitMsg(err);
+            if (limitMsg) {
+                setFcState((prev) => (prev ? { ...prev, running: false, rateLimited: false } : null));
+                setUpgradeLimitMsg(limitMsg);
+                return;
+            }
             const msg = err instanceof Error ? err.message : String(err);
             if ((msg.includes("Too many requests") || msg.includes("429")) && attempt === 0) {
                 setFcState((prev) => (prev ? { ...prev, rateLimited: true } : null));
@@ -2698,8 +2772,14 @@ const handleGenerateMore = async () => {
         correctAnswerIfWrong: r.correctAnswerIfWrong ?? null,
         groundingUrl: (r as { groundingUrl?: string | null }).groundingUrl ?? null,
        });
-      } catch {
-       newFailed.push(entry);
+      } catch (err: unknown) {
+        const limitMsg = extractFreeTierLimitMsg(err);
+        if (limitMsg) {
+            setFcState((prev) => (prev ? { ...prev, running: false } : null));
+            setUpgradeLimitMsg(limitMsg);
+            return;
+        }
+        newFailed.push(entry);
       }
   setFcState((prev) => (prev ? { ...prev, results: [...newResults], failed: [...newFailed] } :null));
       if (i < toRetry.length - 1) await new Promise((res) => setTimeout(res, 2000));
@@ -2737,6 +2817,7 @@ const handleGenerateMore = async () => {
 
 return (
  <div className="space-y-5">
+     <FreeTierLimitModal msg={upgradeLimitMsg} onClose={() => setUpgradeLimitMsg(null)} />
      <div>
       <h2 className="text-xl font-bold tracking-tight">Review Questions</h2>
       <p className="text-muted-foreground text-sm mt-1">

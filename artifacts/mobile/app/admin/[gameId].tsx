@@ -387,6 +387,7 @@ function QuestionFormModal({
   const [form, setForm] = useState<QForm>(initial);
   const [error, setError] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
+  const [upgradeLimitMsg, setUpgradeLimitMsg] = useState('');
 
   const baseUrl = process.env.EXPO_PUBLIC_DOMAIN
     ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
@@ -427,7 +428,12 @@ function QuestionFormModal({
       const preview = await r.json() as PreviewResponse;
       setForm(previewToForm(preview));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'AI generation failed — try again');
+      const msg = e instanceof Error ? e.message : 'AI generation failed — try again';
+      if (msg.includes('Free plan limit reached')) {
+        setUpgradeLimitMsg(msg);
+      } else {
+        setError(msg);
+      }
     } finally {
       setAiLoading(false);
     }
@@ -499,6 +505,23 @@ function QuestionFormModal({
               {aiLoading ? 'Generating…' : `Fill with AI${gameTopic ? ` (${gameTopic})` : ''}`}
             </Text>
           </Pressable>
+
+          {/* Free-tier upgrade banner */}
+          {!!upgradeLimitMsg && (
+            <View style={{ borderRadius: 12, borderWidth: 1, borderColor: '#facc1540', backgroundColor: '#facc1508', padding: 14, gap: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="star" size={16} color="#facc15" />
+                <Text style={{ color: '#fcd34d', fontSize: 14, fontFamily: 'Manrope_700Bold' }}>Plan Limit Reached</Text>
+              </View>
+              <Text style={{ color: '#fcd34d', fontSize: 12, lineHeight: 18 }}>{upgradeLimitMsg}</Text>
+              <Text style={{ color: '#fcd34d', fontSize: 12, lineHeight: 18 }}>
+                Ask your app administrator to upgrade this account to Pro.
+              </Text>
+              <Pressable onPress={() => setUpgradeLimitMsg('')} hitSlop={8}>
+                <Text style={{ color: '#fcd34d', fontSize: 12, textDecorationLine: 'underline' }}>Dismiss</Text>
+              </Pressable>
+            </View>
+          )}
 
           {/* Question text */}
           <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>QUESTION</Text>
@@ -830,6 +853,47 @@ function QuestionFormModal({
   );
 }
 
+
+// ─── Free-tier upgrade helpers ────────────────────────────────────────────────
+
+function extractFreeTierLimitMsg(err: unknown): string | null {
+  if (!err || typeof err !== 'object') return null;
+  const status = 'status' in err ? (err as { status: number }).status : 0;
+  if (status !== 429) return null;
+  const data = 'data' in err ? (err as { data: unknown }).data : null;
+  if (data && typeof data === 'object' && 'error' in data) {
+    const msg = String((data as { error: unknown }).error);
+    if (msg.includes('Free plan limit reached')) return msg;
+  }
+  return null;
+}
+
+function UpgradeLimitCard({
+  msg,
+  colors,
+  s,
+  onClose,
+}: {
+  msg: string;
+  colors: ReturnType<typeof useColors>;
+  s: ReturnType<typeof bgStyles>;
+  onClose: () => void;
+}) {
+  return (
+    <View style={[s.resultCard, { backgroundColor: '#facc1508', borderColor: '#facc1540' }]}>
+      <Ionicons name="star" size={32} color="#facc15" />
+      <Text style={[s.resultTitle, { color: '#fcd34d' }]}>Plan Limit Reached</Text>
+      <Text style={[s.resultSub, { color: colors.mutedForeground }]}>{msg}</Text>
+      <Text style={[s.resultSub, { color: '#fcd34d', marginTop: 2 }]}>
+        Ask your app administrator to upgrade this account to Pro.
+      </Text>
+      <Pressable style={[s.closeResultBtn, { borderColor: '#facc15' }]} onPress={onClose}>
+        <Text style={[s.closeResultText, { color: '#fcd34d' }]}>Got it</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 // ─── BulkGenerateModal ────────────────────────────────────────────────────────
 
 function BulkGenerateModal({
@@ -854,6 +918,7 @@ function BulkGenerateModal({
   const [amount, setAmount] = useState('10');
   const [result, setResult] = useState<{ imported: number; discarded: number } | null>(null);
   const [error, setError] = useState('');
+  const [upgradeLimitMsg, setUpgradeLimitMsg] = useState('');
   const generateGemini = useGenerateGeminiQuestions();
 
   React.useEffect(() => {
@@ -878,7 +943,9 @@ function BulkGenerateModal({
       });
       setResult({ imported: res.imported, discarded: res.discarded ?? 0 });
       onGenerated(res.imported);
-    } catch (e) {
+    } catch (e: unknown) {
+      const limitMsg = extractFreeTierLimitMsg(e);
+      if (limitMsg) { setUpgradeLimitMsg(limitMsg); return; }
       const msg = e instanceof Error ? e.message : 'Generation failed';
       setError(msg.includes('429') ? 'AI rate limit reached — wait a moment and try again.' : msg);
     }
@@ -899,7 +966,9 @@ function BulkGenerateModal({
             <Text style={[s.sheetTitle, { color: colors.foreground }]}>Generate Questions with AI</Text>
           </View>
 
-          {result ? (
+          {upgradeLimitMsg ? (
+            <UpgradeLimitCard msg={upgradeLimitMsg} colors={colors} s={s} onClose={onClose} />
+          ) : result ? (
             <View style={[s.resultCard, { backgroundColor: colors.secondary + '15', borderColor: colors.secondary + '30' }]}>
               <Ionicons name="checkmark-circle" size={32} color={colors.secondary} />
               <Text style={[s.resultTitle, { color: colors.secondary }]}>
@@ -1194,6 +1263,7 @@ function AIActionMenu({
   const [enhanceResult, setEnhanceResult] = useState<EnhanceQuestionResult | null>(null);
   const [factCheckResult, setFactCheckResult] = useState<FactCheckSingleResult | null>(null);
 
+  const [upgradeLimitMsg, setUpgradeLimitMsg] = useState('');
   const updateQuestion = useUpdateQuestion();
   const regenerate = useRegenerateQuestion();
   const enhance = useEnhanceQuestion();
@@ -1229,7 +1299,9 @@ function AIActionMenu({
         const res = await factCheck.mutateAsync({ gameId, questionId: question.id });
         setFactCheckResult(res);
       }
-    } catch (e) {
+    } catch (e: unknown) {
+      const limitMsg = extractFreeTierLimitMsg(e);
+      if (limitMsg) { setUpgradeLimitMsg(limitMsg); return; }
       const msg = e instanceof Error ? e.message : 'Request failed';
       setError(msg.includes('429') ? 'Rate limit reached — wait a moment and try again.' : msg);
     } finally {
@@ -1353,8 +1425,13 @@ function AIActionMenu({
             </View>
           )}
 
+          {/* Free-tier upgrade */}
+          {!!upgradeLimitMsg && (
+            <UpgradeLimitCard msg={upgradeLimitMsg} colors={colors} s={s} onClose={onClose} />
+          )}
+
           {/* Error */}
-          {!!error && (
+          {!upgradeLimitMsg && !!error && (
             <View style={[s.errorRow, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30', margin: 4 }]}>
               <Ionicons name="alert-circle" size={14} color={colors.destructive} />
               <Text style={[s.errorText, { color: colors.destructive }]}>{error}</Text>

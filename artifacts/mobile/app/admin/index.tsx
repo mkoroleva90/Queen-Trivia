@@ -58,6 +58,7 @@ export default function AdminHomeScreen() {
   const [createError, setCreateError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [upgradeLimitMsg, setUpgradeLimitMsg] = useState<string | null>(null);
 
   const { data: games, isLoading, refetch } = useListGames();
   const { data: stats } = useGetStatsSummary();
@@ -84,7 +85,16 @@ export default function AdminHomeScreen() {
       setCreateOpen(false);
       setTopic('');
       setDifficulty('medium');
-    } catch {
+    } catch (err: unknown) {
+      const status = err && typeof err === 'object' && 'status' in err ? (err as { status: number }).status : 0;
+      const data = err && typeof err === 'object' && 'data' in err ? (err as { data: unknown }).data : null;
+      if (status === 429 && data && typeof data === 'object' && 'error' in data) {
+        const msg = String((data as { error: unknown }).error);
+        if (msg.includes('Free plan limit reached')) {
+          setUpgradeLimitMsg(msg);
+          return;
+        }
+      }
       setCreateError('Failed to create game — please retry');
     }
   };
@@ -253,6 +263,34 @@ export default function AdminHomeScreen() {
         </ScrollView>
       )}
 
+      {/* Free-tier upgrade Modal */}
+      <Modal visible={!!upgradeLimitMsg} animationType="slide" transparent presentationStyle="overFullScreen">
+        <View style={s.modalOverlay}>
+          <Pressable style={s.modalBackdrop} onPress={() => setUpgradeLimitMsg(null)} />
+          <View style={[s.sheet, { backgroundColor: colors.card, paddingBottom: insets.bottom + 24 }]}>
+            <View style={s.sheetHandle} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <Ionicons name="star" size={20} color="#facc15" />
+              <Text style={[s.sheetTitle, { color: colors.foreground }]}>Plan Limit Reached</Text>
+            </View>
+            <Text style={[{ fontSize: 14, lineHeight: 20 }, { color: colors.mutedForeground }]}>
+              {upgradeLimitMsg}
+            </Text>
+            <View style={[s.upgradeNote, { borderColor: '#facc1540', backgroundColor: '#facc1508' }]}>
+              <Text style={{ color: '#fcd34d', fontSize: 13, lineHeight: 20 }}>
+                To unlock unlimited access, ask your app administrator to upgrade this account to Pro.
+              </Text>
+            </View>
+            <Pressable
+              style={[s.sheetBtn, { backgroundColor: colors.primary }]}
+              onPress={() => setUpgradeLimitMsg(null)}
+            >
+              <Text style={s.sheetBtnText}>Got it</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
       {/* Create Game Modal */}
       <Modal visible={createOpen} animationType="slide" transparent presentationStyle="overFullScreen">
         <KeyboardAvoidingView
@@ -351,4 +389,5 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     errorText: { fontSize: 13 },
     sheetBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
     sheetBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Manrope_700Bold' },
+    upgradeNote: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12 },
   });
