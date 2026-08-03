@@ -3645,6 +3645,8 @@ const REQUIRE_VERIFY_KEY = "trivia-require-verify";
 
 function SettingsSection() {
     const { toast } = useToast();
+    const { logout } = useAuth();
+    const [, setLocation] = useLocation();
     const [triviaCode, setTriviaCode] = useState("");
     const [adminCode, setAdminCode] = useState("");
     const [showTrivia, setShowTrivia] = useState(false);
@@ -3653,6 +3655,8 @@ function SettingsSection() {
     const [currentAdmin, setCurrentAdmin] = useState("");
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [deleting, setDeleting] = useState(false);
     const [requireVerify, setRequireVerify] = useState<boolean>(() => {
      try { return localStorage.getItem(REQUIRE_VERIFY_KEY) !== "false"; } catch { return true; }
     });
@@ -3703,6 +3707,28 @@ function SettingsSection() {
         toast({ variant: "destructive", title: "Network error" });
     } finally {
         setSaving(false);
+    }
+};
+
+const handleDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+        const res = await fetch("/api/auth/email/account", {
+            method: "DELETE",
+            credentials: "include",
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({})) as { error?: string };
+            toast({ variant: "destructive", title: data.error ?? "Failed to delete account. Please try again." });
+            return;
+        }
+        setDeleteDialogOpen(false);
+        await logout();
+        setLocation("/admin-login");
+    } catch {
+        toast({ variant: "destructive", title: "Connection error — please retry." });
+    } finally {
+        setDeleting(false);
     }
 };
 
@@ -3825,6 +3851,57 @@ return (
           </CardContent>
          </Card>
          </div>
+
+   {/* ── Danger Zone ── */}
+   <div className="space-y-3">
+    <div>
+     <h3 className="font-semibold text-base text-destructive flex items-center gap-1.5">
+      <AlertTriangle className="h-4 w-4" />
+      Danger Zone
+     </h3>
+     <p className="text-muted-foreground text-sm mt-0.5">
+      These actions are permanent and cannot be undone.
+     </p>
+    </div>
+    <Card className="border-destructive/40 bg-card/60">
+     <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="space-y-1">
+       <p className="font-medium text-sm">Delete account</p>
+       <p className="text-xs text-muted-foreground max-w-sm">
+        Permanently removes your account and all associated games. You will be logged out immediately.
+       </p>
+      </div>
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+       <DialogTrigger asChild>
+        <Button variant="destructive" size="sm" className="shrink-0">
+         <Trash2 className="h-4 w-4 mr-2" />
+         Delete account
+        </Button>
+       </DialogTrigger>
+       <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+         <DialogTitle className="flex items-center gap-2 text-destructive">
+          <AlertTriangle className="h-5 w-5" />
+          Delete your account?
+         </DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+         This will permanently delete your account and <strong>all your games</strong>. This action cannot be undone.
+        </p>
+        <div className="flex justify-end gap-3 pt-2">
+         <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
+          Cancel
+         </Button>
+         <Button variant="destructive" onClick={handleDeleteAccount} disabled={deleting}>
+          {deleting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+          {deleting ? "Deleting…" : "Yes, delete my account"}
+         </Button>
+        </div>
+       </DialogContent>
+      </Dialog>
+     </CardContent>
+    </Card>
+   </div>
      </div>
     );
 }
