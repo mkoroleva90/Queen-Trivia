@@ -24,12 +24,12 @@ Trivia Night is a multiplayer pub-quiz web application. Players join live games 
 - **API → External services** — Gemini API (Google) and OpenTDB are called server-side. Image URLs from Gemini are allowlisted to `upload.wikimedia.org/wikipedia/commons/` before any outbound fetch. OpenTDB is a fixed upstream endpoint. Resend (email) is called server-side for verification and password-reset emails.
 - **Public / Authenticated** — `/api/health`, `/api/auth/*`, `/api/admin/me`, `/api/auth/email/verify`, `/api/auth/email/login`, `/api/auth/email/forgot-password`, and `/api/auth/email/reset-password` are public. `/api/auth/email/register` requires an active admin session. All gameplay and admin endpoints require a valid session.
 - **Player / Admin** — Admins have full CRUD over games, questions, and settings. Players can only join games, submit answers, and read leaderboards. Enforced server-side via `requireAdmin` and `requireUser` middleware.
-- **Mobile server** — The Expo update server at `/mobile/` is a separate Node.js HTTP process (`artifacts/mobile/server/serve.js`). It serves static build assets and platform manifests. The `expo-platform` header is attacker-controlled input at this boundary.
+- **Mobile server** — The Expo update server at `/mobile/` is a separate Node.js HTTP process (`artifacts/mobile/server/serve.js`). It serves static build assets and platform manifests. The `expo-platform` header is attacker-controlled input at this boundary but is strictly validated to `'ios'` or `'android'` before use.
 
 ## Scan Anchors
 
 - **Entry points:** `artifacts/api-server/src/routes/` (all route files), `artifacts/api-server/src/app.ts` (Express setup and CORS), `artifacts/mobile/server/serve.js` (mobile update server)
-- **Highest-risk areas:** Admin session logic in `routes/session.ts`; access code comparison in `routes/session.ts` and `routes/auth.ts`; per-game access code generation in `routes/games.ts`; AI grading in `services/geminiApi.ts` (`gradeWithAI` — residual prompt injection, open MEDIUM finding)
+- **Highest-risk areas:** Admin session logic in `routes/session.ts`; access code comparison in `routes/session.ts` and `routes/auth.ts`; per-game access code generation in `routes/games.ts`; AI grading in `services/geminiApi.ts` (`gradeWithAI` — residual prompt injection, open MEDIUM finding `ai-grader-prompt-injection-short-response`)
 - **Public surface:** `/api/health`, `/api/auth/verify`, `/api/auth/login`, `/api/admin/login`, `/api/auth/me`, `/api/admin/me`, `/api/auth/email/verify`, `/api/auth/email/login`, `/api/auth/email/forgot-password`, `/api/auth/email/reset-password`
 - **Admin-only surface (email auth):** `/api/auth/email/register` — requires active admin session
 - **Admin surface:** `/api/settings`, `/api/games` (POST/PATCH/DELETE), `/api/questions` (POST/PATCH/DELETE), `/api/stats/summary`, Gemini and OpenTDB import routes, `/api/games/:id/results/export.csv`
@@ -55,7 +55,7 @@ Players and admins authenticate with shared access codes (original path). A seco
 
 Correct answers and question data are fetched from the database server-side. Score updates are computed server-side. Player submissions are scoped to the session user ID.
 
-- **AI grader prompt injection:** `short_response` questions use Gemini AI to grade answers (`gradeWithAI` in `services/geminiApi.ts`). The player-controlled `userAnswer` is JSON-encoded before embedding in the prompt, which mitigates structural injection. However, the model is instructed to mentally decode the JSON and treat the content as text to evaluate — making semantic-level prompt injection (override instructions embedded in the answer) still viable. ⚠️ Open MEDIUM finding (`ai-grader-prompt-injection-short-response`).
+- **AI grader prompt injection:** `write_in` questions use Gemini AI to grade answers (`gradeWithAI` in `services/geminiApi.ts`). The player-controlled `userAnswer` is JSON-encoded before embedding in the prompt, the answer is wrapped in `---PLAYER ANSWER START/END---` delimiters, and the model is explicitly instructed to disregard instruction-like content. These mitigations are substantially stronger than before. However, semantic-level prompt injection (crafting an answer that looks like override instructions) remains viable against LLMs in principle. Server-side clamping limits score inflation to the legitimate maximum for the question. ⚠️ Open MEDIUM finding (`ai-grader-prompt-injection-short-response`).
 
 ### Information Disclosure
 
@@ -64,7 +64,7 @@ Correct answers and question data are fetched from the database server-side. Sco
 - **User enumeration:** Both GET and POST `/api/users/:userId` require `requireAdmin`. ✅
 - **Image SSRF:** Gemini-generated image URLs are validated against a strict allowlist (`upload.wikimedia.org/wikipedia/commons/`) before any outbound fetch. ✅
 - **CSV formula injection:** The results export sanitizes formula trigger characters in player names via `escapeCsv()`. ✅
-- **Mobile manifest path traversal:** The `expo-platform` header is used as a path component in `serveManifest` without a `startsWith(STATIC_ROOT)` boundary check, allowing traversal to read any `manifest.json` file on the filesystem. ⚠️ Open MEDIUM finding (`mobile-server-manifest-path-traversal`).
+- **Mobile manifest path traversal:** `serveManifest` validates `expo-platform` to be exactly `'ios'` or `'android'` before constructing any file path, preventing traversal. Static file serving in `serveStaticFile` uses a `startsWith(STATIC_ROOT)` boundary check. ✅ Fixed.
 
 ### Elevation of Privilege
 
