@@ -1,9 +1,9 @@
 
 import { createServer } from "node:http";
-import app from "./app";
-import { initSocket } from "./lib/socket";
-import { logger } from "./lib/logger";
-import { bootstrapAccessCodes } from "./lib/bootstrapAccessCodes";
+import app from "./app.ts";
+import { initSocket } from "./lib/socket.ts";
+import { logger } from "./lib/logger.ts";
+import { bootstrapAccessCodes } from "./lib/bootstrapAccessCodes.ts";
 
 
 const rawPort = process.env["PORT"];

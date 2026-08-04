@@ -1,8 +1,8 @@
 
 import { Router, type IRouter } from "express";
 import { eq, and, sql, asc } from "drizzle-orm";
-import { requireAdmin } from "../middleware/requireAdmin";
-import { requireAuth } from "../middleware/requireAuth";
+import { requireAdmin } from "../middleware/requireAdmin.ts";
+import { requireAuth } from "../middleware/requireAuth.ts";
 import {
  db,
  gamesTable,
@@ -11,8 +11,8 @@ import {
  answersTable,
  gameParticipantsTable,
 } from "@workspace/db";
-import { toJsonSafe } from "../lib/serialize";
-import { assertGameOwnership } from "../lib/assertGameOwnership";
+import { toJsonSafe } from "../lib/serialize.ts";
+import { assertGameOwnership } from "../lib/assertGameOwnership.ts";
 
 
 const router: IRouter = Router();

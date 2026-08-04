@@ -8,8 +8,8 @@ import {
  GetUserParams,
  GetUserResponse,
 } from "@workspace/api-zod";
-import { toJsonSafe } from "../lib/serialize";
-import { requireAdmin } from "../middleware/requireAdmin";
+import { toJsonSafe } from "../lib/serialize.ts";
+import { requireAdmin } from "../middleware/requireAdmin.ts";
 
 
 const router: IRouter = Router();

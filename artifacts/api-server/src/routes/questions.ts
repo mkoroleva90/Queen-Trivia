@@ -13,9 +13,9 @@ import {
  UpdateQuestionResponse,
  DeleteQuestionParams,
 } from "@workspace/api-zod";
-import { requireAdmin } from "../middleware/requireAdmin";
-import { requireAuth } from "../middleware/requireAuth";
-import { assertGameOwnership } from "../lib/assertGameOwnership";
+import { requireAdmin } from "../middleware/requireAdmin.ts";
+import { requireAuth } from "../middleware/requireAuth.ts";
+import { assertGameOwnership } from "../lib/assertGameOwnership.ts";
 
 
 const router: IRouter = Router();

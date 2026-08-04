@@ -7,10 +7,10 @@ import {
  ImportOpenTdbQuestionsBody,
  ImportOpenTdbQuestionsResponse,
 } from "@workspace/api-zod";
-import { fetchOpenTdbQuestions } from "../services/triviaApi";
-import { requireAdmin } from "../middleware/requireAdmin";
-import { opentdbRateLimit } from "../middleware/providerRateLimit";
-import { assertGameOwnership } from "../lib/assertGameOwnership";
+import { fetchOpenTdbQuestions } from "../services/triviaApi.ts";
+import { requireAdmin } from "../middleware/requireAdmin.ts";
+import { opentdbRateLimit } from "../middleware/providerRateLimit.ts";
+import { assertGameOwnership } from "../lib/assertGameOwnership.ts";
 
 
 const router: IRouter = Router();

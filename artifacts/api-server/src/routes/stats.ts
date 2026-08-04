@@ -8,7 +8,7 @@ import {
 answersTable,
 } from "@workspace/db";
 import { GetStatsSummaryResponse } from "@workspace/api-zod";
-import { requireAdmin } from "../middleware/requireAdmin";
+import { requireAdmin } from "../middleware/requireAdmin.ts";
 
 
 const router: IRouter = Router();

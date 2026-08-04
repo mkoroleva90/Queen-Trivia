@@ -1,5 +1,5 @@
 
-import { logger } from "../lib/logger";
+import { logger } from "../lib/logger.ts";
 
 
 const GEMINI_MODELS = [
@@ -47,7 +47,9 @@ function shuffleArray<T>(arr: T[]): T[] {
     const a = [...arr];
     for (let i = a.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [a[i]!, a[j]!] = [a[j]!, a[i]!];
+        const tmp = a[i]!;
+        a[i] = a[j]!;
+        a[j] = tmp;
     }
     return a;
 }
@@ -76,6 +78,9 @@ async function callGeminiRaw(
     temperature: number,
     maxTokens: number,
     grounding = false,
+    // Structured output schema. NOTE: incompatible with grounding (see extractJson
+    // docs) — only pass this on non-grounded calls.
+    responseSchema?: Record<string, unknown>,
 ): Promise<GeminiRawResult | GeminiRawError> {
     let resp: Response;
     try {
@@ -85,7 +90,14 @@ async function callGeminiRaw(
      body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
       ...(grounding && { tools: [{ googleSearch: {} }] }),
-      generationConfig: { temperature, maxOutputTokens: maxTokens },
+      generationConfig: {
+          temperature,
+          maxOutputTokens: maxTokens,
+          ...(responseSchema && !grounding && {
+              responseMimeType: "application/json",
+              responseSchema,
+          }),
+      },
      }),
     });
 } catch (err) {
@@ -1054,6 +1066,29 @@ const AI_GRADE_FALLBACK: AIGradeResult = {
     feedback: "We couldn't grade this automatically — an admin will review it.",
 };
 
+import { looksLikePromptInjection } from "../lib/promptInjection.ts";
+
+/**
+ * Result for answers rejected by the deterministic prompt-injection pre-screen.
+ * The answer is never sent to the model and is scored 0 with honest feedback
+ * (no promise of manual review — grading is final).
+ */
+const AI_GRADE_INJECTION_REJECTED: AIGradeResult = {
+    isCorrect: false,
+    pointsEarned: 0,
+    feedback: "This answer couldn't be graded because it contains grading instructions rather than an answer to the question.",
+};
+
+const AI_GRADE_RESPONSE_SCHEMA = {
+    type: "OBJECT",
+    properties: {
+        isCorrect: { type: "BOOLEAN" },
+        pointsEarned: { type: "INTEGER" },
+        feedback: { type: "STRING" },
+    },
+    required: ["isCorrect", "pointsEarned", "feedback"],
+} as const;
+
 export async function gradeWithAI({
     questionText,
     correctAnswer,
@@ -1069,6 +1104,13 @@ export async function gradeWithAI({
 }): Promise<AIGradeResult> {
     const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) return AI_GRADE_FALLBACK;
+
+    // Deterministic defense: answers containing instruction-override or
+    // grader-output patterns are never sent to the model at all.
+    if (looksLikePromptInjection(userAnswer)) {
+        logger.warn("gradeWithAI: answer matched prompt-injection pattern — scored 0 without AI grading");
+        return AI_GRADE_INJECTION_REJECTED;
+    }
 
     // JSON-encode all untrusted fields so they cannot break out of their structural
     // boundaries or be interpreted as prompt instructions by the model.
@@ -1104,7 +1146,10 @@ Respond with ONLY the following JSON object and no other text. Your response mus
 {"isCorrect": <true|false>, "pointsEarned": <integer 0-${points}>, "feedback": "<one concise sentence>"}`;
 
     try {
-        const raw = await callGeminiRaw(apiKey, GEMINI_MODELS[0]!, prompt, 0.1, 300, false);
+        const raw = await callGeminiRaw(
+            apiKey, GEMINI_MODELS[0]!, prompt, 0.1, 300, false,
+            AI_GRADE_RESPONSE_SCHEMA as unknown as Record<string, unknown>,
+        );
         if (!raw.ok) {
             logger.warn({ error: raw.error }, "gradeWithAI: Gemini call failed");
             return AI_GRADE_FALLBACK;

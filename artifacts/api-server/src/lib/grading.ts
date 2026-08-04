@@ -3,7 +3,7 @@
  * Exported so they can be unit-tested independently of the Express router.
  */
 
-import { gradeWithAI } from "../services/geminiApi";
+import { gradeWithAI } from "../services/geminiApi.ts";
 
 /**
  * Normalise a string for answer comparison:

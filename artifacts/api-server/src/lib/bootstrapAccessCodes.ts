@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { asc, eq, sql } from "drizzle-orm";
 import { db, adminSettingsTable } from "@workspace/db";
-import { logger } from "./logger";
+import { logger } from "./logger.ts";
 
 // Historical seeded defaults that were documented publicly. If either is still
 // in use, it must be rotated at boot to prevent credential reuse from docs.

@@ -10,12 +10,12 @@ import {
   EmailForgotPasswordBody,
   EmailResetPasswordBody,
 } from "@workspace/api-zod";
-import { authRateLimit } from "../middleware/authRateLimit";
-import { requireAdmin } from "../middleware/requireAdmin";
+import { authRateLimit } from "../middleware/authRateLimit.ts";
+import { requireAdmin } from "../middleware/requireAdmin.ts";
 import {
   sendVerificationEmail,
   sendPasswordResetEmail,
-} from "../lib/email";
+} from "../lib/email.ts";
 
 const router: IRouter = Router();
 

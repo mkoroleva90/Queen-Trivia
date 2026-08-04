@@ -6,7 +6,7 @@ import {
  VerifyAccessCodeBody,
 VerifyAccessCodeResponse,
 } from "@workspace/api-zod";
-import { authRateLimit } from "../middleware/authRateLimit";
+import { authRateLimit } from "../middleware/authRateLimit.ts";
 
 
 const router: IRouter = Router();

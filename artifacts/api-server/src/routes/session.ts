@@ -2,9 +2,9 @@
 import { Router, type IRouter } from "express";
 import { and, eq, ne } from "drizzle-orm";
 import { db, adminSettingsTable, usersTable, gamesTable } from "@workspace/db";
-import { toJsonSafe } from "../lib/serialize";
-import { authRateLimit } from "../middleware/authRateLimit";
-import { generateMobileToken } from "../lib/mobileAuth";
+import { toJsonSafe } from "../lib/serialize.ts";
+import { authRateLimit } from "../middleware/authRateLimit.ts";
+import { generateMobileToken } from "../lib/mobileAuth.ts";
 
 
 const router: IRouter = Router();

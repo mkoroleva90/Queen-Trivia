@@ -1,5 +1,5 @@
 
-import { logger } from "../lib/logger";
+import { logger } from "../lib/logger.ts";
 
 
 const OPENTDB_BASE = "https://opentdb.com";

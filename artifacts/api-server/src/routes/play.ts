@@ -10,10 +10,10 @@ import {
  answersTable,
  gameParticipantsTable,
 } from "@workspace/db";
-import { safeEmit } from "../lib/socket";
-import { requireUser } from "../middleware/requireUser";
-import { requireAuth } from "../middleware/requireAuth";
-import { assertGameOwnership } from "../lib/assertGameOwnership";
+import { safeEmit } from "../lib/socket.ts";
+import { requireUser } from "../middleware/requireUser.ts";
+import { requireAuth } from "../middleware/requireAuth.ts";
+import { assertGameOwnership } from "../lib/assertGameOwnership.ts";
 const answerRateLimit = rateLimit({
     windowMs: 60_000,
     max: 30,
@@ -32,8 +32,8 @@ import {
     ListUserAnswersParams,
     ListUserAnswersResponse,
 } from "@workspace/api-zod";
-import { toJsonSafe } from "../lib/serialize";
-import { gradeAnswer } from "../lib/grading";
+import { toJsonSafe } from "../lib/serialize.ts";
+import { gradeAnswer } from "../lib/grading.ts";
 
 
 const router: IRouter = Router();

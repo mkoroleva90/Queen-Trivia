@@ -6,8 +6,8 @@ import {
  gamesTable,
  gameParticipantsTable,
 } from "@workspace/db";
-import { safeEmit } from "../lib/socket";
-import { assertGameOwnership } from "../lib/assertGameOwnership";
+import { safeEmit } from "../lib/socket.ts";
+import { assertGameOwnership } from "../lib/assertGameOwnership.ts";
 import {
  ListGamesQueryParams,
  ListGamesResponse,
@@ -20,11 +20,11 @@ import {
  UpdateGameResponse,
  DeleteGameParams,
 } from "@workspace/api-zod";
-import { toJsonSafe } from "../lib/serialize";
-import { requireAdmin } from "../middleware/requireAdmin";
-import { requireAuth } from "../middleware/requireAuth";
-import { generateAccessCode } from "../lib/bootstrapAccessCodes";
-import { checkGameCreationLimit } from "../lib/usageLimits";
+import { toJsonSafe } from "../lib/serialize.ts";
+import { requireAdmin } from "../middleware/requireAdmin.ts";
+import { requireAuth } from "../middleware/requireAuth.ts";
+import { generateAccessCode } from "../lib/bootstrapAccessCodes.ts";
+import { checkGameCreationLimit } from "../lib/usageLimits.ts";
 
 
 const router: IRouter = Router();

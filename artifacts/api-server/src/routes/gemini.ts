@@ -1,11 +1,11 @@
 
 import { Router, type IRouter } from "express";
 import { and, eq } from "drizzle-orm";
-import { requireAdmin } from "../middleware/requireAdmin";
+import { requireAdmin } from "../middleware/requireAdmin.ts";
 import {
  geminiGenerateRateLimit,
  geminiOperationRateLimit,
-} from "../middleware/providerRateLimit";
+} from "../middleware/providerRateLimit.ts";
 import { db, gamesTable, questionsTable } from "@workspace/db";
 import {
  GenerateGeminiQuestionsBody,
@@ -21,10 +21,10 @@ import {
  regenerateSingleQuestion,
  enhanceQuestion,
  factCheckSingleQuestion,
-} from "../services/geminiApi";
-import { logger } from "../lib/logger";
-import { assertGameOwnership } from "../lib/assertGameOwnership";
-import { checkAiUsageLimit, recordAiUsage } from "../lib/usageLimits";
+} from "../services/geminiApi.ts";
+import { logger } from "../lib/logger.ts";
+import { assertGameOwnership } from "../lib/assertGameOwnership.ts";
+import { checkAiUsageLimit, recordAiUsage } from "../lib/usageLimits.ts";
 
 
 const router: IRouter = Router();

@@ -10,7 +10,7 @@
  */
 import { Router } from "express";
 import { isNull, eq } from "drizzle-orm";
-import { getHostUsageSummaries, getOrphanedGames } from "../lib/usageLimits";
+import { getHostUsageSummaries, getOrphanedGames } from "../lib/usageLimits.ts";
 import { db, adminAccountsTable, gamesTable } from "@workspace/db";
 
 const router = Router();
@@ -42,7 +42,7 @@ router.get("/owner/usage", requireOwnerKey, async (_req, res): Promise<void> => 
 
 // PATCH /api/owner/hosts/:id/plan — set a host's plan (free ↔ pro)
 router.patch("/owner/hosts/:id/plan", requireOwnerKey, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Invalid host ID" });
     return;
@@ -73,7 +73,7 @@ router.get("/owner/orphaned-games", requireOwnerKey, async (_req, res): Promise<
 
 // POST /api/owner/games/:id/assign — assign an ownerless game to a host account
 router.post("/owner/games/:id/assign", requireOwnerKey, async (req, res): Promise<void> => {
-  const gameId = parseInt(req.params.id, 10);
+  const gameId = parseInt(String(req.params.id), 10);
   if (!Number.isFinite(gameId)) {
     res.status(400).json({ error: "Invalid game ID" });
     return;

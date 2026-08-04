@@ -5,10 +5,10 @@ import type { Request, Response } from "express";
 import type { NextFunction } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, gameParticipantsTable } from "@workspace/db";
-import { logger } from "./logger";
-import { sessionMiddleware } from "./session";
-import { corsOrigin, isOriginAllowed } from "./cors";
-import { injectMobileSession } from "./mobileAuth";
+import { logger } from "./logger.ts";
+import { sessionMiddleware } from "./session.ts";
+import { corsOrigin, isOriginAllowed } from "./cors.ts";
+import { injectMobileSession } from "./mobileAuth.ts";
 
 
 // ── Typed event maps ─────────────────────────────────────────────────────────

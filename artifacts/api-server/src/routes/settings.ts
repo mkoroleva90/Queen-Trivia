@@ -2,7 +2,7 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, adminSettingsTable } from "@workspace/db";
-import { requireAdmin } from "../middleware/requireAdmin";
+import { requireAdmin } from "../middleware/requireAdmin.ts";
 
 
 const router: IRouter = Router();

@@ -2,11 +2,11 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
-import router from "./routes";
-import { logger } from "./lib/logger";
-import { sessionMiddleware } from "./lib/session";
-import { corsOrigin } from "./lib/cors";
-import { injectMobileSession } from "./lib/mobileAuth";
+import router from "./routes/index.ts";
+import { logger } from "./lib/logger.ts";
+import { sessionMiddleware } from "./lib/session.ts";
+import { corsOrigin } from "./lib/cors.ts";
+import { injectMobileSession } from "./lib/mobileAuth.ts";
 
 
 const app: Express = express();

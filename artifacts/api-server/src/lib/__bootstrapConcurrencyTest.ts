@@ -3,7 +3,7 @@
 // it truncates admin_settings and leaves fresh random codes.
 import { sql } from "drizzle-orm";
 import { db, adminSettingsTable } from "@workspace/db";
-import { bootstrapAccessCodes } from "./bootstrapAccessCodes";
+import { bootstrapAccessCodes } from "./bootstrapAccessCodes.ts";
 
 async function main() {
   if (process.env.BOOTSTRAP_TEST !== "1") {
