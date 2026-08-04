@@ -17,7 +17,9 @@
       "js-yaml": ">=5.2.2",
       "esbuild": ">=0.28.1",
       "brace-expansion": ">=5.0.9",
-      "postcss": ">=8.5.1"
+      "postcss": ">=8.5.1",
+      "fast-uri": ">=3.1.5",
+      "ip-address": ">=10.3.1"
     }
   },
   "dependencies": {
