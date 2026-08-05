@@ -464,7 +464,7 @@ function QuestionFormModal({
 
         <ScrollView contentContainerStyle={s.mBody} keyboardShouldPersistTaps="handled">
           {/* Type selector */}
-          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>QUESTION TYPE</Text>
+          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Question type</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.typeScroll}>
             {ALL_TYPES.map((t) => (
               <Pressable
@@ -524,7 +524,7 @@ function QuestionFormModal({
           )}
 
           {/* Question text */}
-          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>QUESTION</Text>
+          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Question</Text>
           <TextInput
             style={[s.textArea, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
             value={form.questionText}
@@ -538,7 +538,7 @@ function QuestionFormModal({
           {/* Multiple Choice / Multi-Select */}
           {(form.questionType === 'multiple_choice' || form.questionType === 'multi_select') && (
             <>
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>CHOICES (tap to mark correct)</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Choices (tap to mark correct)</Text>
               {form.choices.map((choice, i) => {
                 const isCorrect = form.questionType === 'multi_select'
                   ? form.correctChoices.includes(choice.trim())
@@ -606,7 +606,7 @@ function QuestionFormModal({
           {/* True / False */}
           {form.questionType === 'true_false' && (
             <>
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>CORRECT ANSWER</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Correct answer</Text>
               <View style={s.tfRow}>
                 {(['true', 'false'] as const).map((v) => (
                   <Pressable
@@ -632,7 +632,7 @@ function QuestionFormModal({
           {/* Write-in / Short Response */}
           {(form.questionType === 'write_in' || form.questionType === 'short_response') && (
             <>
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>CORRECT ANSWER</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Correct answer</Text>
               <TextInput
                 style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
                 value={form.correctAnswer}
@@ -640,7 +640,7 @@ function QuestionFormModal({
                 placeholder="The exact correct answer"
                 placeholderTextColor={colors.mutedForeground}
               />
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>ALTERNATE ANSWERS (comma-separated)</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Alternate answers (comma-separated)</Text>
               <TextInput
                 style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
                 value={form.alternateAnswers}
@@ -654,7 +654,7 @@ function QuestionFormModal({
           {/* Ordering */}
           {form.questionType === 'ordering' && (
             <>
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>ITEMS IN CORRECT ORDER</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Items in correct order</Text>
               {form.orderedItems.map((item, i) => (
                 <View key={i} style={s.choiceRow}>
                   <Text style={[s.choiceLetter, { color: colors.mutedForeground }]}>{i + 1}</Text>
@@ -700,7 +700,7 @@ function QuestionFormModal({
           {/* Slider */}
           {form.questionType === 'slider' && (
             <>
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>RANGE & CORRECT VALUE</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Range & correct value</Text>
               <View style={s.sliderRow}>
                 {[
                   { label: 'Min', key: 'sliderMin' as const },
@@ -726,7 +726,7 @@ function QuestionFormModal({
           {/* Matching */}
           {form.questionType === 'matching' && (
             <>
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>MATCHING PAIRS</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Matching pairs</Text>
               {form.pairs.map((pair, i) => (
                 <View key={i} style={s.pairRow}>
                   <TextInput
@@ -763,7 +763,7 @@ function QuestionFormModal({
           {/* Image Recognition / Image Hotspot */}
           {(form.questionType === 'image_recognition' || form.questionType === 'image_hotspot') && (
             <>
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>IMAGE URL</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Image URL</Text>
               <TextInput
                 style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
                 value={form.imageUrl}
@@ -775,7 +775,7 @@ function QuestionFormModal({
               />
               {form.questionType === 'image_recognition' && (
                 <>
-                  <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>CORRECT ANSWER</Text>
+                  <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Correct answer</Text>
                   <TextInput
                     style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
                     value={form.correctAnswer}
@@ -783,7 +783,7 @@ function QuestionFormModal({
                     placeholder="What is in the image?"
                     placeholderTextColor={colors.mutedForeground}
                   />
-                  <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>ALTERNATE ANSWERS (comma-separated)</Text>
+                  <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Alternate answers (comma-separated)</Text>
                   <TextInput
                     style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
                     value={form.alternateAnswers}
@@ -795,7 +795,7 @@ function QuestionFormModal({
               )}
               {form.questionType === 'image_hotspot' && !!form.imageUrl.trim() && (
                 <>
-                  <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>TAP IMAGE TO SET HOTSPOT</Text>
+                  <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Tap image to set hotspot</Text>
                   <HotspotPicker
                     imageUrl={form.imageUrl.trim()}
                     x={parseFloat(form.hotspotX) || 0.5}
@@ -812,7 +812,7 @@ function QuestionFormModal({
           )}
 
           {/* Points & Source */}
-          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>POINTS</Text>
+          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Points</Text>
           <TextInput
             style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border, width: 120 }]}
             value={form.points}
@@ -822,7 +822,7 @@ function QuestionFormModal({
             placeholderTextColor={colors.mutedForeground}
           />
 
-          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>SOURCE (optional)</Text>
+          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Source (optional)</Text>
           <TextInput
             style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
             value={form.source}
@@ -985,7 +985,7 @@ function BulkGenerateModal({
             </View>
           ) : (
             <>
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>TOPIC</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Topic</Text>
               <TextInput
                 style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
                 value={topic}
@@ -994,7 +994,7 @@ function BulkGenerateModal({
                 placeholderTextColor={colors.mutedForeground}
               />
 
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>DIFFICULTY</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Difficulty</Text>
               <View style={s.diffRow}>
                 {(['easy', 'medium', 'hard'] as const).map((d) => (
                   <Pressable
@@ -1003,13 +1003,13 @@ function BulkGenerateModal({
                     onPress={() => setDifficulty(d)}
                   >
                     <Text style={[s.diffChipText, { color: difficulty === d ? '#a855f7' : colors.muted }]}>
-                      {d.charAt(0).toUpperCase() + d.slice(1)}
+                      {d === 'easy' ? 'Easy (5 pts)' : d === 'medium' ? 'Medium (10 pts)' : 'Hard (15 pts)'}
                     </Text>
                   </Pressable>
                 ))}
               </View>
 
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>NUMBER OF QUESTIONS (1–20)</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Number of questions (1–20)</Text>
               <TextInput
                 style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border, width: 100 }]}
                 value={amount}
@@ -1148,7 +1148,7 @@ function ImportOpenTdbModal({
           ) : (
             <>
               {/* Category picker */}
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>CATEGORY</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Category</Text>
               <Pressable
                 style={[s.input, { backgroundColor: colors.background, borderColor: colors.border, flexDirection: 'row', alignItems: 'center' }]}
                 onPress={() => setCategoryOpen((v) => !v)}
@@ -1177,7 +1177,7 @@ function ImportOpenTdbModal({
               )}
 
               {/* Difficulty */}
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>DIFFICULTY</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Difficulty</Text>
               <View style={s.diffRow}>
                 {(['easy', 'medium', 'hard'] as const).map((d) => (
                   <Pressable
@@ -1186,14 +1186,14 @@ function ImportOpenTdbModal({
                     onPress={() => setDifficulty(d)}
                   >
                     <Text style={[s.diffChipText, { color: difficulty === d ? colors.primary : colors.muted }]}>
-                      {d.charAt(0).toUpperCase() + d.slice(1)}
+                      {d === 'easy' ? 'Easy (5 pts)' : d === 'medium' ? 'Medium (10 pts)' : 'Hard (15 pts)'}
                     </Text>
                   </Pressable>
                 ))}
               </View>
 
               {/* Amount */}
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>NUMBER OF QUESTIONS (1–50)</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Number of questions (1–50)</Text>
               <TextInput
                 style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border, width: 100 }]}
                 value={amount}
@@ -1444,7 +1444,7 @@ function AIActionMenu({
               <View style={[s.previewCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
                 <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>NEW QUESTION</Text>
                 <Text style={[s.previewText, { color: colors.foreground }]}>{regenPreview.questionText}</Text>
-                <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>CORRECT ANSWER</Text>
+                <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>Correct answer</Text>
                 <Text style={[s.previewAnswer, { color: colors.secondary }]}>{regenPreview.correctAnswer}</Text>
                 {regenPreview.options && Array.isArray(regenPreview.options) && regenPreview.options.length > 0 && (
                   <>
@@ -1832,7 +1832,7 @@ export default function GameDetailScreen() {
             onPress={() => setImportOpen(true)}
           >
             <Ionicons name="cloud-download-outline" size={14} color={colors.primary} />
-            <Text style={[s.genAiBtnText, { color: colors.primary }]}>OpenTDB</Text>
+            <Text style={[s.genAiBtnText, { color: colors.primary }]}>Open Trivia Database</Text>
           </Pressable>
           <Pressable
             style={[s.genAiBtn, { borderColor: '#a855f7' + '55', backgroundColor: '#a855f7' + '15' }]}
@@ -1977,7 +1977,7 @@ const fStyles = (colors: ReturnType<typeof useColors>) =>
     mTitle: { fontSize: 17, fontFamily: 'Manrope_700Bold' },
     saveBtn: { fontSize: 16, fontFamily: 'Manrope_700Bold' },
     mBody: { paddingHorizontal: 20, paddingTop: 20, gap: 10 },
-    fieldLabel: { fontSize: 11, fontFamily: 'Manrope_700Bold', letterSpacing: 1.5, textTransform: 'uppercase', marginTop: 8 },
+    fieldLabel: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', letterSpacing: 0, marginTop: 8 },
     typeScroll: { marginBottom: 4 },
     typeChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7, marginRight: 8 },
     typeChipText: { fontSize: 13, fontFamily: 'Manrope_600SemiBold' },
@@ -2018,7 +2018,7 @@ const bgStyles = (colors: ReturnType<typeof useColors>) =>
     aiIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
     sheetTitle: { flex: 1, fontSize: 18, fontFamily: 'Manrope_700Bold' },
     questionPreview: { fontSize: 13, lineHeight: 18, marginTop: -6 },
-    fieldLabel: { fontSize: 11, fontFamily: 'Manrope_700Bold', letterSpacing: 1.5, textTransform: 'uppercase' },
+    fieldLabel: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', letterSpacing: 0 },
     input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
     diffRow: { flexDirection: 'row', gap: 8 },
     diffChip: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },

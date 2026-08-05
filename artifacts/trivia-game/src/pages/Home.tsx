@@ -209,7 +209,7 @@ export default function Home() {
         <div className="font-medium" style={{ marginTop: 18, fontSize: 13, color: "#66728a" }}>
           Hosting tonight?{" "}
           <Link href="/register" className="qt-tbtn font-bold" style={{ color: "#ffe500" }}>
-            Create a quiz free →
+            Create a game free →
           </Link>
         </div>
       </div>

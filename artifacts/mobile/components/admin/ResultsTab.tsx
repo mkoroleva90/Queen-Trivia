@@ -128,7 +128,7 @@ export function ResultsTab({ bottomPadding }: Props) {
                   <View style={s.metaItem}>
                     <Ionicons name="help-circle-outline" size={13} color={colors.mutedForeground} />
                     <Text style={[s.metaText, { color: colors.mutedForeground }]}>
-                      {game.questionCount ?? 0} Qs
+                      {game.questionCount ?? 0} questions
                     </Text>
                   </View>
                 </View>

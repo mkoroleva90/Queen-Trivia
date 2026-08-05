@@ -527,7 +527,7 @@ export default function Gate() {
             href="/admin-login"
             style={{ color: "#ffe500", fontWeight: 700 }}
           >
-            Create a quiz free →
+            Create a game free →
           </Link>
         </p>
       </div>

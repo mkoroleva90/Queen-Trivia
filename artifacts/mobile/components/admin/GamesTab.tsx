@@ -135,7 +135,7 @@ export function GamesTab({ bottomPadding }: Props) {
       {/* Section heading row */}
       <View style={s.sectionRow}>
         <View style={s.headingGroup}>
-          <Text style={[s.heading, { color: colors.foreground }]}>Your quizzes</Text>
+          <Text style={[s.heading, { color: colors.foreground }]}>Your games</Text>
           {totalGames > 0 && (
             <View style={[s.countBadge, { backgroundColor: colors.muted }]}>
               <Text style={[s.countText, { color: colors.mutedForeground }]}>{totalGames}</Text>
@@ -148,7 +148,7 @@ export function GamesTab({ bottomPadding }: Props) {
           onPress={() => setCreateOpen(true)}
         >
           <Ionicons name="add" size={16} color="#fff" />
-          <Text style={s.newQuizBtnText}>New quiz</Text>
+          <Text style={s.newQuizBtnText}>New game</Text>
         </Pressable>
       </View>
 
@@ -201,7 +201,7 @@ export function GamesTab({ bottomPadding }: Props) {
               <View style={[s.emptyCircle, { backgroundColor: colors.muted }]}>
                 <Ionicons name="add" size={28} color={colors.mutedForeground} />
               </View>
-              <Text style={[s.emptyCardText, { color: colors.foreground }]}>Create new quiz</Text>
+              <Text style={[s.emptyCardText, { color: colors.foreground }]}>Create new game</Text>
               <Text style={[s.emptyCardSub, { color: colors.mutedForeground }]}>
                 Tap to set up your first trivia game
               </Text>
@@ -244,7 +244,7 @@ export function GamesTab({ bottomPadding }: Props) {
               <View style={s.cardMeta}>
                 <View style={s.metaItem}>
                   <Ionicons name="help-circle-outline" size={14} color={colors.mutedForeground} />
-                  <Text style={[s.metaText, { color: colors.mutedForeground }]}>{game.questionCount ?? 0} Qs</Text>
+                  <Text style={[s.metaText, { color: colors.mutedForeground }]}>{game.questionCount ?? 0} questions</Text>
                 </View>
                 <View style={s.metaItem}>
                   <Ionicons name="people-outline" size={14} color={colors.mutedForeground} />
@@ -252,7 +252,7 @@ export function GamesTab({ bottomPadding }: Props) {
                     {(game as Game & { participantCount?: number }).participantCount ?? 0}
                   </Text>
                 </View>
-                <Text style={[s.metaText, { color: colors.mutedForeground }]}>{game.difficulty}</Text>
+                <Text style={[s.metaText, { color: colors.mutedForeground }]}>{game.difficulty ? game.difficulty.charAt(0).toUpperCase() + game.difficulty.slice(1) : '—'}</Text>
               </View>
 
               {/* Action buttons */}
@@ -339,7 +339,7 @@ export function GamesTab({ bottomPadding }: Props) {
             <Pressable style={s.modalBackdrop} onPress={() => setCreateOpen(false)} />
             <View style={[s.sheet, { backgroundColor: colors.card, paddingBottom: insets.bottom + 24 }]}>
               <View style={s.sheetHandle} />
-              <Text style={[s.sheetTitle, { color: colors.foreground }]}>New quiz</Text>
+              <Text style={[s.sheetTitle, { color: colors.foreground }]}>New game</Text>
 
               <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Topic</Text>
               <TextInput
@@ -364,7 +364,7 @@ export function GamesTab({ bottomPadding }: Props) {
                     onPress={() => setDifficulty(d)}
                   >
                     <Text style={[s.diffChipText, { color: difficulty === d ? colors.primary : colors.mutedForeground }]}>
-                      {d.charAt(0).toUpperCase() + d.slice(1)}
+                      {d === 'easy' ? 'Easy (5 pts)' : d === 'medium' ? 'Medium (10 pts)' : 'Hard (15 pts)'}
                     </Text>
                   </Pressable>
                 ))}
@@ -379,7 +379,7 @@ export function GamesTab({ bottomPadding }: Props) {
               >
                 {createGame.isPending
                   ? <ActivityIndicator color="#fff" />
-                  : <Text style={s.sheetBtnText}>Create Game</Text>}
+                  : <Text style={s.sheetBtnText}>Create game</Text>}
               </Pressable>
             </View>
           </View>
@@ -443,7 +443,7 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 12 },
     sheetHandle: { width: 40, height: 4, backgroundColor: '#444', borderRadius: 2, alignSelf: 'center', marginBottom: 8 },
     sheetTitle: { fontSize: 20, fontFamily: 'Manrope_800ExtraBold', marginBottom: 4 },
-    fieldLabel: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', letterSpacing: 1, textTransform: 'uppercase' },
+    fieldLabel: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', letterSpacing: 0 },
     textInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
     diffRow: { flexDirection: 'row', gap: 8 },
     diffChip: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },

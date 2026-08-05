@@ -104,7 +104,7 @@ function DifficultyChips({ value, onChange, colors }: {
           onPress={() => onChange(d)}
         >
           <Text style={[sh.diffChipText, { color: value === d ? colors.primary : colors.mutedForeground }]}>
-            {d.charAt(0).toUpperCase() + d.slice(1)}
+            {d === 'easy' ? 'Easy (5 pts)' : d === 'medium' ? 'Medium (10 pts)' : 'Hard (15 pts)'}
           </Text>
         </Pressable>
       ))}
@@ -162,7 +162,7 @@ function GamePicker({ games, selectedId, onSelect, colors }: {
               {g.topic}
             </Text>
             <Text style={[sh.gameChipCount, { color: colors.mutedForeground }]}>
-              {g.questionCount ?? 0} Qs
+              {g.questionCount ?? 0} questions
             </Text>
           </Pressable>
         );
@@ -245,7 +245,7 @@ export function BuildTab({ bottomPadding }: Props) {
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleCreate = async () => {
-    if (!topic.trim()) { setSetupError('Enter a topic for your quiz'); return; }
+    if (!topic.trim()) { setSetupError('Enter a topic'); return; }
     setSetupError('');
     try {
       const game = await createGame.mutateAsync({
@@ -357,7 +357,7 @@ export function BuildTab({ bottomPadding }: Props) {
         {/* ── SETUP ── */}
         {step === 'setup' && (
           <View style={s.section}>
-            <Text style={[s.heading, { color: colors.foreground }]}>Create a new quiz</Text>
+            <Text style={[s.heading, { color: colors.foreground }]}>Create a new game</Text>
             <Text style={[s.sub, { color: colors.mutedForeground }]}>
               Set the topic and difficulty, then add questions in the next step.
             </Text>
@@ -373,6 +373,9 @@ export function BuildTab({ bottomPadding }: Props) {
               placeholder="e.g. 90s Pop Music"
               placeholderTextColor={colors.mutedForeground}
             />
+            <Text style={[s.helperText, { color: colors.mutedForeground }]}>
+              Gemini AI generates questions based on this topic.
+            </Text>
 
             <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Difficulty</Text>
             <DifficultyChips value={difficulty} onChange={setDifficulty} colors={colors} />
@@ -417,7 +420,7 @@ export function BuildTab({ bottomPadding }: Props) {
                 <Ionicons name="game-controller-outline" size={36} color={colors.mutedForeground} />
                 <Text style={[s.emptyTitle, { color: colors.foreground }]}>No editable games</Text>
                 <Text style={[s.emptySub, { color: colors.mutedForeground }]}>
-                  Create a quiz in the Setup step first. Completed games are locked.
+                  Create a game in the Setup step first. Completed games are locked.
                 </Text>
                 <Pressable style={[s.smallBtn, { backgroundColor: colors.primary }]} onPress={() => setStep('setup')}>
                   <Text style={s.smallBtnText}>Go to Setup</Text>
@@ -457,9 +460,9 @@ export function BuildTab({ bottomPadding }: Props) {
                     >
                       <Ionicons name="cloud-download-outline" size={22} color={colors.secondary} />
                       <View style={s.actionCardText}>
-                        <Text style={[s.actionCardTitle, { color: colors.foreground }]}>Import from OpenTDB</Text>
+                        <Text style={[s.actionCardTitle, { color: colors.foreground }]}>Import from Open Trivia Database</Text>
                         <Text style={[s.actionCardSub, { color: colors.mutedForeground }]}>
-                          Pull ready-made questions from the Open Trivia Database
+                          Pull community-verified questions by category
                         </Text>
                       </View>
                       <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
@@ -508,7 +511,7 @@ export function BuildTab({ bottomPadding }: Props) {
                 <Ionicons name="checkmark-done-outline" size={36} color={colors.mutedForeground} />
                 <Text style={[s.emptyTitle, { color: colors.foreground }]}>Nothing to review</Text>
                 <Text style={[s.emptySub, { color: colors.mutedForeground }]}>
-                  Create a quiz and add questions first.
+                  Create a game and add questions first.
                 </Text>
               </View>
             ) : (
@@ -552,7 +555,7 @@ export function BuildTab({ bottomPadding }: Props) {
                           />
                           <Text style={[s.qMetaText, { color: colors.mutedForeground }]}>
                             {TYPE_LABELS[q.questionType] ?? q.questionType} · {q.points} pts
-                            {q.aiGenerated ? ' · AI' : q.source === 'opentdb' ? ' · OpenTDB' : ''}
+                            {q.aiGenerated ? ' · AI' : q.source === 'opentdb' ? ' · Open Trivia Database' : ''}
                           </Text>
                         </View>
                       </View>
@@ -589,7 +592,7 @@ export function BuildTab({ bottomPadding }: Props) {
                     <View style={[s.liveBanner, { backgroundColor: colors.secondary + '15', borderColor: colors.secondary + '40' }]}>
                       <View style={[s.liveBannerDot, { backgroundColor: colors.secondary }]} />
                       <Text style={[s.liveBannerText, { color: colors.secondary }]}>
-                        This quiz is live — changes save instantly
+                        This game is live — changes save instantly
                       </Text>
                     </View>
                   )
@@ -691,7 +694,7 @@ export function BuildTab({ bottomPadding }: Props) {
             <View style={sh.sheetHandle} />
             <View style={sh.sheetTitleRow}>
               <Ionicons name="cloud-download-outline" size={20} color={colors.secondary} />
-              <Text style={[sh.sheetTitle, { color: colors.foreground }]}>Import from OpenTDB</Text>
+              <Text style={[sh.sheetTitle, { color: colors.foreground }]}>Import from Open Trivia Database</Text>
             </View>
 
             {tdbResult !== null ? (
@@ -712,6 +715,9 @@ export function BuildTab({ bottomPadding }: Props) {
             ) : (
               <>
                 <Text style={[sh.fieldLabel, { color: colors.mutedForeground }]}>Category</Text>
+                <Text style={[sh.helperText, { color: colors.mutedForeground }]}>
+                  Questions are pulled from Open Trivia Database.
+                </Text>
                 <ScrollView style={sh.catList} showsVerticalScrollIndicator={false}>
                   {OPENTDB_CATEGORIES.map((c) => {
                     const active = c.id === tdbCategory;
@@ -789,7 +795,8 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     section: { gap: 12 },
     heading: { fontSize: 20, fontFamily: 'Manrope_800ExtraBold' },
     sub: { fontSize: 13, lineHeight: 19, marginTop: -6 },
-    fieldLabel: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', letterSpacing: 1, textTransform: 'uppercase', marginTop: 6 },
+    helperText: { fontSize: 11.5, lineHeight: 16, marginTop: -6 },
+    fieldLabel: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', letterSpacing: 0, marginTop: 6 },
     textInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
     textArea: { minHeight: 80, textAlignVertical: 'top' },
     errorText: { fontSize: 13 },
@@ -851,12 +858,13 @@ const sh = StyleSheet.create({
   sheetTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sheetTitle: { fontSize: 20, fontFamily: 'Manrope_800ExtraBold' },
   sheetSub: { fontSize: 13, lineHeight: 20 },
+  helperText: { fontSize: 11.5, lineHeight: 16, marginTop: -6 },
   sheetBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
   sheetBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Manrope_700Bold' },
   btnRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   secondaryLink: { alignItems: 'center', paddingVertical: 6 },
   secondaryLinkText: { fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
-  fieldLabel: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', letterSpacing: 1, textTransform: 'uppercase', marginTop: 4 },
+  fieldLabel: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', letterSpacing: 0, marginTop: 4 },
   textInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
   errorText: { fontSize: 13, color: '#ff5aa8' },
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },

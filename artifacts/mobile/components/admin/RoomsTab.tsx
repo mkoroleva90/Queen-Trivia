@@ -100,11 +100,11 @@ export function RoomsTab({ bottomPadding }: Props) {
 
   const handleDeleteAccount = () => {
     Alert.alert(
-      'Delete Account',
+      'Delete account',
       'This will permanently delete your account and all your games. This cannot be undone.\n\nAre you sure?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete My Account', style: 'destructive', onPress: confirmDeleteAccount },
+        { text: 'Delete my account', style: 'destructive', onPress: confirmDeleteAccount },
       ],
     );
   };
@@ -147,17 +147,17 @@ export function RoomsTab({ bottomPadding }: Props) {
         contentContainerStyle={[s.body, { paddingBottom: bottomPadding + 24 }]}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Access Codes card */}
+        {/* Access codes card */}
         <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={s.sectionHeader}>
             <Ionicons name="key-outline" size={18} color={colors.primary} />
-            <Text style={[s.sectionTitle, { color: colors.foreground }]}>Access Codes</Text>
+            <Text style={[s.sectionTitle, { color: colors.foreground }]}>Access codes</Text>
           </View>
           <Text style={[s.sectionDesc, { color: colors.mutedForeground }]}>
-            Players use the trivia code to join games. Both must be at least 8 characters and must differ from each other.
+            Players use the trivia access code to join games. Both codes must be at least 8 characters and must differ from each other.
           </Text>
 
-          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>TRIVIA ACCESS CODE</Text>
+          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Trivia access code</Text>
           <TextInput
             style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
             value={triviaCode}
@@ -168,7 +168,7 @@ export function RoomsTab({ bottomPadding }: Props) {
             autoCorrect={false}
           />
 
-          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>ADMIN ACCESS CODE</Text>
+          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Admin access code</Text>
           <TextInput
             style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
             value={adminCode}
@@ -202,7 +202,7 @@ export function RoomsTab({ bottomPadding }: Props) {
             ) : (
               <>
                 <Ionicons name="save-outline" size={18} color="#fff" />
-                <Text style={s.saveBtnText}>Save Changes</Text>
+                <Text style={s.saveBtnText}>Save changes</Text>
               </>
             )}
           </Pressable>
@@ -212,7 +212,7 @@ export function RoomsTab({ bottomPadding }: Props) {
         <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.destructive + '40' }]}>
           <View style={s.sectionHeader}>
             <Ionicons name="warning-outline" size={18} color={colors.destructive} />
-            <Text style={[s.sectionTitle, { color: colors.destructive }]}>Danger Zone</Text>
+            <Text style={[s.sectionTitle, { color: colors.destructive }]}>Danger zone</Text>
           </View>
           <Text style={[s.sectionDesc, { color: colors.mutedForeground }]}>
             Deleting your account is permanent and cannot be undone. Your account and all associated games will be removed immediately.
@@ -227,7 +227,7 @@ export function RoomsTab({ bottomPadding }: Props) {
             ) : (
               <>
                 <Ionicons name="trash-outline" size={18} color={colors.destructive} />
-                <Text style={[s.deleteBtnText, { color: colors.destructive }]}>Delete Account</Text>
+                <Text style={[s.deleteBtnText, { color: colors.destructive }]}>Delete account</Text>
               </>
             )}
           </Pressable>
@@ -246,7 +246,7 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     sectionTitle: { fontSize: 17, fontFamily: 'Manrope_700Bold' },
     sectionDesc: { fontSize: 13, lineHeight: 19 },
-    fieldLabel: { fontSize: 11, fontFamily: 'Manrope_700Bold', letterSpacing: 1.5, textTransform: 'uppercase', marginTop: 4 },
+    fieldLabel: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', letterSpacing: 0, marginTop: 4 },
     input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
     msgRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderRadius: 10, padding: 12 },
     msgText: { flex: 1, fontSize: 13, lineHeight: 18 },
