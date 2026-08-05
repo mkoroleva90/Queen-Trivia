@@ -36,6 +36,8 @@ type Step = 'setup' | 'questions' | 'review';
 type Difficulty = 'easy' | 'medium' | 'hard';
 type Source = 'ai' | 'opentdb';
 
+type BuildPreload = { topic: string; difficulty: Difficulty };
+
 type SetupResult =
   | { type: 'ai'; imported: number; discarded: number }
   | { type: 'opentdb'; imported: number };
@@ -184,9 +186,15 @@ function GamePicker({ games, selectedId, onSelect, colors }: {
 
 // ─── BuildTab ─────────────────────────────────────────────────────────────────
 
-type Props = { bottomPadding: number };
+type Props = {
+  bottomPadding: number;
+  /** Pre-fills the Setup step when the user arrives from "More options" in the quick-create sheet. */
+  preload?: BuildPreload | null;
+  /** Called once BuildTab has consumed the preload so the parent can clear it. */
+  onClearPreload?: () => void;
+};
 
-export function BuildTab({ bottomPadding }: Props) {
+export function BuildTab({ bottomPadding, preload, onClearPreload }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -222,6 +230,24 @@ export function BuildTab({ bottomPadding }: Props) {
   const [tdbResult, setTdbResult] = useState<number | null>(null);
 
   const [limitMsg, setLimitMsg] = useState<string | null>(null);
+
+  // ── Preload: applied when arriving from "More options" in quick-create ────
+  // Resets to the Setup step and populates topic + difficulty so the user
+  // never has to retype anything. onClearPreload is called immediately so
+  // the parent doesn't re-apply the same values if the tab remounts.
+  const onClearPreloadRef = React.useRef(onClearPreload);
+  React.useEffect(() => { onClearPreloadRef.current = onClearPreload; });
+  React.useEffect(() => {
+    if (!preload) return;
+    setStep('setup');
+    setTopic(preload.topic);
+    setDifficulty(preload.difficulty);
+    setSource('ai');
+    setSetupResult(null);
+    setSetupError('');
+    setWorkingGameId(null);
+    onClearPreloadRef.current?.();
+  }, [preload]);
 
   // ── Data & mutations
   const { data: games = [] } = useListGames();

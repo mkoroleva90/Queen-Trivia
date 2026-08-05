@@ -51,9 +51,13 @@ const FILTERS: { id: GameFilter; label: string }[] = [
   { id: 'drafts', label: 'Drafts' },
 ];
 
-type Props = { bottomPadding: number };
+type Props = {
+  bottomPadding: number;
+  /** Called when the user taps "More options" — closes the sheet and opens Build with the entered values pre-filled. */
+  onMoreOptions?: (topic: string, difficulty: Difficulty) => void;
+};
 
-export function GamesTab({ bottomPadding }: Props) {
+export function GamesTab({ bottomPadding, onMoreOptions }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -351,6 +355,9 @@ export function GamesTab({ bottomPadding }: Props) {
                 autoFocus
                 returnKeyType="next"
               />
+              <Text style={[s.helperText, { color: colors.mutedForeground }]}>
+                Gemini AI generates questions from this topic. To import from Open Trivia Database, use More options below.
+              </Text>
 
               <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Difficulty</Text>
               <View style={s.diffRow}>
@@ -380,6 +387,24 @@ export function GamesTab({ bottomPadding }: Props) {
                 {createGame.isPending
                   ? <ActivityIndicator color="#fff" />
                   : <Text style={s.sheetBtnText}>Create game</Text>}
+              </Pressable>
+
+              <Pressable
+                style={[s.moreOptionsBtn, { borderColor: colors.border }]}
+                onPress={() => {
+                  setCreateOpen(false);
+                  const t = topic.trim();
+                  const d = difficulty;
+                  setTopic('');
+                  setDifficulty('medium');
+                  onMoreOptions?.(t, d);
+                }}
+              >
+                <Ionicons name="options-outline" size={15} color={colors.mutedForeground} />
+                <Text style={[s.moreOptionsBtnText, { color: colors.mutedForeground }]}>
+                  More options
+                </Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.mutedForeground} />
               </Pressable>
             </View>
           </View>
@@ -451,4 +476,10 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     errorText: { fontSize: 13 },
     sheetBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
     sheetBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Manrope_700Bold' },
+    helperText: { fontSize: 12, lineHeight: 17, marginTop: -2 },
+    moreOptionsBtn: {
+      flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const,
+      gap: 6, borderRadius: 12, borderWidth: 1, paddingVertical: 12,
+    },
+    moreOptionsBtnText: { fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
   });
