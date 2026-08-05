@@ -55,9 +55,9 @@ const BASE_OPTS = {
   autoConnect: false,
   transports: ['polling', 'websocket'] as ('polling' | 'websocket')[],
   reconnection: true,
-  reconnectionAttempts: 10,
+  reconnectionAttempts: Infinity,   // keep trying indefinitely (phone goes in pocket)
   reconnectionDelay: 1000,
-  reconnectionDelayMax: 5000,
+  reconnectionDelayMax: 8000,
 };
 
 // Player-only socket: always reads the player token. Never picks up admin token.
@@ -204,6 +204,13 @@ export function useGameSocket(
  * Uses the admin-only socket singleton. `game:join` is emitted from the
  * `connect` event so it fires after the authenticated handshake and is
  * retried on every reconnect.
+ *
+ * `onConnect` / `onDisconnect` are called on every connection state change
+ * so the UI can show a "Reconnecting…" banner while the phone is backgrounded
+ * or the network switches between wi-fi and cellular.
+ *
+ * Note: a host disconnecting does NOT end or corrupt the game — players
+ * submit answers independently and the game continues on the server.
  */
 export function useAdminGameSocket(
   gameId: number | null,
@@ -215,6 +222,10 @@ export function useAdminGameSocket(
       isCorrect: boolean;
     }) => void;
     onGameEnded?: (p: { gameId: number }) => void;
+    /** Called every time the socket (re)connects. */
+    onConnect?: () => void;
+    /** Called every time the socket loses its connection. */
+    onDisconnect?: () => void;
   },
 ) {
   const cbRef = useRef(callbacks);
@@ -227,6 +238,11 @@ export function useAdminGameSocket(
 
     function onConnect() {
       socket.emit('game:join', gameId!);
+      cbRef.current.onConnect?.();
+    }
+
+    function onDisconnect() {
+      cbRef.current.onDisconnect?.();
     }
 
     function onAnswerSubmitted(p: {
@@ -243,6 +259,7 @@ export function useAdminGameSocket(
     }
 
     socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
     socket.on('answer:submitted', onAnswerSubmitted);
     socket.on('game:ended', onGameEnded);
 
@@ -254,6 +271,7 @@ export function useAdminGameSocket(
 
     return () => {
       socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
       socket.off('answer:submitted', onAnswerSubmitted);
       socket.off('game:ended', onGameEnded);
       socket.disconnect();

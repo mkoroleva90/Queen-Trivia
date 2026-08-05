@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
+  type AppStateStatus,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -62,13 +64,23 @@ const AVATAR_COLORS: [string, string][] = [
 /**
  * Live tab — real-time host control panel matching the web's Live section.
  *
- * Notes on parity with the web (Admin.tsx → LiveGameView):
- *  - Players drive their own pace; there is no host-advance endpoint yet, so
- *    Prev/Next move the host's *monitored* question locally (same as web).
+ * Parity notes (web: Admin.tsx → LiveGameView):
+ *  - Prev/Next move the host's *monitored* question locally (same as web —
+ *    no host-advance endpoint exists; players drive their own pace).
  *  - Reveal toggles whether the correct answer is highlighted on the host's
- *    screen (the web keeps the correct row always visible; mobile makes it a
- *    toggle so a host projecting their phone can keep it hidden).
- *  - Answer telemetry comes from the same `answer:submitted` socket events.
+ *    screen (the web always shows the correct row; mobile makes it a toggle
+ *    so a host projecting their phone can keep it hidden).
+ *  - Room code shown is the global trivia access code from settings (same as
+ *    web), not the per-game access code.
+ *
+ * Resilience features (mobile-specific):
+ *  - Connection indicator banner when the socket drops (screen lock, network
+ *    switch, etc.). A disconnected host does NOT end the game — players keep
+ *    answering independently.
+ *  - AppState listener: when the app returns to the foreground the tally
+ *    store resets to buffering mode, participants + seed stats are refetched,
+ *    and the seed→live merge runs again so the host sees accurate counts
+ *    without missing any answers received while backgrounded.
  */
 export function LiveTab({ bottomPadding }: Props) {
   const colors = useColors();
@@ -90,11 +102,19 @@ export function LiveTab({ bottomPadding }: Props) {
   const [qIndex, setQIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
 
-  // Live telemetry. The synchronous TallyStore (in a ref) is the single
-  // source of truth: it buffers pre-seed socket events, merges the persisted
-  // snapshot atomically, and dedupes per player name — so events arriving in
-  // the seed→live transition window are never lost or double-counted.
-  // React state below is only a render mirror of the store's snapshots.
+  // ── Connection state ─────────────────────────────────────────────────────
+  // Start optimistically connected (avoid flicker on first load).
+  const [socketConnected, setSocketConnected] = useState(true);
+  const [reconnectedFlash, setReconnectedFlash] = useState(false);
+  const hasDisconnectedRef = useRef(false);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Live telemetry ───────────────────────────────────────────────────────
+  // The synchronous TallyStore (in a ref) is the single source of truth: it
+  // buffers pre-seed socket events, merges the persisted snapshot atomically,
+  // and dedupes per player name — so events arriving in the seed→live
+  // transition window are never lost or double-counted. React state below is
+  // only a render mirror of the store's snapshots.
   const tallyStore = useRef<TallyStore>(createTallyStore());
   const [answeredBy, setAnsweredBy] = useState<Record<number, string[]>>({});
   const [correctCount, setCorrectCount] = useState<Record<number, number>>({});
@@ -114,24 +134,32 @@ export function LiveTab({ bottomPadding }: Props) {
 
   const baseUrl = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : '';
 
-  // Seed tallies from persisted answers so opening this tab mid-game shows
-  // correct totals immediately; socket events then increment on top.
+  // ── Seed tallies from persisted answers ─────────────────────────────────
+  // Opening this tab mid-game shows correct totals immediately; socket events
+  // then increment on top. staleTime: Infinity means the query only re-runs
+  // when explicitly invalidated (e.g. on app foreground).
   const { data: seedStats } = useQuery<QuestionStat[]>({
     queryKey: ['live-tab-seed-stats', gameId],
     queryFn: () => fetchAdminJson<QuestionStat[]>(`${baseUrl}/api/games/${gameId}/questions/stats`),
     enabled: gameId != null,
-    staleTime: Infinity, // seed once per game; socket events keep it live
+    staleTime: Infinity,
   });
 
-  // Apply persisted baseline + buffered pre-seed events (name-deduped).
-  // applySeed switches the store to live synchronously, so any socket event
-  // arriving after this line — even before React commits — hits the merged
-  // baseline instead of a stale buffer.
   useEffect(() => {
     if (!seedStats || gameId == null) return;
     if (applySeed(tallyStore.current, seedStats)) syncTallies();
   }, [seedStats, gameId, syncTallies]);
 
+  // ── Global room code (matches what players type on the home screen) ──────
+  const { data: settings } = useQuery<{ triviaAccessCode?: string }>({
+    queryKey: ['live-tab-settings'],
+    queryFn: () => fetchAdminJson<{ triviaAccessCode?: string }>(`${baseUrl}/api/settings`),
+    enabled: game != null,
+    staleTime: 5 * 60 * 1000,
+  });
+  const roomCode = settings?.triviaAccessCode ?? null;
+
+  // ── Data queries ─────────────────────────────────────────────────────────
   const { data: questions } = useListGameQuestions(gameId ?? 0, {
     query: {
       enabled: gameId != null,
@@ -156,12 +184,29 @@ export function LiveTab({ bottomPadding }: Props) {
   );
   const currentQ = sortedQs[Math.min(qIndex, Math.max(sortedQs.length - 1, 0))];
 
+  // ── AppState: restore state when app returns from background ─────────────
+  // Resets the tally store to buffering mode and refetches fresh seed data
+  // so any answers missed while the screen was locked are included.
+  // qIndex is intentionally NOT reset — the host stays on the same question.
+  useEffect(() => {
+    const handler = (nextState: AppStateStatus) => {
+      if (nextState === 'active' && gameId != null) {
+        resetTallyStore(tallyStore.current);
+        setAnsweredBy({});
+        setCorrectCount({});
+        void refetchGames();
+        void refetchParticipants();
+        qc.invalidateQueries({ queryKey: ['live-tab-seed-stats', gameId] });
+      }
+    };
+    const sub = AppState.addEventListener('change', handler);
+    return () => sub.remove();
+  }, [gameId, refetchGames, refetchParticipants, qc]);
+
+  // ── Socket callbacks ─────────────────────────────────────────────────────
   const onAnswerSubmitted = useCallback(
     (p: { gameId: number; questionId: number; playerName: string; isCorrect: boolean }) => {
       if (p.gameId !== gameId) return;
-      // Synchronous, name-deduped store update: buffers while awaiting the
-      // seed, otherwise applies against the merged baseline. Duplicates never
-      // double-count, even if delivered before React commits a render.
       if (recordAnswerEvent(tallyStore.current, p.questionId, p.playerName, p.isCorrect)) {
         syncTallies();
       }
@@ -179,8 +224,31 @@ export function LiveTab({ bottomPadding }: Props) {
     [gameId, qc],
   );
 
-  useAdminGameSocket(gameId, { onAnswerSubmitted, onGameEnded });
+  const onSocketConnect = useCallback(() => {
+    setSocketConnected(true);
+    if (hasDisconnectedRef.current) {
+      // Was previously disconnected — flash a "reconnected" banner briefly
+      setReconnectedFlash(true);
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = setTimeout(() => setReconnectedFlash(false), 3000);
+      hasDisconnectedRef.current = false;
+    }
+  }, []);
 
+  const onSocketDisconnect = useCallback(() => {
+    setSocketConnected(false);
+    setReconnectedFlash(false);
+    hasDisconnectedRef.current = true;
+  }, []);
+
+  useAdminGameSocket(gameId, {
+    onAnswerSubmitted,
+    onGameEnded,
+    onConnect: onSocketConnect,
+    onDisconnect: onSocketDisconnect,
+  });
+
+  // ── End game ─────────────────────────────────────────────────────────────
   const [ending, setEnding] = useState(false);
   const handleEndGame = async () => {
     if (gameId == null) return;
@@ -193,6 +261,7 @@ export function LiveTab({ bottomPadding }: Props) {
     }
   };
 
+  // ── Pull-to-refresh ───────────────────────────────────────────────────────
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
     setRefreshing(true);
@@ -202,6 +271,7 @@ export function LiveTab({ bottomPadding }: Props) {
 
   const s = styles(colors);
 
+  // ── Loading ───────────────────────────────────────────────────────────────
   if (isLoading) {
     return (
       <View style={[s.container, s.center]}>
@@ -210,6 +280,7 @@ export function LiveTab({ bottomPadding }: Props) {
     );
   }
 
+  // ── Empty: no live game ───────────────────────────────────────────────────
   if (activeGames.length === 0) {
     return (
       <ScrollView
@@ -225,6 +296,7 @@ export function LiveTab({ bottomPadding }: Props) {
     );
   }
 
+  // ── Derived values ────────────────────────────────────────────────────────
   const parts = participants ?? [];
   const answeredNames = currentQ ? (answeredBy[currentQ.id] ?? []) : [];
   const answeredCount = answeredNames.length;
@@ -233,12 +305,36 @@ export function LiveTab({ bottomPadding }: Props) {
   const choices: string[] = ((currentQ?.options as { choices?: string[] } | null)?.choices ?? []);
   const standings = [...parts].sort((a, b) => (b.totalScore ?? 0) - (a.totalScore ?? 0)).slice(0, 6);
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <ScrollView
       contentContainerStyle={[s.list, { paddingBottom: bottomPadding + 16 }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
     >
-      {/* Game picker (only when multiple games are live) */}
+      {/* ── Connection status banners ── */}
+      {!socketConnected && (
+        <View style={[s.connBanner, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}>
+          <ActivityIndicator size="small" color={colors.destructive} style={{ transform: [{ scale: 0.7 }] }} />
+          <View style={{ flex: 1 }}>
+            <Text style={[s.connBannerTitle, { color: colors.destructive }]}>
+              Reconnecting…
+            </Text>
+            <Text style={[s.connBannerSub, { color: colors.destructive + 'cc' }]}>
+              Players can still answer — live updates paused on this screen
+            </Text>
+          </View>
+        </View>
+      )}
+      {reconnectedFlash && socketConnected && (
+        <View style={[s.connBanner, { backgroundColor: colors.secondary + '15', borderColor: colors.secondary + '30' }]}>
+          <Ionicons name="wifi" size={15} color={colors.secondary} />
+          <Text style={[s.connBannerTitle, { color: colors.secondary }]}>
+            Connected — live updates resumed
+          </Text>
+        </View>
+      )}
+
+      {/* ── Game picker (only when multiple games are live) ── */}
       {activeGames.length > 1 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.pickerRow}>
           {activeGames.map((g) => {
@@ -267,23 +363,29 @@ export function LiveTab({ bottomPadding }: Props) {
         </ScrollView>
       )}
 
-      {/* Topbar: live badge · title · code · end */}
+      {/* ── Topbar: LIVE badge · topic + player count · room code ── */}
       <View style={s.topbar}>
         <View style={[s.liveBadge, { backgroundColor: colors.secondary + '18', borderColor: colors.secondary + '55' }]}>
           <View style={[s.liveDot, { backgroundColor: colors.secondary }]} />
           <Text style={[s.liveBadgeText, { color: colors.secondary }]}>LIVE</Text>
         </View>
-        <Text style={[s.title, { color: colors.foreground }]} numberOfLines={1}>
-          {game!.topic}
-        </Text>
-        {!!game?.accessCode && (
+        <View style={s.titleGroup}>
+          <Text style={[s.title, { color: colors.foreground }]} numberOfLines={1}>
+            {game!.topic}
+          </Text>
+          <Text style={[s.playerCountText, { color: colors.mutedForeground }]}>
+            {parts.length} player{parts.length !== 1 ? 's' : ''}
+          </Text>
+        </View>
+        {!!roomCode && (
           <View style={[s.codeChip, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[s.codeText, { color: colors.accent }]}>{game.accessCode}</Text>
+            <Text style={[s.codeLabel, { color: colors.mutedForeground }]}>ROOM</Text>
+            <Text style={[s.codeText, { color: colors.accent }]}>{roomCode}</Text>
           </View>
         )}
       </View>
 
-      {/* Question card */}
+      {/* ── Question card ── */}
       <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={s.qMetaRow}>
           <Text style={[s.qMeta, { color: colors.mutedForeground }]}>
@@ -302,10 +404,10 @@ export function LiveTab({ bottomPadding }: Props) {
         </View>
 
         <Text style={[s.qText, { color: colors.foreground }]}>
-          {currentQ?.questionText ?? 'Waiting for game to start…'}
+          {currentQ?.questionText ?? 'Waiting for questions to load…'}
         </Text>
 
-        {/* Answer state pill */}
+        {/* Answer reveal pill + answered count */}
         <View style={s.revealRow}>
           <View
             style={[
@@ -329,7 +431,7 @@ export function LiveTab({ bottomPadding }: Props) {
           </Text>
         </View>
 
-        {/* Options (correct one highlighted only when revealed) */}
+        {/* Multiple-choice options */}
         {choices.length > 0 && (
           <View style={s.choices}>
             {choices.map((c, i) => {
@@ -377,6 +479,8 @@ export function LiveTab({ bottomPadding }: Props) {
             })}
           </View>
         )}
+
+        {/* Free-text / other question types — show answer when revealed */}
         {choices.length === 0 && revealed && !!currentQ?.correctAnswer && (
           <View style={[s.freeAnswer, { borderColor: colors.secondary + '55', backgroundColor: colors.secondary + '12' }]}>
             <Ionicons name="checkmark-circle" size={16} color={colors.secondary} />
@@ -386,7 +490,7 @@ export function LiveTab({ bottomPadding }: Props) {
         )}
       </View>
 
-      {/* Transport controls */}
+      {/* ── Transport controls ── */}
       <View style={[s.transport, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Pressable
           disabled={qIndex === 0}
@@ -429,11 +533,16 @@ export function LiveTab({ bottomPadding }: Props) {
         </Pressable>
       </View>
 
-      {/* Answered — participant chips with answer status for the current question */}
+      {/* ── ANSWERED — participant chips with answer status ── */}
       <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>ANSWERED</Text>
       <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={[s.progressBg, { backgroundColor: colors.border }]}>
-          <View style={[s.progressFill, { backgroundColor: colors.secondary, width: `${answeredPct}%` }]} />
+          <View
+            style={[s.progressFill, {
+              backgroundColor: colors.secondary,
+              width: answeredPct > 0 ? `${answeredPct}%` : 0,
+            }]}
+          />
         </View>
         <View style={s.chipWrap}>
           {parts.length === 0 && (
@@ -454,12 +563,7 @@ export function LiveTab({ bottomPadding }: Props) {
                   },
                 ]}
               >
-                <View
-                  style={[
-                    s.avatar,
-                    { backgroundColor: done ? av : colors.border },
-                  ]}
-                >
+                <View style={[s.avatar, { backgroundColor: done ? av : colors.border }]}>
                   <Text style={[s.avatarText, { color: done ? avtx : colors.mutedForeground }]}>
                     {p.userName.substring(0, 1).toUpperCase()}
                   </Text>
@@ -474,7 +578,7 @@ export function LiveTab({ bottomPadding }: Props) {
         </View>
       </View>
 
-      {/* Standings — live leaderboard */}
+      {/* ── STANDINGS — live leaderboard (top 6) ── */}
       <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>STANDINGS · TOP 6</Text>
       <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         {standings.length === 0 && (
@@ -503,7 +607,7 @@ export function LiveTab({ bottomPadding }: Props) {
         })}
       </View>
 
-      {/* End game */}
+      {/* ── End game ── */}
       <Pressable
         style={({ pressed }) => [
           s.endBtn,
@@ -517,13 +621,15 @@ export function LiveTab({ bottomPadding }: Props) {
         ) : (
           <>
             <Ionicons name="flag" size={18} color="#fff" />
-            <Text style={s.endBtnText}>End Game</Text>
+            <Text style={s.endBtnText}>End game</Text>
           </>
         )}
       </Pressable>
     </ScrollView>
   );
 }
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = (colors: ReturnType<typeof useColors>) =>
   StyleSheet.create({
@@ -532,16 +638,32 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     list: { paddingHorizontal: 16, paddingTop: 8, gap: 12 },
     emptyHeading: { fontSize: 20, fontFamily: 'Manrope_800ExtraBold', textAlign: 'center' },
     emptySub: { fontSize: 14, lineHeight: 21, textAlign: 'center' },
+    // Connection banners
+    connBanner: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
+    },
+    connBannerTitle: { fontSize: 13, fontFamily: 'Manrope_700Bold' },
+    connBannerSub: { fontSize: 11.5, lineHeight: 16, marginTop: 1 },
+    // Game picker
     pickerRow: { gap: 8, paddingBottom: 2 },
     pickerChip: { borderRadius: 20, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 7, maxWidth: 220 },
     pickerChipText: { fontSize: 13, fontFamily: 'Manrope_700Bold' },
+    // Topbar
     topbar: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 20, borderWidth: 1, paddingHorizontal: 9, paddingVertical: 4 },
+    liveBadge: {
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      borderRadius: 20, borderWidth: 1, paddingHorizontal: 9, paddingVertical: 4,
+    },
     liveDot: { width: 7, height: 7, borderRadius: 4 },
     liveBadgeText: { fontSize: 9, fontFamily: 'Manrope_800ExtraBold', letterSpacing: 1.5 },
-    title: { flex: 1, fontSize: 17, fontFamily: 'Manrope_800ExtraBold' },
-    codeChip: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4 },
-    codeText: { fontSize: 13, fontFamily: 'Manrope_700Bold', letterSpacing: 2 },
+    titleGroup: { flex: 1, gap: 1 },
+    title: { fontSize: 16, fontFamily: 'Manrope_800ExtraBold' },
+    playerCountText: { fontSize: 11.5, fontFamily: 'Manrope_600SemiBold' },
+    codeChip: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 4, alignItems: 'center' },
+    codeLabel: { fontSize: 8, fontFamily: 'Manrope_700Bold', letterSpacing: 1 },
+    codeText: { fontSize: 14, fontFamily: 'Manrope_800ExtraBold', letterSpacing: 2 },
+    // Question card
     card: { borderRadius: 16, borderWidth: 1, padding: 16, gap: 12 },
     qMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
     qMeta: { fontSize: 10, fontFamily: 'Manrope_700Bold', letterSpacing: 2 },
@@ -549,34 +671,62 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     tagText: { fontSize: 9, fontFamily: 'Manrope_700Bold', letterSpacing: 1 },
     qText: { fontSize: 19, lineHeight: 26, fontFamily: 'Manrope_800ExtraBold' },
     revealRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-    revealPill: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 20, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4 },
+    revealPill: {
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      borderRadius: 20, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4,
+    },
     revealPillText: { fontSize: 9, fontFamily: 'Manrope_700Bold', letterSpacing: 1 },
     answeredMeta: { fontSize: 12, fontFamily: 'Manrope_600SemiBold' },
     choices: { gap: 8 },
-    choiceRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
+    choiceRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10,
+    },
     choiceLetter: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
     choiceLetterText: { fontSize: 12, fontFamily: 'Manrope_800ExtraBold' },
     choiceText: { flex: 1, fontSize: 14, lineHeight: 19 },
     choiceTally: { fontSize: 13, fontFamily: 'Manrope_800ExtraBold' },
-    freeAnswer: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
+    freeAnswer: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10,
+    },
     freeAnswerText: { flex: 1, fontSize: 14, fontFamily: 'Manrope_700Bold' },
-    transport: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 16, borderWidth: 1, padding: 10 },
-    tBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
+    // Transport controls
+    transport: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      borderRadius: 16, borderWidth: 1, padding: 10,
+    },
+    tBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10,
+    },
     tBtnText: { fontSize: 13, fontFamily: 'Manrope_700Bold' },
-    tBtnPrimary: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 10, marginLeft: 'auto' },
+    tBtnPrimary: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      borderRadius: 10, paddingHorizontal: 18, paddingVertical: 10, marginLeft: 'auto',
+    },
     tBtnPrimaryText: { color: '#fff', fontSize: 14, fontFamily: 'Manrope_800ExtraBold' },
+    // Answered panel
     sectionLabel: { fontSize: 11, fontFamily: 'Manrope_700Bold', letterSpacing: 2, marginTop: 4 },
     progressBg: { height: 5, borderRadius: 3, overflow: 'hidden' },
     progressFill: { height: 5, borderRadius: 3 },
     chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-    playerChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 20, borderWidth: 1, paddingLeft: 4, paddingRight: 9, paddingVertical: 4 },
+    playerChip: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      borderRadius: 20, borderWidth: 1, paddingLeft: 4, paddingRight: 9, paddingVertical: 4,
+    },
     avatar: { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
     avatarText: { fontSize: 9, fontFamily: 'Manrope_800ExtraBold' },
     playerChipName: { fontSize: 12, fontFamily: 'Manrope_600SemiBold' },
+    // Standings
     standingRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 6, paddingVertical: 7 },
     rank: { width: 16, textAlign: 'center', fontSize: 12, fontFamily: 'Manrope_800ExtraBold' },
     standingName: { flex: 1, fontSize: 14, fontFamily: 'Manrope_700Bold' },
     standingScore: { fontSize: 14, fontFamily: 'Manrope_800ExtraBold' },
-    endBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, paddingVertical: 16, marginTop: 4 },
+    // End game
+    endBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      gap: 8, borderRadius: 14, paddingVertical: 16, marginTop: 4,
+    },
     endBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Manrope_700Bold' },
   });

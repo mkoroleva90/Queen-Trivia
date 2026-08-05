@@ -24,7 +24,9 @@ function formatDate(iso?: string): string {
 
 /**
  * Results tab — list of completed games with score history.
- * Tap a game to open the full leaderboard + question breakdown screen.
+ * Matches the web admin Results section: an overview list with a stats
+ * summary at top, tapping a game opens the full leaderboard + question
+ * breakdown screen (artifacts/mobile/app/admin/results/[gameId].tsx).
  */
 export function ResultsTab({ bottomPadding }: Props) {
   const colors = useColors();
@@ -36,6 +38,10 @@ export function ResultsTab({ bottomPadding }: Props) {
   const completed = (games ?? [])
     .filter((g) => g.status === 'completed')
     .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+
+  // Aggregate stats computed from the completed game list.
+  const totalPlayerSessions = completed.reduce((sum, g) => sum + (g.participantCount ?? 0), 0);
+  const totalQuestions = completed.reduce((sum, g) => sum + (g.questionCount ?? 0), 0);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -97,6 +103,25 @@ export function ResultsTab({ bottomPadding }: Props) {
           contentContainerStyle={[s.list, { paddingBottom: bottomPadding + 20 }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         >
+          {/* Stats summary */}
+          <View style={[s.statsRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={s.statItem}>
+              <Text style={[s.statNum, { color: colors.primary }]}>{completed.length}</Text>
+              <Text style={[s.statLabel, { color: colors.mutedForeground }]}>Games</Text>
+            </View>
+            <View style={[s.statDivider, { backgroundColor: colors.border }]} />
+            <View style={s.statItem}>
+              <Text style={[s.statNum, { color: colors.secondary }]}>{totalPlayerSessions}</Text>
+              <Text style={[s.statLabel, { color: colors.mutedForeground }]}>Player sessions</Text>
+            </View>
+            <View style={[s.statDivider, { backgroundColor: colors.border }]} />
+            <View style={s.statItem}>
+              <Text style={[s.statNum, { color: colors.accent }]}>{totalQuestions}</Text>
+              <Text style={[s.statLabel, { color: colors.mutedForeground }]}>Questions asked</Text>
+            </View>
+          </View>
+
+          {/* Game cards */}
           {completed.map((game) => (
             <Pressable
               key={game.id}
@@ -145,7 +170,10 @@ export function ResultsTab({ bottomPadding }: Props) {
 const styles = (colors: ReturnType<typeof useColors>) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 18 },
+    sectionRow: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      paddingHorizontal: 20, paddingTop: 18,
+    },
     headingGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     heading: { fontSize: 22, fontFamily: 'Manrope_800ExtraBold' },
     countBadge: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, minWidth: 24, alignItems: 'center' },
@@ -158,6 +186,16 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     retryBtn: { borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12, marginTop: 4 },
     retryText: { color: '#fff', fontFamily: 'Manrope_700Bold', fontSize: 15 },
     list: { paddingHorizontal: 16, gap: 10 },
+    // Stats summary
+    statsRow: {
+      flexDirection: 'row', alignItems: 'center',
+      borderRadius: 16, borderWidth: 1, paddingVertical: 16, marginBottom: 4,
+    },
+    statItem: { flex: 1, alignItems: 'center', gap: 3 },
+    statNum: { fontSize: 24, fontFamily: 'Manrope_800ExtraBold' },
+    statLabel: { fontSize: 11, fontFamily: 'Manrope_600SemiBold', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'center' },
+    statDivider: { width: 1, height: 36, borderRadius: 1 },
+    // Game cards
     card: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1, padding: 14, gap: 12 },
     trophyBadge: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
     cardInfo: { flex: 1, gap: 4 },
