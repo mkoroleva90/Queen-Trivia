@@ -82,6 +82,7 @@ export const ListGamesResponseItem = zod.object({
   "status": zod.enum(['waiting', 'active', 'completed']),
   "createdAt": zod.string(),
   "createdByAdmin": zod.boolean(),
+  "participantCount": zod.number(),
   "accessCode": zod.string().nullish(),
   "brief": zod.string().nullish()
 })

@@ -16,6 +16,7 @@ export interface Game {
   status: GameStatus;
   createdAt: string;
   createdByAdmin: boolean;
+  participantCount: number;
   accessCode?: string | null;
   brief?: string | null;
 }

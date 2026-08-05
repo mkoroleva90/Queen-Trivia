@@ -120,16 +120,36 @@ const answerStats = await db
 
 const statsMap = new Map(answerStats.map((s) => [s.questionId, s]));
 
+// Most-chosen wrong answer per question
+const wrongAnswerStats = await db
+ .select({
+  questionId: answersTable.questionId,
+  userAnswer: answersTable.userAnswer,
+  count: sql<number>`count(*)::int`,
+ })
+ .from(answersTable)
+ .where(and(eq(answersTable.gameId, gameId), eq(answersTable.isCorrect, false)))
+ .groupBy(answersTable.questionId, answersTable.userAnswer);
+
+const wrongMap = new Map<number, { answer: string; count: number }>();
+for (const w of wrongAnswerStats) {
+ const existing = wrongMap.get(w.questionId);
+ if (!existing || w.count > existing.count) {
+  wrongMap.set(w.questionId, { answer: w.userAnswer, count: w.count });
+ }
+}
 
 const result = questions.map((q) => {
  const s = statsMap.get(q.id);
  const totalAnswered = s?.totalAnswered ?? 0;
  const correctCount = s?.correctCount ?? 0;
+ const wrong = wrongMap.get(q.id);
  return {
   ...q,
       totalAnswered,
       correctCount,
   percentCorrect: totalAnswered > 0 ? Math.round((correctCount / totalAnswered) * 100) :null,
+  mostChosenWrong: wrong ? { answer: wrong.answer, count: wrong.count } : null,
   };
  });
 

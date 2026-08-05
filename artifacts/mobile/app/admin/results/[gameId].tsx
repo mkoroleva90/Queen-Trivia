@@ -43,6 +43,7 @@ type QuestionStat = {
   totalAnswered: number;
   correctCount: number;
   percentCorrect: number | null;
+  mostChosenWrong: { answer: string; count: number } | null;
 };
 
 const RANK_COLORS = ['#ffe500', '#aaaaaa', '#cd7f32'];
@@ -213,6 +214,9 @@ export default function AdminResultsScreen() {
               <Text style={[s.playerName, { color: colors.foreground }]}>{p.userName}</Text>
               <Text style={[s.playerSub, { color: colors.mutedForeground }]}>
                 {p.correctCount}/{results?.totalQuestions ?? p.totalAnswered} correct
+                {(results?.totalQuestions ?? 0) > 0
+                  ? ` · ${Math.round((p.correctCount / (results?.totalQuestions ?? 1)) * 100)}%`
+                  : ''}
               </Text>
             </View>
             <Text style={[s.playerScore, { color: p.rank <= 3 ? RANK_COLORS[p.rank - 1] : colors.foreground }]}>
@@ -269,6 +273,14 @@ export default function AdminResultsScreen() {
                     <View style={[s.progressFill, { backgroundColor: colors.secondary, width: `${q.percentCorrect ?? 0}%` }]} />
                   </View>
                 )}
+                {q.mostChosenWrong && (
+                  <View style={s.wrongRow}>
+                    <Ionicons name="close-circle-outline" size={14} color={colors.destructive} />
+                    <Text style={[s.wrongText, { color: colors.mutedForeground }]} numberOfLines={1}>
+                      Top wrong answer: <Text style={{ color: colors.destructive, fontFamily: 'Manrope_600SemiBold' }}>{q.mostChosenWrong.answer}</Text> ({q.mostChosenWrong.count})
+                    </Text>
+                  </View>
+                )}
               </View>
             ))
           )
@@ -315,6 +327,8 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     pctBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
     pctText: { fontSize: 12, fontFamily: 'Manrope_700Bold' },
     progressBg: { height: 4, borderRadius: 2, overflow: 'hidden' },
+    wrongRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    wrongText: { fontSize: 12, flex: 1 },
     progressFill: { height: 4, borderRadius: 2 },
     errorBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 12, padding: 14 },
     errorMsg: { flex: 1, fontSize: 13 },

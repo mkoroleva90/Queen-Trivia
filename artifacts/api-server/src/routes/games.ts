@@ -55,10 +55,19 @@ router.get("/games", requireAuth, async (req, res): Promise<void> => {
      ? await db.select().from(gamesTable).where(whereClause).orderBy(desc(gamesTable.createdAt))
      : await db.select().from(gamesTable).orderBy(desc(gamesTable.createdAt));
 
+ // Participant counts per game
+ const participantCounts = await db
+     .select({ gameId: gameParticipantsTable.gameId, value: count() })
+     .from(gameParticipantsTable)
+     .groupBy(gameParticipantsTable.gameId);
+ const countMap = new Map(participantCounts.map((c) => [c.gameId, c.value]));
+
  // Access codes are admin-only — never expose them to players
- const sanitized = req.session.isAdmin === true
-     ? games
-     : games.map((g) => ({ ...g, accessCode: null }));
+ const sanitized = games.map((g) => ({
+     ...g,
+     accessCode: req.session.isAdmin === true ? g.accessCode : null,
+     participantCount: countMap.get(g.id) ?? 0,
+ }));
  res.json(ListGamesResponse.parse(toJsonSafe(sanitized)));
 });
 

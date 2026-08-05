@@ -569,7 +569,7 @@ components:
         accessCode: { type: string, minLength: 4, maxLength: 12, pattern: "^[A-Za-z0-9]+$" }
     Game:
       type: object
-      required: [id, topic, difficulty, questionCount, status, createdAt, createdByAdmin]
+      required: [id, topic, difficulty, questionCount, status, createdAt, createdByAdmin, participantCount]
       properties:
         id: { type: integer }
         topic: { type: string }
@@ -582,6 +582,7 @@ components:
           enum: [waiting, active, completed]
         createdAt: { type: string }
         createdByAdmin: { type: boolean }
+        participantCount: { type: integer }
         accessCode: { type: ["string", "null"] }
         brief: { type: ["string", "null"] }
     GameDetail:
