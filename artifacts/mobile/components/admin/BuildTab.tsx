@@ -34,6 +34,11 @@ import { useColors } from '@/hooks/useColors';
 
 type Step = 'setup' | 'questions' | 'review';
 type Difficulty = 'easy' | 'medium' | 'hard';
+type Source = 'ai' | 'opentdb';
+
+type SetupResult =
+  | { type: 'ai'; imported: number; discarded: number }
+  | { type: 'opentdb'; imported: number };
 
 const STEPS: { id: Step; label: string }[] = [
   { id: 'setup', label: 'Setup' },
@@ -57,6 +62,12 @@ const OPENTDB_CATEGORIES = [
   { id: 27, name: 'Animals' },
   { id: 28, name: 'Vehicles' },
 ] as const;
+
+const DIFF_LABELS: Record<Difficulty, string> = {
+  easy: 'Easy (5 pts each)',
+  medium: 'Medium (10 pts each)',
+  hard: 'Hard (15 pts each)',
+};
 
 const TYPE_ICONS: Record<string, string> = {
   multiple_choice: 'checkmark-circle', multi_select: 'checkbox',
@@ -104,7 +115,7 @@ function DifficultyChips({ value, onChange, colors }: {
           onPress={() => onChange(d)}
         >
           <Text style={[sh.diffChipText, { color: value === d ? colors.primary : colors.mutedForeground }]}>
-            {d === 'easy' ? 'Easy (5 pts)' : d === 'medium' ? 'Medium (10 pts)' : 'Hard (15 pts)'}
+            {DIFF_LABELS[d]}
           </Text>
         </Pressable>
       ))}
@@ -112,8 +123,8 @@ function DifficultyChips({ value, onChange, colors }: {
   );
 }
 
-function AmountStepper({ value, onChange, colors }: {
-  value: number; onChange: (n: number) => void;
+function AmountStepper({ value, onChange, max = 20, colors }: {
+  value: number; onChange: (n: number) => void; max?: number;
   colors: ReturnType<typeof useColors>;
 }) {
   return (
@@ -127,11 +138,11 @@ function AmountStepper({ value, onChange, colors }: {
       <Text style={[sh.stepperValue, { color: colors.foreground }]}>{value}</Text>
       <Pressable
         style={[sh.stepperBtn, { borderColor: colors.border }]}
-        onPress={() => onChange(Math.min(20, value + 1))}
+        onPress={() => onChange(Math.min(max, value + 1))}
       >
         <Ionicons name="add" size={18} color={colors.foreground} />
       </Pressable>
-      <Text style={[sh.stepperHint, { color: colors.mutedForeground }]}>questions (max 20)</Text>
+      <Text style={[sh.stepperHint, { color: colors.mutedForeground }]}>questions (max {max})</Text>
     </View>
   );
 }
@@ -185,12 +196,17 @@ export function BuildTab({ bottomPadding }: Props) {
   const [workingGameId, setWorkingGameId] = useState<number | null>(null);
 
   // ── Setup state
+  const [source, setSource] = useState<Source>('ai');
   const [topic, setTopic] = useState('');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [brief, setBrief] = useState('');
+  const [setupSkipFactCheck, setSetupSkipFactCheck] = useState(false);
+  const [setupAmount, setSetupAmount] = useState(10);
+  const [setupCategory, setSetupCategory] = useState<number>(9);
   const [setupError, setSetupError] = useState('');
+  const [setupResult, setSetupResult] = useState<SetupResult | null>(null);
 
-  // ── Questions state
+  // ── Questions state (for adding more after initial import)
   const [aiOpen, setAiOpen] = useState(false);
   const [aiAmount, setAiAmount] = useState(10);
   const [aiBrief, setAiBrief] = useState('');
@@ -215,7 +231,6 @@ export function BuildTab({ bottomPadding }: Props) {
   );
   const selectedGame = games.find((g) => g.id === workingGameId) ?? null;
 
-  // Default the working game to the first editable one when entering questions/review
   useEffect(() => {
     if (workingGameId === null && editableGames.length > 0) {
       setWorkingGameId(editableGames[0]!.id);
@@ -235,6 +250,18 @@ export function BuildTab({ bottomPadding }: Props) {
   const generateGemini = useGenerateGeminiQuestions();
   const importOpenTdb = useImportOpenTdbQuestions();
 
+  // Derived: setup working state
+  const setupWorking = createGame.isPending || generateGemini.isPending || importOpenTdb.isPending;
+  const setupWorkingLabel = createGame.isPending
+    ? 'Creating game…'
+    : generateGemini.isPending
+      ? (setupSkipFactCheck ? 'Generating… 10–15 s' : 'Generating & verifying… 15–30 s')
+      : importOpenTdb.isPending
+        ? 'Importing questions…'
+        : 'Working…';
+
+  const selectedCategory = OPENTDB_CATEGORIES.find((c) => c.id === setupCategory);
+
   const invalidate = (gameId?: number | null) => {
     qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
     if (gameId != null) {
@@ -242,20 +269,38 @@ export function BuildTab({ bottomPadding }: Props) {
     }
   };
 
+  const resetSetup = () => {
+    setSetupResult(null);
+    setTopic('');
+    setBrief('');
+    setSetupError('');
+    setSetupSkipFactCheck(false);
+    setSetupAmount(10);
+    setSetupCategory(9);
+  };
+
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const handleCreate = async () => {
+  const handleCreateAI = async () => {
     if (!topic.trim()) { setSetupError('Enter a topic'); return; }
     setSetupError('');
     try {
       const game = await createGame.mutateAsync({
         data: { topic: topic.trim(), difficulty, createdByAdmin: true, brief: brief.trim() || null },
       });
-      invalidate();
+      const result = await generateGemini.mutateAsync({
+        gameId: game.id,
+        data: {
+          topic: topic.trim(),
+          difficulty,
+          amount: setupAmount,
+          brief: brief.trim() || null,
+          skipFactCheck: setupSkipFactCheck,
+        },
+      });
+      invalidate(game.id);
       setWorkingGameId(game.id);
-      setTopic('');
-      setBrief('');
-      setStep('questions');
+      setSetupResult({ type: 'ai', imported: result.imported, discarded: result.discarded ?? 0 });
     } catch (err) {
       const msg = extractApiError(err, 'Failed to create game — please retry');
       if (msg.includes('Free plan') || msg.includes('games allowed this month')) {
@@ -263,6 +308,25 @@ export function BuildTab({ bottomPadding }: Props) {
       } else {
         setSetupError(msg);
       }
+    }
+  };
+
+  const handleCreateOpenTdb = async () => {
+    setSetupError('');
+    try {
+      const catName = selectedCategory?.name ?? 'General Knowledge';
+      const game = await createGame.mutateAsync({
+        data: { topic: catName, difficulty, createdByAdmin: true },
+      });
+      const result = await importOpenTdb.mutateAsync({
+        gameId: game.id,
+        data: { categoryId: setupCategory, difficulty, amount: setupAmount },
+      });
+      invalidate(game.id);
+      setWorkingGameId(game.id);
+      setSetupResult({ type: 'opentdb', imported: result.imported });
+    } catch (err) {
+      setSetupError(extractApiError(err, 'Could not import questions — please retry'));
     }
   };
 
@@ -328,6 +392,17 @@ export function BuildTab({ bottomPadding }: Props) {
   const s = styles(colors);
   const sheetPadBottom = insets.bottom + 24;
 
+  // ── Review: derive source summary
+  const aiQCount = questions.filter((q) => q.aiGenerated).length;
+  const tdbQCount = questions.filter((q) => !q.aiGenerated && q.source === 'opentdb').length;
+  const manualQCount = questions.length - aiQCount - tdbQCount;
+  const totalPoints = questions.reduce((sum, q) => sum + (q.points ?? 0), 0);
+  const sourceParts: string[] = [];
+  if (aiQCount > 0) sourceParts.push('Gemini AI');
+  if (tdbQCount > 0) sourceParts.push('Open Trivia Database');
+  if (manualQCount > 0) sourceParts.push('Manual');
+  const sourceLabel = sourceParts.join(' · ') || '—';
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -357,57 +432,240 @@ export function BuildTab({ bottomPadding }: Props) {
         {/* ── SETUP ── */}
         {step === 'setup' && (
           <View style={s.section}>
-            <Text style={[s.heading, { color: colors.foreground }]}>Create a new game</Text>
-            <Text style={[s.sub, { color: colors.mutedForeground }]}>
-              Set the topic and difficulty, then add questions in the next step.
-            </Text>
+            {setupResult ? (
+              /* ── Success state ── */
+              <View style={s.successContainer}>
+                <View style={[s.successCard, { backgroundColor: colors.secondary + '12', borderColor: colors.secondary + '40' }]}>
+                  <Ionicons name="checkmark-circle" size={24} color={colors.secondary} />
+                  <View style={{ flex: 1, gap: 3 }}>
+                    {setupResult.type === 'ai' ? (
+                      <>
+                        <Text style={[s.successTitle, { color: colors.foreground }]}>
+                          {setupResult.imported} question{setupResult.imported === 1 ? '' : 's'} generated
+                        </Text>
+                        {setupResult.discarded > 0 && (
+                          <Text style={[s.successSub, { color: colors.mutedForeground }]}>
+                            {setupResult.discarded} discarded by fact-check
+                          </Text>
+                        )}
+                        <Text style={[s.successSub, { color: colors.mutedForeground }]}>
+                          Marked as AI-generated — review before going live.
+                        </Text>
+                      </>
+                    ) : (
+                      <>
+                        <Text style={[s.successTitle, { color: colors.foreground }]}>
+                          {setupResult.imported} question{setupResult.imported === 1 ? '' : 's'} imported
+                        </Text>
+                        <Text style={[s.successSub, { color: colors.mutedForeground }]}>
+                          From Open Trivia Database — community-verified.
+                        </Text>
+                      </>
+                    )}
+                  </View>
+                </View>
 
-            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Topic</Text>
-            <TextInput
-              style={[s.textInput, {
-                backgroundColor: colors.card, color: colors.foreground,
-                borderColor: setupError ? colors.destructive : colors.border,
-              }]}
-              value={topic}
-              onChangeText={(t) => { setTopic(t); setSetupError(''); }}
-              placeholder="e.g. 90s Pop Music"
-              placeholderTextColor={colors.mutedForeground}
-            />
-            <Text style={[s.helperText, { color: colors.mutedForeground }]}>
-              Gemini AI generates questions based on this topic.
-            </Text>
+                <Pressable
+                  style={[s.primaryBtn, { backgroundColor: colors.primary }]}
+                  onPress={() => setStep('questions')}
+                >
+                  <Text style={s.primaryBtnText}>See questions</Text>
+                  <Ionicons name="arrow-forward" size={16} color="#fff" />
+                </Pressable>
 
-            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Difficulty</Text>
-            <DifficultyChips value={difficulty} onChange={setDifficulty} colors={colors} />
+                <Pressable style={s.secondaryLink} onPress={resetSetup}>
+                  <Text style={[s.secondaryLinkText, { color: colors.mutedForeground }]}>
+                    Create another game
+                  </Text>
+                </Pressable>
+              </View>
+            ) : (
+              /* ── Setup form ── */
+              <>
+                <Text style={[s.heading, { color: colors.foreground }]}>Create a new game</Text>
+                <Text style={[s.sub, { color: colors.mutedForeground }]}>
+                  Choose where questions come from, then we'll build the set for you.
+                </Text>
 
-            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Brief (optional)</Text>
-            <TextInput
-              style={[s.textInput, s.textArea, {
-                backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border,
-              }]}
-              value={brief}
-              onChangeText={setBrief}
-              placeholder="Guidance for AI generation — e.g. focus on one-hit wonders, avoid boy bands"
-              placeholderTextColor={colors.mutedForeground}
-              multiline
-            />
+                {/* Source picker */}
+                <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Question source</Text>
+                <View style={s.sourcePicker}>
+                  <Pressable
+                    style={[s.sourcePill, {
+                      borderColor: source === 'ai' ? AI_COLOR : colors.border,
+                      backgroundColor: source === 'ai' ? AI_COLOR + '18' : colors.card,
+                    }]}
+                    onPress={() => setSource('ai')}
+                  >
+                    <Ionicons name="sparkles" size={16} color={source === 'ai' ? AI_COLOR : colors.mutedForeground} />
+                    <Text style={[s.sourcePillText, { color: source === 'ai' ? AI_COLOR : colors.mutedForeground }]}>
+                      Gemini AI
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[s.sourcePill, {
+                      borderColor: source === 'opentdb' ? colors.primary : colors.border,
+                      backgroundColor: source === 'opentdb' ? colors.primary + '18' : colors.card,
+                    }]}
+                    onPress={() => setSource('opentdb')}
+                  >
+                    <Ionicons name="cloud-download-outline" size={16} color={source === 'opentdb' ? colors.primary : colors.mutedForeground} />
+                    <Text style={[s.sourcePillText, { color: source === 'opentdb' ? colors.primary : colors.mutedForeground }]} numberOfLines={1}>
+                      Open Trivia Database
+                    </Text>
+                  </Pressable>
+                </View>
 
-            {!!setupError && <Text style={[s.errorText, { color: colors.destructive }]}>{setupError}</Text>}
-
-            <Pressable
-              style={[s.primaryBtn, { backgroundColor: colors.primary, opacity: createGame.isPending ? 0.7 : 1 }]}
-              onPress={handleCreate}
-              disabled={createGame.isPending}
-            >
-              {createGame.isPending
-                ? <ActivityIndicator color="#fff" />
-                : (
+                {/* ── AI-specific fields ── */}
+                {source === 'ai' && (
                   <>
-                    <Text style={s.primaryBtnText}>Create &amp; add questions</Text>
-                    <Ionicons name="arrow-forward" size={16} color="#fff" />
+                    <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Topic</Text>
+                    <TextInput
+                      style={[s.textInput, {
+                        backgroundColor: colors.card, color: colors.foreground,
+                        borderColor: setupError ? colors.destructive : colors.border,
+                      }]}
+                      value={topic}
+                      onChangeText={(t) => { setTopic(t); setSetupError(''); }}
+                      placeholder="e.g. Harry Potter, The Office, 80s Music, Local History…"
+                      placeholderTextColor={colors.mutedForeground}
+                    />
+                    <Text style={[s.helperText, { color: colors.mutedForeground }]}>
+                      Gemini AI generates questions on this topic.
+                    </Text>
+
+                    <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>
+                      Brief <Text style={[s.fieldLabelOpt, { color: colors.mutedForeground }]}>(optional)</Text>
+                    </Text>
+                    <TextInput
+                      style={[s.textInput, s.textArea, {
+                        backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border,
+                      }]}
+                      value={brief}
+                      onChangeText={setBrief}
+                      placeholder="e.g. Focus on the 1990s. Skip obvious questions. No chart positions."
+                      placeholderTextColor={colors.mutedForeground}
+                      multiline
+                    />
+
+                    <View style={s.switchRow}>
+                      <Switch
+                        value={setupSkipFactCheck}
+                        onValueChange={setSetupSkipFactCheck}
+                        trackColor={{ true: AI_COLOR }}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.switchLabel, { color: colors.foreground }]}>Skip fact-check</Text>
+                        <Text style={[s.switchHint, { color: colors.mutedForeground }]}>
+                          For fiction or family topics — faster, less accurate
+                        </Text>
+                      </View>
+                    </View>
                   </>
                 )}
-            </Pressable>
+
+                {/* ── OpenTDB-specific fields ── */}
+                {source === 'opentdb' && (
+                  <>
+                    <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Category</Text>
+                    <View style={[s.catList, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                      {OPENTDB_CATEGORIES.map((c) => {
+                        const active = c.id === setupCategory;
+                        return (
+                          <Pressable
+                            key={c.id}
+                            style={[s.catRow, active && { backgroundColor: colors.primary + '18' }]}
+                            onPress={() => setSetupCategory(c.id)}
+                          >
+                            <Text style={[s.catText, { color: active ? colors.primary : colors.foreground }]}>
+                              {c.name}
+                            </Text>
+                            {active && <Ionicons name="checkmark" size={16} color={colors.primary} />}
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </>
+                )}
+
+                {/* ── Shared: Difficulty + Amount ── */}
+                <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Difficulty</Text>
+                <DifficultyChips value={difficulty} onChange={setDifficulty} colors={colors} />
+
+                <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>
+                  Questions to {source === 'ai' ? 'generate' : 'import'}
+                </Text>
+                <AmountStepper value={setupAmount} onChange={setSetupAmount} colors={colors} />
+
+                {/* Info callout */}
+                <View style={[s.callout, {
+                  borderColor: source === 'ai' ? AI_COLOR + '40' : colors.primary + '30',
+                  backgroundColor: source === 'ai' ? AI_COLOR + '08' : colors.primary + '08',
+                }]}>
+                  <Ionicons
+                    name={source === 'ai' ? 'bulb-outline' : 'server-outline'}
+                    size={16}
+                    color={source === 'ai' ? AI_COLOR : colors.primary}
+                    style={{ marginTop: 1 }}
+                  />
+                  <View style={{ flex: 1, gap: 2 }}>
+                    {source === 'ai' ? (
+                      <>
+                        <Text style={[s.calloutTitle, { color: source === 'ai' ? AI_COLOR : colors.primary }]}>
+                          AI-generated questions
+                        </Text>
+                        <Text style={[s.calloutBody, { color: colors.mutedForeground }]}>
+                          Questions will be marked as AI-generated and unverified. Review them in the Review step before going live.
+                        </Text>
+                      </>
+                    ) : (
+                      <>
+                        <Text style={[s.calloutTitle, { color: colors.primary }]}>
+                          Auto-import from Open Trivia Database
+                        </Text>
+                        <Text style={[s.calloutBody, { color: colors.mutedForeground }]}>
+                          {setupAmount} {difficulty} question{setupAmount === 1 ? '' : 's'} about{' '}
+                          <Text style={{ color: colors.foreground, fontFamily: 'Manrope_600SemiBold' }}>
+                            {selectedCategory?.name}
+                          </Text>{' '}
+                          will be fetched from the free, community-verified database.
+                        </Text>
+                      </>
+                    )}
+                  </View>
+                </View>
+
+                {!!setupError && (
+                  <Text style={[s.errorText, { color: colors.destructive }]}>{setupError}</Text>
+                )}
+
+                <Pressable
+                  style={[s.primaryBtn, {
+                    backgroundColor: source === 'ai' ? AI_COLOR : colors.primary,
+                    opacity: setupWorking ? 0.75 : 1,
+                  }]}
+                  onPress={source === 'ai' ? handleCreateAI : handleCreateOpenTdb}
+                  disabled={setupWorking}
+                >
+                  {setupWorking ? (
+                    <View style={s.btnRow}>
+                      <ActivityIndicator color="#fff" />
+                      <Text style={s.primaryBtnText}>{setupWorkingLabel}</Text>
+                    </View>
+                  ) : source === 'ai' ? (
+                    <View style={s.btnRow}>
+                      <Ionicons name="sparkles" size={16} color="#fff" />
+                      <Text style={s.primaryBtnText}>Create &amp; generate with Gemini</Text>
+                    </View>
+                  ) : (
+                    <View style={s.btnRow}>
+                      <Ionicons name="cloud-download-outline" size={16} color="#fff" />
+                      <Text style={s.primaryBtnText}>Create &amp; import from Open Trivia Database</Text>
+                    </View>
+                  )}
+                </Pressable>
+              </>
+            )}
           </View>
         )}
 
@@ -447,7 +705,7 @@ export function BuildTab({ bottomPadding }: Props) {
                       <View style={s.actionCardText}>
                         <Text style={[s.actionCardTitle, { color: colors.foreground }]}>Generate with AI</Text>
                         <Text style={[s.actionCardSub, { color: colors.mutedForeground }]}>
-                          Gemini writes fact-checked questions on “{selectedGame.topic}”
+                          Gemini writes fact-checked questions on "{selectedGame.topic}"
                         </Text>
                       </View>
                       <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
@@ -455,10 +713,10 @@ export function BuildTab({ bottomPadding }: Props) {
 
                     {/* OpenTDB import */}
                     <Pressable
-                      style={[s.actionCard, { borderColor: colors.secondary + '44', backgroundColor: colors.secondary + '12' }]}
+                      style={[s.actionCard, { borderColor: colors.primary + '44', backgroundColor: colors.primary + '12' }]}
                       onPress={() => { setTdbResult(null); setTdbError(''); setTdbOpen(true); }}
                     >
-                      <Ionicons name="cloud-download-outline" size={22} color={colors.secondary} />
+                      <Ionicons name="cloud-download-outline" size={22} color={colors.primary} />
                       <View style={s.actionCardText}>
                         <Text style={[s.actionCardTitle, { color: colors.foreground }]}>Import from Open Trivia Database</Text>
                         <Text style={[s.actionCardSub, { color: colors.mutedForeground }]}>
@@ -524,6 +782,35 @@ export function BuildTab({ bottomPadding }: Props) {
                   colors={colors}
                 />
 
+                {/* Summary card */}
+                {selectedGame && questions.length > 0 && (
+                  <View style={[s.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <Text style={[s.summaryTopic, { color: colors.foreground }]} numberOfLines={2}>
+                      {selectedGame.topic}
+                    </Text>
+                    <View style={s.summaryMeta}>
+                      <View style={s.summaryMetaItem}>
+                        <Ionicons name="layers-outline" size={13} color={colors.mutedForeground} />
+                        <Text style={[s.summaryMetaText, { color: colors.mutedForeground }]}>{sourceLabel}</Text>
+                      </View>
+                      <View style={s.summaryMetaItem}>
+                        <Ionicons name="speedometer-outline" size={13} color={colors.mutedForeground} />
+                        <Text style={[s.summaryMetaText, { color: colors.mutedForeground }]}>
+                          {selectedGame.difficulty
+                            ? DIFF_LABELS[selectedGame.difficulty as Difficulty] ?? selectedGame.difficulty
+                            : '—'}
+                        </Text>
+                      </View>
+                      <View style={s.summaryMetaItem}>
+                        <Ionicons name="help-circle-outline" size={13} color={colors.mutedForeground} />
+                        <Text style={[s.summaryMetaText, { color: colors.mutedForeground }]}>
+                          {questions.length} question{questions.length === 1 ? '' : 's'} · {totalPoints} pts total
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
                 {selectedGame && questions.length === 0 && (
                   <View style={[s.emptyCard, { borderColor: colors.border }]}>
                     <Ionicons name="help-circle-outline" size={32} color={colors.mutedForeground} />
@@ -582,10 +869,10 @@ export function BuildTab({ bottomPadding }: Props) {
                       {updateGame.isPending
                         ? <ActivityIndicator color="#0a1019" />
                         : (
-                          <>
+                          <View style={s.btnRow}>
                             <Ionicons name="play" size={16} color="#0a1019" />
                             <Text style={[s.primaryBtnText, { color: '#0a1019' }]}>Publish &amp; go live</Text>
-                          </>
+                          </View>
                         )}
                     </Pressable>
                   ) : (
@@ -603,7 +890,7 @@ export function BuildTab({ bottomPadding }: Props) {
         )}
       </ScrollView>
 
-      {/* ── AI generation sheet ── */}
+      {/* ── AI generation sheet (Questions step) ── */}
       <Modal visible={aiOpen} animationType="slide" transparent presentationStyle="overFullScreen">
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <View style={sh.modalOverlay}>
@@ -686,14 +973,14 @@ export function BuildTab({ bottomPadding }: Props) {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* ── OpenTDB import sheet ── */}
+      {/* ── OpenTDB import sheet (Questions step) ── */}
       <Modal visible={tdbOpen} animationType="slide" transparent presentationStyle="overFullScreen">
         <View style={sh.modalOverlay}>
           <Pressable style={sh.modalBackdrop} onPress={() => !importOpenTdb.isPending && setTdbOpen(false)} />
           <View style={[sh.sheet, { backgroundColor: colors.card, paddingBottom: sheetPadBottom, maxHeight: '85%' }]}>
             <View style={sh.sheetHandle} />
             <View style={sh.sheetTitleRow}>
-              <Ionicons name="cloud-download-outline" size={20} color={colors.secondary} />
+              <Ionicons name="cloud-download-outline" size={20} color={colors.primary} />
               <Text style={[sh.sheetTitle, { color: colors.foreground }]}>Import from Open Trivia Database</Text>
             </View>
 
@@ -715,9 +1002,6 @@ export function BuildTab({ bottomPadding }: Props) {
             ) : (
               <>
                 <Text style={[sh.fieldLabel, { color: colors.mutedForeground }]}>Category</Text>
-                <Text style={[sh.helperText, { color: colors.mutedForeground }]}>
-                  Questions are pulled from Open Trivia Database.
-                </Text>
                 <ScrollView style={sh.catList} showsVerticalScrollIndicator={false}>
                   {OPENTDB_CATEGORIES.map((c) => {
                     const active = c.id === tdbCategory;
@@ -745,13 +1029,13 @@ export function BuildTab({ bottomPadding }: Props) {
                 {!!tdbError && <Text style={[sh.errorText, { color: colors.destructive }]}>{tdbError}</Text>}
 
                 <Pressable
-                  style={[sh.sheetBtn, { backgroundColor: colors.secondary, opacity: importOpenTdb.isPending ? 0.7 : 1 }]}
+                  style={[sh.sheetBtn, { backgroundColor: colors.primary, opacity: importOpenTdb.isPending ? 0.7 : 1 }]}
                   onPress={handleImportTdb}
                   disabled={importOpenTdb.isPending}
                 >
                   {importOpenTdb.isPending
-                    ? <ActivityIndicator color="#0a1019" />
-                    : <Text style={[sh.sheetBtnText, { color: '#0a1019' }]}>Import {tdbAmount} questions</Text>}
+                    ? <ActivityIndicator color="#fff" />
+                    : <Text style={sh.sheetBtnText}>Import {tdbAmount} questions</Text>}
                 </Pressable>
               </>
             )}
@@ -796,15 +1080,60 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     heading: { fontSize: 20, fontFamily: 'Manrope_800ExtraBold' },
     sub: { fontSize: 13, lineHeight: 19, marginTop: -6 },
     helperText: { fontSize: 11.5, lineHeight: 16, marginTop: -6 },
-    fieldLabel: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', letterSpacing: 0, marginTop: 6 },
+    fieldLabel: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', marginTop: 6 },
+    fieldLabelOpt: { fontSize: 12, fontFamily: 'Manrope_400Regular' },
     textInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
     textArea: { minHeight: 80, textAlignVertical: 'top' },
     errorText: { fontSize: 13 },
+    // Source picker
+    sourcePicker: { flexDirection: 'row', gap: 8 },
+    sourcePill: {
+      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      gap: 6, borderWidth: 1.5, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 10,
+    },
+    sourcePillText: { fontSize: 13, fontFamily: 'Manrope_700Bold', flexShrink: 1 },
+    // Switch
+    switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
+    switchLabel: { fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
+    switchHint: { fontSize: 12, lineHeight: 16 },
+    // OpenTDB category list
+    catList: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+    catRow: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11,
+    },
+    catText: { fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
+    // Info callout
+    callout: {
+      flexDirection: 'row', gap: 10, borderWidth: 1, borderRadius: 12, padding: 14, marginTop: 2,
+    },
+    calloutTitle: { fontSize: 13, fontFamily: 'Manrope_700Bold', marginBottom: 2 },
+    calloutBody: { fontSize: 12.5, lineHeight: 18 },
+    // Button
     primaryBtn: {
-      flexDirection: 'row', gap: 8, borderRadius: 12, paddingVertical: 14,
-      alignItems: 'center', justifyContent: 'center', marginTop: 10,
+      borderRadius: 12, paddingVertical: 14,
+      alignItems: 'center', justifyContent: 'center', marginTop: 6,
     },
     primaryBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Manrope_700Bold' },
+    btnRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    secondaryLink: { alignItems: 'center', paddingVertical: 8 },
+    secondaryLinkText: { fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
+    // Success state
+    successContainer: { gap: 12 },
+    successCard: {
+      flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+      borderWidth: 1, borderRadius: 14, padding: 16,
+    },
+    successTitle: { fontSize: 15, fontFamily: 'Manrope_700Bold' },
+    successSub: { fontSize: 12.5, lineHeight: 17 },
+    // Review summary card
+    summaryCard: {
+      borderWidth: 1, borderRadius: 14, padding: 16, gap: 10,
+    },
+    summaryTopic: { fontSize: 17, fontFamily: 'Manrope_800ExtraBold', lineHeight: 22 },
+    summaryMeta: { gap: 6 },
+    summaryMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    summaryMetaText: { fontSize: 12.5, fontFamily: 'Manrope_600SemiBold' },
     // Empty state
     emptyCard: {
       borderWidth: 2, borderStyle: 'dashed', borderRadius: 20, padding: 32,
@@ -858,15 +1187,14 @@ const sh = StyleSheet.create({
   sheetTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sheetTitle: { fontSize: 20, fontFamily: 'Manrope_800ExtraBold' },
   sheetSub: { fontSize: 13, lineHeight: 20 },
-  helperText: { fontSize: 11.5, lineHeight: 16, marginTop: -6 },
   sheetBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
   sheetBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Manrope_700Bold' },
   btnRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   secondaryLink: { alignItems: 'center', paddingVertical: 6 },
   secondaryLinkText: { fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
-  fieldLabel: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', letterSpacing: 0, marginTop: 4 },
+  fieldLabel: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', marginTop: 4 },
   textInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
-  errorText: { fontSize: 13, color: '#ff5aa8' },
+  errorText: { fontSize: 13 },
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
   switchLabel: { fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
   switchHint: { fontSize: 12 },
@@ -878,7 +1206,7 @@ const sh = StyleSheet.create({
   // Difficulty chips
   diffRow: { flexDirection: 'row', gap: 8 },
   diffChip: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
-  diffChipText: { fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
+  diffChipText: { fontSize: 12.5, fontFamily: 'Manrope_600SemiBold' },
   // Stepper
   stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   stepperBtn: { width: 36, height: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
@@ -894,7 +1222,7 @@ const sh = StyleSheet.create({
   gameChipDot: { width: 6, height: 6, borderRadius: 3 },
   gameChipText: { fontSize: 14, fontFamily: 'Manrope_700Bold', flexShrink: 1 },
   gameChipCount: { fontSize: 11.5 },
-  // OpenTDB categories
+  // OpenTDB categories (in sheet)
   catList: { maxHeight: 200, marginTop: 2 },
   catRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

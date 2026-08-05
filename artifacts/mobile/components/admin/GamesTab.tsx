@@ -364,7 +364,7 @@ export function GamesTab({ bottomPadding }: Props) {
                     onPress={() => setDifficulty(d)}
                   >
                     <Text style={[s.diffChipText, { color: difficulty === d ? colors.primary : colors.mutedForeground }]}>
-                      {d === 'easy' ? 'Easy (5 pts)' : d === 'medium' ? 'Medium (10 pts)' : 'Hard (15 pts)'}
+                      {d === 'easy' ? 'Easy (5 pts each)' : d === 'medium' ? 'Medium (10 pts each)' : 'Hard (15 pts each)'}
                     </Text>
                   </Pressable>
                 ))}
