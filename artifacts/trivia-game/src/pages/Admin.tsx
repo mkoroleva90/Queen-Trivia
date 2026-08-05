@@ -3732,6 +3732,47 @@ disabled={updateQuestion.isPending}
 const REQUIRE_VERIFY_KEY = "trivia-require-verify";
 
 
+// ── Validation helpers (mirrors server rules in accessCodeValidation.ts) ──────
+
+function stTriviaErr(code: string): string | null {
+  const t = code.trim();
+  if (t.length < 4 || t.length > 6) return "Trivia access code must be 4–6 characters.";
+  if (!/^[A-Za-z0-9]+$/.test(t)) return "Trivia access code may only contain letters and numbers.";
+  return null;
+}
+
+const ST_ADMIN_COMMON = new Set([
+  "password","passw0rd","letmein","welcome","monkey","dragon","master",
+  "iloveyou","sunshine","princess","football","shadow","superman","batman",
+  "qwerty","qwerty123","abc123","abcdef","trustno1","access","admin","changeme",
+]);
+const ST_KBD_ROWS = ["qwertyuiop","asdfghjkl","zxcvbnm","1234567890",
+  "poiuytrewq","lkjhgfdsa","mnbvcxz","0987654321"];
+
+function stAdminErr(code: string): string | null {
+  if (code.length < 12) return "Admin access code must be at least 12 characters.";
+  if (code.length > 64) return "Admin access code must be at most 64 characters.";
+  const s = code.toLowerCase().replace(/\s+/g, "");
+  if (ST_ADMIN_COMMON.has(s)) return "Admin access code is too common. Choose a less predictable passphrase.";
+  for (let i = 0; i <= s.length - 4; i++) {
+    let asc = true, dsc = true;
+    for (let j = 1; j < 4; j++) {
+      const d = s.charCodeAt(i + j) - s.charCodeAt(i + j - 1);
+      if (d !== 1) asc = false; if (d !== -1) dsc = false;
+    }
+    if (asc || dsc) return "Admin access code contains a sequential run (e.g. \"abcd\" or \"1234\"). Choose something less predictable.";
+  }
+  for (let i = 0; i <= s.length - 3; i++) {
+    if (s[i] === s[i + 1] && s[i] === s[i + 2]) return "Admin access code contains repeated characters (e.g. \"aaa\"). Choose something less predictable.";
+  }
+  for (const row of ST_KBD_ROWS) {
+    for (let i = 0; i <= s.length - 4; i++) {
+      if (row.includes(s.slice(i, i + 4))) return "Admin access code follows a keyboard pattern (e.g. \"qwerty\"). Choose something less predictable.";
+    }
+  }
+  return null;
+}
+
 function SettingsSection() {
     const { toast } = useToast();
     const { logout } = useAuth();
@@ -3741,11 +3782,19 @@ function SettingsSection() {
     const [showTrivia, setShowTrivia] = useState(false);
     const [showAdmin, setShowAdmin] = useState(false);
     const [currentTrivia, setCurrentTrivia] = useState("");
-    const [currentAdmin, setCurrentAdmin] = useState("");
+    const [adminCodeIsSet, setAdminCodeIsSet] = useState(false);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    // Computed per-field validation (mirrors server rules)
+    const triviaValidErr = stTriviaErr(triviaCode);
+    const adminValidErr = adminCode.trim() ? stAdminErr(adminCode) : null;
+    const codesMatchErr =
+      adminCode.trim() &&
+      triviaCode.trim().toUpperCase() === adminCode.trim().toUpperCase()
+        ? "Trivia access code and admin access code must be different."
+        : null;
     const [requireVerify, setRequireVerify] = useState<boolean>(() => {
      try { return localStorage.getItem(REQUIRE_VERIFY_KEY) !== "false"; } catch { return true; }
     });
@@ -3756,9 +3805,9 @@ function SettingsSection() {
       .then((r) => r.json())
       .then((data) => {
           setCurrentTrivia(data.triviaAccessCode ?? "");
-          setCurrentAdmin(data.adminAccessCode ?? "");
+          setAdminCodeIsSet(data.adminCodeIsSet ?? false);
      setTriviaCode(data.triviaAccessCode ?? "");
-     setAdminCode(data.adminAccessCode ?? "");
+     // Admin field always starts empty — the stored hash is never sent to the client.
      setLoading(false);
    })
    .catch(() => {
@@ -3770,33 +3819,32 @@ function SettingsSection() {
 
  const handleSave = async (e: React.FormEvent) => {
   e.preventDefault();
-  const t = triviaCode.trim();
-  const a = adminCode.trim();
-  if (t.length < 8) { toast({ variant: "destructive", title: "Trivia code must be at least 8 characters" }); return; }
-  if (a.length < 8) { toast({ variant: "destructive", title: "Admin code must be at least 8 characters" }); return; }
-   if (t === a) { toast({ variant: "destructive", title: "Trivia and admin codes must be different"}); return; }
+  if (triviaValidErr || adminValidErr || codesMatchErr) return;
   setSaving(true);
+  const body: Record<string, string> = { triviaAccessCode: triviaCode.trim() };
+  if (adminCode.trim()) body.adminAccessCode = adminCode;
   try {
    const res = await fetch("/api/settings", {
      method: "PATCH",
      headers: { "Content-Type": "application/json" },
      credentials: "include",
-     body: JSON.stringify({ triviaAccessCode: t, adminAccessCode: a }),
-        });
-        if (!res.ok) {
-            const data = await res.json();
-            toast({ variant: "destructive", title: data.error ?? "Save failed" });
-            return;
-        }
-        const updated = await res.json();
-        setCurrentTrivia(updated.triviaAccessCode);
-        setCurrentAdmin(updated.adminAccessCode);
-        toast({ title: "Settings saved" });
-    } catch {
-        toast({ variant: "destructive", title: "Network error" });
-    } finally {
-        setSaving(false);
-    }
+     body: JSON.stringify(body),
+   });
+   if (!res.ok) {
+     const data = await res.json();
+     toast({ variant: "destructive", title: data.error ?? "Save failed" });
+     return;
+   }
+   const updated = await res.json();
+   setCurrentTrivia(updated.triviaAccessCode);
+   if (updated.adminCodeIsSet) setAdminCodeIsSet(true);
+   setAdminCode("");
+   toast({ title: "Settings saved" });
+  } catch {
+    toast({ variant: "destructive", title: "Network error" });
+  } finally {
+    setSaving(false);
+  }
 };
 
 const handleDeleteAccount = async () => {
@@ -3830,7 +3878,7 @@ if (loading) {
         </div>
     );
 }
- const unchanged = triviaCode.trim() === currentTrivia && adminCode.trim() ===currentAdmin;
+ const unchanged = triviaCode.trim().toUpperCase() === currentTrivia.toUpperCase() && adminCode.trim() === "";
 
 
 return (
@@ -3844,58 +3892,86 @@ return (
   <form onSubmit={handleSave} className="space-y-5">
    <Card className="border-card-border bg-card/60">
     <CardContent className="p-5 space-y-4">
+
+     {/* Trivia access code */}
      <div className="space-y-2">
       <Label htmlFor="trivia-code">
-       Player Access Code
+       Trivia access code
        <span className="ml-2 text-xs text-muted-foreground font-normal">
            (shared with players)
        </span>
       </Label>
+      <p className="text-xs text-muted-foreground">
+        4–6 characters. Players can type in any case. Avoid easily confused characters like 0/O or 1/I.
+      </p>
       <div className="relative">
        <Input
            id="trivia-code"
            type={showTrivia ? "text" : "password"}
            value={triviaCode}
         onChange={(e) => setTriviaCode(e.target.value.toUpperCase())}
-        className="pr-10 uppercase tracking-widest font-mono"
+        className={`pr-10 uppercase tracking-widest font-mono${triviaValidErr ? " border-destructive" : ""}`}
+        placeholder="4–6 characters, e.g. QUIZ5"
+        autoComplete="off"
        />
        <button
         type="button"
         onClick={() => setShowTrivia((v) => !v)}
-        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foregroundhover:text-foreground transition-colors"
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
        >
         {showTrivia ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
        </button>
       </div>
+      {triviaValidErr && (
+        <p className="text-xs text-destructive">{triviaValidErr}</p>
+      )}
      </div>
+
      <Separator />
+
+     {/* Admin access code */}
      <div className="space-y-2">
       <Label htmlFor="admin-code">
-       Admin Code
+       Admin access code
        <span className="ml-2 text-xs text-muted-foreground font-normal">
         (hosts only — keep private)
        </span>
       </Label>
+      <p className="text-xs text-muted-foreground">
+        {adminCodeIsSet
+          ? "A code is set. Leave blank to keep it, or enter a new passphrase (12–64 characters) to replace it."
+          : "No code is set. Enter a passphrase (12–64 characters). Spaces are allowed."}
+      </p>
       <div className="relative">
        <Input
         id="admin-code"
         type={showAdmin ? "text" : "password"}
         value={adminCode}
-          onChange={(e) => setAdminCode(e.target.value.toUpperCase())}
-          className="pr-10 uppercase tracking-widest font-mono"
-         />
-         <button
-          type="button"
-          onClick={() => setShowAdmin((v) => !v)}
-        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foregroundhover:text-foreground transition-colors"
-         >
-          {showAdmin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-         </button>
-        </div>
-        </div>
+        onChange={(e) => setAdminCode(e.target.value)}
+        className={`pr-10${(adminValidErr || codesMatchErr) ? " border-destructive" : ""}`}
+        placeholder={adminCodeIsSet ? "Leave blank to keep existing code" : "Enter new admin access code"}
+        autoComplete="new-password"
+       />
+       <button
+        type="button"
+        onClick={() => setShowAdmin((v) => !v)}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+       >
+        {showAdmin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+       </button>
+      </div>
+      {(adminValidErr || codesMatchErr) && (
+        <p className="text-xs text-destructive">{codesMatchErr ?? adminValidErr}</p>
+      )}
+     </div>
+
     </CardContent>
    </Card>
-   <Button type="submit" className="font-bold" disabled={unchanged || saving}>
+   <Button
+     type="submit"
+     className="font-bold"
+     disabled={saving || !!triviaValidErr || !!(adminCode.trim() && adminValidErr) || !!codesMatchErr || unchanged}
+   >
     {saving ? "Saving..." : "Save changes"}
    </Button>
    {unchanged && (

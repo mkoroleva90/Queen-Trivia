@@ -23,7 +23,7 @@ import {
 import { toJsonSafe } from "../lib/serialize.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { requireAuth } from "../middleware/requireAuth.ts";
-import { generateAccessCode } from "../lib/bootstrapAccessCodes.ts";
+import { generateTriviaCode } from "../lib/bootstrapAccessCodes.ts";
 import { checkGameCreationLimit } from "../lib/usageLimits.ts";
 
 
@@ -74,8 +74,10 @@ router.get("/games", requireAuth, async (req, res): Promise<void> => {
 
 // Game access codes use the shared CSPRNG-backed generator (crypto.randomBytes)
 // with an unambiguous alphabet; 10 chars of a 31-char alphabet ≈ 49 bits entropy.
+// Per-game access codes use the same unambiguous alphabet as trivia codes but
+// at 10 characters for higher entropy (game codes are shared less widely).
 function randomAccessCode(): string {
- return generateAccessCode(10);
+ return generateTriviaCode(10);
 }
 
 router.post("/games", requireAdmin, async (req, res): Promise<void> => {

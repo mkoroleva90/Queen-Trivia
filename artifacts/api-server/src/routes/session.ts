@@ -3,7 +3,7 @@ import { Router, type IRouter } from "express";
 import { and, eq, ne } from "drizzle-orm";
 import { db, adminSettingsTable, usersTable, gamesTable } from "@workspace/db";
 import { toJsonSafe } from "../lib/serialize.ts";
-import { authRateLimit } from "../middleware/authRateLimit.ts";
+import { triviaJoinRateLimit } from "../middleware/authRateLimit.ts";
 import { generateMobileToken } from "../lib/mobileAuth.ts";
 
 
@@ -12,7 +12,7 @@ const router: IRouter = Router();
 // If the caller already has a valid player session (req.session.userId is set),
 // this endpoint simply appends the new game to their allowedGameIds list and
 // returns the existing user — no regenerate, no new user row.
-router.post("/auth/login", authRateLimit, async (req, res): Promise<void> => {
+router.post("/auth/login", triviaJoinRateLimit, async (req, res): Promise<void> => {
 const code =
     typeof req.body?.code === "string" ? req.body.code.trim() : "";
 const name =
@@ -26,7 +26,10 @@ if (!code) {
 
 
 const [settings] = await db.select().from(adminSettingsTable).limit(1);
-const isGlobalCode = !!settings && code === settings.triviaAccessCode;
+// Case-insensitive: players who type lower-case on a phone still join.
+const isGlobalCode =
+  !!settings &&
+  code.toUpperCase() === settings.triviaAccessCode.toUpperCase();
 
 // Per-game access codes: a code tied to a specific (non-completed) game
 let matchedGame: { id: number } | undefined;

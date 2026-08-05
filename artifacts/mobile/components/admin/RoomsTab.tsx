@@ -17,7 +17,50 @@ import * as SecureStore from 'expo-secure-store';
 import { ADMIN_TOKEN_KEY, useAdminAuth } from '@/context/AdminAuthContext';
 import { useColors } from '@/hooks/useColors';
 
-type Settings = { triviaAccessCode: string; adminAccessCode: string };
+// ── Validation helpers (mirror of server rules in accessCodeValidation.ts) ────
+
+function triviaCodeError(code: string): string | null {
+  const t = code.trim();
+  if (t.length < 4 || t.length > 6) return 'Trivia access code must be 4–6 characters.';
+  if (!/^[A-Za-z0-9]+$/.test(t)) return 'Trivia access code may only contain letters and numbers.';
+  return null;
+}
+
+const ADMIN_COMMON = new Set([
+  'password','passw0rd','letmein','welcome','monkey','dragon','master',
+  'iloveyou','sunshine','princess','football','shadow','superman','batman',
+  'qwerty','qwerty123','abc123','abcdef','trustno1','access','admin','changeme',
+]);
+const KBD_ROWS = ['qwertyuiop','asdfghjkl','zxcvbnm','1234567890',
+  'poiuytrewq','lkjhgfdsa','mnbvcxz','0987654321'];
+
+function adminCodeError(code: string): string | null {
+  if (code.length < 12) return 'Admin access code must be at least 12 characters.';
+  if (code.length > 64) return 'Admin access code must be at most 64 characters.';
+  const s = code.toLowerCase().replace(/\s+/g, '');
+  if (ADMIN_COMMON.has(s)) return 'Admin access code is too common. Choose a less predictable passphrase.';
+  for (let i = 0; i <= s.length - 4; i++) {
+    let asc = true, dsc = true;
+    for (let j = 1; j < 4; j++) {
+      const d = s.charCodeAt(i + j) - s.charCodeAt(i + j - 1);
+      if (d !== 1) asc = false; if (d !== -1) dsc = false;
+    }
+    if (asc || dsc) return 'Admin access code contains a sequential run (e.g. "abcd" or "1234"). Choose something less predictable.';
+  }
+  for (let i = 0; i <= s.length - 3; i++) {
+    if (s[i] === s[i + 1] && s[i] === s[i + 2]) return 'Admin access code contains repeated characters (e.g. "aaa"). Choose something less predictable.';
+  }
+  for (const row of KBD_ROWS) {
+    for (let i = 0; i <= s.length - 4; i++) {
+      if (row.includes(s.slice(i, i + 4))) return 'Admin access code follows a keyboard pattern (e.g. "qwerty"). Choose something less predictable.';
+    }
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+type Settings = { triviaAccessCode: string; adminCodeIsSet: boolean };
 
 async function adminFetch(url: string, options?: RequestInit) {
   const token = await SecureStore.getItemAsync(ADMIN_TOKEN_KEY).catch(() => null);
@@ -35,7 +78,6 @@ type Props = { bottomPadding: number };
 
 /**
  * Rooms tab — access codes management + account danger zone.
- * Mirrors the "Rooms & codes" section from the web admin panel.
  */
 export function RoomsTab({ bottomPadding }: Props) {
   const colors = useColors();
@@ -44,11 +86,23 @@ export function RoomsTab({ bottomPadding }: Props) {
 
   const [triviaCode, setTriviaCode] = useState('');
   const [adminCode, setAdminCode] = useState('');
+  const [adminCodeIsSet, setAdminCodeIsSet] = useState(false);
+  const [currentTrivia, setCurrentTrivia] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [error, setError] = useState('');
+  const [globalError, setGlobalError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // Per-field computed validation
+  const triviaErr = triviaCodeError(triviaCode);
+  const adminErr = adminCode.trim() ? adminCodeError(adminCode) : null;
+  const codesMatchErr =
+    adminCode.trim() && triviaCode.trim().toUpperCase() === adminCode.trim().toUpperCase()
+      ? 'Trivia access code and admin access code must be different.'
+      : null;
+  const isInvalid = !!triviaErr || !!adminErr || !!codesMatchErr;
+  const unchanged = triviaCode.trim().toUpperCase() === currentTrivia.toUpperCase() && adminCode.trim() === '';
 
   const baseUrl = process.env.EXPO_PUBLIC_DOMAIN
     ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
@@ -57,15 +111,17 @@ export function RoomsTab({ bottomPadding }: Props) {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      setError('');
+      setGlobalError('');
       try {
         const r = await adminFetch(`${baseUrl}/api/settings`);
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const data = (await r.json()) as Settings;
+        setCurrentTrivia(data.triviaAccessCode);
         setTriviaCode(data.triviaAccessCode);
-        setAdminCode(data.adminAccessCode);
+        setAdminCodeIsSet(data.adminCodeIsSet);
+        // Admin code field always starts empty — hash is never returned to client.
       } catch {
-        setError('Could not load settings. Check your connection and try again.');
+        setGlobalError('Could not load settings. Check your connection and try again.');
       } finally {
         setLoading(false);
       }
@@ -73,26 +129,29 @@ export function RoomsTab({ bottomPadding }: Props) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSave = async () => {
-    setError('');
+    if (isInvalid || unchanged) return;
+    setGlobalError('');
     setSuccess('');
-    const t = triviaCode.trim();
-    const a = adminCode.trim();
-    if (t.length < 8) { setError('Trivia access code must be at least 8 characters'); return; }
-    if (a.length < 8) { setError('Admin access code must be at least 8 characters'); return; }
-    if (t === a) { setError('Trivia and admin codes must be different'); return; }
     setSaving(true);
+    const body: Record<string, string> = { triviaAccessCode: triviaCode.trim() };
+    if (adminCode.trim()) body.adminAccessCode = adminCode; // omit → server keeps existing hash
     try {
       const r = await adminFetch(`${baseUrl}/api/settings`, {
         method: 'PATCH',
-        body: JSON.stringify({ triviaAccessCode: t, adminAccessCode: a }),
+        body: JSON.stringify(body),
       });
       if (!r.ok) {
-        const body = await r.json().catch(() => ({})) as { error?: string };
-        throw new Error(body.error ?? `HTTP ${r.status}`);
+        const json = await r.json().catch(() => ({})) as { error?: string };
+        throw new Error(json.error ?? `HTTP ${r.status}`);
       }
+      const updated = (await r.json()) as { triviaAccessCode: string; adminCodeIsSet: boolean };
+      setCurrentTrivia(updated.triviaAccessCode);
+      setTriviaCode(updated.triviaAccessCode);
+      if (updated.adminCodeIsSet) setAdminCodeIsSet(true);
+      setAdminCode(''); // clear after save — hash is never displayed
       setSuccess('Settings saved successfully.');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save settings.');
+      setGlobalError(e instanceof Error ? e.message : 'Failed to save settings.');
     } finally {
       setSaving(false);
     }
@@ -111,18 +170,18 @@ export function RoomsTab({ bottomPadding }: Props) {
 
   const confirmDeleteAccount = async () => {
     setDeleting(true);
-    setError('');
+    setGlobalError('');
     try {
       const r = await adminFetch(`${baseUrl}/api/auth/email/account`, { method: 'DELETE' });
       if (!r.ok) {
         const body = await r.json().catch(() => ({})) as { error?: string };
-        setError(body.error ?? 'Failed to delete account. Please try again.');
+        setGlobalError(body.error ?? 'Failed to delete account. Please try again.');
         return;
       }
       await logoutAdmin();
       router.replace('/admin-login');
     } catch {
-      setError('Connection error — please retry.');
+      setGlobalError('Connection error — please retry.');
     } finally {
       setDeleting(false);
     }
@@ -154,35 +213,66 @@ export function RoomsTab({ bottomPadding }: Props) {
             <Text style={[s.sectionTitle, { color: colors.foreground }]}>Access codes</Text>
           </View>
           <Text style={[s.sectionDesc, { color: colors.mutedForeground }]}>
-            Players use the trivia access code to join games. Both codes must be at least 8 characters and must differ from each other.
+            Players use the trivia access code to join. The admin access code is stored encrypted and never shown — enter a new value to change it.
           </Text>
 
-          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Trivia access code</Text>
-          <TextInput
-            style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
-            value={triviaCode}
-            onChangeText={(v) => { setTriviaCode(v); setError(''); setSuccess(''); }}
-            placeholder="Minimum 8 characters"
-            placeholderTextColor={colors.mutedForeground}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
+          {/* Trivia access code */}
+          <View style={s.fieldGroup}>
+            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Trivia access code</Text>
+            <Text style={[s.fieldHelper, { color: colors.mutedForeground }]}>
+              4–6 characters. Players can type in any case.
+            </Text>
+            <TextInput
+              style={[s.input, {
+                backgroundColor: colors.background,
+                color: colors.foreground,
+                borderColor: triviaErr ? colors.destructive : colors.border,
+              }]}
+              value={triviaCode}
+              onChangeText={(v) => { setTriviaCode(v.toUpperCase()); setGlobalError(''); setSuccess(''); }}
+              placeholder="4–6 characters, e.g. QUIZ5"
+              placeholderTextColor={colors.mutedForeground}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              maxLength={6}
+            />
+            {!!triviaErr && (
+              <Text style={[s.fieldError, { color: colors.destructive }]}>{triviaErr}</Text>
+            )}
+          </View>
 
-          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Admin access code</Text>
-          <TextInput
-            style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
-            value={adminCode}
-            onChangeText={(v) => { setAdminCode(v); setError(''); setSuccess(''); }}
-            placeholder="Minimum 8 characters"
-            placeholderTextColor={colors.mutedForeground}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
+          {/* Admin access code */}
+          <View style={s.fieldGroup}>
+            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Admin access code</Text>
+            <Text style={[s.fieldHelper, { color: colors.mutedForeground }]}>
+              {adminCodeIsSet
+                ? 'A code is set. Leave blank to keep it, or enter a new passphrase (12–64 chars) to replace it.'
+                : 'No code set. Enter a passphrase (12–64 characters). Spaces are allowed.'}
+            </Text>
+            <TextInput
+              style={[s.input, {
+                backgroundColor: colors.background,
+                color: colors.foreground,
+                borderColor: (adminErr || codesMatchErr) ? colors.destructive : colors.border,
+              }]}
+              value={adminCode}
+              onChangeText={(v) => { setAdminCode(v); setGlobalError(''); setSuccess(''); }}
+              placeholder={adminCodeIsSet ? 'Leave blank to keep existing code' : 'Enter new admin access code'}
+              placeholderTextColor={colors.mutedForeground}
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry
+            />
+            {!!(adminErr || codesMatchErr) && (
+              <Text style={[s.fieldError, { color: colors.destructive }]}>{codesMatchErr ?? adminErr}</Text>
+            )}
+          </View>
 
-          {!!error && (
+          {/* Global success / error messages */}
+          {!!globalError && (
             <View style={[s.msgRow, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}>
               <Ionicons name="alert-circle" size={16} color={colors.destructive} />
-              <Text style={[s.msgText, { color: colors.destructive }]}>{error}</Text>
+              <Text style={[s.msgText, { color: colors.destructive }]}>{globalError}</Text>
             </View>
           )}
           {!!success && (
@@ -193,9 +283,12 @@ export function RoomsTab({ bottomPadding }: Props) {
           )}
 
           <Pressable
-            style={[s.saveBtn, { backgroundColor: colors.primary, opacity: saving ? 0.7 : 1 }]}
+            style={[s.saveBtn, {
+              backgroundColor: colors.primary,
+              opacity: (saving || isInvalid || unchanged) ? 0.45 : 1,
+            }]}
             onPress={handleSave}
-            disabled={saving}
+            disabled={saving || isInvalid || unchanged}
           >
             {saving ? (
               <ActivityIndicator color="#fff" />
@@ -206,9 +299,12 @@ export function RoomsTab({ bottomPadding }: Props) {
               </>
             )}
           </Pressable>
+          {unchanged && !isInvalid && (
+            <Text style={[s.noChanges, { color: colors.mutedForeground }]}>No changes to save.</Text>
+          )}
         </View>
 
-        {/* Danger Zone */}
+        {/* Danger zone */}
         <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.destructive + '40' }]}>
           <View style={s.sectionHeader}>
             <Ionicons name="warning-outline" size={18} color={colors.destructive} />
@@ -246,10 +342,14 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     sectionTitle: { fontSize: 17, fontFamily: 'Manrope_700Bold' },
     sectionDesc: { fontSize: 13, lineHeight: 19 },
-    fieldLabel: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', letterSpacing: 0, marginTop: 4 },
+    fieldGroup: { gap: 6 },
+    fieldLabel: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', letterSpacing: 0 },
+    fieldHelper: { fontSize: 11.5, lineHeight: 16 },
+    fieldError: { fontSize: 12, lineHeight: 17 },
     input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
     msgRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderRadius: 10, padding: 12 },
     msgText: { flex: 1, fontSize: 13, lineHeight: 18 },
+    noChanges: { textAlign: 'center', fontSize: 12 },
     saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, paddingVertical: 14, marginTop: 4 },
     saveBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Manrope_700Bold' },
     deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, paddingVertical: 14, borderWidth: 1.5 },
