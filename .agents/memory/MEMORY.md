@@ -4,3 +4,4 @@
 - [Codegen tooling quirks](codegen-tooling-quirks.md) — orval codegen broken on Node 24: hand-patch all 3 generated locations; drizzle push needs TTY, apply DDL via SQL instead.
 - [Node strip-types tests](node-strip-types-tests.md) — api-server tests need `.ts` import extensions; stripper rejects `!` in destructuring LHS.
 - [Admin code source of truth](admin-auth-code-source.md) — /api/admin/login checks ADMIN_ACCESS_KEY env before the DB code; the two can disagree. Socket singleton: one hook cleanup disconnects all.
+- [Live tally seeding](live-tally-seeding.md) — seed+socket live counts must use the synchronous ref store in lib/live-tally; React-state flags misroute transition events and double-count.

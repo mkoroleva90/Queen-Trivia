@@ -1,8 +1,15 @@
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  createTallyStore,
+  recordAnswerEvent,
+  applySeed,
+  resetTallyStore,
+  type TallyStore,
+} from "@workspace/live-tally";
 import { cn } from "@/lib/utils";
 import {
  DndContext,
@@ -4635,6 +4642,7 @@ function LiveGameView({
   // Reset live telemetry whenever a different game goes live.
   useEffect(() => {
     setQIndex(0);
+    resetTallyStore(tallyStore.current);
     setAnsweredBy({});
     setCorrectCount({});
   }, [activeGame?.id]);
@@ -4649,17 +4657,52 @@ function LiveGameView({
   });
 
   // Live answer tracking from the same socket events that power player GamePlay.
+  // The synchronous TallyStore (in a ref) is the single source of truth: it
+  // buffers pre-seed events, merges the persisted snapshot atomically, and
+  // dedupes per player name — so events arriving during the seed→live
+  // transition are never lost or double-counted. React state below is only a
+  // render mirror of the store's snapshots.
+  const tallyStore = useRef<TallyStore>(createTallyStore());
   const [answeredBy, setAnsweredBy] = useState<Record<number, string[]>>({});
   const [correctCount, setCorrectCount] = useState<Record<number, number>>({});
+  const syncTallies = () => {
+    setAnsweredBy({ ...tallyStore.current.answeredBy });
+    setCorrectCount({ ...tallyStore.current.correctCount });
+  };
+
+  // Seed tallies from persisted answers so opening the Live view mid-game
+  // shows correct totals immediately; socket events increment on top.
+  const { data: seedStats } = useQuery<
+    { id: number; correctCount: number; answeredBy?: string[] }[]
+  >({
+    queryKey: ["live-view-seed-stats", activeGame?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/games/${activeGame!.id}/questions/stats`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("stats");
+      return res.json();
+    },
+    enabled: !!activeGame,
+    staleTime: Infinity, // seed once per game; socket events keep it live
+  });
+
+  // Apply the persisted snapshot: applySeed merges baseline + buffered events
+  // (name-deduped) and switches the store to live synchronously, so a socket
+  // event arriving right after — even before React commits — hits the merged
+  // baseline instead of a stale buffer. Idempotent once live.
+  useEffect(() => {
+    if (!seedStats || !activeGame) return;
+    if (applySeed(tallyStore.current, seedStats)) syncTallies();
+  }, [seedStats, activeGame]);
+
   useGameSocket(activeGame?.id ?? null, {
     onAnswerSubmitted: (p) => {
-      setAnsweredBy((prev) => {
-        const cur = prev[p.questionId] ?? [];
-        if (cur.includes(p.playerName)) return prev;
-        return { ...prev, [p.questionId]: [...cur, p.playerName] };
-      });
-      if (p.isCorrect) {
-        setCorrectCount((prev) => ({ ...prev, [p.questionId]: (prev[p.questionId] ?? 0) + 1 }));
+      // Synchronous, name-deduped store update: buffers while awaiting the
+      // seed, otherwise applies against the merged baseline. Duplicate events
+      // can never double-count, even before a render commits.
+      if (recordAnswerEvent(tallyStore.current, p.questionId, p.playerName, p.isCorrect)) {
+        syncTallies();
       }
       refetchParts();
     },

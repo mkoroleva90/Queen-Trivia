@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -9,7 +9,9 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import * as SecureStore from 'expo-secure-store';
+import { ADMIN_TOKEN_KEY } from '@/context/AdminAuthContext';
 import {
   useListGames,
   getListGamesQueryKey,
@@ -20,10 +22,33 @@ import {
   useUpdateGame,
 } from '@workspace/api-client-react';
 import type { Question } from '@workspace/api-client-react';
+import {
+  createTallyStore,
+  recordAnswerEvent,
+  applySeed,
+  resetTallyStore,
+  type TallyStore,
+} from '@workspace/live-tally';
 import { useColors } from '@/hooks/useColors';
 import { useAdminGameSocket } from '@/hooks/useSocket';
 
 type Props = { bottomPadding: number };
+
+type QuestionStat = {
+  id: number;
+  totalAnswered: number;
+  correctCount: number;
+  answeredBy?: string[];
+};
+
+async function fetchAdminJson<T>(url: string): Promise<T> {
+  const token = await SecureStore.getItemAsync(ADMIN_TOKEN_KEY).catch(() => null);
+  const r = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json() as Promise<T>;
+}
 
 const AVATAR_COLORS: [string, string][] = [
   ['#ff0080', '#fff'],
@@ -65,17 +90,47 @@ export function LiveTab({ bottomPadding }: Props) {
   const [qIndex, setQIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
 
-  // Live telemetry: who answered which question, and correct counts.
+  // Live telemetry. The synchronous TallyStore (in a ref) is the single
+  // source of truth: it buffers pre-seed socket events, merges the persisted
+  // snapshot atomically, and dedupes per player name — so events arriving in
+  // the seed→live transition window are never lost or double-counted.
+  // React state below is only a render mirror of the store's snapshots.
+  const tallyStore = useRef<TallyStore>(createTallyStore());
   const [answeredBy, setAnsweredBy] = useState<Record<number, string[]>>({});
   const [correctCount, setCorrectCount] = useState<Record<number, number>>({});
+  const syncTallies = useCallback(() => {
+    setAnsweredBy({ ...tallyStore.current.answeredBy });
+    setCorrectCount({ ...tallyStore.current.correctCount });
+  }, []);
 
   // Reset telemetry when the monitored game changes.
   useEffect(() => {
     setQIndex(0);
     setRevealed(false);
+    resetTallyStore(tallyStore.current);
     setAnsweredBy({});
     setCorrectCount({});
   }, [gameId]);
+
+  const baseUrl = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : '';
+
+  // Seed tallies from persisted answers so opening this tab mid-game shows
+  // correct totals immediately; socket events then increment on top.
+  const { data: seedStats } = useQuery<QuestionStat[]>({
+    queryKey: ['live-tab-seed-stats', gameId],
+    queryFn: () => fetchAdminJson<QuestionStat[]>(`${baseUrl}/api/games/${gameId}/questions/stats`),
+    enabled: gameId != null,
+    staleTime: Infinity, // seed once per game; socket events keep it live
+  });
+
+  // Apply persisted baseline + buffered pre-seed events (name-deduped).
+  // applySeed switches the store to live synchronously, so any socket event
+  // arriving after this line — even before React commits — hits the merged
+  // baseline instead of a stale buffer.
+  useEffect(() => {
+    if (!seedStats || gameId == null) return;
+    if (applySeed(tallyStore.current, seedStats)) syncTallies();
+  }, [seedStats, gameId, syncTallies]);
 
   const { data: questions } = useListGameQuestions(gameId ?? 0, {
     query: {
@@ -104,17 +159,15 @@ export function LiveTab({ bottomPadding }: Props) {
   const onAnswerSubmitted = useCallback(
     (p: { gameId: number; questionId: number; playerName: string; isCorrect: boolean }) => {
       if (p.gameId !== gameId) return;
-      setAnsweredBy((prev) => {
-        const cur = prev[p.questionId] ?? [];
-        if (cur.includes(p.playerName)) return prev;
-        return { ...prev, [p.questionId]: [...cur, p.playerName] };
-      });
-      if (p.isCorrect) {
-        setCorrectCount((prev) => ({ ...prev, [p.questionId]: (prev[p.questionId] ?? 0) + 1 }));
+      // Synchronous, name-deduped store update: buffers while awaiting the
+      // seed, otherwise applies against the merged baseline. Duplicates never
+      // double-count, even if delivered before React commits a render.
+      if (recordAnswerEvent(tallyStore.current, p.questionId, p.playerName, p.isCorrect)) {
+        syncTallies();
       }
       refetchParticipants();
     },
-    [gameId, refetchParticipants],
+    [gameId, syncTallies, refetchParticipants],
   );
 
   const onGameEnded = useCallback(

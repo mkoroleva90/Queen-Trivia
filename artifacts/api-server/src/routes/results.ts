@@ -120,6 +120,24 @@ const answerStats = await db
 
 const statsMap = new Map(answerStats.map((s) => [s.questionId, s]));
 
+// Player names who answered each question (used to seed live host views)
+const answeredRows = await db
+ .select({
+  questionId: answersTable.questionId,
+  userName: usersTable.name,
+ })
+ .from(answersTable)
+ .innerJoin(usersTable, eq(answersTable.userId, usersTable.id))
+ .where(eq(answersTable.gameId, gameId))
+ .orderBy(asc(answersTable.answeredAt));
+
+const answeredByMap = new Map<number, string[]>();
+for (const row of answeredRows) {
+ const list = answeredByMap.get(row.questionId) ?? [];
+ if (!list.includes(row.userName)) list.push(row.userName);
+ answeredByMap.set(row.questionId, list);
+}
+
 // Most-chosen wrong answer per question
 const wrongAnswerStats = await db
  .select({
@@ -148,6 +166,7 @@ const result = questions.map((q) => {
   ...q,
       totalAnswered,
       correctCount,
+  answeredBy: answeredByMap.get(q.id) ?? [],
   percentCorrect: totalAnswered > 0 ? Math.round((correctCount / totalAnswered) * 100) :null,
   mostChosenWrong: wrong ? { answer: wrong.answer, count: wrong.count } : null,
   };
