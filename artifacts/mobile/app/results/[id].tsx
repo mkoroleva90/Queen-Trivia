@@ -53,7 +53,6 @@ export default function ResultsScreen() {
   const { user } = useAuth();
   const userId = user?.id ?? 0;
   const [expandBreakdown, setExpandBreakdown] = useState(false);
-  const [expandedQ, setExpandedQ] = useState<Set<number>>(new Set());
 
   const { data: results, isLoading } = useQuery<GameResults>({
     queryKey: ['game-results', gameId],
@@ -177,46 +176,49 @@ export default function ResultsScreen() {
             {expandBreakdown && sortedQuestions.map((q, i) => {
               const myAns = answerMap.get(q.id);
               const status = !myAns ? 'unanswered' : myAns.isCorrect ? 'correct' : myAns.pointsEarned > 0 ? 'partial' : 'wrong';
-              const isOpen = expandedQ.has(q.id);
+              const missed = status === 'wrong' || status === 'partial' || status === 'unanswered';
               const statusIcon = { correct: 'checkmark-circle', partial: 'remove-circle', wrong: 'close-circle', unanswered: 'ellipse-outline' }[status];
-              const statusColor = { correct: '#22c55e', partial: '#f59e0b', wrong: colors.destructive, unanswered: colors.muted }[status];
+              const statusColor = { correct: '#22c55e', partial: '#f59e0b', wrong: '#ef4444', unanswered: colors.muted }[status];
+              const correctAnswer = myAns?.correctAnswer ?? q.correctAnswer;
 
               return (
-                <View key={q.id} style={[styles.qRow, { borderTopColor: colors.border }]}>
-                  <TouchableOpacity
-                    onPress={() => setExpandedQ((prev) => {
-                      const next = new Set(prev);
-                      next.has(q.id) ? next.delete(q.id) : next.add(q.id);
-                      return next;
-                    })}
-                    style={styles.qRowHeader}
-                  >
+                <View
+                  key={q.id}
+                  style={[
+                    styles.qRow,
+                    { borderTopColor: colors.border },
+                    missed && { backgroundColor: 'rgba(239,68,68,.04)', borderLeftWidth: 3, borderLeftColor: 'rgba(239,68,68,.65)' },
+                  ]}
+                >
+                  {/* ── Question header ── */}
+                  <View style={styles.qRowInner}>
                     <Text style={[styles.qNum, { color: colors.mutedForeground }]}>Q{i + 1}</Text>
-                    <Text style={[styles.qText, { color: colors.foreground }]} numberOfLines={2}>{q.questionText}</Text>
-                    <Ionicons name={statusIcon as never} size={20} color={statusColor} />
-                    <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={14} color={colors.mutedForeground} />
-                  </TouchableOpacity>
+                    {/* Full wrapping — no numberOfLines so nothing gets cut off on phone */}
+                    <Text style={[styles.qText, { color: colors.foreground }]}>{q.questionText}</Text>
+                    <Ionicons name={statusIcon as never} size={20} color={statusColor} style={styles.qStatusIcon} />
+                  </View>
 
-                  {isOpen && (
-                    <View style={styles.qExpanded}>
-                      {myAns ? (
-                        <>
-                          <View style={[styles.answerBox, { backgroundColor: `${statusColor}15`, borderColor: `${statusColor}40` }]}>
-                            <Text style={[styles.answerLabel, { color: colors.mutedForeground }]}>YOUR ANSWER</Text>
-                            <Text style={[styles.answerValue, { color: colors.foreground }]}>{myAns.userAnswer}</Text>
-                          </View>
-                          {myAns.correctAnswer && (
-                            <View style={[styles.answerBox, { backgroundColor: 'rgba(0,221,255,.08)', borderColor: 'rgba(0,221,255,.25)' }]}>
-                              <Text style={[styles.answerLabel, { color: colors.mutedForeground }]}>CORRECT ANSWER</Text>
-                              <Text style={[styles.answerValue, { color: colors.secondary }]}>{myAns.correctAnswer}</Text>
-                            </View>
-                          )}
-                          <Text style={[styles.qPoints, { color: statusColor }]}>
-                            +{myAns.pointsEarned} / {q.points} pts
+                  {/* ── Answer detail — only for missed / unanswered ── */}
+                  {missed && (
+                    <View style={styles.qAnswerDetail}>
+                      {myAns && (
+                        <View style={styles.qAnswerRow}>
+                          <Text style={[styles.qAnswerLabel, { color: 'rgba(248,113,113,.7)' }]}>Your answer</Text>
+                          <Text style={[styles.qAnswerValue, { color: 'rgba(248,113,113,.55)', textDecorationLine: 'line-through' }]}>
+                            {myAns.userAnswer}
                           </Text>
-                        </>
-                      ) : (
-                        <Text style={[styles.unanswered, { color: colors.mutedForeground }]}>
+                        </View>
+                      )}
+                      {!!correctAnswer && (
+                        <View style={styles.qAnswerRow}>
+                          <Text style={[styles.qAnswerLabel, { color: 'rgba(52,211,153,.8)' }]}>Correct answer</Text>
+                          <Text style={[styles.qAnswerValue, { color: '#34d399', fontWeight: '700' }]}>
+                            {correctAnswer}
+                          </Text>
+                        </View>
+                      )}
+                      {status === 'unanswered' && (
+                        <Text style={[styles.qUnanswered, { color: colors.mutedForeground }]}>
                           You didn't answer this question.
                         </Text>
                       )}
@@ -264,15 +266,18 @@ const styles = StyleSheet.create({
   breakdownHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 16 },
   breakdownTitle: { flex: 1, fontSize: 15, fontWeight: '700' },
   qRow: { borderTopWidth: 1 },
-  qRowHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 12 },
-  qNum: { fontSize: 11, fontWeight: '700', width: 24 },
-  qText: { flex: 1, fontSize: 13, fontWeight: '500', lineHeight: 18 },
-  qExpanded: { paddingHorizontal: 16, paddingBottom: 14, gap: 8 },
-  answerBox: { borderRadius: 10, padding: 12, borderWidth: 1, gap: 4 },
-  answerLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 1.5 },
-  answerValue: { fontSize: 14, fontWeight: '600', lineHeight: 20 },
-  qPoints: { fontSize: 13, fontWeight: '700' },
-  unanswered: { fontSize: 13, fontStyle: 'italic' },
+  // Non-expandable question header row
+  qRowInner: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 16, paddingVertical: 12 },
+  qNum: { fontSize: 11, fontWeight: '700', width: 24, paddingTop: 1 },
+  // Full wrapping text — no line clamp so phone screens never truncate
+  qText: { flex: 1, fontSize: 13, fontWeight: '500', lineHeight: 19 },
+  qStatusIcon: { marginTop: 1 },
+  // Answer detail shown inline for wrong / unanswered — left-indented to align with question text
+  qAnswerDetail: { paddingLeft: 48, paddingRight: 16, paddingBottom: 13, gap: 6 },
+  qAnswerRow: { gap: 3 },
+  qAnswerLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' },
+  qAnswerValue: { fontSize: 14, fontWeight: '600', lineHeight: 20 },
+  qUnanswered: { fontSize: 12, fontStyle: 'italic' },
   backBtn: { height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
   backBtnText: { fontSize: 16, fontWeight: '800' },
 });

@@ -5078,6 +5078,10 @@ function NewAdminDashboard() {
   const [section, setSection] = useState<any>("games");
   const [preferredGameId, setPreferredGameId] = useState<number | undefined>(undefined);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Incremented each time the admin enters Build fresh (no game pre-selected) from
+  // another section. Passed as `key` to BuildQuizView so it remounts at the Setup
+  // step rather than staying on whatever tab it was last on.
+  const [buildResetKey, setBuildResetKey] = useState(0);
 
   const { data: games = [] } = useListGames(undefined, {
     query: { queryKey: getListGamesQueryKey(), refetchInterval: 10000 },
@@ -5087,7 +5091,14 @@ function NewAdminDashboard() {
 
   const navigate = (s: Section, gameId?: number) => {
     setSection(s);
-    if (gameId !== undefined) setPreferredGameId(gameId);
+    if (gameId !== undefined) {
+      setPreferredGameId(gameId);
+    } else if (s === "build" && section !== "build") {
+      // Entering Build fresh from another section — clear any previously preferred
+      // game and force BuildQuizView to remount at the Setup step.
+      setPreferredGameId(undefined);
+      setBuildResetKey(k => k + 1);
+    }
     setSidebarOpen(false);
   };
 
@@ -5113,7 +5124,7 @@ function NewAdminDashboard() {
     switch (section) {
       case "games": return <GamesView games={games} onNavigate={navigate} />;
       case "live": return <LiveGameView activeGame={activeGame} endGame={endGame} />;
-      case "build": return <BuildQuizView games={games} preferGameId={preferredGameId} onNavigate={navigate} />;
+      case "build": return <BuildQuizView key={buildResetKey} games={games} preferGameId={preferredGameId} onNavigate={navigate} />;
       case "results": return <NewResultsSection games={games} />;
       case "rooms": return <NewSettingsSection />;
       default: return null;

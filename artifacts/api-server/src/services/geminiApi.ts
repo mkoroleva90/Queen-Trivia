@@ -290,7 +290,45 @@ const VALID_TYPES = new Set([
 ]);
 
 
-function buildBulkPrompt(opts: GeminiGenerateOptions): string {
+// ─── Type-count helpers ────────────────────────────────────────────────────────
+
+interface TypeCounts {
+    mcCount: number;
+    tfCount: number;
+    wiCount: number;
+    matchCount: number;
+    imgCount: number;
+}
+
+/**
+ * Compute the standard question-type breakdown for a given total.
+ * Target distribution: ~40% MC, 20% TF, 20% write-in, 10% matching, 10% image.
+ * Types are allocated in priority order so the counts always sum exactly to `total`.
+ */
+function computeTypeCounts(total: number): TypeCounts {
+    let remaining = total;
+    const take = (target: number, enabled = true): number => {
+        if (!enabled || remaining <= 0) return 0;
+        const n = Math.min(remaining, Math.max(1, Math.round(total * target)));
+        remaining -= n;
+        return n;
+    };
+    const matchCount = take(0.1, total >= 6);
+    const imgCount   = take(0.1, total >= 6);
+    const tfCount    = take(0.2, total >= 2);
+    const wiCount    = take(0.2, total >= 3);
+    const mcCount    = remaining;
+    return { mcCount, tfCount, wiCount, matchCount, imgCount };
+}
+
+// ─── Prompt builder ────────────────────────────────────────────────────────────
+
+/**
+ * @param overrideCounts  When provided, use these explicit type counts instead of
+ *                        computing them from opts.amount. The prompt total is the
+ *                        sum of the provided counts (may differ from opts.amount).
+ */
+function buildBulkPrompt(opts: GeminiGenerateOptions, overrideCounts?: TypeCounts): string {
     const avoid =
      opts.existingQuestions && opts.existingQuestions.length > 0
    ? `\nThe following questions have ALREADY been used. You MUST NOT duplicate, reword, or rephrase ANY of them — do not ask about the same fact, person, event, or statistic even with different wording. Every question you write must cover a genuinely different subtopic or angle:\n${opts.existingQuestions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`
@@ -299,23 +337,12 @@ function buildBulkPrompt(opts: GeminiGenerateOptions): string {
         ? `\n\nADDITIONAL INSTRUCTIONS FROM THE QUIZ HOST (these take priority over the general guidance below, except the accuracy rules which are absolute):\n${opts.brief}`
         : "";
 
+    // Use provided counts or compute the standard breakdown.
+    const { mcCount, tfCount, wiCount, matchCount, imgCount } =
+        overrideCounts ?? computeTypeCounts(opts.amount);
+    // The prompt total may differ from opts.amount when over-generating image candidates.
+    const promptTotal = mcCount + tfCount + wiCount + matchCount + imgCount;
 
-// Compute exact counts so the model cannot ignore the mix requirement.
- // Target distribution: 40% MC, 20% TF, 20% write-in, 10% matching, 10% imagerecognition.
-// Types are added in priority order so the counts always sum exactly to `total`.
-const total = opts.amount;
-let remaining = total;
-const take = (target: number, enabled = true): number => {
- if (!enabled || remaining <= 0) return 0;
- const n = Math.min(remaining, Math.max(1, Math.round(total * target)));
- remaining -= n;
- return n;
-};
-const matchCount = take(0.1, total >= 6);
-const imgCount = take(0.1, total >= 6);
-const tfCount = take(0.2, total >= 2);
-const wiCount = take(0.2, total >= 3);
-const mcCount = remaining; // everything left; >= 1 for total >= 1 given the caps above
 const mcPoints = opts.difficulty === "easy" ? 5 : opts.difficulty === "hard" ? 15 : 10;
 
 
@@ -327,7 +354,7 @@ const imageSpec = imgCount > 0
  : "";
 
 
- return `You are a trivia question writer creating a fun, varied quiz. Generate exactly ${total}trivia questions about "${opts.topic}" at ${opts.difficulty} difficulty level.${avoid}${briefSection}
+ return `You are a trivia question writer creating a fun, varied quiz. Generate exactly ${promptTotal}trivia questions about "${opts.topic}" at ${opts.difficulty} difficulty level.${avoid}${briefSection}
 
 
 CRITICAL RULES:
@@ -369,7 +396,7 @@ Return ONLY a valid JSON array with no other text, no markdown, no code fences.
 
 Topic: ${opts.topic}
 Difficulty: ${opts.difficulty}
-Total questions required: ${total}`;
+Total questions required: ${promptTotal}`;
 }
 
 
@@ -586,6 +613,56 @@ export async function filterValidImageQuestions(
     );
     return checks.filter((q): q is GeminiQuestion => q !== null);
 }
+
+/** Re-number orderIndex to be 0-based after splicing or combining question arrays. */
+function reindex(questions: GeminiQuestion[]): GeminiQuestion[] {
+    return questions.map((q, i) => ({ ...q, orderIndex: i }));
+}
+
+/**
+ * Request `amount` additional non-image questions from Gemini to fill a shortfall
+ * left after image-URL filtering. Redirects the image-recognition quota to MC so
+ * no image questions are included and the call cannot fail the same way.
+ */
+async function topUpWithNonImageQuestions(
+    apiKey: string,
+    originalOpts: GeminiGenerateOptions,
+    amount: number,
+    existingTexts: string[],
+): Promise<GeminiQuestion[] | null> {
+    // Force imgCount = 0 by folding its share into mcCount.
+    const baseCounts = computeTypeCounts(amount);
+    const topUpCounts: TypeCounts = {
+        ...baseCounts,
+        mcCount: baseCounts.mcCount + baseCounts.imgCount,
+        imgCount: 0,
+    };
+    const topUpOpts: GeminiGenerateOptions = {
+        ...originalOpts,
+        amount,
+        existingQuestions: [...(originalOpts.existingQuestions ?? []), ...existingTexts],
+    };
+    const prompt = buildBulkPrompt(topUpOpts, topUpCounts);
+
+    for (const model of GEMINI_MODELS) {
+        const raw = await callGeminiRaw(apiKey, model, prompt, 0.4, 4096, BULK_GROUNDING_ENABLED);
+        if (!raw.ok) {
+            logger.warn({ model, error: raw.error.code }, "Top-up Gemini call failed");
+            continue;
+        }
+        try {
+            const parsed = JSON.parse(extractJson(raw.text));
+            const questions = parseQuestions(parsed, topUpOpts, raw.groundingUrls);
+            // Belt-and-suspenders: drop any image question Gemini may have included anyway.
+            return questions.filter((q) => q.questionType !== "image_recognition").slice(0, amount);
+        } catch {
+            logger.warn({ model }, "Top-up Gemini response failed to parse");
+            continue;
+        }
+    }
+    return null;
+}
+
 // ─── Batched verification pass ─────────────────────────────────────────────────
 
 interface VerificationResult {
@@ -670,9 +747,25 @@ if (!apiKey) {
 
 const targetAmount = opts.amount;
 // Generate 2x if fact-checking so we have surplus to absorb discards (cap at 40).
-const generateAmount = opts.skipFactCheck ? targetAmount : Math.min(targetAmount * 2, 40);
+// Over-generate image candidates to hedge against Wikimedia URL failures.
+// For the skipFactCheck path, request IMG_EXTRA extra image slots beyond the normal
+// quota so we have a buffer to absorb dead URLs while keeping the non-image count fixed.
+const IMG_EXTRA = 3;
+const normalCounts = computeTypeCounts(targetAmount);
+const skipFactCheck = opts.skipFactCheck ?? false;
+const overrideCounts: TypeCounts | undefined =
+    (skipFactCheck && normalCounts.imgCount > 0)
+        ? { ...normalCounts, imgCount: normalCounts.imgCount + IMG_EXTRA }
+        : undefined;
+const inflatedTotal = overrideCounts
+    ? overrideCounts.mcCount + overrideCounts.tfCount + overrideCounts.wiCount
+      + overrideCounts.matchCount + overrideCounts.imgCount
+    : targetAmount;
+
+// Generate 2x if fact-checking (surplus absorbs verification discards, cap at 40).
+const generateAmount = skipFactCheck ? inflatedTotal : Math.min(targetAmount * 2, 40);
 const promptOpts = { ...opts, amount: generateAmount };
-const prompt = buildBulkPrompt(promptOpts);
+const prompt = buildBulkPrompt(promptOpts, skipFactCheck ? overrideCounts : undefined);
 let lastError: GeminiGenerateError = { code: "api_error", message: "Not attempted" };
 
 
@@ -725,8 +818,58 @@ for (const model of GEMINI_MODELS) {
              error: { code: "parse_error", message: "No valid questions in Gemini response. Please try again." },
          };
      }
-     if (opts.skipFactCheck) {
-         return { ok: true, questions: rawQuestions.slice(0, targetAmount), discarded: 0 };
+     if (skipFactCheck) {
+         // ── Over-generate / filter / top-up flow ──────────────────────────────
+         // Filter image questions whose Wikimedia URLs don't actually resolve.
+         const filtered = await filterValidImageQuestions(rawQuestions);
+
+         // Separate survivors so we can cap image count to the normal quota.
+         const imgSurvivors = filtered
+             .filter((q) => q.questionType === "image_recognition")
+             .slice(0, normalCounts.imgCount);
+         const nonImgSurvivors = filtered.filter((q) => q.questionType !== "image_recognition");
+         const nonImgNeeded = targetAmount - imgSurvivors.length;
+         let finalQuestions = reindex([...imgSurvivors, ...nonImgSurvivors.slice(0, nonImgNeeded)]);
+
+         const imgRequested = rawQuestions.filter((q) => q.questionType === "image_recognition").length;
+         const imageFailures = imgRequested - imgSurvivors.length;
+         if (imageFailures > 0) {
+             logger.warn(
+                 { imgRequested, survived: imgSurvivors.length },
+                 "Image URL validation dropped candidates — topping up with non-image questions",
+             );
+         }
+
+         // Top-up with non-image-only questions if we still have a shortfall (max 2 rounds).
+         const MAX_TOPUP = 2;
+         for (let attempt = 0; attempt < MAX_TOPUP && finalQuestions.length < targetAmount; attempt++) {
+             const shortfall = targetAmount - finalQuestions.length;
+             logger.warn({ shortfall, attempt: attempt + 1 }, "Requesting non-image top-up");
+             const topUp = await topUpWithNonImageQuestions(
+                 apiKey,
+                 opts,
+                 shortfall,
+                 finalQuestions.map((q) => q.questionText),
+             );
+             if (topUp && topUp.length > 0) {
+                 finalQuestions = reindex([...finalQuestions, ...topUp.slice(0, shortfall)]);
+             } else {
+                 break; // top-up call itself failed — stop trying
+             }
+         }
+
+         if (finalQuestions.length < targetAmount) {
+             logger.warn(
+                 { requested: targetAmount, delivered: finalQuestions.length },
+                 "Could not reach requested question count after top-up — saving what is available",
+             );
+         }
+
+         logger.info(
+             { requested: targetAmount, generated: rawQuestions.length, imageFailures, delivered: finalQuestions.length },
+             "Bulk generation complete (skipFactCheck)",
+         );
+         return { ok: true, questions: finalQuestions, discarded: imageFailures };
      }
      // Verification pass — batches of 5, stop once we have targetAmount verified questions
      const verifiedQuestions: GeminiQuestion[] = [];

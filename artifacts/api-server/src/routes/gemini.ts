@@ -16,7 +16,6 @@ import {
 } from "@workspace/api-zod";
 import {
  generateGeminiQuestions,
- filterValidImageQuestions,
  regenerateSingleQuestion,
  enhanceQuestion,
 } from "../services/geminiApi.ts";
@@ -120,12 +119,8 @@ router.post(
             return;
         }
 
-        // Drop image questions whose URLs don't actually resolve to an image
-        const questions = await filterValidImageQuestions(result.questions);
-        if (questions.length === 0) {
-            res.status(422).json({ error: "Gemini returned no valid questions. Try a different topic or retry." });
-            return;
-        }
+        // Image URL validation + top-up are now handled inside generateGeminiQuestions.
+        const questions = result.questions;
 
         const existing = await db
             .select({ orderIndex: questionsTable.orderIndex })

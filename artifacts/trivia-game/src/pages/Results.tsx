@@ -78,7 +78,6 @@ export default function Results() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [expandedQuestions, setExpandedQuestions] = useState(true);
-  const [expandedQ, setExpandedQ] = useState<Set<number>>(new Set());
 
   const { data: results, isLoading: resultsLoading, error: resultsError } = useQuery<GameResults>({
     queryKey: ["game-results", gameId],
@@ -167,14 +166,6 @@ export default function Results() {
     } catch {
       toast({ variant: "destructive", title: "Could not copy to clipboard" });
     }
-  };
-
-  const toggleQ = (id: number) => {
-    setExpandedQ((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
   };
 
   // ── Loading / error guards ──
@@ -353,11 +344,10 @@ export default function Results() {
                     transition={{ duration: 0.2 }}
                     className="overflow-hidden"
                   >
-                    <div className="border-t border-border/50 divide-y divide-border/50">
+                    <div className="border-t border-border/50 divide-y divide-border/30">
                       {sortedQuestions.map((q, i) => {
-                        const myAns  = answerMap.get(q.id);
-                        const stat   = statsMap.get(q.id);
-                        const isOpen = expandedQ.has(q.id);
+                        const myAns = answerMap.get(q.id);
+                        const stat  = statsMap.get(q.id);
                         const status = !myAns
                           ? "unanswered"
                           : myAns.isCorrect
@@ -365,27 +355,24 @@ export default function Results() {
                             : myAns.pointsEarned > 0
                               ? "partial"
                               : "wrong";
+                        const missed = status === "wrong" || status === "partial" || status === "unanswered";
+                        const correctAnswer = myAns?.correctAnswer ?? q.correctAnswer;
 
                         return (
-                          <div key={q.id}>
-                            <button
-                              className="w-full flex items-start gap-3 px-5 py-3.5 text-left hover:bg-muted/30 transition-colors"
-                              onClick={() => toggleQ(q.id)}
-                            >
+                          <div
+                            key={q.id}
+                            className={missed ? "border-l-[3px] border-red-500/70" : ""}
+                            style={missed ? { background: "rgba(239,68,68,.045)" } : undefined}
+                          >
+                            {/* ── Row header ── */}
+                            <div className="flex items-start gap-3 px-5 py-3.5" style={missed ? { paddingLeft: 17 } : undefined}>
                               <span className="text-xs font-bold text-muted-foreground mt-0.5 w-6 shrink-0">
                                 Q{i + 1}
                               </span>
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium leading-snug line-clamp-2">
+                                <p className="text-sm font-medium leading-snug break-words">
                                   {q.questionText}
                                 </p>
-                                {/* Correct answer — always visible */}
-                                {(q.correctAnswer || myAns?.correctAnswer) && (
-                                  <p className="text-[11px] text-emerald-400 font-medium mt-1 flex items-center gap-1">
-                                    <CheckCircle2 className="h-3 w-3 shrink-0" />
-                                    {q.correctAnswer ?? myAns?.correctAnswer}
-                                  </p>
-                                )}
                                 <p className="text-[11px] text-muted-foreground mt-0.5">
                                   {QUESTION_TYPE_LABELS[q.questionType] ?? q.questionType} · {q.points}pts
                                   {stat?.percentCorrect != null && (
@@ -393,83 +380,44 @@ export default function Results() {
                                   )}
                                 </p>
                               </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                {status === "correct"   && <CheckCircle2 className="h-5 w-5 text-emerald-500" />}
-                                {status === "partial"   && <Minus        className="h-5 w-5 text-amber-500"   />}
-                                {status === "wrong"     && <XCircle      className="h-5 w-5 text-red-500"     />}
+                              <div className="shrink-0 mt-0.5">
+                                {status === "correct"    && <CheckCircle2 className="h-5 w-5 text-emerald-500" />}
+                                {status === "partial"    && <Minus        className="h-5 w-5 text-amber-400"   />}
+                                {status === "wrong"      && <XCircle      className="h-5 w-5 text-red-500"     />}
                                 {status === "unanswered" && <span className="text-xs text-muted-foreground">—</span>}
-                                {isOpen
-                                  ? <ChevronUp   className="h-4 w-4 text-muted-foreground" />
-                                  : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                               </div>
-                            </button>
+                            </div>
 
-                            <AnimatePresence>
-                              {isOpen && (
-                                <motion.div
-                                  initial={{ height: 0, opacity: 0 }}
-                                  animate={{ height: "auto", opacity: 1 }}
-                                  exit={{ height: 0, opacity: 0 }}
-                                  transition={{ duration: 0.15 }}
-                                  className="overflow-hidden"
-                                >
-                                  <div className="px-14 pb-4 space-y-2">
-                                    {myAns ? (
-                                      <>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                          <div className={`rounded-lg border p-3 text-sm ${
-                                            status === "correct" ? "border-emerald-500/40 bg-emerald-500/5"
-                                            : status === "partial" ? "border-amber-500/40 bg-amber-500/5"
-                                            : "border-red-500/40 bg-red-500/5"
-                                          }`}>
-                                            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">
-                                              Your answer
-                                            </p>
-                                            <p className="font-medium leading-snug break-words">{myAns.userAnswer}</p>
-                                          </div>
-                                          {myAns.correctAnswer !== undefined && (
-                                            <div className="rounded-lg border border-secondary/30 bg-secondary/5 p-3 text-sm">
-                                              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">
-                                                Correct answer
-                                              </p>
-                                              <p className="font-medium leading-snug break-words">{myAns.correctAnswer}</p>
-                                            </div>
-                                          )}
-                                        </div>
-                                        <div className="flex items-center justify-between text-sm">
-                                          <span className={`font-bold ${
-                                            status === "correct"  ? "text-emerald-500"
-                                            : status === "partial" ? "text-amber-500"
-                                            : "text-muted-foreground"
-                                          }`}>
-                                            {myAns.pointsEarned > 0 ? `+${myAns.pointsEarned}` : "0"} / {q.points} pts
-                                          </span>
-                                          {stat && stat.totalAnswered > 0 && (
-                                            <span className="text-muted-foreground text-xs">
-                                              {stat.correctCount}/{stat.totalAnswered} players correct
-                                            </span>
-                                          )}
-                                        </div>
-                                      </>
-                                    ) : (
-                                      <div className="space-y-2">
-                                        {q.correctAnswer && (
-                                          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm">
-                                            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">
-                                              Correct answer
-                                            </p>
-                                            <p className="font-medium leading-snug break-words">{q.correctAnswer}</p>
-                                          </div>
-                                        )}
-                                        <p className="text-sm text-muted-foreground italic">
-                                          You didn't answer this question.
-                                        </p>
-                                      </div>
-                                    )}
+                            {/* ── Answer detail — only for missed / unanswered ── */}
+                            {missed && (
+                              <div className="pb-3.5 space-y-1.5" style={{ paddingLeft: 17 + 24 + 12 /* border + Q-num col + gap */ }}>
+                                {myAns && (
+                                  <div className="flex items-baseline gap-2 flex-wrap">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-red-400/70 shrink-0">
+                                      Your answer
+                                    </span>
+                                    <span className="text-sm text-red-400/60 font-medium line-through leading-snug break-words">
+                                      {myAns.userAnswer}
+                                    </span>
                                   </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
+                                )}
+                                {correctAnswer && (
+                                  <div className="flex items-baseline gap-2 flex-wrap">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400/80 shrink-0">
+                                      Correct answer
+                                    </span>
+                                    <span className="text-sm text-emerald-400 font-bold leading-snug break-words">
+                                      {correctAnswer}
+                                    </span>
+                                  </div>
+                                )}
+                                {status === "unanswered" && (
+                                  <p className="text-[11px] text-muted-foreground italic">
+                                    You didn't answer this question.
+                                  </p>
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                       })}

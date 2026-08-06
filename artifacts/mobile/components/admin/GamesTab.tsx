@@ -1,15 +1,12 @@
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -18,11 +15,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   useListGames,
   getListGamesQueryKey,
-  useCreateGame,
   useUpdateGame,
   useDeleteGame,
   useGetStatsSummary,
-  useGenerateGeminiQuestions,
 } from '@workspace/api-client-react';
 import type { Game } from '@workspace/api-client-react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -54,33 +49,23 @@ const FILTERS: { id: GameFilter; label: string }[] = [
 
 type Props = {
   bottomPadding: number;
-  /** Called when the user taps "More options" — closes the sheet and opens Build with the entered values pre-filled. */
-  onMoreOptions?: (topic: string, difficulty: Difficulty) => void;
-  /** Called after a game is created and questions are generated — switches to Build/Review. */
-  onGameReady?: (gameId: number) => void;
+  /** Called when the user taps "New game" — switches to the Build tab at the Setup step. */
+  onGoToBuild?: () => void;
 };
 
-export function GamesTab({ bottomPadding, onMoreOptions, onGameReady }: Props) {
+export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const qc = useQueryClient();
 
   const [gameFilter, setGameFilter] = useState<GameFilter>('all');
-  const [createOpen, setCreateOpen] = useState(false);
-  const [topic, setTopic] = useState('');
-  const [difficulty, setDifficulty] = useState<Difficulty>('medium');
-  const [createError, setCreateError] = useState('');
-  const [generating, setGenerating] = useState(false);
-  const [genFailedGameId, setGenFailedGameId] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [upgradeLimitMsg, setUpgradeLimitMsg] = useState<string | null>(null);
 
   const { data: games, isLoading, refetch } = useListGames();
   const { data: stats } = useGetStatsSummary();
-  const createGame = useCreateGame();
-  const generateGemini = useGenerateGeminiQuestions();
   const updateGame = useUpdateGame();
   const deleteGame = useDeleteGame();
 
@@ -96,47 +81,6 @@ export function GamesTab({ bottomPadding, onMoreOptions, onGameReady }: Props) {
     setRefreshing(true);
     await refetch();
     setRefreshing(false);
-  };
-
-  const handleCreate = async () => {
-    if (!topic.trim()) { setCreateError('Enter a topic'); return; }
-    setCreateError('');
-    setGenFailedGameId(null);
-    try {
-      const game = await createGame.mutateAsync({ data: { topic: topic.trim(), difficulty, createdByAdmin: true } });
-      qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
-      // Now generate questions
-      setGenerating(true);
-      try {
-        await generateGemini.mutateAsync({
-          gameId: game.id,
-          data: { topic: topic.trim(), difficulty, amount: 10 },
-        });
-        qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
-        setCreateOpen(false);
-        setTopic('');
-        setDifficulty('medium');
-        setGenerating(false);
-        onGameReady?.(game.id);
-      } catch {
-        // Generation failed — game is created, let user add questions manually
-        qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
-        setGenerating(false);
-        setGenFailedGameId(game.id);
-        setCreateError('Questions could not be generated. You can add them in the Build tab.');
-      }
-    } catch (err: unknown) {
-      const status = err && typeof err === 'object' && 'status' in err ? (err as { status: number }).status : 0;
-      const data = err && typeof err === 'object' && 'data' in err ? (err as { data: unknown }).data : null;
-      if (status === 429 && data && typeof data === 'object' && 'error' in data) {
-        const msg = String((data as { error: unknown }).error);
-        if (msg.includes('games allowed this month') || msg.includes('Free plan')) {
-          setUpgradeLimitMsg(msg);
-          return;
-        }
-      }
-      setCreateError('Failed to create game — please retry');
-    }
   };
 
   const handleStatus = async (game: Game, status: 'waiting' | 'active' | 'completed') => {
@@ -173,7 +117,7 @@ export function GamesTab({ bottomPadding, onMoreOptions, onGameReady }: Props) {
         {/* New quiz button */}
         <Pressable
           style={[s.newQuizBtn, { backgroundColor: colors.primary }]}
-          onPress={() => setCreateOpen(true)}
+          onPress={() => onGoToBuild?.()}
         >
           <Ionicons name="add" size={16} color="#fff" />
           <Text style={s.newQuizBtnText}>New game</Text>
@@ -224,7 +168,7 @@ export function GamesTab({ bottomPadding, onMoreOptions, onGameReady }: Props) {
             /* Empty state — dashed card */
             <Pressable
               style={[s.emptyCard, { borderColor: colors.border }]}
-              onPress={() => setCreateOpen(true)}
+              onPress={() => onGoToBuild?.()}
             >
               <View style={[s.emptyCircle, { backgroundColor: colors.muted }]}>
                 <Ionicons name="add" size={28} color={colors.mutedForeground} />
@@ -360,91 +304,6 @@ export function GamesTab({ bottomPadding, onMoreOptions, onGameReady }: Props) {
         </View>
       </Modal>
 
-      {/* Create Game Modal */}
-      <Modal visible={createOpen} animationType="slide" transparent presentationStyle="overFullScreen">
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <View style={s.modalOverlay}>
-            <Pressable style={s.modalBackdrop} onPress={() => setCreateOpen(false)} />
-            <View style={[s.sheet, { backgroundColor: colors.card, paddingBottom: insets.bottom + 24 }]}>
-              <View style={s.sheetHandle} />
-              <Text style={[s.sheetTitle, { color: colors.foreground }]}>New game</Text>
-
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Topic</Text>
-              <TextInput
-                style={[s.textInput, { backgroundColor: colors.background, color: colors.foreground, borderColor: createError ? colors.destructive : colors.border }]}
-                value={topic}
-                onChangeText={(t) => { setTopic(t); setCreateError(''); }}
-                placeholder="e.g. 90s Pop Music"
-                placeholderTextColor={colors.mutedForeground}
-                autoFocus
-                returnKeyType="next"
-              />
-              <Text style={[s.helperText, { color: colors.mutedForeground }]}>
-                Gemini AI generates questions from this topic. To import from Open Trivia Database, use More options below.
-              </Text>
-
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Difficulty</Text>
-              <View style={s.diffRow}>
-                {(['easy', 'medium', 'hard'] as Difficulty[]).map((d) => (
-                  <Pressable
-                    key={d}
-                    style={[s.diffChip, {
-                      borderColor: difficulty === d ? colors.primary : colors.border,
-                      backgroundColor: difficulty === d ? colors.primary + '22' : 'transparent',
-                    }]}
-                    onPress={() => setDifficulty(d)}
-                  >
-                    <Text style={[s.diffChipText, { color: difficulty === d ? colors.primary : colors.mutedForeground }]}>
-                      {d === 'easy' ? 'Easy (5 pts each)' : d === 'medium' ? 'Medium (10 pts each)' : 'Hard (15 pts each)'}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              {!!createError && <Text style={[s.errorText, { color: colors.destructive }]}>{createError}</Text>}
-
-              {generating ? (
-                <View style={{ alignItems: 'center', gap: 8, paddingVertical: 12 }}>
-                  <ActivityIndicator color={colors.primary} />
-                  <Text style={[s.helperText, { color: colors.mutedForeground }]}>
-                    Generating questions with Gemini AI…
-                  </Text>
-                </View>
-              ) : (
-                <Pressable
-                  style={[s.sheetBtn, { backgroundColor: genFailedGameId ? colors.muted : colors.primary }]}
-                  onPress={genFailedGameId ? () => { setCreateOpen(false); setGenFailedGameId(null); setTopic(''); setDifficulty('medium'); } : handleCreate}
-                  disabled={createGame.isPending}
-                >
-                  {createGame.isPending
-                    ? <ActivityIndicator color="#fff" />
-                    : <Text style={[s.sheetBtnText, genFailedGameId ? { color: colors.foreground } : {}]}>
-                        {genFailedGameId ? 'Close' : 'Create game'}
-                      </Text>}
-                </Pressable>
-              )}
-
-              <Pressable
-                style={[s.moreOptionsBtn, { borderColor: colors.border }]}
-                onPress={() => {
-                  setCreateOpen(false);
-                  const t = topic.trim();
-                  const d = difficulty;
-                  setTopic('');
-                  setDifficulty('medium');
-                  onMoreOptions?.(t, d);
-                }}
-              >
-                <Ionicons name="options-outline" size={15} color={colors.mutedForeground} />
-                <Text style={[s.moreOptionsBtnText, { color: colors.mutedForeground }]}>
-                  More options
-                </Text>
-                <Ionicons name="chevron-forward" size={14} color={colors.mutedForeground} />
-              </Pressable>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </View>
   );
 }
@@ -503,18 +362,6 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 12 },
     sheetHandle: { width: 40, height: 4, backgroundColor: '#444', borderRadius: 2, alignSelf: 'center', marginBottom: 8 },
     sheetTitle: { fontSize: 20, fontFamily: 'Manrope_800ExtraBold', marginBottom: 4 },
-    fieldLabel: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', letterSpacing: 0 },
-    textInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
-    diffRow: { flexDirection: 'row', gap: 8 },
-    diffChip: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
-    diffChipText: { fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
-    errorText: { fontSize: 13 },
     sheetBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
     sheetBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Manrope_700Bold' },
-    helperText: { fontSize: 12, lineHeight: 17, marginTop: -2 },
-    moreOptionsBtn: {
-      flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const,
-      gap: 6, borderRadius: 12, borderWidth: 1, paddingVertical: 12,
-    },
-    moreOptionsBtnText: { fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
   });
