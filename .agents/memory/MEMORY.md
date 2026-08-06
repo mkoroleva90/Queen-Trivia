@@ -1,5 +1,7 @@
 # Memory index
 
+- [Mobile regen/enhance API](mobile-regen-enhance-api.md) — useRegenerateQuestion/useEnhanceQuestion signatures differ from web; no topic in data, improvedQuestionText not questionText.
+
 - [PDF code restore](pdf-code-restore.md) — how the Trivia Night app was reconstructed from a PDF code export; wrap-join loses spaces, YAML indentation must come from bbox coords.
 - [Codegen tooling quirks](codegen-tooling-quirks.md) — orval codegen broken on Node 24: hand-patch all 3 generated locations; drizzle push needs TTY, apply DDL via SQL instead.
 - [Node strip-types tests](node-strip-types-tests.md) — api-server tests need `.ts` import extensions; stripper rejects `!` in destructuring LHS.

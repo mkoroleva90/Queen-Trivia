@@ -12,7 +12,9 @@ import { useColors } from '@/hooks/useColors';
 
 type Difficulty = 'easy' | 'medium' | 'hard';
 
-export type BuildPreload = { topic: string; difficulty: Difficulty };
+export type BuildPreload =
+  | { mode: 'setup'; topic: string; difficulty: Difficulty }
+  | { mode: 'review'; gameId: number };
 
 const TAB_TITLES: Record<AdminTab, string> = {
   games:   'Games',
@@ -38,7 +40,12 @@ export default function AdminHomeScreen() {
   const [buildPreload, setBuildPreload] = useState<BuildPreload | null>(null);
 
   const handleMoreOptions = useCallback((topic: string, difficulty: Difficulty) => {
-    setBuildPreload({ topic, difficulty });
+    setBuildPreload({ mode: 'setup', topic, difficulty });
+    setActiveTab('build');
+  }, []);
+
+  const handleGameReady = useCallback((gameId: number) => {
+    setBuildPreload({ mode: 'review', gameId });
     setActiveTab('build');
   }, []);
 
@@ -49,7 +56,7 @@ export default function AdminHomeScreen() {
       <AdminHeader title={TAB_TITLES[activeTab]} isLive={activeTab === 'live'} />
 
       <View style={styles.content}>
-        {activeTab === 'games'   && <GamesTab   bottomPadding={bottomPadding} onMoreOptions={handleMoreOptions} />}
+        {activeTab === 'games'   && <GamesTab   bottomPadding={bottomPadding} onMoreOptions={handleMoreOptions} onGameReady={handleGameReady} />}
         {activeTab === 'live'    && <LiveTab     bottomPadding={bottomPadding} />}
         {activeTab === 'build'   && <BuildTab    bottomPadding={bottomPadding} preload={buildPreload} onClearPreload={clearBuildPreload} />}
         {activeTab === 'results' && <ResultsTab  bottomPadding={bottomPadding} />}

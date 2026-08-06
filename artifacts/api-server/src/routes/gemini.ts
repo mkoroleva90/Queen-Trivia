@@ -13,14 +13,12 @@ import {
  RegenerateQuestionBody,
  RegenerateQuestionParams,
  EnhanceQuestionParams,
- FactCheckQuestionParams,
 } from "@workspace/api-zod";
 import {
  generateGeminiQuestions,
  filterValidImageQuestions,
  regenerateSingleQuestion,
  enhanceQuestion,
- factCheckSingleQuestion,
 } from "../services/geminiApi.ts";
 import { logger } from "../lib/logger.ts";
 import { assertGameOwnership } from "../lib/assertGameOwnership.ts";
@@ -109,7 +107,7 @@ router.post(
             amount: body.data.amount,
             existingQuestions: body.data.existingQuestions,
             brief: (body.data.brief as string | undefined) ?? game.brief ?? undefined,
-            skipFactCheck: (body.data as { skipFactCheck?: boolean }).skipFactCheck ?? false,
+            skipFactCheck: true,
         });
 
         if (!result.ok) {
@@ -398,70 +396,6 @@ router.post(
             factCheckNotes: result.data.factCheckNotes,
             suggestedSource: result.data.suggestedSource,
             suggestions: result.data.suggestions,
-        });
-    },
-);
-
-
-// ── Fact-check single question ────────────────────────────────────────────────
-router.post(
-    "/games/:gameId/questions/:questionId/fact-check",
-    requireAdmin,
-    geminiOperationRateLimit,
-    async (req, res): Promise<void> => {
-        const params = FactCheckQuestionParams.safeParse(req.params);
-        if (!params.success) {
-            res.status(400).json({ error: "Invalid IDs" });
-            return;
-        }
-
-        if (!await assertGameOwnership(req, res, params.data.gameId)) return;
-
-        const limitError = await checkAiUsageLimit(req.session.adminAccountId);
-        if (limitError) { res.status(429).json({ error: limitError }); return; }
-
-        const [question] = await db
-            .select()
-            .from(questionsTable)
-            .where(
-                and(
-                    eq(questionsTable.id, params.data.questionId),
-                    eq(questionsTable.gameId, params.data.gameId),
-                ),
-            );
-
-        if (!question) {
-            res.status(404).json({ error: "Question not found" });
-            return;
-        }
-
-        const result = await factCheckSingleQuestion({
-            questionText: question.questionText,
-            correctAnswer: question.correctAnswer,
-        });
-
-        if (!result.ok) {
-            logger.warn({ error: result.error }, "Gemini fact-check failed");
-            geminiErrorResponse(res, result.error);
-            return;
-        }
-
-        // Persist the grounding source URL so it appears as a link in the review UI
-        if (result.data.groundingUrl) {
-            await db
-                .update(questionsTable)
-                .set({ factCheckUrl: result.data.groundingUrl })
-                .where(eq(questionsTable.id, params.data.questionId));
-        }
-
-        await recordAiUsage(req.session.adminAccountId, params.data.gameId, "fact_check", 1);
-
-        res.json({
-            verdict: result.data.verdict,
-            confidence: result.data.confidence,
-            explanation: result.data.explanation,
-            correctAnswerIfWrong: result.data.correctAnswerIfWrong,
-            groundingUrl: result.data.groundingUrl ?? null,
         });
     },
 );

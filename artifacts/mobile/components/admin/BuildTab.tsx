@@ -26,8 +26,11 @@ import {
   useDeleteQuestion,
   useGenerateGeminiQuestions,
   useImportOpenTdbQuestions,
+  useRegenerateQuestion,
+  useEnhanceQuestion,
+  useUpdateQuestion,
 } from '@workspace/api-client-react';
-import type { Game, Question } from '@workspace/api-client-react';
+import type { Game, Question, EnhanceQuestionResult, RegenerateQuestionPreview } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -36,10 +39,12 @@ type Step = 'setup' | 'questions' | 'review';
 type Difficulty = 'easy' | 'medium' | 'hard';
 type Source = 'ai' | 'opentdb';
 
-type BuildPreload = { topic: string; difficulty: Difficulty };
+type BuildPreload =
+  | { mode: 'setup'; topic: string; difficulty: Difficulty }
+  | { mode: 'review'; gameId: number };
 
 type SetupResult =
-  | { type: 'ai'; imported: number; discarded: number }
+  | { type: 'ai'; imported: number }
   | { type: 'opentdb'; imported: number };
 
 const STEPS: { id: Step; label: string }[] = [
@@ -208,7 +213,6 @@ export function BuildTab({ bottomPadding, preload, onClearPreload }: Props) {
   const [topic, setTopic] = useState('');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [brief, setBrief] = useState('');
-  const [setupSkipFactCheck, setSetupSkipFactCheck] = useState(false);
   const [setupAmount, setSetupAmount] = useState(10);
   const [setupCategory, setSetupCategory] = useState<number>(9);
   const [setupError, setSetupError] = useState('');
@@ -220,7 +224,7 @@ export function BuildTab({ bottomPadding, preload, onClearPreload }: Props) {
   const [aiBrief, setAiBrief] = useState('');
   const [aiSkipFactCheck, setAiSkipFactCheck] = useState(false);
   const [aiError, setAiError] = useState('');
-  const [aiResult, setAiResult] = useState<{ imported: number; discarded: number } | null>(null);
+  const [aiResult, setAiResult] = useState<{ imported: number } | null>(null);
 
   const [tdbOpen, setTdbOpen] = useState(false);
   const [tdbCategory, setTdbCategory] = useState<number>(9);
@@ -231,6 +235,25 @@ export function BuildTab({ bottomPadding, preload, onClearPreload }: Props) {
 
   const [limitMsg, setLimitMsg] = useState<string | null>(null);
 
+  // ── Regen state (Review step)
+  const [regenQ, setRegenQ] = useState<Question | null>(null);
+  const [regenOpen, setRegenOpen] = useState(false);
+  const [regenPreview, setRegenPreview] = useState<RegenerateQuestionPreview | null>(null);
+  const [regenLoading, setRegenLoading] = useState(false);
+  const [regenError, setRegenError] = useState('');
+
+  // ── Enhance state (Review step)
+  const [enhQ, setEnhQ] = useState<Question | null>(null);
+  const [enhOpen, setEnhOpen] = useState(false);
+  const [enhResult, setEnhResult] = useState<EnhanceQuestionResult | null>(null);
+  const [enhLoading, setEnhLoading] = useState(false);
+  const [enhError, setEnhError] = useState('');
+
+  // ── Regen All state (Review step)
+  const [regenAllConfirmOpen, setRegenAllConfirmOpen] = useState(false);
+  const [regenAllLoading, setRegenAllLoading] = useState(false);
+  const [regenAllError, setRegenAllError] = useState('');
+
   // ── Preload: applied when arriving from "More options" in quick-create ────
   // Resets to the Setup step and populates topic + difficulty so the user
   // never has to retype anything. onClearPreload is called immediately so
@@ -239,13 +262,18 @@ export function BuildTab({ bottomPadding, preload, onClearPreload }: Props) {
   React.useEffect(() => { onClearPreloadRef.current = onClearPreload; });
   React.useEffect(() => {
     if (!preload) return;
-    setStep('setup');
-    setTopic(preload.topic);
-    setDifficulty(preload.difficulty);
-    setSource('ai');
-    setSetupResult(null);
-    setSetupError('');
-    setWorkingGameId(null);
+    if (preload.mode === 'setup') {
+      setStep('setup');
+      setTopic(preload.topic);
+      setDifficulty(preload.difficulty);
+      setSource('ai');
+      setSetupResult(null);
+      setSetupError('');
+      setWorkingGameId(null);
+    } else if (preload.mode === 'review') {
+      setWorkingGameId(preload.gameId);
+      setStep('review');
+    }
     onClearPreloadRef.current?.();
   }, [preload]);
 
@@ -275,13 +303,16 @@ export function BuildTab({ bottomPadding, preload, onClearPreload }: Props) {
   const deleteQuestion = useDeleteQuestion();
   const generateGemini = useGenerateGeminiQuestions();
   const importOpenTdb = useImportOpenTdbQuestions();
+  const regenerateQuestion = useRegenerateQuestion();
+  const enhanceQuestion = useEnhanceQuestion();
+  const updateQuestion = useUpdateQuestion();
 
   // Derived: setup working state
   const setupWorking = createGame.isPending || generateGemini.isPending || importOpenTdb.isPending;
   const setupWorkingLabel = createGame.isPending
     ? 'Creating game…'
     : generateGemini.isPending
-      ? (setupSkipFactCheck ? 'Generating… 10–15 s' : 'Generating & verifying… 15–30 s')
+      ? 'Generating questions…'
       : importOpenTdb.isPending
         ? 'Importing questions…'
         : 'Working…';
@@ -300,7 +331,6 @@ export function BuildTab({ bottomPadding, preload, onClearPreload }: Props) {
     setTopic('');
     setBrief('');
     setSetupError('');
-    setSetupSkipFactCheck(false);
     setSetupAmount(10);
     setSetupCategory(9);
   };
@@ -321,12 +351,11 @@ export function BuildTab({ bottomPadding, preload, onClearPreload }: Props) {
           difficulty,
           amount: setupAmount,
           brief: brief.trim() || null,
-          skipFactCheck: setupSkipFactCheck,
         },
       });
       invalidate(game.id);
       setWorkingGameId(game.id);
-      setSetupResult({ type: 'ai', imported: result.imported, discarded: result.discarded ?? 0 });
+      setSetupResult({ type: 'ai', imported: result.imported });
     } catch (err) {
       const msg = extractApiError(err, 'Failed to create game — please retry');
       if (msg.includes('Free plan') || msg.includes('games allowed this month')) {
@@ -368,11 +397,10 @@ export function BuildTab({ bottomPadding, preload, onClearPreload }: Props) {
           difficulty: (selectedGame.difficulty ?? 'medium') as Difficulty,
           amount: aiAmount,
           brief: aiBrief.trim() || null,
-          skipFactCheck: aiSkipFactCheck,
         },
       });
       invalidate(selectedGame.id);
-      setAiResult({ imported: result.imported, discarded: result.discarded ?? 0 });
+      setAiResult({ imported: result.imported });
     } catch (err) {
       const msg = extractApiError(err, 'Generation failed — try again or add questions manually');
       if (msg.includes('Free plan')) {
@@ -405,6 +433,127 @@ export function BuildTab({ bottomPadding, preload, onClearPreload }: Props) {
       { questionId: q.id },
       { onSuccess: () => invalidate(workingGameId) },
     );
+  };
+
+  const handleOpenRegen = (q: Question) => {
+    setRegenQ(q);
+    setRegenPreview(null);
+    setRegenError('');
+    setRegenLoading(false);
+    setRegenOpen(true);
+  };
+
+  const handleGeneratePreview = async () => {
+    if (!regenQ || !selectedGame) return;
+    setRegenError('');
+    setRegenLoading(true);
+    setRegenPreview(null);
+    try {
+      const result = await regenerateQuestion.mutateAsync({
+        gameId: selectedGame.id,
+        questionId: regenQ.id,
+        data: {},
+      });
+      setRegenPreview(result);
+    } catch (err) {
+      setRegenError(extractApiError(err, 'Regeneration failed — try again'));
+    } finally {
+      setRegenLoading(false);
+    }
+  };
+
+  const handleAcceptRegen = async () => {
+    if (!regenQ || !regenPreview) return;
+    try {
+      await updateQuestion.mutateAsync({
+        questionId: regenQ.id,
+        data: {
+          questionType: regenPreview.questionType as Parameters<typeof updateQuestion.mutateAsync>[0]['data']['questionType'],
+          questionText: regenPreview.questionText,
+          correctAnswer: regenPreview.correctAnswer,
+          options: regenPreview.options?.length ? { choices: regenPreview.options } : null,
+          points: regenPreview.points,
+        },
+      });
+      invalidate(workingGameId);
+      setRegenOpen(false);
+    } catch (err) {
+      setRegenError(extractApiError(err, 'Could not save regenerated question'));
+    }
+  };
+
+  const handleOpenEnhance = (q: Question) => {
+    setEnhQ(q);
+    setEnhResult(null);
+    setEnhError('');
+    setEnhLoading(false);
+    setEnhOpen(true);
+  };
+
+  const handleEnhance = async () => {
+    if (!enhQ || !selectedGame) return;
+    setEnhError('');
+    setEnhLoading(true);
+    setEnhResult(null);
+    try {
+      const result = await enhanceQuestion.mutateAsync({
+        gameId: selectedGame.id,
+        questionId: enhQ.id,
+      });
+      setEnhResult(result);
+    } catch (err) {
+      setEnhError(extractApiError(err, 'Enhancement failed — try again'));
+    } finally {
+      setEnhLoading(false);
+    }
+  };
+
+  const handleApplyEnhance = async () => {
+    if (!enhQ || !enhResult) return;
+    try {
+      const opts = enhResult.improvedOptions?.length
+        ? { choices: enhResult.improvedOptions }
+        : (enhQ.options as Record<string, unknown> | null);
+      await updateQuestion.mutateAsync({
+        questionId: enhQ.id,
+        data: {
+          questionText: enhResult.improvedQuestionText,
+          options: opts,
+          source: enhResult.suggestedSource || (enhQ.source ?? undefined),
+        },
+      });
+      invalidate(workingGameId);
+      setEnhOpen(false);
+    } catch (err) {
+      setEnhError(extractApiError(err, 'Could not save enhanced question'));
+    }
+  };
+
+  const handleRegenAll = async () => {
+    if (!selectedGame || questions.length === 0) return;
+    setRegenAllLoading(true);
+    setRegenAllError('');
+    try {
+      // Delete all AI-generated questions
+      const aiQs = questions.filter((q) => q.aiGenerated);
+      for (const q of aiQs) {
+        await deleteQuestion.mutateAsync({ questionId: q.id });
+      }
+      // Regenerate
+      await generateGemini.mutateAsync({
+        gameId: selectedGame.id,
+        data: {
+          topic: selectedGame.topic,
+          difficulty: (selectedGame.difficulty as Difficulty) ?? 'medium',
+          amount: Math.max(aiQs.length, 10),
+        },
+      });
+      invalidate(selectedGame.id);
+      setRegenAllConfirmOpen(false);
+    } catch (err) {
+      setRegenAllError(extractApiError(err, 'Regeneration failed — try again'));
+      setRegenAllLoading(false);
+    }
   };
 
   const handlePublish = async () => {
@@ -469,11 +618,6 @@ export function BuildTab({ bottomPadding, preload, onClearPreload }: Props) {
                         <Text style={[s.successTitle, { color: colors.foreground }]}>
                           {setupResult.imported} question{setupResult.imported === 1 ? '' : 's'} generated
                         </Text>
-                        {setupResult.discarded > 0 && (
-                          <Text style={[s.successSub, { color: colors.mutedForeground }]}>
-                            {setupResult.discarded} discarded by fact-check
-                          </Text>
-                        )}
                         <Text style={[s.successSub, { color: colors.mutedForeground }]}>
                           Marked as AI-generated — review before going live.
                         </Text>
@@ -574,19 +718,7 @@ export function BuildTab({ bottomPadding, preload, onClearPreload }: Props) {
                       multiline
                     />
 
-                    <View style={s.switchRow}>
-                      <Switch
-                        value={setupSkipFactCheck}
-                        onValueChange={setSetupSkipFactCheck}
-                        trackColor={{ true: AI_COLOR }}
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text style={[s.switchLabel, { color: colors.foreground }]}>Skip fact-check</Text>
-                        <Text style={[s.switchHint, { color: colors.mutedForeground }]}>
-                          For fiction or family topics — faster, less accurate
-                        </Text>
-                      </View>
-                    </View>
+
                   </>
                 )}
 
@@ -641,7 +773,7 @@ export function BuildTab({ bottomPadding, preload, onClearPreload }: Props) {
                           AI-generated questions
                         </Text>
                         <Text style={[s.calloutBody, { color: colors.mutedForeground }]}>
-                          Questions will be marked as AI-generated and unverified. Review them in the Review step before going live.
+                          Questions are generated by Gemini AI. Review them in the Review step before going live.
                         </Text>
                       </>
                     ) : (
@@ -789,7 +921,17 @@ export function BuildTab({ bottomPadding, preload, onClearPreload }: Props) {
         {/* ── REVIEW ── */}
         {step === 'review' && (
           <View style={s.section}>
-            <Text style={[s.heading, { color: colors.foreground }]}>Review questions</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 0 }}>
+              <Text style={[s.heading, { color: colors.foreground, marginBottom: 0 }]}>Review questions</Text>
+              {selectedGame && questions.filter((q) => q.aiGenerated).length > 0 && (
+                <Pressable
+                  style={[s.smallBtn, { backgroundColor: colors.muted, paddingHorizontal: 10, marginTop: 0 }]}
+                  onPress={() => { setRegenAllError(''); setRegenAllConfirmOpen(true); }}
+                >
+                  <Text style={[s.smallBtnText, { color: colors.mutedForeground }]}>Regen all</Text>
+                </Pressable>
+              )}
+            </View>
             {editableGames.length === 0 ? (
               <View style={[s.emptyCard, { borderColor: colors.border }]}>
                 <Ionicons name="checkmark-done-outline" size={36} color={colors.mutedForeground} />
@@ -872,6 +1014,16 @@ export function BuildTab({ bottomPadding, preload, onClearPreload }: Props) {
                           </Text>
                         </View>
                       </View>
+                      {q.aiGenerated && (
+                        <Pressable hitSlop={8} style={s.qAction} onPress={() => handleOpenRegen(q)}>
+                          <Ionicons name="refresh-outline" size={15} color={colors.primary} />
+                        </Pressable>
+                      )}
+                      {q.aiGenerated && (
+                        <Pressable hitSlop={8} style={s.qAction} onPress={() => handleOpenEnhance(q)}>
+                          <Ionicons name="sparkles" size={15} color={AI_COLOR} />
+                        </Pressable>
+                      )}
                       <Pressable
                         hitSlop={8}
                         style={s.qAction}
@@ -933,8 +1085,7 @@ export function BuildTab({ bottomPadding, preload, onClearPreload }: Props) {
                   <View style={[sh.resultBox, { borderColor: colors.secondary + '40', backgroundColor: colors.secondary + '12' }]}>
                     <Ionicons name="checkmark-circle" size={20} color={colors.secondary} />
                     <Text style={[sh.resultText, { color: colors.foreground }]}>
-                      {aiResult.imported} question{aiResult.imported === 1 ? '' : 's'} saved
-                      {aiResult.discarded > 0 ? ` · ${aiResult.discarded} discarded by fact-check` : ''}
+                      {aiResult.imported} question{aiResult.imported === 1 ? '' : 's'} generated
                     </Text>
                   </View>
                   <Pressable style={[sh.sheetBtn, { backgroundColor: colors.primary }]} onPress={() => setAiOpen(false)}>
@@ -962,17 +1113,7 @@ export function BuildTab({ bottomPadding, preload, onClearPreload }: Props) {
                     placeholderTextColor={colors.mutedForeground}
                   />
 
-                  <View style={sh.switchRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[sh.switchLabel, { color: colors.foreground }]}>Skip fact-check</Text>
-                      <Text style={[sh.switchHint, { color: colors.mutedForeground }]}>Faster, but less accurate</Text>
-                    </View>
-                    <Switch
-                      value={aiSkipFactCheck}
-                      onValueChange={setAiSkipFactCheck}
-                      trackColor={{ true: AI_COLOR }}
-                    />
-                  </View>
+
 
                   {!!aiError && <Text style={[sh.errorText, { color: colors.destructive }]}>{aiError}</Text>}
 
@@ -984,9 +1125,7 @@ export function BuildTab({ bottomPadding, preload, onClearPreload }: Props) {
                     {generateGemini.isPending ? (
                       <View style={sh.btnRow}>
                         <ActivityIndicator color="#fff" />
-                        <Text style={sh.sheetBtnText}>
-                          {aiSkipFactCheck ? 'Generating… 10–15 s' : 'Generating & verifying… 15–30 s'}
-                        </Text>
+                        <Text style={sh.sheetBtnText}>Generating questions…</Text>
                       </View>
                     ) : (
                       <Text style={sh.sheetBtnText}>Generate {aiAmount} questions</Text>
@@ -1082,6 +1221,132 @@ export function BuildTab({ bottomPadding, preload, onClearPreload }: Props) {
             <Text style={[sh.sheetSub, { color: colors.mutedForeground }]}>{limitMsg}</Text>
             <Pressable style={[sh.sheetBtn, { backgroundColor: colors.primary }]} onPress={() => setLimitMsg(null)}>
               <Text style={sh.sheetBtnText}>Got it</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Regen modal (Review step) ── */}
+      <Modal visible={regenOpen} animationType="slide" transparent presentationStyle="overFullScreen">
+        <View style={sh.modalOverlay}>
+          <Pressable style={sh.modalBackdrop} onPress={() => !regenLoading && setRegenOpen(false)} />
+          <View style={[sh.sheet, { backgroundColor: colors.card, paddingBottom: sheetPadBottom }]}>
+            <View style={sh.sheetHandle} />
+            <View style={sh.sheetTitleRow}>
+              <Ionicons name="refresh-outline" size={20} color={colors.primary} />
+              <Text style={[sh.sheetTitle, { color: colors.foreground }]}>Regenerate question</Text>
+            </View>
+
+            {regenQ && (
+              <Text style={[sh.sheetSub, { color: colors.mutedForeground }]} numberOfLines={2}>
+                {regenQ.questionText}
+              </Text>
+            )}
+
+            {regenPreview ? (
+              <>
+                <View style={[sh.resultBox, { borderColor: colors.primary + '40', backgroundColor: colors.primary + '10' }]}>
+                  <Text style={[sh.fieldLabel, { color: colors.mutedForeground, marginBottom: 2 }]}>New question</Text>
+                  <Text style={[sh.resultText, { color: colors.foreground }]}>{regenPreview.questionText}</Text>
+                  <Text style={[sh.fieldLabel, { color: colors.mutedForeground, marginTop: 8, marginBottom: 2 }]}>Answer</Text>
+                  <Text style={[sh.resultText, { color: colors.secondary }]}>{regenPreview.correctAnswer}</Text>
+                </View>
+                {!!regenError && <Text style={[sh.errorText, { color: colors.destructive }]}>{regenError}</Text>}
+                <Pressable style={[sh.sheetBtn, { backgroundColor: colors.secondary }]} onPress={handleAcceptRegen}>
+                  <Text style={[sh.sheetBtnText, { color: '#0a1019' }]}>Accept</Text>
+                </Pressable>
+                <Pressable style={[sh.sheetBtn, { backgroundColor: colors.muted }]} onPress={handleGeneratePreview} disabled={regenLoading}>
+                  {regenLoading ? <ActivityIndicator color={colors.foreground} /> : <Text style={[sh.sheetBtnText, { color: colors.foreground }]}>Retry</Text>}
+                </Pressable>
+              </>
+            ) : (
+              <>
+                {!!regenError && <Text style={[sh.errorText, { color: colors.destructive }]}>{regenError}</Text>}
+                <Pressable style={[sh.sheetBtn, { backgroundColor: colors.primary, opacity: regenLoading ? 0.7 : 1 }]} onPress={handleGeneratePreview} disabled={regenLoading}>
+                  {regenLoading ? <ActivityIndicator color="#fff" /> : <Text style={sh.sheetBtnText}>Generate</Text>}
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Enhance modal (Review step) ── */}
+      <Modal visible={enhOpen} animationType="slide" transparent presentationStyle="overFullScreen">
+        <View style={sh.modalOverlay}>
+          <Pressable style={sh.modalBackdrop} onPress={() => !enhLoading && setEnhOpen(false)} />
+          <View style={[sh.sheet, { backgroundColor: colors.card, paddingBottom: sheetPadBottom }]}>
+            <View style={sh.sheetHandle} />
+            <View style={sh.sheetTitleRow}>
+              <Ionicons name="sparkles" size={20} color={AI_COLOR} />
+              <Text style={[sh.sheetTitle, { color: colors.foreground }]}>Enhance question</Text>
+            </View>
+
+            {enhResult ? (
+              <>
+                {enhResult.improvedQuestionText && (
+                  <View style={[sh.resultBox, { borderColor: AI_COLOR + '40', backgroundColor: AI_COLOR + '10', marginBottom: 8 }]}>
+                    <Text style={[sh.fieldLabel, { color: colors.mutedForeground, marginBottom: 2 }]}>Improved question</Text>
+                    <Text style={[{ fontSize: 14, color: colors.foreground, lineHeight: 20 }]}>{enhResult.improvedQuestionText}</Text>
+                  </View>
+                )}
+                {enhResult.improvedOptions && enhResult.improvedOptions.length > 0 && (
+                  <View style={[sh.resultBox, { borderColor: colors.secondary + '40', backgroundColor: colors.secondary + '10', marginBottom: 8 }]}>
+                    <Text style={[sh.fieldLabel, { color: colors.mutedForeground, marginBottom: 2 }]}>Improved options</Text>
+                    {enhResult.improvedOptions.map((opt, i) => (
+                      <Text key={i} style={[{ fontSize: 13, color: i === 0 ? colors.secondary : colors.foreground, lineHeight: 20 }]}>
+                        {i === 0 ? '✓ ' : '• '}{opt}
+                      </Text>
+                    ))}
+                  </View>
+                )}
+                {!!enhError && <Text style={[sh.errorText, { color: colors.destructive }]}>{enhError}</Text>}
+                <Pressable style={[sh.sheetBtn, { backgroundColor: colors.secondary }]} onPress={handleApplyEnhance}>
+                  <Text style={[sh.sheetBtnText, { color: '#0a1019' }]}>Apply improvements</Text>
+                </Pressable>
+                <Pressable style={sh.secondaryLink} onPress={() => setEnhOpen(false)}>
+                  <Text style={[sh.secondaryLinkText, { color: colors.mutedForeground }]}>Keep original</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                {enhQ && (
+                  <Text style={[sh.sheetSub, { color: colors.mutedForeground }]} numberOfLines={2}>
+                    {enhQ.questionText}
+                  </Text>
+                )}
+                {!!enhError && <Text style={[sh.errorText, { color: colors.destructive }]}>{enhError}</Text>}
+                <Pressable style={[sh.sheetBtn, { backgroundColor: AI_COLOR, opacity: enhLoading ? 0.7 : 1 }]} onPress={handleEnhance} disabled={enhLoading}>
+                  {enhLoading ? <ActivityIndicator color="#fff" /> : <Text style={sh.sheetBtnText}>Enhance with AI</Text>}
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Regen All confirm modal ── */}
+      <Modal visible={regenAllConfirmOpen} animationType="slide" transparent presentationStyle="overFullScreen">
+        <View style={sh.modalOverlay}>
+          <Pressable style={sh.modalBackdrop} onPress={() => !regenAllLoading && setRegenAllConfirmOpen(false)} />
+          <View style={[sh.sheet, { backgroundColor: colors.card, paddingBottom: sheetPadBottom }]}>
+            <View style={sh.sheetHandle} />
+            <Text style={[sh.sheetTitle, { color: colors.foreground }]}>Regenerate all AI questions?</Text>
+            <Text style={[sh.sheetSub, { color: colors.mutedForeground }]}>
+              All {questions.filter((q) => q.aiGenerated).length} AI-generated questions will be deleted and new ones generated for this game.
+            </Text>
+            {!!regenAllError && <Text style={[sh.errorText, { color: colors.destructive }]}>{regenAllError}</Text>}
+            <Pressable
+              style={[sh.sheetBtn, { backgroundColor: colors.primary, opacity: regenAllLoading ? 0.7 : 1 }]}
+              onPress={handleRegenAll}
+              disabled={regenAllLoading}
+            >
+              {regenAllLoading
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={sh.sheetBtnText}>Regenerate all</Text>}
+            </Pressable>
+            <Pressable style={sh.secondaryLink} onPress={() => setRegenAllConfirmOpen(false)} disabled={regenAllLoading}>
+              <Text style={[sh.secondaryLinkText, { color: colors.mutedForeground }]}>Cancel</Text>
             </Pressable>
           </View>
         </View>

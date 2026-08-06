@@ -22,6 +22,7 @@ import {
   useUpdateGame,
   useDeleteGame,
   useGetStatsSummary,
+  useGenerateGeminiQuestions,
 } from '@workspace/api-client-react';
 import type { Game } from '@workspace/api-client-react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -55,9 +56,11 @@ type Props = {
   bottomPadding: number;
   /** Called when the user taps "More options" — closes the sheet and opens Build with the entered values pre-filled. */
   onMoreOptions?: (topic: string, difficulty: Difficulty) => void;
+  /** Called after a game is created and questions are generated — switches to Build/Review. */
+  onGameReady?: (gameId: number) => void;
 };
 
-export function GamesTab({ bottomPadding, onMoreOptions }: Props) {
+export function GamesTab({ bottomPadding, onMoreOptions, onGameReady }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -68,6 +71,8 @@ export function GamesTab({ bottomPadding, onMoreOptions }: Props) {
   const [topic, setTopic] = useState('');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [createError, setCreateError] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [genFailedGameId, setGenFailedGameId] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [upgradeLimitMsg, setUpgradeLimitMsg] = useState<string | null>(null);
@@ -75,6 +80,7 @@ export function GamesTab({ bottomPadding, onMoreOptions }: Props) {
   const { data: games, isLoading, refetch } = useListGames();
   const { data: stats } = useGetStatsSummary();
   const createGame = useCreateGame();
+  const generateGemini = useGenerateGeminiQuestions();
   const updateGame = useUpdateGame();
   const deleteGame = useDeleteGame();
 
@@ -95,12 +101,30 @@ export function GamesTab({ bottomPadding, onMoreOptions }: Props) {
   const handleCreate = async () => {
     if (!topic.trim()) { setCreateError('Enter a topic'); return; }
     setCreateError('');
+    setGenFailedGameId(null);
     try {
-      await createGame.mutateAsync({ data: { topic: topic.trim(), difficulty, createdByAdmin: true } });
+      const game = await createGame.mutateAsync({ data: { topic: topic.trim(), difficulty, createdByAdmin: true } });
       qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
-      setCreateOpen(false);
-      setTopic('');
-      setDifficulty('medium');
+      // Now generate questions
+      setGenerating(true);
+      try {
+        await generateGemini.mutateAsync({
+          gameId: game.id,
+          data: { topic: topic.trim(), difficulty, amount: 10 },
+        });
+        qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
+        setCreateOpen(false);
+        setTopic('');
+        setDifficulty('medium');
+        setGenerating(false);
+        onGameReady?.(game.id);
+      } catch {
+        // Generation failed — game is created, let user add questions manually
+        qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
+        setGenerating(false);
+        setGenFailedGameId(game.id);
+        setCreateError('Questions could not be generated. You can add them in the Build tab.');
+      }
     } catch (err: unknown) {
       const status = err && typeof err === 'object' && 'status' in err ? (err as { status: number }).status : 0;
       const data = err && typeof err === 'object' && 'data' in err ? (err as { data: unknown }).data : null;
@@ -379,15 +403,26 @@ export function GamesTab({ bottomPadding, onMoreOptions }: Props) {
 
               {!!createError && <Text style={[s.errorText, { color: colors.destructive }]}>{createError}</Text>}
 
-              <Pressable
-                style={[s.sheetBtn, { backgroundColor: colors.primary }]}
-                onPress={handleCreate}
-                disabled={createGame.isPending}
-              >
-                {createGame.isPending
-                  ? <ActivityIndicator color="#fff" />
-                  : <Text style={s.sheetBtnText}>Create game</Text>}
-              </Pressable>
+              {generating ? (
+                <View style={{ alignItems: 'center', gap: 8, paddingVertical: 12 }}>
+                  <ActivityIndicator color={colors.primary} />
+                  <Text style={[s.helperText, { color: colors.mutedForeground }]}>
+                    Generating questions with Gemini AI…
+                  </Text>
+                </View>
+              ) : (
+                <Pressable
+                  style={[s.sheetBtn, { backgroundColor: genFailedGameId ? colors.muted : colors.primary }]}
+                  onPress={genFailedGameId ? () => { setCreateOpen(false); setGenFailedGameId(null); setTopic(''); setDifficulty('medium'); } : handleCreate}
+                  disabled={createGame.isPending}
+                >
+                  {createGame.isPending
+                    ? <ActivityIndicator color="#fff" />
+                    : <Text style={[s.sheetBtnText, genFailedGameId ? { color: colors.foreground } : {}]}>
+                        {genFailedGameId ? 'Close' : 'Create game'}
+                      </Text>}
+                </Pressable>
+              )}
 
               <Pressable
                 style={[s.moreOptionsBtn, { borderColor: colors.border }]}
