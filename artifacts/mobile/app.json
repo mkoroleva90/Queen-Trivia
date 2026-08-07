@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Trivia Night",
-    "slug": "mobile",
+    "name": "Queen Trivia",
+    "slug": "queen-trivia",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -15,10 +15,10 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.replitapp.trivianight"
+      "bundleIdentifier": "com.queentrivia.app"
     },
     "android": {
-      "package": "com.replitapp.trivianight"
+      "package": "com.queentrivia.app"
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -27,7 +27,7 @@
       [
         "expo-router",
         {
-          "origin": "https://replit.com/"
+          "origin": "https://queen-trivia.com"
         }
       ],
       "expo-font",
