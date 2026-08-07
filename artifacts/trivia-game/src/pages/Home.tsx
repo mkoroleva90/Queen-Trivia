@@ -162,7 +162,7 @@ export default function Home() {
             inputMode="text"
             enterKeyHint="go"
             aria-label="Room code"
-            placeholder="A1B2C3…"
+            placeholder="      "
             className="qt-code-input w-full text-center"
             style={{
               fontFamily: "ui-monospace,monospace",
@@ -211,28 +211,6 @@ export default function Home() {
           <Link href="/register" className="qt-tbtn font-bold" style={{ color: "#ffe500" }}>
             Create a game free →
           </Link>
-        </div>
-      </div>
-      {/* how it works */}
-      <div id="how-it-works" className="relative" style={{ maxWidth: 1000, margin: "0 auto", padding: "34px 30px 56px" }}>
-        <div className="qt-steps">
-          {STEPS.map((s) => (
-            <div
-              key={s.title}
-              style={{ background: "rgba(255,255,255,.03)", border: "1px solid #201a2b", borderRadius: 16, padding: "22px 20px" }}
-            >
-              <div
-                className="flex items-center justify-center font-extrabold"
-                style={{ width: 40, height: 40, borderRadius: 11, background: s.bg, border: `1px solid ${s.bd}`, fontSize: 17, color: s.ic, marginBottom: 14 }}
-              >
-                {s.glyph}
-              </div>
-              <div className="font-extrabold" style={{ fontSize: 15, color: "#fff", marginBottom: 6 }}>
-                {s.title}
-              </div>
-              <div style={{ fontSize: 13, lineHeight: 1.5, color: "#8b7f8a" }}>{s.desc}</div>
-            </div>
-          ))}
         </div>
       </div>
     </div>
