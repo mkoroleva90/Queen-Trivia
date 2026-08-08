@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   AppState,
   type AppStateStatus,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -108,6 +109,7 @@ export function LiveTab({ bottomPadding }: Props) {
   const [hostAnswers, setHostAnswers] = useState<Record<number, string>>({});
   const [hostAnswerInput, setHostAnswerInput] = useState('');
   const [submittingHostAnswer, setSubmittingHostAnswer] = useState(false);
+  const [skipConfirmForQ, setSkipConfirmForQ] = useState<{ id: number; direction: 'prev' | 'next' } | null>(null);
 
   const submitHostAnswer = async (questionId: number, answer: string) => {
     if (!game || submittingHostAnswer || hostAnswers[questionId] !== undefined) return;
@@ -132,6 +134,27 @@ export function LiveTab({ bottomPadding }: Props) {
     } finally {
       setSubmittingHostAnswer(false);
     }
+  };
+
+  // Record an explicit skip (empty answer = 0 pts) then navigate.
+  const submitSkipAndNavigate = async (questionId: number, direction: 'prev' | 'next') => {
+    setSkipConfirmForQ(null);
+    if (game) {
+      try {
+        const token = await SecureStore.getItemAsync(ADMIN_TOKEN_KEY).catch(() => null);
+        const res = await fetch(`${API_BASE_URL}/api/games/${game.id}/host-answer`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ questionId, userAnswer: '' }),
+        });
+        if (res.ok) setHostAnswers((prev) => ({ ...prev, [questionId]: '' }));
+      } catch { /* non-critical */ }
+    }
+    if (direction === 'next') { setQIndex((i) => Math.min(sortedQs.length - 1, i + 1)); setRevealed(false); }
+    else { setQIndex((i) => Math.max(0, i - 1)); setRevealed(false); }
   };
 
   // ── Connection state ─────────────────────────────────────────────────────
@@ -529,6 +552,13 @@ export function LiveTab({ bottomPadding }: Props) {
           </View>
         )}
 
+        {/* Play-along: not-answered badge when host explicitly skipped this MC question */}
+        {game?.hostPlaysAlong && currentQ && hostAnswers[currentQ.id] === '' && choices.length > 0 && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
+            <Text style={{ fontSize: 10, fontFamily: 'Manrope_700Bold', color: colors.mutedForeground, letterSpacing: 1 }}>— Not answered · 0 pts</Text>
+          </View>
+        )}
+
         {/* Free-text / other question types — show answer when revealed */}
         {choices.length === 0 && revealed && !!currentQ?.correctAnswer && (
           <View style={[s.freeAnswer, { borderColor: colors.secondary + '55', backgroundColor: colors.secondary + '12' }]}>
@@ -541,10 +571,16 @@ export function LiveTab({ bottomPadding }: Props) {
         {/* Host play-along answer input for non-MC question types */}
         {game?.hostPlaysAlong && currentQ && choices.length === 0 && (
           hostAnswers[currentQ.id] !== undefined ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
-              <Text style={{ fontSize: 10, fontFamily: 'Manrope_700Bold', color: colors.secondary, letterSpacing: 1 }}>✓ YOUR ANSWER</Text>
-              <Text style={{ fontSize: 14, color: colors.foreground, flex: 1 }}>{hostAnswers[currentQ.id]}</Text>
-            </View>
+            hostAnswers[currentQ.id] === '' ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
+                <Text style={{ fontSize: 10, fontFamily: 'Manrope_700Bold', color: colors.mutedForeground, letterSpacing: 1 }}>— Not answered · 0 pts</Text>
+              </View>
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
+                <Text style={{ fontSize: 10, fontFamily: 'Manrope_700Bold', color: colors.secondary, letterSpacing: 1 }}>✓ YOUR ANSWER</Text>
+                <Text style={{ fontSize: 14, color: colors.foreground, flex: 1 }}>{hostAnswers[currentQ.id]}</Text>
+              </View>
+            )
           ) : currentQ.questionType === 'true_false' ? (
             <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
               <Text style={{ fontSize: 10, fontFamily: 'Manrope_700Bold', color: colors.mutedForeground, letterSpacing: 1.5, marginBottom: 8 }}>YOUR ANSWER</Text>
@@ -604,7 +640,13 @@ export function LiveTab({ bottomPadding }: Props) {
       <View style={[s.transport, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Pressable
           disabled={qIndex === 0}
-          onPress={() => { setQIndex((i) => Math.max(0, i - 1)); setRevealed(false); }}
+          onPress={() => {
+            if (game?.hostPlaysAlong && currentQ && hostAnswers[currentQ.id] === undefined) {
+              setSkipConfirmForQ({ id: currentQ.id, direction: 'prev' });
+            } else {
+              setQIndex((i) => Math.max(0, i - 1)); setRevealed(false);
+            }
+          }}
           style={({ pressed }) => [
             s.tBtn,
             { borderColor: colors.border, opacity: qIndex === 0 ? 0.4 : pressed ? 0.7 : 1 },
@@ -629,7 +671,13 @@ export function LiveTab({ bottomPadding }: Props) {
         </Pressable>
         <Pressable
           disabled={qIndex >= sortedQs.length - 1}
-          onPress={() => { setQIndex((i) => Math.min(sortedQs.length - 1, i + 1)); setRevealed(false); }}
+          onPress={() => {
+            if (game?.hostPlaysAlong && currentQ && hostAnswers[currentQ.id] === undefined) {
+              setSkipConfirmForQ({ id: currentQ.id, direction: 'next' });
+            } else {
+              setQIndex((i) => Math.min(sortedQs.length - 1, i + 1)); setRevealed(false);
+            }
+          }}
           style={({ pressed }) => [
             s.tBtnPrimary,
             {
@@ -642,6 +690,45 @@ export function LiveTab({ bottomPadding }: Props) {
           <Ionicons name="chevron-forward" size={16} color="#fff" />
         </Pressable>
       </View>
+
+      {/* Skip-question confirmation modal */}
+      <Modal visible={skipConfirmForQ !== null} animationType="fade" transparent presentationStyle="overFullScreen">
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: 'rgba(0,0,0,0.6)' }}>
+          <Pressable style={{ position: 'absolute', inset: 0 } as any} onPress={() => setSkipConfirmForQ(null)} />
+          <View style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: 20, padding: 24, width: '100%', maxWidth: 360, zIndex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <Ionicons name="warning-outline" size={20} color={colors.primary} />
+              <Text style={{ fontSize: 16, fontFamily: 'Manrope_800ExtraBold', color: colors.foreground }}>
+                Skip this question?
+              </Text>
+            </View>
+            <Text style={{ fontSize: 14, color: colors.mutedForeground, lineHeight: 20, marginBottom: 20 }}>
+              You haven't answered this question yet. If you continue, it will be counted as not answered and scored as 0 points.
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Pressable
+                onPress={() => setSkipConfirmForQ(null)}
+                style={({ pressed }) => ({
+                  flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 12,
+                  borderWidth: 1, borderColor: colors.border,
+                  backgroundColor: pressed ? colors.muted : 'transparent',
+                })}
+              >
+                <Text style={{ fontSize: 14, fontFamily: 'Manrope_700Bold', color: colors.mutedForeground }}>Go back</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => skipConfirmForQ && submitSkipAndNavigate(skipConfirmForQ.id, skipConfirmForQ.direction)}
+                style={({ pressed }) => ({
+                  flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 12,
+                  backgroundColor: pressed ? colors.primary + 'cc' : colors.primary,
+                })}
+              >
+                <Text style={{ fontSize: 14, fontFamily: 'Manrope_700Bold', color: '#fff' }}>Skip anyway</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* ── ANSWERED — participant chips with answer status ── */}
       <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>ANSWERED</Text>

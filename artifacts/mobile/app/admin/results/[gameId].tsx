@@ -30,7 +30,7 @@ type Participant = {
 };
 
 type GameResults = {
-  game: { id: number; topic: string; status: string };
+  game: { id: number; topic: string; status: string; hostUserId?: number | null };
   participants: Participant[];
   totalQuestions: number;
 };
@@ -215,6 +215,9 @@ export default function AdminResultsScreen() {
                 {p.correctCount}/{results?.totalQuestions ?? p.totalAnswered} correct
                 {(results?.totalQuestions ?? 0) > 0
                   ? ` · ${Math.round((p.correctCount / (results?.totalQuestions ?? 1)) * 100)}%`
+                  : ''}
+                {results?.game?.hostUserId && p.userId === results.game.hostUserId && (results.totalQuestions - p.totalAnswered) > 0
+                  ? ` · ${results.totalQuestions - p.totalAnswered} unanswered`
                   : ''}
               </Text>
             </View>

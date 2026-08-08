@@ -539,15 +539,27 @@ router.post(
 
         const opts = question.options as { alternateAnswers?: string[] } | null;
         const alternates = opts?.alternateAnswers ?? [];
-        const { isCorrect, pointsEarned, feedback } = await gradeAnswer(
-            question.questionType,
-            parsed.data.userAnswer,
-            question.correctAnswer,
-            question.points,
-            alternates,
-            question.options as Record<string, unknown> | null,
-            question.questionText,
-        );
+
+        // Empty userAnswer = explicit skip — record as zero without calling gradeAnswer.
+        // This avoids wasted AI calls for short_response questions and keeps the
+        // grading path clean; the answer is still stored in the DB with isCorrect=false.
+        let isCorrect: boolean;
+        let pointsEarned: number;
+        let feedback: string | undefined;
+        if (parsed.data.userAnswer === "") {
+            isCorrect = false;
+            pointsEarned = 0;
+        } else {
+            ({ isCorrect, pointsEarned, feedback } = await gradeAnswer(
+                question.questionType,
+                parsed.data.userAnswer,
+                question.correctAnswer,
+                question.points,
+                alternates,
+                question.options as Record<string, unknown> | null,
+                question.questionText,
+            ));
+        }
 
         const [answer] = await db
             .insert(answersTable)

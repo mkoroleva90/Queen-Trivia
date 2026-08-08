@@ -4259,6 +4259,7 @@ function LiveGameView({
   const [hostAnswers, setHostAnswers] = useState<Record<number, string>>({});
   const [hostAnswerInput, setHostAnswerInput] = useState('');
   const [submittingHostAnswer, setSubmittingHostAnswer] = useState(false);
+  const [skipConfirmForQ, setSkipConfirmForQ] = useState<{ id: number; direction: 'prev' | 'next' } | null>(null);
 
   const submitHostAnswer = async (questionId: number, answer: string) => {
     if (!activeGame || submittingHostAnswer || hostAnswers[questionId] !== undefined) return;
@@ -4280,6 +4281,24 @@ function LiveGameView({
     } finally {
       setSubmittingHostAnswer(false);
     }
+  };
+
+  // Record an explicit skip (empty answer = 0 pts) then navigate.
+  const submitSkipAndNavigate = async (questionId: number, direction: 'prev' | 'next') => {
+    setSkipConfirmForQ(null);
+    if (activeGame) {
+      try {
+        const res = await fetch(`/api/games/${activeGame.id}/host-answer`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ questionId, userAnswer: '' }),
+        });
+        if (res.ok) setHostAnswers((prev) => ({ ...prev, [questionId]: '' }));
+      } catch { /* non-critical */ }
+    }
+    if (direction === 'next') setQIndex((i) => Math.min(questions.length - 1, i + 1));
+    else setQIndex((i) => Math.max(0, i - 1));
   };
 
   // Reset host answer input when the host moves to a different question.
@@ -4508,10 +4527,18 @@ function LiveGameView({
                 if (hasChoices) return null;
                 const hostAnswered = hostAnswers[currentQ.id] !== undefined;
                 if (hostAnswered) {
+                  const ans = hostAnswers[currentQ.id];
+                  if (ans === '') {
+                    return (
+                      <div className="mt-3 pt-3 border-t border-[#1b2740] flex items-center gap-2">
+                        <span className="text-[11px] font-bold tracking-wide text-[#66728a]">— Not answered · 0 pts</span>
+                      </div>
+                    );
+                  }
                   return (
                     <div className="mt-3 pt-3 border-t border-[#1b2740] flex items-center gap-2">
                       <span className="text-[11px] font-bold tracking-wide text-[#35d07f]">✓ YOUR ANSWER</span>
-                      <span className="text-sm text-[#eef2f8]">{hostAnswers[currentQ.id]}</span>
+                      <span className="text-sm text-[#eef2f8]">{ans}</span>
                     </div>
                   );
                 }
@@ -4575,7 +4602,13 @@ function LiveGameView({
           <div className="flex flex-wrap items-center gap-2 bg-[#0f1724] border border-[#1b2740] rounded-2xl px-3.5 py-3">
             <button
               disabled={qIndex === 0}
-              onClick={() => setQIndex((i) => Math.max(0, i - 1))}
+              onClick={() => {
+                if (activeGame?.hostPlaysAlong && currentQ && hostAnswers[currentQ.id] === undefined) {
+                  setSkipConfirmForQ({ id: currentQ.id, direction: 'prev' });
+                } else {
+                  setQIndex((i) => Math.max(0, i - 1));
+                }
+              }}
               className="text-xs font-bold text-[#9aa6bc] bg-white/[.04] border border-[#1b2740] rounded-[10px] px-3.5 py-2.5 disabled:opacity-40 hover:brightness-110 transition"
             >
               ‹ Prev
@@ -4592,13 +4625,49 @@ function LiveGameView({
             </button>
             <button
               disabled={qIndex >= questions.length - 1}
-              onClick={() => setQIndex((i) => Math.min(questions.length - 1, i + 1))}
+              onClick={() => {
+                if (activeGame?.hostPlaysAlong && currentQ && hostAnswers[currentQ.id] === undefined) {
+                  setSkipConfirmForQ({ id: currentQ.id, direction: 'next' });
+                } else {
+                  setQIndex((i) => Math.min(questions.length - 1, i + 1));
+                }
+              }}
               className="ml-auto text-[13px] font-extrabold text-[#08130c] bg-[#ff0080] rounded-[10px] px-5 py-3 shadow-[0_8px_22px_-6px_rgba(255,0,128,.6)] disabled:opacity-40 hover:brightness-110 transition"
             >
               Next question ›
             </button>
           </div>
         </div>
+
+        {/* Skip-question confirmation overlay */}
+        {skipConfirmForQ && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/60" onClick={() => setSkipConfirmForQ(null)} />
+            <div className="relative bg-[#0f1724] border border-[#1b2740] rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-[#ffe500] text-lg">⚠</span>
+                <span className="font-extrabold text-[#eef2f8] text-base">Skip this question?</span>
+              </div>
+              <p className="text-sm text-[#9aa6bc] leading-relaxed mb-5">
+                You haven't answered this question yet. If you continue, it will be counted as not answered and scored as 0 points.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setSkipConfirmForQ(null)}
+                  className="flex-1 py-2.5 rounded-xl border border-[#1b2740] text-sm font-semibold text-[#9aa6bc] hover:brightness-110 transition"
+                >
+                  Go back
+                </button>
+                <button
+                  onClick={() => submitSkipAndNavigate(skipConfirmForQ.id, skipConfirmForQ.direction)}
+                  className="flex-1 py-2.5 rounded-xl bg-[#ffe500]/20 border border-[#ffe500]/40 text-sm font-bold text-[#ffe500] hover:brightness-110 transition"
+                >
+                  Skip anyway
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── RIGHT: answered + standings ── */}
         <div className="w-full lg:w-[300px] shrink-0 space-y-4">
@@ -5114,7 +5183,12 @@ function NewResultsSection({ games }: { games: Game[] }) {
                         {p.userName.substring(0, 1).toUpperCase()}
                       </span>
                       <span className={`flex-1 truncate text-sm ${win ? "font-extrabold text-[#eef2f8]" : "font-bold text-[#dfe5f0]"}`}>{p.userName}</span>
-                      <span className="text-xs font-semibold text-[#66728a]">{p.correctCount}/{totalQ}</span>
+                      <span className="text-xs font-semibold text-[#66728a]">
+                        {p.correctCount}/{totalQ}
+                        {resultsData?.game?.hostUserId && p.userId === resultsData.game.hostUserId && totalQ - p.totalAnswered > 0
+                          ? ` · ${totalQ - p.totalAnswered} unanswered`
+                          : ''}
+                      </span>
                       <span className={`w-[70px] text-right font-mono text-[15px] font-extrabold tabular-nums ${win ? "text-[#eef2f8]" : "text-[#9aa6bc]"}`}>{p.totalScore}</span>
                     </div>
                   );
