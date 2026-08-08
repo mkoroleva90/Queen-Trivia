@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import { ADMIN_TOKEN_KEY, useAdminAuth } from '@/context/AdminAuthContext';
+import { API_BASE_URL } from '@/lib/apiBase';
 import { useColors } from '@/hooks/useColors';
 
 // ── Validation helpers (mirror of server rules in accessCodeValidation.ts) ────
@@ -104,9 +105,7 @@ export function RoomsTab({ bottomPadding }: Props) {
   const isInvalid = !!triviaErr || !!adminErr || !!codesMatchErr;
   const unchanged = triviaCode.trim().toUpperCase() === currentTrivia.toUpperCase() && adminCode.trim() === '';
 
-  const baseUrl = process.env.EXPO_PUBLIC_DOMAIN
-    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-    : '';
+  const baseUrl = API_BASE_URL;
 
   useEffect(() => {
     (async () => {

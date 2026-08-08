@@ -17,6 +17,7 @@ import { io, type Socket } from 'socket.io-client';
 import * as SecureStore from 'expo-secure-store';
 import { PLAYER_TOKEN_KEY } from '@/context/AuthContext';
 import { ADMIN_TOKEN_KEY } from '@/context/AdminAuthContext';
+import { API_BASE_URL } from '@/lib/apiBase';
 
 // ─── Typed event maps ─────────────────────────────────────────────────────────
 
@@ -46,8 +47,7 @@ type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 // ─── Socket factories ─────────────────────────────────────────────────────────
 
 function makeSocketUrl() {
-  const domain = process.env.EXPO_PUBLIC_DOMAIN;
-  return domain ? `https://${domain}` : 'http://localhost:8080';
+  return API_BASE_URL;
 }
 
 const BASE_OPTS = {

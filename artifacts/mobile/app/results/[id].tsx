@@ -20,6 +20,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
+import { API_BASE_URL } from '@/lib/apiBase';
 
 const RANK_COLORS = ['#ff0080', '#00ddff', '#8b5cf6', '#22c55e', '#f97316'];
 function rankColor(i: number) { return RANK_COLORS[i % RANK_COLORS.length] ?? '#ff0080'; }
@@ -40,9 +41,7 @@ type GameResults = {
   totalQuestions: number;
 };
 
-const baseUrl = process.env.EXPO_PUBLIC_DOMAIN
-  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-  : '';
+const baseUrl = API_BASE_URL;
 
 export default function ResultsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

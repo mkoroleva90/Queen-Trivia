@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import { API_BASE_URL } from '@/lib/apiBase';
 
 export const PLAYER_TOKEN_KEY = 'trivia_mobile_token';
 const USER_KEY = 'trivia_user';
@@ -23,9 +24,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
 
-  const baseUrl = process.env.EXPO_PUBLIC_DOMAIN
-    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-    : '';
+  const baseUrl = API_BASE_URL;
 
   useEffect(() => {
     const restore = async () => {

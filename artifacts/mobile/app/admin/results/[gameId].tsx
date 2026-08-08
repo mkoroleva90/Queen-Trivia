@@ -17,6 +17,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { ADMIN_TOKEN_KEY } from '@/context/AdminAuthContext';
 import { useColors } from '@/hooks/useColors';
+import { API_BASE_URL } from '@/lib/apiBase';
 
 type Participant = {
   id: number;
@@ -67,9 +68,7 @@ export default function AdminResultsScreen() {
   const [showStats, setShowStats] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  const baseUrl = process.env.EXPO_PUBLIC_DOMAIN
-    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-    : '';
+  const baseUrl = API_BASE_URL;
 
   const {
     data: results,

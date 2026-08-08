@@ -17,12 +17,13 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as SecureStore from 'expo-secure-store';
 import { setBaseUrl, setAuthTokenGetter } from '@workspace/api-client-react';
+import { API_BASE_URL } from '@/lib/apiBase';
 import { AuthProvider } from '@/context/AuthContext';
 import { AdminAuthProvider } from '@/context/AdminAuthContext';
 import { PLAYER_TOKEN_KEY } from '@/context/AuthContext';
 
 // Set API base URL at module load — before any component mounts.
-setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN ?? ''}`);
+setBaseUrl(API_BASE_URL);
 
 // Default auth getter uses the PLAYER token only.
 // AdminAuthContext.loginAdmin() switches this to the admin token for the

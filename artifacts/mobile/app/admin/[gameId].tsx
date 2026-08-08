@@ -43,6 +43,7 @@ import type {
 } from '@workspace/api-client-react';
 import { ADMIN_TOKEN_KEY } from '@/context/AdminAuthContext';
 import { useColors } from '@/hooks/useColors';
+import { API_BASE_URL } from '@/lib/apiBase';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -389,9 +390,7 @@ function QuestionFormModal({
   const [aiLoading, setAiLoading] = useState(false);
   const [upgradeLimitMsg, setUpgradeLimitMsg] = useState('');
 
-  const baseUrl = process.env.EXPO_PUBLIC_DOMAIN
-    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-    : '';
+  const baseUrl = API_BASE_URL;
 
   React.useEffect(() => {
     if (visible) { setForm(initial); setError(''); }

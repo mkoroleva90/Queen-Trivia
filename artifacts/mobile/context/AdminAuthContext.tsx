@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { type QueryClient } from '@tanstack/react-query';
 import { setAuthTokenGetter } from '@workspace/api-client-react';
 import { PLAYER_TOKEN_KEY } from '@/context/AuthContext';
+import { API_BASE_URL } from '@/lib/apiBase';
 
 export const ADMIN_TOKEN_KEY = 'trivia_admin_token';
 
@@ -54,9 +55,7 @@ export function AdminAuthProvider({
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminReady, setAdminReady] = useState(false);
 
-  const baseUrl = process.env.EXPO_PUBLIC_DOMAIN
-    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-    : '';
+  const baseUrl = API_BASE_URL;
 
   // On mount, check if there is a persisted admin token and validate it.
   useEffect(() => {

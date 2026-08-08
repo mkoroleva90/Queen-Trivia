@@ -33,6 +33,7 @@ import {
 } from '@workspace/live-tally';
 import { useColors } from '@/hooks/useColors';
 import { useAdminGameSocket } from '@/hooks/useSocket';
+import { API_BASE_URL } from '@/lib/apiBase';
 
 type Props = { bottomPadding: number };
 
@@ -132,7 +133,7 @@ export function LiveTab({ bottomPadding }: Props) {
     setCorrectCount({});
   }, [gameId]);
 
-  const baseUrl = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : '';
+  const baseUrl = API_BASE_URL;
 
   // ── Seed tallies from persisted answers ─────────────────────────────────
   // Opening this tab mid-game shows correct totals immediately; socket events

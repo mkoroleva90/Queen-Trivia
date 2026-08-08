@@ -25,6 +25,7 @@ import {
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
 import { useLobbySocket } from '@/hooks/useSocket';
+import { API_BASE_URL } from '@/lib/apiBase';
 
 const AVATAR_COLORS = ['#ff0080', '#00ddff', '#8b5cf6', '#22c55e', '#f97316'];
 function avatarColor(i: number) { return AVATAR_COLORS[i % AVATAR_COLORS.length] ?? '#ff0080'; }
@@ -112,9 +113,7 @@ function JoinModal({ visible, onClose }: { visible: boolean; onClose: () => void
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
 
-  const baseUrl = process.env.EXPO_PUBLIC_DOMAIN
-    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-    : '';
+  const baseUrl = API_BASE_URL;
 
   const handleSubmit = async () => {
     const trimmed = code.trim().toUpperCase();

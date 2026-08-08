@@ -24,6 +24,7 @@ import {
 import type { Question } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
 import { useAdminGameSocket } from '@/hooks/useSocket';
+import { API_BASE_URL } from '@/lib/apiBase';
 
 type AnswerCounts = Record<number, number>; // questionId → total submitted
 
@@ -69,7 +70,7 @@ export default function AdminLiveScreen() {
   const { data: participants, refetch: refetchParticipants } = useListGameParticipants(gameId);
   const updateGame = useUpdateGame();
 
-  const baseUrl = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : '';
+  const baseUrl = API_BASE_URL;
 
   // Fetch persisted per-question stats to seed the answer counts on mount.
   // After seeding, socket events increment incrementally from the baseline.

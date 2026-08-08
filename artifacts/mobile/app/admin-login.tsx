@@ -21,6 +21,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAdminAuth } from '@/context/AdminAuthContext';
+import { API_BASE_URL } from '@/lib/apiBase';
 import { useColors } from '@/hooks/useColors';
 
 export default function AdminLoginScreen() {
@@ -35,9 +36,7 @@ export default function AdminLoginScreen() {
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
 
-  const baseUrl = process.env.EXPO_PUBLIC_DOMAIN
-    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-    : '';
+  const baseUrl = API_BASE_URL;
 
   const handleLogin = async () => {
     const trimmedEmail = email.trim().toLowerCase();

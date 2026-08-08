@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
 import { CrownMark } from '@/components/CrownMark';
+import { API_BASE_URL } from '@/lib/apiBase';
 
 const AVATAR_COLORS = ['#ff0080', '#00ddff', '#8b5cf6', '#22c55e'];
 
@@ -38,9 +39,7 @@ export default function WelcomeScreen() {
 
   const slideAnim = useRef(new Animated.Value(0)).current;
 
-  const baseUrl = process.env.EXPO_PUBLIC_DOMAIN
-    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-    : '';
+  const baseUrl = API_BASE_URL;
 
   // Redirect already-logged-in users
   useEffect(() => {
