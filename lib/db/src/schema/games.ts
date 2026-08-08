@@ -9,6 +9,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { usersTable } from "./users";
 
 
 export const gamesTable = pgTable("games", {
@@ -30,6 +31,10 @@ export const gamesTable = pgTable("games", {
  // Nullable so legacy/code-based-admin games remain valid.
  // When set, this game belongs exclusively to that admin account.
  ownerAdminId: integer("owner_admin_id"),
+ // Play-along: host joins as a player and answers questions inline.
+ hostPlaysAlong: boolean("host_plays_along").notNull().default(false),
+ // The player-user record created for the host when hostPlaysAlong is on.
+ hostUserId: integer("host_user_id").references(() => usersTable.id, { onDelete: "set null" }),
 });
 
 

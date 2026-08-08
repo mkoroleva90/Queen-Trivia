@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -103,6 +104,36 @@ export function LiveTab({ bottomPadding }: Props) {
   const [qIndex, setQIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
 
+  // Play-along: host answer tracking
+  const [hostAnswers, setHostAnswers] = useState<Record<number, string>>({});
+  const [hostAnswerInput, setHostAnswerInput] = useState('');
+  const [submittingHostAnswer, setSubmittingHostAnswer] = useState(false);
+
+  const submitHostAnswer = async (questionId: number, answer: string) => {
+    if (!game || submittingHostAnswer || hostAnswers[questionId] !== undefined) return;
+    if (!answer.trim()) return;
+    setSubmittingHostAnswer(true);
+    try {
+      const token = await SecureStore.getItemAsync(ADMIN_TOKEN_KEY).catch(() => null);
+      const res = await fetch(`${API_BASE_URL}/api/games/${game.id}/host-answer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ questionId, userAnswer: answer }),
+      });
+      if (res.ok) {
+        setHostAnswers((prev) => ({ ...prev, [questionId]: answer }));
+        setHostAnswerInput('');
+      }
+    } catch {
+      // non-critical
+    } finally {
+      setSubmittingHostAnswer(false);
+    }
+  };
+
   // ── Connection state ─────────────────────────────────────────────────────
   // Start optimistically connected (avoid flicker on first load).
   const [socketConnected, setSocketConnected] = useState(true);
@@ -131,7 +162,14 @@ export function LiveTab({ bottomPadding }: Props) {
     resetTallyStore(tallyStore.current);
     setAnsweredBy({});
     setCorrectCount({});
+    setHostAnswers({});
+    setHostAnswerInput('');
   }, [gameId]);
+
+  // Clear the write-in input when the host moves to a different question.
+  useEffect(() => {
+    setHostAnswerInput('');
+  }, [qIndex]);
 
   const baseUrl = API_BASE_URL;
 
@@ -437,14 +475,19 @@ export function LiveTab({ bottomPadding }: Props) {
           <View style={s.choices}>
             {choices.map((c, i) => {
               const isCorrect = revealed && currentQ?.correctAnswer === c;
+              const hostPicked = game?.hostPlaysAlong && currentQ && hostAnswers[currentQ.id] === c;
+              const hostAnswered = game?.hostPlaysAlong && currentQ && hostAnswers[currentQ.id] !== undefined;
+              const canPick = !!(game?.hostPlaysAlong && currentQ && !hostAnswered && !submittingHostAnswer);
               return (
-                <View
+                <Pressable
                   key={i}
-                  style={[
+                  onPress={canPick ? () => submitHostAnswer(currentQ!.id, c) : undefined}
+                  style={({ pressed }) => [
                     s.choiceRow,
                     {
-                      borderColor: isCorrect ? colors.secondary + '80' : colors.border,
-                      backgroundColor: isCorrect ? colors.secondary + '14' : 'transparent',
+                      borderColor: isCorrect ? colors.secondary + '80' : hostPicked ? colors.primary + '80' : colors.border,
+                      backgroundColor: isCorrect ? colors.secondary + '14' : hostPicked ? colors.primary + '14' : 'transparent',
+                      opacity: canPick && pressed ? 0.65 : 1,
                     },
                   ]}
                 >
@@ -453,29 +496,34 @@ export function LiveTab({ bottomPadding }: Props) {
                       s.choiceLetter,
                       isCorrect
                         ? { backgroundColor: colors.secondary }
-                        : { borderWidth: 1.5, borderColor: colors.border },
+                        : hostPicked
+                          ? { backgroundColor: colors.primary }
+                          : { borderWidth: 1.5, borderColor: colors.border },
                     ]}
                   >
-                    <Text style={[s.choiceLetterText, { color: isCorrect ? colors.background : colors.mutedForeground }]}>
+                    <Text style={[s.choiceLetterText, { color: (isCorrect || hostPicked) ? colors.background : colors.mutedForeground }]}>
                       {String.fromCharCode(65 + i)}
                     </Text>
                   </View>
                   <Text
                     style={[
                       s.choiceText,
-                      { color: isCorrect ? colors.foreground : colors.mutedForeground },
-                      isCorrect && { fontFamily: 'Manrope_700Bold' },
+                      { color: (isCorrect || hostPicked) ? colors.foreground : colors.mutedForeground },
+                      (isCorrect || hostPicked) && { fontFamily: 'Manrope_700Bold' },
                     ]}
                     numberOfLines={2}
                   >
                     {c}
                   </Text>
+                  {hostPicked && !isCorrect && (
+                    <Text style={{ fontSize: 10, fontFamily: 'Manrope_700Bold', color: colors.primary }}>YOUR PICK</Text>
+                  )}
                   {isCorrect && (
                     <Text style={[s.choiceTally, { color: colors.secondary }]}>
                       {qCorrect} ✓
                     </Text>
                   )}
-                </View>
+                </Pressable>
               );
             })}
           </View>
@@ -487,6 +535,67 @@ export function LiveTab({ bottomPadding }: Props) {
             <Ionicons name="checkmark-circle" size={16} color={colors.secondary} />
             <Text style={[s.freeAnswerText, { color: colors.foreground }]}>{currentQ.correctAnswer}</Text>
             <Text style={[s.choiceTally, { color: colors.secondary }]}>{qCorrect} ✓</Text>
+          </View>
+        )}
+
+        {/* Host play-along answer input for non-MC question types */}
+        {game?.hostPlaysAlong && currentQ && choices.length === 0 && (
+          hostAnswers[currentQ.id] !== undefined ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
+              <Text style={{ fontSize: 10, fontFamily: 'Manrope_700Bold', color: colors.secondary, letterSpacing: 1 }}>✓ YOUR ANSWER</Text>
+              <Text style={{ fontSize: 14, color: colors.foreground, flex: 1 }}>{hostAnswers[currentQ.id]}</Text>
+            </View>
+          ) : currentQ.questionType === 'true_false' ? (
+            <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
+              <Text style={{ fontSize: 10, fontFamily: 'Manrope_700Bold', color: colors.mutedForeground, letterSpacing: 1.5, marginBottom: 8 }}>YOUR ANSWER</Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {['True', 'False'].map((opt) => (
+                  <Pressable
+                    key={opt}
+                    disabled={submittingHostAnswer}
+                    onPress={() => submitHostAnswer(currentQ.id, opt.toLowerCase())}
+                    style={({ pressed }) => ({
+                      flex: 1, alignItems: 'center', paddingVertical: 10,
+                      borderRadius: 12, borderWidth: 1, borderColor: colors.border,
+                      backgroundColor: pressed ? colors.accent + '20' : 'transparent',
+                      opacity: submittingHostAnswer ? 0.4 : 1,
+                    })}
+                  >
+                    <Text style={{ fontSize: 14, fontFamily: 'Manrope_600SemiBold', color: colors.mutedForeground }}>{opt}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ) : (
+            <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
+              <Text style={{ fontSize: 10, fontFamily: 'Manrope_700Bold', color: colors.mutedForeground, letterSpacing: 1.5, marginBottom: 8 }}>YOUR ANSWER</Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TextInput
+                  value={hostAnswerInput}
+                  onChangeText={setHostAnswerInput}
+                  onSubmitEditing={() => submitHostAnswer(currentQ.id, hostAnswerInput)}
+                  placeholder="Type your answer…"
+                  placeholderTextColor={colors.mutedForeground + '88'}
+                  editable={!submittingHostAnswer}
+                  style={{ flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: colors.foreground, fontSize: 14 }}
+                />
+                <Pressable
+                  disabled={!hostAnswerInput.trim() || submittingHostAnswer}
+                  onPress={() => submitHostAnswer(currentQ.id, hostAnswerInput)}
+                  style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, backgroundColor: colors.accent + '20', borderWidth: 1, borderColor: colors.accent + '50', opacity: (!hostAnswerInput.trim() || submittingHostAnswer) ? 0.4 : 1 }}
+                >
+                  <Text style={{ fontSize: 13, fontFamily: 'Manrope_700Bold', color: colors.accent }}>Submit</Text>
+                </Pressable>
+              </View>
+            </View>
+          )
+        )}
+
+        {/* Unanswered reminder — visible when host plays along but hasn't answered */}
+        {game?.hostPlaysAlong && currentQ && hostAnswers[currentQ.id] === undefined && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 10 }}>
+            <Ionicons name="warning-outline" size={12} color={colors.primary + 'cc'} />
+            <Text style={{ fontSize: 11, fontFamily: 'Manrope_600SemiBold', color: colors.primary + 'cc' }}>You haven't answered this question yet</Text>
           </View>
         )}
       </View>

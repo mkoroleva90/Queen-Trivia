@@ -5,6 +5,8 @@ import {
  db,
  gamesTable,
  gameParticipantsTable,
+ adminAccountsTable,
+ usersTable,
 } from "@workspace/db";
 import { safeEmit } from "../lib/socket.ts";
 import { assertGameOwnership } from "../lib/assertGameOwnership.ts";
@@ -201,6 +203,35 @@ router.patch("/games/:gameId", requireAdmin, async (req, res): Promise<void> => 
      res.status(404).json({ error: "Game not found" });
      return;
  }
+
+ // Play-along: when the game just went active with hostPlaysAlong on and the
+ // host player record hasn't been created yet, auto-create a player-user for
+ // the admin and register them as a game participant.
+ if (game.status === "active" && game.hostPlaysAlong && !game.hostUserId && req.session.adminAccountId) {
+     const [admin] = await db
+         .select({ email: adminAccountsTable.email })
+         .from(adminAccountsTable)
+         .where(eq(adminAccountsTable.id, req.session.adminAccountId));
+     const localPart = (admin?.email ?? "host").split("@")[0] ?? "host";
+     const hostName =
+         localPart.charAt(0).toUpperCase() + localPart.slice(1) + " (Host)";
+     const [hostUser] = await db
+         .insert(usersTable)
+         .values({ name: hostName })
+         .returning();
+     if (hostUser) {
+         await db
+             .insert(gameParticipantsTable)
+             .values({ gameId: game.id, userId: hostUser.id });
+         const [updated] = await db
+             .update(gamesTable)
+             .set({ hostUserId: hostUser.id })
+             .where(eq(gamesTable.id, game.id))
+             .returning();
+         if (updated) game = updated;
+     }
+ }
+
  res.json(UpdateGameResponse.parse(toJsonSafe(game)));
 
  // Real-time: notify relevant rooms when status changes

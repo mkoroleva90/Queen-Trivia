@@ -84,7 +84,9 @@ export const ListGamesResponseItem = zod.object({
   "createdByAdmin": zod.boolean(),
   "participantCount": zod.number(),
   "accessCode": zod.string().nullish(),
-  "brief": zod.string().nullish()
+  "brief": zod.string().nullish(),
+  "hostPlaysAlong": zod.boolean().optional(),
+  "hostUserId": zod.number().nullish()
 })
 export const ListGamesResponse = zod.array(ListGamesResponseItem)
 
@@ -111,7 +113,9 @@ export const CreateGameResponse = zod.object({
   "createdAt": zod.string(),
   "createdByAdmin": zod.boolean(),
   "accessCode": zod.string().nullish(),
-  "brief": zod.string().nullish()
+  "brief": zod.string().nullish(),
+  "hostPlaysAlong": zod.boolean().optional(),
+  "hostUserId": zod.number().nullish()
 })
 
 
@@ -132,7 +136,9 @@ export const GetGameResponse = zod.object({
   "createdByAdmin": zod.boolean(),
   "participantCount": zod.number(),
   "accessCode": zod.string().nullish(),
-  "brief": zod.string().nullish()
+  "brief": zod.string().nullish(),
+  "hostPlaysAlong": zod.boolean().optional(),
+  "hostUserId": zod.number().nullish()
 })
 
 
@@ -151,7 +157,8 @@ export const UpdateGameBody = zod.object({
   "difficulty": zod.enum(['easy', 'medium', 'hard']).optional(),
   "status": zod.enum(['waiting', 'active', 'completed']).optional(),
   "brief": zod.string().max(2000).nullish(),
-  "accessCode": zod.string().min(4).max(12).regex(/^[A-Za-z0-9]+$/).optional()
+  "accessCode": zod.string().min(4).max(12).regex(/^[A-Za-z0-9]+$/).optional(),
+  "hostPlaysAlong": zod.boolean().optional()
 })
 
 export const UpdateGameResponse = zod.object({
@@ -163,7 +170,9 @@ export const UpdateGameResponse = zod.object({
   "createdAt": zod.string(),
   "createdByAdmin": zod.boolean(),
   "accessCode": zod.string().nullish(),
-  "brief": zod.string().nullish()
+  "brief": zod.string().nullish(),
+  "hostPlaysAlong": zod.boolean().optional(),
+  "hostUserId": zod.number().nullish()
 })
 
 

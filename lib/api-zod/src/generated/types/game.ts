@@ -19,4 +19,6 @@ export interface Game {
   participantCount: number;
   accessCode?: string | null;
   brief?: string | null;
+  hostPlaysAlong?: boolean;
+  hostUserId?: number | null;
 }

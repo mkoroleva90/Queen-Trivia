@@ -1944,6 +1944,7 @@ function ManageGamesSection({
  const queryClient = useQueryClient();
  const [viewingResults, setViewingResults] = useState<Game | null>(null);
  const [confirmStart, setConfirmStart] = useState<Game | null>(null);
+ const [playAlong, setPlayAlong] = useState(false);
  const updateGame = useUpdateGame();
  const deleteGame = useDeleteGame();
 
@@ -1955,13 +1956,14 @@ function ManageGamesSection({
 
  const doGoLive = (game: Game) => {
   updateGame.mutate(
-       { gameId: game.id, data: { status: "active" } },
-     {
-         onSuccess: () => { invalidate(); toast({ title: `"${game.topic}" is now live!` }); },
-         onError: () => toast({ variant: "destructive", title: "Failed to start" }),
-     },
- );
- setConfirmStart(null);
+    { gameId: game.id, data: { status: "active", ...(playAlong ? { hostPlaysAlong: true } : {}) } },
+    {
+      onSuccess: () => { invalidate(); toast({ title: `"${game.topic}" is now live!` }); },
+      onError: () => toast({ variant: "destructive", title: "Failed to start" }),
+    },
+  );
+  setConfirmStart(null);
+  setPlayAlong(false);
 };
 
 
@@ -2125,6 +2127,21 @@ return (
      <p className="text-sm text-muted-foreground py-2">
       Review and edit questions first, or go live now.
      </p>
+     {/* Play-along toggle */}
+     <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-[#1b2740] bg-white/[.02] px-4 py-3 hover:bg-white/[.04] transition my-1">
+      <input
+       type="checkbox"
+       checked={playAlong}
+       onChange={(e) => setPlayAlong(e.target.checked)}
+       className="mt-0.5 h-4 w-4 shrink-0 rounded accent-[#ff0080] cursor-pointer"
+      />
+      <span>
+       <span className="block text-sm font-semibold text-foreground">Play along</span>
+       <span className="block text-xs text-muted-foreground mt-0.5">
+        Answer questions from this screen — you'll appear in the standings alongside your players
+       </span>
+      </span>
+     </label>
      <div className="flex gap-2 justify-end pt-1">
       <Button variant="outline" onClick={() => { setConfirmStart(null); onManageQuestions(confirmStart); }}>
        <ListChecks className="mr-1 h-4 w-4" /> Review questions
@@ -4238,12 +4255,46 @@ function LiveGameView({
   // (players drive their own pace) — Prev/Next just move the monitored question.
   const [qIndex, setQIndex] = useState(0);
 
+  // Play-along: track answers the host has submitted for the current game.
+  const [hostAnswers, setHostAnswers] = useState<Record<number, string>>({});
+  const [hostAnswerInput, setHostAnswerInput] = useState('');
+  const [submittingHostAnswer, setSubmittingHostAnswer] = useState(false);
+
+  const submitHostAnswer = async (questionId: number, answer: string) => {
+    if (!activeGame || submittingHostAnswer || hostAnswers[questionId] !== undefined) return;
+    if (!answer.trim()) return;
+    setSubmittingHostAnswer(true);
+    try {
+      const res = await fetch(`/api/games/${activeGame.id}/host-answer`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questionId, userAnswer: answer }),
+      });
+      if (res.ok) {
+        setHostAnswers((prev) => ({ ...prev, [questionId]: answer }));
+        setHostAnswerInput('');
+      }
+    } catch {
+      // non-critical
+    } finally {
+      setSubmittingHostAnswer(false);
+    }
+  };
+
+  // Reset host answer input when the host moves to a different question.
+  useEffect(() => {
+    setHostAnswerInput('');
+  }, [qIndex]);
+
   // Reset live telemetry whenever a different game goes live.
   useEffect(() => {
     setQIndex(0);
     resetTallyStore(tallyStore.current);
     setAnsweredBy({});
     setCorrectCount({});
+    setHostAnswers({});
+    setHostAnswerInput('');
   }, [activeGame?.id]);
   const currentQ = questions[Math.min(qIndex, Math.max(questions.length - 1, 0))];
 
@@ -4407,23 +4458,37 @@ function LiveGameView({
                 // We only know correct-vs-wrong from the socket, not which wrong
                 // option was picked — so only the correct row shows a live tally.
                 const tallyPct = isCorrect && parts.length > 0 ? Math.round((qCorrect / parts.length) * 100) : 0;
+                const hostPicked = activeGame.hostPlaysAlong && currentQ && hostAnswers[currentQ.id] === c;
+                const hostAnswered = activeGame.hostPlaysAlong && currentQ && hostAnswers[currentQ.id] !== undefined;
+                const canPick = activeGame.hostPlaysAlong && currentQ && !hostAnswered && !submittingHostAnswer;
                 return (
                   <div
                     key={i}
-                    className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${
-                      isCorrect ? "border-[#35d07f]/50 bg-[#35d07f]/10" : "border-[#1b2740] bg-white/[.03]"
-                    }`}
+                    role={canPick ? "button" : undefined}
+                    tabIndex={canPick ? 0 : undefined}
+                    onClick={canPick ? () => submitHostAnswer(currentQ.id, c) : undefined}
+                    onKeyDown={canPick ? (e) => { if (e.key === 'Enter' || e.key === ' ') submitHostAnswer(currentQ.id, c); } : undefined}
+                    className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition ${
+                      isCorrect ? "border-[#35d07f]/50 bg-[#35d07f]/10" :
+                      hostPicked ? "border-[#ff0080]/50 bg-[#ff0080]/10" :
+                      "border-[#1b2740] bg-white/[.03]"
+                    } ${canPick ? "cursor-pointer hover:brightness-125 hover:border-[#00ddff]/40" : ""}`}
                   >
                     <span
                       className={`w-[27px] h-[27px] shrink-0 rounded-full flex items-center justify-center text-xs font-extrabold ${
-                        isCorrect ? "bg-[#35d07f] text-[#08130c]" : "border-[1.5px] border-[#3a4a63] text-[#9aa6bc]"
+                        isCorrect ? "bg-[#35d07f] text-[#08130c]" :
+                        hostPicked ? "bg-[#ff0080] text-white" :
+                        "border-[1.5px] border-[#3a4a63] text-[#9aa6bc]"
                       }`}
                     >
                       {String.fromCharCode(65 + i)}
                     </span>
-                    <span className={`flex-1 text-[15px] ${isCorrect ? "font-bold text-[#eef2f8]" : "font-semibold text-[#c9d1e0]"}`}>
+                    <span className={`flex-1 text-[15px] ${isCorrect ? "font-bold text-[#eef2f8]" : hostPicked ? "font-bold text-[#eef2f8]" : "font-semibold text-[#c9d1e0]"}`}>
                       {c}
                     </span>
+                    {hostPicked && !isCorrect && (
+                      <span className="text-[11px] font-bold text-[#ff5aa8]">Your pick</span>
+                    )}
                     {isCorrect && (
                       <>
                         <div className="hidden sm:block w-20 h-1.5 rounded-full bg-white/10 overflow-hidden">
@@ -4436,6 +4501,73 @@ function LiveGameView({
                   </div>
                 );
               })}
+
+              {/* Play-along answer section for non-MC question types */}
+              {activeGame.hostPlaysAlong && currentQ && (() => {
+                const hasChoices = !!((currentQ.options as any)?.choices?.length);
+                if (hasChoices) return null;
+                const hostAnswered = hostAnswers[currentQ.id] !== undefined;
+                if (hostAnswered) {
+                  return (
+                    <div className="mt-3 pt-3 border-t border-[#1b2740] flex items-center gap-2">
+                      <span className="text-[11px] font-bold tracking-wide text-[#35d07f]">✓ YOUR ANSWER</span>
+                      <span className="text-sm text-[#eef2f8]">{hostAnswers[currentQ.id]}</span>
+                    </div>
+                  );
+                }
+                // True / False shortcut buttons
+                if (currentQ.questionType === 'true_false') {
+                  return (
+                    <div className="mt-3 pt-3 border-t border-[#1b2740]">
+                      <p className="text-[10px] font-bold tracking-[.15em] text-[#66728a] mb-2">YOUR ANSWER</p>
+                      <div className="flex gap-2">
+                        {['True', 'False'].map((opt) => (
+                          <button
+                            key={opt}
+                            disabled={submittingHostAnswer}
+                            onClick={() => submitHostAnswer(currentQ.id, opt.toLowerCase())}
+                            className="flex-1 py-2.5 rounded-xl border border-[#1b2740] text-sm font-semibold text-[#9aa6bc] hover:border-[#00ddff]/50 hover:bg-[#00ddff]/10 hover:text-[#eef2f8] disabled:opacity-40 transition"
+                          >
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+                // Write-in / short response
+                return (
+                  <div className="mt-3 pt-3 border-t border-[#1b2740]">
+                    <p className="text-[10px] font-bold tracking-[.15em] text-[#66728a] mb-2">YOUR ANSWER</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={hostAnswerInput}
+                        onChange={(e) => setHostAnswerInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') submitHostAnswer(currentQ.id, hostAnswerInput); }}
+                        placeholder="Type your answer…"
+                        disabled={submittingHostAnswer}
+                        className="flex-1 bg-[#0a1628] border border-[#1b2740] rounded-xl px-3 py-2 text-sm text-[#eef2f8] placeholder:text-[#3a4a63] focus:outline-none focus:border-[#00ddff]/50 disabled:opacity-40"
+                      />
+                      <button
+                        onClick={() => submitHostAnswer(currentQ.id, hostAnswerInput)}
+                        disabled={!hostAnswerInput.trim() || submittingHostAnswer}
+                        className="px-4 py-2 rounded-xl bg-[#00ddff]/15 border border-[#00ddff]/30 text-[#5be9ff] text-sm font-semibold disabled:opacity-40 hover:brightness-110 transition"
+                      >
+                        Submit
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Unanswered reminder — visible when host plays along but hasn't answered yet */}
+              {activeGame.hostPlaysAlong && currentQ && hostAnswers[currentQ.id] === undefined && (
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[#ffe500]/80 pt-1">
+                  <span>⚠</span>
+                  <span>You haven't answered this question yet</span>
+                </div>
+              )}
             </div>
           </div>
 

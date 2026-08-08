@@ -13,6 +13,7 @@ import {
 import { safeEmit } from "../lib/socket.ts";
 import { requireUser } from "../middleware/requireUser.ts";
 import { requireAuth } from "../middleware/requireAuth.ts";
+import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { assertGameOwnership } from "../lib/assertGameOwnership.ts";
 const answerRateLimit = rateLimit({
     windowMs: 60_000,
@@ -444,6 +445,151 @@ answeredAt: string; correctAnswer: string;
 
      res.json(ListUserAnswersResponse.parse(safeRows));
  },
+);
+
+
+// ─── Host play-along answer submission ─────────────────────────────────────
+// Admin-only endpoint: submits an answer on behalf of the host's player-user
+// (game.hostUserId) so the host can play along from the live host screen
+// without needing a separate player session.
+
+router.post(
+    "/games/:gameId/host-answer",
+    requireAdmin,
+    async (req, res): Promise<void> => {
+        const params = SubmitAnswerParams.safeParse(req.params);
+        if (!params.success) {
+            res.status(400).json({ error: params.error.message });
+            return;
+        }
+
+        const parsed = SubmitAnswerBody.safeParse(req.body);
+        if (!parsed.success) {
+            res.status(400).json({ error: parsed.error.message });
+            return;
+        }
+
+        if (!await assertGameOwnership(req, res, params.data.gameId)) return;
+
+        const [game] = await db
+            .select()
+            .from(gamesTable)
+            .where(eq(gamesTable.id, params.data.gameId));
+
+        if (!game) {
+            res.status(404).json({ error: "Game not found" });
+            return;
+        }
+        if (!game.hostPlaysAlong || !game.hostUserId) {
+            res.status(403).json({ error: "Play-along is not enabled for this game" });
+            return;
+        }
+        if (game.status !== "active") {
+            res.status(400).json({ error: "Answers can only be submitted to an active game" });
+            return;
+        }
+
+        const hostUserId = game.hostUserId;
+
+        const [participant] = await db
+            .select()
+            .from(gameParticipantsTable)
+            .where(
+                and(
+                    eq(gameParticipantsTable.gameId, game.id),
+                    eq(gameParticipantsTable.userId, hostUserId),
+                ),
+            );
+
+        if (!participant) {
+            res.status(403).json({ error: "Host is not registered as a participant" });
+            return;
+        }
+
+        const [question] = await db
+            .select()
+            .from(questionsTable)
+            .where(
+                and(
+                    eq(questionsTable.id, parsed.data.questionId),
+                    eq(questionsTable.gameId, params.data.gameId),
+                ),
+            );
+
+        if (!question) {
+            res.status(404).json({ error: "Question not found in this game" });
+            return;
+        }
+
+        // Duplicate check — host may only answer each question once
+        const [existing] = await db
+            .select({ id: answersTable.id })
+            .from(answersTable)
+            .where(
+                and(
+                    eq(answersTable.userId, hostUserId),
+                    eq(answersTable.questionId, question.id),
+                ),
+            );
+
+        if (existing) {
+            res.status(409).json({ error: "You already answered this question" });
+            return;
+        }
+
+        const opts = question.options as { alternateAnswers?: string[] } | null;
+        const alternates = opts?.alternateAnswers ?? [];
+        const { isCorrect, pointsEarned, feedback } = await gradeAnswer(
+            question.questionType,
+            parsed.data.userAnswer,
+            question.correctAnswer,
+            question.points,
+            alternates,
+            question.options as Record<string, unknown> | null,
+            question.questionText,
+        );
+
+        const [answer] = await db
+            .insert(answersTable)
+            .values({
+                userId: hostUserId,
+                gameId: question.gameId,
+                questionId: question.id,
+                userAnswer: parsed.data.userAnswer,
+                isCorrect,
+                pointsEarned,
+            })
+            .returning();
+
+        const totalScore = (participant.totalScore ?? 0) + pointsEarned;
+        await db
+            .update(gameParticipantsTable)
+            .set({ totalScore })
+            .where(eq(gameParticipantsTable.id, participant.id));
+
+        const responsePayload = toJsonSafe({
+            ...answer,
+            pointsEarned,
+            totalScore,
+            ...(feedback ? { feedback } : {}),
+        });
+        res.status(201).json(SubmitAnswerResponse.parse(responsePayload));
+
+        // Fire-and-forget: broadcast the event so the live tally updates
+        db.select({ name: usersTable.name })
+            .from(usersTable)
+            .where(eq(usersTable.id, hostUserId))
+            .then(([u]) => {
+                if (!u) return;
+                safeEmit(`game:${question.gameId}`, "answer:submitted", {
+                    gameId: question.gameId,
+                    questionId: question.id,
+                    playerName: u.name,
+                    isCorrect,
+                });
+            })
+            .catch(() => {});
+    },
 );
 
 

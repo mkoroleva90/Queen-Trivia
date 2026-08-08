@@ -87,6 +87,7 @@ export interface GameUpdate {
   brief?: string | null;
   /** @minLength 4 @maxLength 12 @pattern ^[A-Za-z0-9]+$ */
   accessCode?: string;
+  hostPlaysAlong?: boolean;
 }
 
 export type GameDifficulty = typeof GameDifficulty[keyof typeof GameDifficulty];
@@ -118,6 +119,8 @@ export interface Game {
   participantCount: number;
   accessCode?: string | null;
   brief?: string | null;
+  hostPlaysAlong?: boolean;
+  hostUserId?: number | null;
 }
 
 export type GameDetailDifficulty = typeof GameDetailDifficulty[keyof typeof GameDetailDifficulty];

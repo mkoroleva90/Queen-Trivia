@@ -6,6 +6,7 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from 'react-native';
@@ -63,6 +64,9 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [upgradeLimitMsg, setUpgradeLimitMsg] = useState<string | null>(null);
+  // Start-game confirmation state
+  const [startTarget, setStartTarget] = useState<Game | null>(null);
+  const [playAlongPending, setPlayAlongPending] = useState(false);
 
   const { data: games, isLoading, refetch } = useListGames();
   const { data: stats } = useGetStatsSummary();
@@ -83,11 +87,20 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
     setRefreshing(false);
   };
 
-  const handleStatus = async (game: Game, status: 'waiting' | 'active' | 'completed') => {
+  const handleStatus = async (game: Game, status: 'waiting' | 'active' | 'completed', extra?: { hostPlaysAlong?: boolean }) => {
     try {
-      await updateGame.mutateAsync({ gameId: game.id, data: { status } });
+      await updateGame.mutateAsync({ gameId: game.id, data: { status, ...extra } });
       qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
     } catch { /* silent */ }
+  };
+
+  const confirmStart = async () => {
+    if (!startTarget) return;
+    const target = startTarget;
+    const playAlong = playAlongPending;
+    setStartTarget(null);
+    setPlayAlongPending(false);
+    await handleStatus(target, 'active', playAlong ? { hostPlaysAlong: true } : undefined);
   };
 
   const handleDelete = async (id: number) => {
@@ -232,7 +245,7 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
                 {game.status === 'waiting' && (
                   <Pressable
                     style={[s.actionBtn, { backgroundColor: colors.secondary + '22', borderColor: colors.secondary + '44' }]}
-                    onPress={() => handleStatus(game, 'active')}
+                    onPress={() => { setPlayAlongPending(false); setStartTarget(game); }}
                   >
                     <Ionicons name="play" size={14} color={colors.secondary} />
                     <Text style={[s.actionText, { color: colors.secondary }]}>Start</Text>
@@ -280,6 +293,52 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
           ))}
         </ScrollView>
       )}
+
+      {/* Start-game confirmation Modal */}
+      <Modal visible={!!startTarget} animationType="slide" transparent presentationStyle="overFullScreen">
+        <View style={s.modalOverlay}>
+          <Pressable style={s.modalBackdrop} onPress={() => { setStartTarget(null); setPlayAlongPending(false); }} />
+          <View style={[s.sheet, { backgroundColor: colors.card, paddingBottom: insets.bottom + 24 }]}>
+            <View style={s.sheetHandle} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <Ionicons name="play-circle-outline" size={20} color={colors.secondary} />
+              <Text style={[s.sheetTitle, { color: colors.foreground }]}>Start game?</Text>
+            </View>
+            <Text style={{ fontSize: 14, color: colors.mutedForeground, lineHeight: 20, marginBottom: 16 }}>
+              {startTarget?.topic}
+            </Text>
+            {/* Play-along toggle */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.border, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, marginBottom: 16, backgroundColor: playAlongPending ? colors.primary + '10' : 'transparent' }}>
+              <View style={{ flex: 1, marginRight: 12 }}>
+                <Text style={{ fontSize: 15, fontFamily: 'Manrope_700Bold', color: colors.foreground, marginBottom: 3 }}>Play along</Text>
+                <Text style={{ fontSize: 13, color: colors.mutedForeground, lineHeight: 18 }}>
+                  Answer questions from the host screen — you'll appear in the standings
+                </Text>
+              </View>
+              <Switch
+                value={playAlongPending}
+                onValueChange={setPlayAlongPending}
+                trackColor={{ false: colors.border, true: colors.primary + '60' }}
+                thumbColor={playAlongPending ? colors.primary : colors.mutedForeground}
+              />
+            </View>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Pressable
+                style={[s.sheetBtn, { backgroundColor: colors.muted, flex: 1 }]}
+                onPress={() => { setStartTarget(null); setPlayAlongPending(false); }}
+              >
+                <Text style={[s.sheetBtnText, { color: colors.mutedForeground }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[s.sheetBtn, { backgroundColor: colors.secondary, flex: 1 }]}
+                onPress={confirmStart}
+              >
+                <Text style={s.sheetBtnText}>Go live</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Free-tier limit Modal */}
       <Modal visible={!!upgradeLimitMsg} animationType="slide" transparent presentationStyle="overFullScreen">
