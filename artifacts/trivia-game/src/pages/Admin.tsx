@@ -4763,6 +4763,8 @@ function GamesView({
   const [editingCodeId, setEditingCodeId] = useState<number | null>(null);
   const [codeDraft, setCodeDraft] = useState("");
   const [copiedCodeId, setCopiedCodeId] = useState<number | null>(null);
+  const [confirmStartGame, setConfirmStartGame] = useState<Game | null>(null);
+  const [playAlong, setPlayAlong] = useState(false);
 
   const startEditCode = (game: Game) => {
     setEditingCodeId(game.id);
@@ -4818,11 +4820,22 @@ function GamesView({
     queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
   };
 
-  const handleGoLive = async (game: Game) => {
+  const handleGoLive = (game: Game) => {
+    setConfirmStartGame(game);
+    setPlayAlong(false);
+  };
+
+  const doGoLive = () => {
+    if (!confirmStartGame) return;
+    const game = confirmStartGame;
     updateGame.mutate(
-      { gameId: game.id, data: { status: "active" } },
+      { gameId: game.id, data: { status: "active", hostPlaysAlong: playAlong } },
       {
-        onSuccess: () => { invalidate(); toast({ title: `"${game.topic}" is now live!` }); },
+        onSuccess: () => {
+          invalidate();
+          toast({ title: `"${game.topic}" is now live!` });
+          setConfirmStartGame(null);
+        },
         onError: () => toast({ variant: "destructive", title: "Failed to start" }),
       }
     );
@@ -5005,6 +5018,55 @@ function GamesView({
           );
         })}
       </div>
+
+      {/* ── Ready to go live? dialog ── */}
+      {confirmStartGame && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setConfirmStartGame(null)} />
+          <div className="relative bg-[#0f1724] border border-[#1b2740] rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <div className="flex items-center gap-2 mb-1">
+              <Play className="h-5 w-5 text-[#ff0080]" />
+              <span className="font-extrabold text-[#eef2f8] text-base">Ready to go live?</span>
+            </div>
+            <p className="text-sm text-[#9aa6bc] mb-4">
+              <span className="font-semibold text-[#eef2f8]">"{confirmStartGame.topic}"</span> will be visible to players immediately.
+            </p>
+
+            {/* Play along toggle */}
+            <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-[#1b2740] bg-white/[.02] px-4 py-3 hover:bg-white/[.04] transition mb-5">
+              <input
+                type="checkbox"
+                checked={playAlong}
+                onChange={(e) => setPlayAlong(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded accent-[#ff0080] cursor-pointer"
+              />
+              <span>
+                <span className="block text-sm font-semibold text-[#eef2f8]">Play along</span>
+                <span className="block text-xs text-[#9aa6bc] mt-0.5">
+                  Answer questions from this screen — you'll appear in the standings alongside your players
+                </span>
+              </span>
+            </label>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmStartGame(null)}
+                className="flex-1 py-2.5 rounded-xl border border-[#1b2740] text-sm font-semibold text-[#9aa6bc] hover:brightness-110 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={doGoLive}
+                disabled={updateGame.isPending}
+                className="flex-1 py-2.5 rounded-xl bg-[#35d07f] text-black text-sm font-extrabold disabled:opacity-50 hover:brightness-110 transition"
+              >
+                <Play className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />
+                Go live now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
