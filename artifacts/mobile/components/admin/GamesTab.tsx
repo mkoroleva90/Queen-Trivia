@@ -312,7 +312,7 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
               <View style={{ flex: 1, marginRight: 12 }}>
                 <Text style={{ fontSize: 15, fontFamily: 'Manrope_700Bold', color: colors.foreground, marginBottom: 3 }}>Play along</Text>
                 <Text style={{ fontSize: 13, color: colors.mutedForeground, lineHeight: 18 }}>
-                  Answer questions from the host screen — you'll appear in the standings
+                  Answer questions from this screen — you'll appear in the standings alongside your players
                 </Text>
               </View>
               <Switch
