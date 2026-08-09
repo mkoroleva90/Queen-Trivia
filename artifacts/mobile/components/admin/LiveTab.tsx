@@ -26,6 +26,7 @@ import {
   useUpdateGame,
 } from '@workspace/api-client-react';
 import type { Question } from '@workspace/api-client-react';
+import { COPY } from '@workspace/copy';
 import {
   createTallyStore,
   recordAnswerEvent,
@@ -503,7 +504,7 @@ export function LiveTab({ bottomPadding }: Props) {
         {/* YOUR ANSWER label — only when host is playing along and hasn't answered this MC question yet */}
         {hostPlayingAndUnanswered && choices.length > 0 && (
           <Text style={{ fontSize: 10, fontFamily: 'Manrope_700Bold', color: colors.mutedForeground, letterSpacing: 1.5, marginTop: 12, marginBottom: 2 }}>
-            YOUR ANSWER — tap a choice below
+            {COPY.hostPlayAlong.yourAnswerPrompt}
           </Text>
         )}
 
@@ -573,7 +574,7 @@ export function LiveTab({ bottomPadding }: Props) {
             style={{ alignItems: 'center', paddingVertical: 8 }}
           >
             <Text style={{ fontSize: 12, fontFamily: 'Manrope_600SemiBold', color: colors.mutedForeground }}>
-              Skip this question
+              {COPY.hostPlayAlong.skipBtn}
             </Text>
           </Pressable>
         )}
@@ -631,7 +632,7 @@ export function LiveTab({ bottomPadding }: Props) {
                 onPress={() => setSkipConfirmForQ({ id: currentQ.id, direction: 'next' })}
                 style={{ alignItems: 'center', paddingVertical: 8, marginTop: 4 }}
               >
-                <Text style={{ fontSize: 12, fontFamily: 'Manrope_600SemiBold', color: colors.mutedForeground }}>Skip this question</Text>
+                <Text style={{ fontSize: 12, fontFamily: 'Manrope_600SemiBold', color: colors.mutedForeground }}>{COPY.hostPlayAlong.skipBtn}</Text>
               </Pressable>
             </View>
           ) : (
@@ -659,7 +660,7 @@ export function LiveTab({ bottomPadding }: Props) {
                 onPress={() => setSkipConfirmForQ({ id: currentQ.id, direction: 'next' })}
                 style={{ alignItems: 'center', paddingVertical: 8, marginTop: 4 }}
               >
-                <Text style={{ fontSize: 12, fontFamily: 'Manrope_600SemiBold', color: colors.mutedForeground }}>Skip this question</Text>
+                <Text style={{ fontSize: 12, fontFamily: 'Manrope_600SemiBold', color: colors.mutedForeground }}>{COPY.hostPlayAlong.skipBtn}</Text>
               </Pressable>
             </View>
           )
@@ -737,11 +738,11 @@ export function LiveTab({ bottomPadding }: Props) {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <Ionicons name="warning-outline" size={20} color={colors.primary} />
               <Text style={{ fontSize: 16, fontFamily: 'Manrope_800ExtraBold', color: colors.foreground }}>
-                Skip this question?
+                {COPY.hostPlayAlong.skipDialogTitle}
               </Text>
             </View>
             <Text style={{ fontSize: 14, color: colors.mutedForeground, lineHeight: 20, marginBottom: 20 }}>
-              You haven't answered this question yet. If you continue, it will be counted as not answered and scored as 0 points.
+              {COPY.hostPlayAlong.skipDialogBody}
             </Text>
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <Pressable
@@ -752,7 +753,7 @@ export function LiveTab({ bottomPadding }: Props) {
                   backgroundColor: pressed ? colors.muted : 'transparent',
                 })}
               >
-                <Text style={{ fontSize: 14, fontFamily: 'Manrope_700Bold', color: colors.mutedForeground }}>Go back</Text>
+                <Text style={{ fontSize: 14, fontFamily: 'Manrope_700Bold', color: colors.mutedForeground }}>{COPY.hostPlayAlong.skipDialogGoBack}</Text>
               </Pressable>
               <Pressable
                 onPress={() => skipConfirmForQ && submitSkipAndNavigate(skipConfirmForQ.id, skipConfirmForQ.direction)}
@@ -761,7 +762,7 @@ export function LiveTab({ bottomPadding }: Props) {
                   backgroundColor: pressed ? colors.primary + 'cc' : colors.primary,
                 })}
               >
-                <Text style={{ fontSize: 14, fontFamily: 'Manrope_700Bold', color: '#fff' }}>Skip anyway</Text>
+                <Text style={{ fontSize: 14, fontFamily: 'Manrope_700Bold', color: '#fff' }}>{COPY.hostPlayAlong.skipDialogSkip}</Text>
               </Pressable>
             </View>
           </View>

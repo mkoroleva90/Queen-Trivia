@@ -126,4 +126,24 @@ export const COPY = {
     results: 'Results',
     rooms:   'Rooms',
   },
+
+  /**
+   * Host play-along strings — shown on the host's live control screen (web
+   * admin panel and mobile live tab) when the host is playing along with their
+   * own game.  Both platforms must use these keys so wording stays in sync.
+   */
+  hostPlayAlong: {
+    /** Inline button that opens the skip-confirmation dialog. */
+    skipBtn:          'Skip this question',
+    /** Title line of the skip-confirmation dialog. */
+    skipDialogTitle:  'Skip this question?',
+    /** Body paragraph of the skip-confirmation dialog. */
+    skipDialogBody:   "You haven't answered this question yet. If you continue, it will be counted as not answered and scored as 0 points.",
+    /** "Cancel" action in the skip dialog — keeps the host on the question. */
+    skipDialogGoBack: 'Go back',
+    /** "Confirm skip" action in the skip dialog. */
+    skipDialogSkip:   'Skip anyway',
+    /** Label shown above multiple-choice options before the host has answered. */
+    yourAnswerPrompt: 'YOUR ANSWER — tap a choice below',
+  },
 } as const;

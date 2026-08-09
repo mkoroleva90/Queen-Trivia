@@ -10,6 +10,7 @@ import {
   resetTallyStore,
   type TallyStore,
 } from "@workspace/live-tally";
+import { COPY } from "@workspace/copy";
 import { cn } from "@/lib/utils";
 import {
  DndContext,
@@ -1884,7 +1885,7 @@ return (
     </div>
    </div>
    {/* Info card */}
-   {isCustom ? (
+   {isCustom && (
     <Card className="border-purple-500/30 bg-purple-500/5">
      <CardContent className="p-4 text-sm space-y-1.5 flex gap-3">
       <Lightbulb className="h-4 w-4 text-purple-400 shrink-0 mt-0.5" />
@@ -1896,8 +1897,7 @@ return (
       </div>
      </CardContent>
     </Card>
-   ):(
-         )}
+   )}
 
 
          <Button
@@ -4465,7 +4465,7 @@ function LiveGameView({
 
             {/* YOUR ANSWER label — only when host is playing along and hasn't answered an MC question yet */}
             {hostPlayingAndUnanswered && !!((currentQ?.options as any)?.choices?.length) && (
-              <p className="text-[10px] font-bold tracking-[.15em] text-[#66728a] mb-1.5">YOUR ANSWER — tap a choice below</p>
+              <p className="text-[10px] font-bold tracking-[.15em] text-[#66728a] mb-1.5">{COPY.hostPlayAlong.yourAnswerPrompt}</p>
             )}
             <div className="space-y-2.5">
               {(currentQ?.options as any)?.choices?.map((c: string, i: number) => {
@@ -4526,7 +4526,7 @@ function LiveGameView({
                   onClick={() => setSkipConfirmForQ({ id: currentQ!.id, direction: 'next' })}
                   className="w-full text-center text-xs font-semibold text-[#66728a] hover:text-[#9aa6bc] pt-1 pb-0.5 transition"
                 >
-                  Skip this question
+                  {COPY.hostPlayAlong.skipBtn}
                 </button>
               )}
 
@@ -4572,7 +4572,7 @@ function LiveGameView({
                         onClick={() => setSkipConfirmForQ({ id: currentQ.id, direction: 'next' })}
                         className="mt-2 w-full text-center text-xs font-semibold text-[#66728a] hover:text-[#9aa6bc] py-1 transition"
                       >
-                        Skip this question
+                        {COPY.hostPlayAlong.skipBtn}
                       </button>
                     </div>
                   );
@@ -4603,7 +4603,7 @@ function LiveGameView({
                       onClick={() => setSkipConfirmForQ({ id: currentQ.id, direction: 'next' })}
                       className="mt-2 w-full text-center text-xs font-semibold text-[#66728a] hover:text-[#9aa6bc] py-1 transition"
                     >
-                      Skip this question
+                      {COPY.hostPlayAlong.skipBtn}
                     </button>
                   </div>
                 );
@@ -4667,23 +4667,23 @@ function LiveGameView({
             <div className="relative bg-[#0f1724] border border-[#1b2740] rounded-2xl p-6 w-full max-w-sm shadow-2xl">
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-[#ffe500] text-lg">⚠</span>
-                <span className="font-extrabold text-[#eef2f8] text-base">Skip this question?</span>
+                <span className="font-extrabold text-[#eef2f8] text-base">{COPY.hostPlayAlong.skipDialogTitle}</span>
               </div>
               <p className="text-sm text-[#9aa6bc] leading-relaxed mb-5">
-                You haven't answered this question yet. If you continue, it will be counted as not answered and scored as 0 points.
+                {COPY.hostPlayAlong.skipDialogBody}
               </p>
               <div className="flex gap-2">
                 <button
                   onClick={() => setSkipConfirmForQ(null)}
                   className="flex-1 py-2.5 rounded-xl border border-[#1b2740] text-sm font-semibold text-[#9aa6bc] hover:brightness-110 transition"
                 >
-                  Go back
+                  {COPY.hostPlayAlong.skipDialogGoBack}
                 </button>
                 <button
                   onClick={() => submitSkipAndNavigate(skipConfirmForQ.id, skipConfirmForQ.direction)}
                   className="flex-1 py-2.5 rounded-xl bg-[#ffe500]/20 border border-[#ffe500]/40 text-sm font-bold text-[#ffe500] hover:brightness-110 transition"
                 >
-                  Skip anyway
+                  {COPY.hostPlayAlong.skipDialogSkip}
                 </button>
               </div>
             </div>

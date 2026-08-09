@@ -232,6 +232,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
+      '@workspace/copy':
+        specifier: workspace:*
+        version: link:../../lib/copy
       '@workspace/live-tally':
         specifier: workspace:*
         version: link:../../lib/live-tally
@@ -637,6 +640,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
+      '@workspace/copy':
+        specifier: workspace:*
+        version: link:../../lib/copy
       '@workspace/live-tally':
         specifier: workspace:*
         version: link:../../lib/live-tally
