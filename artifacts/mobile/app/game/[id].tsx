@@ -33,6 +33,7 @@ import type { Question } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
 import { useGameSocket } from '@/hooks/useSocket';
+import { COPY } from '@workspace/copy';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -132,7 +133,7 @@ function MultiSelectQ({
 
   return (
     <View style={styles.choicesContainer}>
-      <Text style={[styles.hint, { color: colors.mutedForeground }]}>SELECT ALL THAT APPLY</Text>
+      <Text style={[styles.hint, { color: colors.mutedForeground }]}>{COPY.gameplay.hintSelectAll}</Text>
       {choices.map((choice, i) => {
         const isLocked = lockedSet.has(choice);
         const isDimmed = answered && !isLocked;
@@ -186,8 +187,8 @@ function TrueFalseQ({
         const isLocked = lockedAnswer === val;
         const isDimmed = answered && !isLocked;
         const cfg = val === 'true'
-          ? { bg: 'rgba(0,221,255,.15)', border: colors.secondary, label: 'TRUE', icon: 'checkmark-circle' as const }
-          : { bg: 'rgba(255,0,128,.15)', border: colors.primary, label: 'FALSE', icon: 'close-circle' as const };
+          ? { bg: 'rgba(0,221,255,.15)', border: colors.secondary, label: COPY.gameplay.tfTrue, icon: 'checkmark-circle' as const }
+          : { bg: 'rgba(255,0,128,.15)', border: colors.primary, label: COPY.gameplay.tfFalse, icon: 'close-circle' as const };
 
         return (
           <TouchableOpacity
@@ -242,7 +243,7 @@ function WriteInQ({
           disabled={!value.trim() || disabled}
           style={[styles.confirmBtn, { backgroundColor: colors.secondary, opacity: !value.trim() ? 0.5 : 1 }]}
         >
-          <Text style={[styles.confirmBtnText, { color: colors.secondaryForeground }]}>Submit Answer</Text>
+          <Text style={[styles.confirmBtnText, { color: colors.secondaryForeground }]}>{COPY.gameplay.btnLockItIn}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -280,7 +281,7 @@ function OrderingQ({
 
   return (
     <View style={styles.choicesContainer}>
-      <Text style={[styles.hint, { color: colors.mutedForeground }]}>ARRANGE IN ORDER</Text>
+      <Text style={[styles.hint, { color: colors.mutedForeground }]}>{COPY.gameplay.hintArrangeOrder}</Text>
       {display.map((item, i) => (
         <View
           key={item}
@@ -308,7 +309,7 @@ function OrderingQ({
           disabled={disabled}
           style={[styles.confirmBtn, { backgroundColor: colors.accent }]}
         >
-          <Text style={[styles.confirmBtnText, { color: colors.accentForeground }]}>Submit Order</Text>
+          <Text style={[styles.confirmBtnText, { color: colors.accentForeground }]}>{COPY.gameplay.btnLockInOrder}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -398,7 +399,7 @@ function ImageRecognitionQ({
           <Ionicons name="image-outline" size={36} color={colors.mutedForeground} />
         </View>
       )}
-      <Text style={[styles.hint, { color: colors.mutedForeground }]}>TYPE YOUR ANSWER BELOW</Text>
+      <Text style={[styles.hint, { color: colors.mutedForeground }]}>{COPY.gameplay.hintTypeBelow}</Text>
       <TextInput
         style={[styles.writeInInput, {
           backgroundColor: colors.card,
@@ -419,7 +420,7 @@ function ImageRecognitionQ({
           disabled={disabled || !answer.trim()}
           style={[styles.confirmBtn, { backgroundColor: colors.secondary, opacity: (!answer.trim() || disabled) ? 0.5 : 1 }]}
         >
-          <Text style={styles.confirmBtnText}>Submit Answer</Text>
+          <Text style={styles.confirmBtnText}>{COPY.gameplay.btnLockItIn}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -456,7 +457,7 @@ function ImageHotspotQ({
 
   return (
     <View style={styles.hotspotContainer}>
-      <Text style={[styles.hint, { color: colors.mutedForeground }]}>TAP THE IMAGE TO MARK YOUR ANSWER</Text>
+      <Text style={[styles.hint, { color: colors.mutedForeground }]}>{COPY.gameplay.hintTapImage}</Text>
       <TouchableOpacity
         activeOpacity={1}
         onPress={handlePress as never}
@@ -482,7 +483,7 @@ function ImageHotspotQ({
           disabled={disabled}
           style={[styles.confirmBtn, { backgroundColor: colors.primary }]}
         >
-          <Text style={styles.confirmBtnText}>Submit Location</Text>
+          <Text style={styles.confirmBtnText}>{COPY.gameplay.btnConfirmLocation}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -524,7 +525,7 @@ function MatchingQ({
 
   return (
     <View style={styles.matchContainer}>
-      <Text style={[styles.hint, { color: colors.mutedForeground }]}>TAP LEFT THEN RIGHT TO MATCH</Text>
+      <Text style={[styles.hint, { color: colors.mutedForeground }]}>{COPY.gameplay.hintMatchPairs}</Text>
       <View style={styles.matchColumns}>
         <View style={styles.matchColumn}>
           {leftItems.map((item) => {
@@ -568,7 +569,7 @@ function MatchingQ({
           disabled={disabled}
           style={[styles.confirmBtn, { backgroundColor: colors.secondary }]}
         >
-          <Text style={[styles.confirmBtnText, { color: colors.secondaryForeground }]}>Submit Matches</Text>
+          <Text style={[styles.confirmBtnText, { color: colors.secondaryForeground }]}>{COPY.gameplay.btnLockInMatches}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -589,7 +590,7 @@ function FeedbackCard({ feedback, onNext, isLast }: { feedback: Feedback; onNext
         />
         <View>
           <Text style={[styles.feedbackTitle, { color: feedback.isCorrect ? colors.secondary : colors.primary }]}>
-            {feedback.isCorrect ? 'Correct!' : 'Wrong'}
+            {feedback.isCorrect ? COPY.gameplay.feedbackCorrect : COPY.gameplay.feedbackWrong}
           </Text>
           <Text style={[styles.feedbackPoints, { color: colors.foreground }]}>
             +{feedback.pointsEarned} pts · {feedback.timeTaken}s
@@ -610,7 +611,7 @@ function FeedbackCard({ feedback, onNext, isLast }: { feedback: Feedback; onNext
         style={[styles.feedbackBtn, { backgroundColor: feedback.isCorrect ? colors.secondary : colors.muted }]}
       >
         <Text style={[styles.feedbackBtnText, { color: feedback.isCorrect ? colors.secondaryForeground : colors.foreground }]}>
-          {isLast ? 'See Results' : 'Next Question →'}
+          {isLast ? COPY.gameplay.feedbackSeeResults : COPY.gameplay.feedbackNext}
         </Text>
       </TouchableOpacity>
     </View>
@@ -759,15 +760,15 @@ export default function GamePlayScreen() {
           /* All questions answered */
           <View style={styles.doneState}>
             <Ionicons name="trophy" size={64} color={colors.accent} />
-            <Text style={[styles.doneTitle, { color: colors.foreground }]}>All done!</Text>
+            <Text style={[styles.doneTitle, { color: colors.foreground }]}>{COPY.gameplay.allDoneTitle}</Text>
             <Text style={[styles.doneSub, { color: colors.mutedForeground }]}>
-              You answered all {total} questions.
+              {COPY.gameplay.allDoneSub}
             </Text>
             <TouchableOpacity
               onPress={() => router.replace(`/results/${gameId}`)}
               style={[styles.confirmBtn, { backgroundColor: colors.accent, marginTop: 8 }]}
             >
-              <Text style={[styles.confirmBtnText, { color: colors.accentForeground }]}>See Results →</Text>
+              <Text style={[styles.confirmBtnText, { color: colors.accentForeground }]}>{COPY.gameplay.allDoneViewResults}</Text>
             </TouchableOpacity>
           </View>
         ) : (

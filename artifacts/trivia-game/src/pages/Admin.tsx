@@ -4613,7 +4613,7 @@ function LiveGameView({
               {activeGame.hostPlaysAlong && currentQ && hostAnswers[currentQ.id] === undefined && (
                 <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[#ffe500]/80 pt-1">
                   <span>⚠</span>
-                  <span>You haven't answered this question yet</span>
+                  <span>{COPY.hostPlayAlong.unansweredBadge}</span>
                 </div>
               )}
             </div>

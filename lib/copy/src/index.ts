@@ -145,5 +145,147 @@ export const COPY = {
     skipDialogSkip:   'Skip anyway',
     /** Label shown above multiple-choice options before the host has answered. */
     yourAnswerPrompt: 'YOUR ANSWER — tap a choice below',
+    /** Short badge shown when the host hasn't yet answered the current question. */
+    unansweredBadge:  "You haven't answered this question yet",
+  },
+
+  /**
+   * Player gameplay strings — shown to players while they answer questions.
+   * Both platforms must use these keys so wording stays in sync.
+   *
+   * Notes on capitalisation:
+   *   • Web hint labels are wrapped in CSS `uppercase` — sentence-case values
+   *     here display correctly on both platforms.
+   *   • Mobile hint labels use `textTransform: 'uppercase'` in StyleSheet —
+   *     same rule applies.
+   *   • Web action buttons marked with ↑ use CSS `uppercase`; raw string is
+   *     sentence-case so web display is unchanged.
+   */
+  gameplay: {
+    // ── Instructional hint labels ──────────────────────────────────────────
+    /** Shown above multi-select choices. */
+    hintSelectAll:   'Select all that apply',
+    /** Shown above ordering items before submission. */
+    hintArrangeOrder: 'Drag to put in the correct order',
+    /** Shown above image-recognition text input. */
+    hintTypeBelow:   'Type your answer below',
+    /** Shown inside the image-hotspot tappable area before the player taps. */
+    hintTapImage:    'Tap to mark your answer',
+    /**
+     * Shown above the mobile matching board (two-column tap UI).
+     * The web matching UI uses a dropdown and shows hintMatchBoard instead.
+     */
+    hintMatchPairs:  'TAP LEFT THEN RIGHT TO MATCH',
+    /** Shown as helper text inside the web matching board (dropdown UI). */
+    hintMatchBoard:  'Match each item on the left with its answer on the right.',
+
+    // ── Submit / confirm buttons ───────────────────────────────────────────
+    /** Write-in and image-recognition answer submit button. */
+    btnLockItIn:        'Lock It In',
+    /** Short-response (AI-graded) submit button. */
+    btnSubmitAnswer:    'Submit answer →',
+    /** Ordering question submit button. */
+    btnLockInOrder:     'Lock in order →',
+    /** Matching question submit button. */
+    btnLockInMatches:   'Lock In Matches',
+    /** Image-hotspot confirm-location button. */
+    btnConfirmLocation: 'Confirm location →',
+
+    // ── Loading / pending states ───────────────────────────────────────────
+    /** Spinner label while a standard answer is being submitted. */
+    pendingSubmitting: 'Submitting…',
+    /** Spinner label while a short-response answer is being AI-graded. */
+    pendingGrading:    'Grading with AI…',
+
+    // ── True/False button labels ───────────────────────────────────────────
+    /** Label on the True button. Sentence-case; platforms apply styling. */
+    tfTrue:  'True',
+    /** Label on the False button. Sentence-case; platforms apply styling. */
+    tfFalse: 'False',
+
+    // ── Post-answer feedback ───────────────────────────────────────────────
+    /** Shown when the player answered correctly. */
+    feedbackCorrect: 'Correct!',
+    /**
+     * Shown when the player answered incorrectly.
+     * Web: used inline, immediately followed by the points value on the same line
+     *      (e.g. "Not quite — 0 pts").  The trailing em dash is intentional.
+     * Mobile: used as a standalone FeedbackCard title; the trailing em dash is
+     *         a known structural difference flagged for review.
+     */
+    feedbackWrong:   'Not quite —',
+    /**
+     * "Next question" navigation button text.
+     * Web button has CSS `uppercase` — sentence-case value displays correctly.
+     */
+    feedbackNext:       'Next →',
+    /**
+     * "See results" navigation button text (last question).
+     * Web button has CSS `uppercase` — sentence-case value displays correctly.
+     */
+    feedbackSeeResults: 'See results →',
+    /** Legend label for the player's own pin on a hotspot reveal. */
+    hotspotYourGuess:       'Your guess',
+    /** Legend label for the correct-location pin on a hotspot reveal. */
+    hotspotCorrectLocation: 'Correct location',
+    /** Pulsing hint shown below the question while waiting for the player to answer. */
+    clockHint: "Tap your answer — the clock's ticking",
+
+    // ── All-questions-answered state ───────────────────────────────────────
+    /**
+     * Heading shown when the player has answered all questions.
+     * Stored in all-caps as on web (no CSS transform on that element).
+     */
+    allDoneTitle: "THAT'S A WRAP!",
+    /** Sub-text shown while waiting for other players to finish. */
+    allDoneSub:   'Watch the leaderboard — other players are still answering.',
+    /**
+     * Primary CTA button in the all-done state.
+     * Web button has CSS `uppercase` — sentence-case value displays correctly.
+     */
+    allDoneViewResults: 'View results',
+    /** Secondary CTA button in the all-done state (web only; mobile navigates automatically). */
+    allDoneBackToLobby: 'Back to Lobby',
+  },
+
+  /**
+   * Player results-screen strings — shown after the game ends.
+   * Both platforms must use these keys so wording stays in sync.
+   */
+  results: {
+    /**
+     * Page header label above the game topic.
+     * Both platforms apply `textTransform: 'uppercase'` via CSS / StyleSheet,
+     * so the sentence-case value here renders correctly on both.
+     */
+    headerLabel: 'Final Scores',
+    /** Title of the collapsible question-breakdown section. */
+    breakdown:   'Question-by-Question Breakdown',
+    /**
+     * "Your answer" label in the per-question answer detail.
+     * Both platforms apply `textTransform: 'uppercase'` via CSS / StyleSheet.
+     */
+    yourAnswer:    'Your answer',
+    /**
+     * "Correct answer" label in the per-question answer detail.
+     * Both platforms apply `textTransform: 'uppercase'` via CSS / StyleSheet.
+     */
+    correctAnswer: 'Correct answer',
+    /** Shown in place of an answer detail when the player skipped a question. */
+    unanswered:    "You didn't answer this question.",
+    /**
+     * Primary footer action button.
+     * Web: "Play again" (navigates to lobby).
+     * Mobile was "Back to Lobby" — aligned to web text in this pass.
+     */
+    playAgain:   'Play again',
+    /** Generic "back to lobby" label — used in gameplay all-done and wherever needed. */
+    backToLobby: 'Back to Lobby',
+    /** Loading spinner label while results fetch is in flight. */
+    loadingResults: 'Loading results…',
+    /** Error state message when results cannot be fetched. */
+    couldNotLoad:   'Could not load results.',
+    /** Retry link text in the error state. */
+    tryAgain:       'Try again',
   },
 } as const;

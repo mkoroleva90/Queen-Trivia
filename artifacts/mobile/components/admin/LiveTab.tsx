@@ -670,7 +670,7 @@ export function LiveTab({ bottomPadding }: Props) {
         {game?.hostPlaysAlong && currentQ && hostAnswers[currentQ.id] === undefined && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 10 }}>
             <Ionicons name="warning-outline" size={12} color={colors.primary + 'cc'} />
-            <Text style={{ fontSize: 11, fontFamily: 'Manrope_600SemiBold', color: colors.primary + 'cc' }}>You haven't answered this question yet</Text>
+            <Text style={{ fontSize: 11, fontFamily: 'Manrope_600SemiBold', color: colors.primary + 'cc' }}>{COPY.hostPlayAlong.unansweredBadge}</Text>
           </View>
         )}
       </View>

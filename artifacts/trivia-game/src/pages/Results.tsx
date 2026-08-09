@@ -23,6 +23,7 @@ import {
   Share2,
   BarChart3,
 } from "lucide-react";
+import { COPY } from "@workspace/copy";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -174,10 +175,10 @@ export default function Results() {
       <div className="min-h-[100dvh] flex items-center justify-center">
         <div className="text-center space-y-3">
           <Trophy className="mx-auto h-12 w-12 text-destructive/40" />
-          <p className="text-muted-foreground">Could not load results.</p>
+          <p className="text-muted-foreground">{COPY.results.couldNotLoad}</p>
           <p className="text-xs text-muted-foreground/60">{String(resultsError)}</p>
           <button className="text-sm text-primary underline" onClick={() => window.location.reload()}>
-            Try again
+            {COPY.results.tryAgain}
           </button>
         </div>
       </div>
@@ -189,7 +190,7 @@ export default function Results() {
       <div className="min-h-[100dvh] flex items-center justify-center">
         <div className="text-center space-y-3">
           <Trophy className="mx-auto h-12 w-12 text-primary/40 animate-pulse" />
-          <p className="text-muted-foreground">Loading results…</p>
+          <p className="text-muted-foreground">{COPY.results.loadingResults}</p>
         </div>
       </div>
     );
@@ -209,7 +210,7 @@ export default function Results() {
             className="font-semibold uppercase"
             style={{ fontSize: 10, letterSpacing: ".28em", color: "#a3aec2" }}
           >
-            Final Scores
+            {COPY.results.headerLabel}
           </p>
           <h1 className="font-extrabold text-white break-words" style={{ fontSize: 26, letterSpacing: "-.02em" }}>
             {game.topic}
@@ -328,7 +329,7 @@ export default function Results() {
               >
                 <span className="font-semibold flex items-center gap-2">
                   <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                  Question-by-Question Breakdown
+                  {COPY.results.breakdown}
                 </span>
                 {expandedQuestions
                   ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -394,7 +395,7 @@ export default function Results() {
                                 {myAns && (
                                   <div className="flex items-baseline gap-2 flex-wrap">
                                     <span className="text-[10px] font-bold uppercase tracking-widest text-red-400/70 shrink-0">
-                                      Your answer
+                                      {COPY.results.yourAnswer}
                                     </span>
                                     <span className="text-sm text-red-400/60 font-medium line-through leading-snug break-words">
                                       {myAns.userAnswer}
@@ -404,7 +405,7 @@ export default function Results() {
                                 {correctAnswer && (
                                   <div className="flex items-baseline gap-2 flex-wrap">
                                     <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400/80 shrink-0">
-                                      Correct answer
+                                      {COPY.results.correctAnswer}
                                     </span>
                                     <span className="text-sm text-emerald-400 font-bold leading-snug break-words">
                                       {correctAnswer}
@@ -413,7 +414,7 @@ export default function Results() {
                                 )}
                                 {status === "unanswered" && (
                                   <p className="text-[11px] text-muted-foreground italic">
-                                    You didn't answer this question.
+                                    {COPY.results.unanswered}
                                   </p>
                                 )}
                               </div>
@@ -448,7 +449,7 @@ export default function Results() {
               letterSpacing: ".04em",
             }}
           >
-            Play again
+            {COPY.results.playAgain}
           </button>
 
           {/* Share */}

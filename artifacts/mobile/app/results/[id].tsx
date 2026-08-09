@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
 import { API_BASE_URL } from '@/lib/apiBase';
+import { COPY } from '@workspace/copy';
 
 const RANK_COLORS = ['#ff0080', '#00ddff', '#8b5cf6', '#22c55e', '#f97316'];
 function rankColor(i: number) { return RANK_COLORS[i % RANK_COLORS.length] ?? '#ff0080'; }
@@ -97,7 +98,7 @@ export default function ResultsScreen() {
           <Ionicons name="chevron-back" size={24} color={colors.foreground} />
         </TouchableOpacity>
         <View style={styles.headerTitle}>
-          <Text style={[styles.headerLabel, { color: colors.mutedForeground }]}>FINAL SCORES</Text>
+          <Text style={[styles.headerLabel, { color: colors.mutedForeground }]}>{COPY.results.headerLabel}</Text>
           <Text style={[styles.headerGame, { color: colors.foreground }]} numberOfLines={1}>
             {game.topic}
           </Text>
@@ -168,7 +169,7 @@ export default function ResultsScreen() {
               style={styles.breakdownHeader}
             >
               <Ionicons name="bar-chart" size={16} color={colors.mutedForeground} />
-              <Text style={[styles.breakdownTitle, { color: colors.foreground }]}>Question Breakdown</Text>
+              <Text style={[styles.breakdownTitle, { color: colors.foreground }]}>{COPY.results.breakdown}</Text>
               <Ionicons name={expandBreakdown ? 'chevron-up' : 'chevron-down'} size={16} color={colors.mutedForeground} />
             </TouchableOpacity>
 
@@ -202,7 +203,7 @@ export default function ResultsScreen() {
                     <View style={styles.qAnswerDetail}>
                       {myAns && (
                         <View style={styles.qAnswerRow}>
-                          <Text style={[styles.qAnswerLabel, { color: 'rgba(248,113,113,.7)' }]}>Your answer</Text>
+                          <Text style={[styles.qAnswerLabel, { color: 'rgba(248,113,113,.7)' }]}>{COPY.results.yourAnswer}</Text>
                           <Text style={[styles.qAnswerValue, { color: 'rgba(248,113,113,.55)', textDecorationLine: 'line-through' }]}>
                             {myAns.userAnswer}
                           </Text>
@@ -210,7 +211,7 @@ export default function ResultsScreen() {
                       )}
                       {!!correctAnswer && (
                         <View style={styles.qAnswerRow}>
-                          <Text style={[styles.qAnswerLabel, { color: 'rgba(52,211,153,.8)' }]}>Correct answer</Text>
+                          <Text style={[styles.qAnswerLabel, { color: 'rgba(52,211,153,.8)' }]}>{COPY.results.correctAnswer}</Text>
                           <Text style={[styles.qAnswerValue, { color: '#34d399', fontWeight: '700' }]}>
                             {correctAnswer}
                           </Text>
@@ -218,7 +219,7 @@ export default function ResultsScreen() {
                       )}
                       {status === 'unanswered' && (
                         <Text style={[styles.qUnanswered, { color: colors.mutedForeground }]}>
-                          You didn't answer this question.
+                          {COPY.results.unanswered}
                         </Text>
                       )}
                     </View>
@@ -234,7 +235,7 @@ export default function ResultsScreen() {
           onPress={() => router.replace('/lobby')}
           style={[styles.backBtn, { backgroundColor: colors.accent }]}
         >
-          <Text style={[styles.backBtnText, { color: colors.accentForeground }]}>Back to Lobby</Text>
+          <Text style={[styles.backBtnText, { color: colors.accentForeground }]}>{COPY.results.playAgain}</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>

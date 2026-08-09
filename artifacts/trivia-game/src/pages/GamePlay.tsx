@@ -62,6 +62,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
+import { COPY } from "@workspace/copy";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -241,7 +242,7 @@ function MultipleChoiceQuestion({
                 onClick={() => onSubmit(selected)}
                 disabled={disabled}
                 pending={disabled}
-                pendingLabel="Submitting…"
+                pendingLabel={COPY.gameplay.pendingSubmitting}
                 bg="#ff0080"
                 color="#ffffff"
               >
@@ -278,7 +279,7 @@ function MultiSelectQuestion({
     <div className="flex flex-col gap-[10px]">
       {!answered && (
         <p className="text-[12px] font-semibold uppercase" style={{ letterSpacing: ".15em", color: "#a3aec2" }}>
-          Select all that apply
+          {COPY.gameplay.hintSelectAll}
         </p>
       )}
 
@@ -354,7 +355,7 @@ function MultiSelectQuestion({
                 onClick={() => onSubmit([...selected].sort().join("|"))}
                 disabled={disabled}
                 pending={disabled}
-                pendingLabel="Submitting…"
+                pendingLabel={COPY.gameplay.pendingSubmitting}
                 bg="#ff0080"
                 color="#ffffff"
               >
@@ -476,7 +477,7 @@ function OrderingQuestion({
     <div className="flex flex-col gap-[10px]">
       {!answered && (
         <p className="text-[12px] font-semibold uppercase" style={{ letterSpacing: ".15em", color: "#a3aec2" }}>
-          Drag to put in the correct order
+          {COPY.gameplay.hintArrangeOrder}
         </p>
       )}
 
@@ -506,11 +507,11 @@ function OrderingQuestion({
             onClick={() => onSubmit(items.join("|"))}
             disabled={disabled}
             pending={disabled}
-            pendingLabel="Submitting…"
+            pendingLabel={COPY.gameplay.pendingSubmitting}
             bg="#ff0080"
             color="#ffffff"
           >
-            Lock in order →
+            {COPY.gameplay.btnLockInOrder}
           </ActionBtn>
         </motion.div>
       )}
@@ -603,7 +604,7 @@ function TrueFalseQuestion({
                 onClick={() => onSubmit(selected)}
                 disabled={disabled}
                 pending={disabled}
-                pendingLabel="Submitting…"
+                pendingLabel={COPY.gameplay.pendingSubmitting}
                 bg="#ff0080"
                 color="#ffffff"
               >
@@ -648,11 +649,11 @@ function WriteInQuestion({
         onClick={() => { if (val.trim()) onSubmit(val.trim()); }}
         disabled={!val.trim() || disabled}
         pending={disabled}
-        pendingLabel="Submitting…"
+        pendingLabel={COPY.gameplay.pendingSubmitting}
         bg="#ff0080"
         color="#ffffff"
       >
-        Lock It In
+        {COPY.gameplay.btnLockItIn}
       </ActionBtn>
     </form>
   );
@@ -700,11 +701,11 @@ function ImageQuestion({
           onClick={() => { if (val.trim()) onSubmit(val.trim()); }}
           disabled={!val.trim() || disabled}
           pending={disabled}
-          pendingLabel="Submitting…"
+          pendingLabel={COPY.gameplay.pendingSubmitting}
           bg="#ff0080"
           color="#ffffff"
         >
-          Lock It In
+          {COPY.gameplay.btnLockItIn}
         </ActionBtn>
       </form>
     </div>
@@ -825,7 +826,7 @@ function ImageHotspotQuestion({
             style={{ background: "rgba(0,0,0,.3)", pointerEvents: "none" }}
           >
             <p className="text-white font-bold text-[15px]" style={{ textShadow: "0 1px 4px rgba(0,0,0,.8)" }}>
-              Tap to mark your answer
+              {COPY.gameplay.hintTapImage}
             </p>
           </div>
         )}
@@ -836,11 +837,11 @@ function ImageHotspotQuestion({
         <div className="flex justify-center gap-6">
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-full" style={{ background: "#ff0080" }} />
-            <span className="text-[12px] font-semibold" style={{ color: "#ff0080" }}>Your guess</span>
+            <span className="text-[12px] font-semibold" style={{ color: "#ff0080" }}>{COPY.gameplay.hotspotYourGuess}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-full" style={{ background: "#00ddff" }} />
-            <span className="text-[12px] font-semibold" style={{ color: "#00ddff" }}>Correct location</span>
+            <span className="text-[12px] font-semibold" style={{ color: "#00ddff" }}>{COPY.gameplay.hotspotCorrectLocation}</span>
           </div>
         </div>
       )}
@@ -852,11 +853,11 @@ function ImageHotspotQuestion({
             onClick={() => onSubmit(`${tap.x},${tap.y}`)}
             disabled={disabled}
             pending={disabled}
-            pendingLabel="Submitting…"
+            pendingLabel={COPY.gameplay.pendingSubmitting}
             bg="#ff0080"
             color="#ffffff"
           >
-            Confirm location →
+            {COPY.gameplay.btnConfirmLocation}
           </ActionBtn>
         </motion.div>
       )}
@@ -915,11 +916,11 @@ function ShortResponseQuestion({
           onClick={() => { if (val.trim() && !overLimit) onSubmit(val.trim()); }}
           disabled={!val.trim() || overLimit || disabled}
           pending={disabled}
-          pendingLabel="Grading with AI…"
+          pendingLabel={COPY.gameplay.pendingGrading}
           bg="#ff0080"
           color="#ffffff"
         >
-          Submit answer →
+          {COPY.gameplay.btnSubmitAnswer}
         </ActionBtn>
       </form>
     </div>
@@ -1058,7 +1059,7 @@ function SliderQuestion({
           onClick={() => onSubmit(String(value))}
           disabled={disabled}
           pending={disabled}
-          pendingLabel="Submitting…"
+          pendingLabel={COPY.gameplay.pendingSubmitting}
           bg="#ffe500"
           color="#0a0510"
         >
@@ -1100,7 +1101,7 @@ function MatchingBoard({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-muted-foreground">
-        Match each item on the left with its answer on the right.
+        {COPY.gameplay.hintMatchBoard}
       </p>
       {pairs.map((p) => (
         <div key={p.left} className="flex items-center gap-3">
@@ -1133,11 +1134,11 @@ function MatchingBoard({
         onClick={submit}
         disabled={!allChosen || disabled}
         pending={disabled}
-        pendingLabel="Submitting…"
+        pendingLabel={COPY.gameplay.pendingSubmitting}
         bg="#ff0080"
         color="#ffffff"
       >
-        Lock In Matches
+        {COPY.gameplay.btnLockInMatches}
       </ActionBtn>
     </div>
   );
@@ -1607,7 +1608,7 @@ export default function GamePlay() {
                             className="font-extrabold text-sm"
                             style={{ color: feedback.isCorrect ? "#00ddff" : "#ff0080" }}
                           >
-                            {feedback.isCorrect ? "Correct!" : "Not quite —"}{" "}
+                            {feedback.isCorrect ? COPY.gameplay.feedbackCorrect : COPY.gameplay.feedbackWrong}{" "}
                             {feedback.pointsEarned > 0 ? `+${feedback.pointsEarned}` : "0"} pts
                           </span>
                           {questionStats && (
@@ -1655,7 +1656,7 @@ export default function GamePlay() {
                             border: "none", cursor: "pointer",
                           }}
                         >
-                          {isLastQuestion ? "SEE RESULTS →" : "NEXT →"}
+                          {isLastQuestion ? COPY.gameplay.feedbackSeeResults : COPY.gameplay.feedbackNext}
                         </button>
                       </motion.div>
                     ) : (
@@ -1667,7 +1668,7 @@ export default function GamePlay() {
                         className="text-center animate-pulse"
                         style={{ fontSize: 12, fontWeight: 500, color: "#8b7ea3" }}
                       >
-                        Tap your answer — the clock's ticking
+                        {COPY.gameplay.clockHint}
                       </motion.p>
                     )}
                   </AnimatePresence>
@@ -1696,7 +1697,7 @@ export default function GamePlay() {
                       <Trophy className="mx-auto h-16 w-16 text-accent" />
                     </motion.div>
                     <div>
-                      <h2 className="text-3xl font-extrabold text-white">THAT'S A WRAP!</h2>
+                      <h2 className="text-3xl font-extrabold text-white">{COPY.gameplay.allDoneTitle}</h2>
                       <p className="text-lg mt-2">
                         You finished with{" "}
                         <span className="font-bold text-accent">{myScore} points</span>
@@ -1705,7 +1706,7 @@ export default function GamePlay() {
                         )}
                       </p>
                       <p className="text-muted-foreground text-sm mt-2 max-w-xs mx-auto">
-                        Watch the leaderboard — other players are still answering.
+                        {COPY.gameplay.allDoneSub}
                       </p>
                     </div>
                     <div className="flex gap-3 justify-center flex-wrap pt-2">
@@ -1720,7 +1721,7 @@ export default function GamePlay() {
                           letterSpacing: ".06em",
                         }}
                       >
-                        View Results
+                        {COPY.gameplay.allDoneViewResults}
                       </button>
                       <button
                         onClick={() => setLocation("/lobby")}
@@ -1733,7 +1734,7 @@ export default function GamePlay() {
                           cursor: "pointer",
                         }}
                       >
-                        Back to Lobby
+                        {COPY.results.backToLobby}
                       </button>
                     </div>
                   </div>
