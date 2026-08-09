@@ -103,7 +103,7 @@ export default function ResultsScreen() {
             {game.topic}
           </Text>
           <Text style={[styles.headerMeta, { color: colors.mutedForeground }]}>
-            {totalQuestions} questions · {participants.length} players
+            {totalQuestions} question{totalQuestions !== 1 ? 's' : ''} · {participants.length} player{participants.length !== 1 ? 's' : ''}
           </Text>
         </View>
       </View>
