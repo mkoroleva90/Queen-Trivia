@@ -28,7 +28,7 @@ const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 interface PlayerTokenPayload {
   role?: "player"; // optional — old tokens omit this field
   userId: number;
-  /** null = global code (no game restriction); array = per-game codes */
+  /** Array of game IDs this player is allowed to join. */
   allowedGameIds: number[] | null;
   iat: number;
 }
@@ -79,11 +79,11 @@ function parseToken(token: string): AnyTokenPayload | null {
 
 /**
  * Generate a signed HMAC token for a mobile player session.
- * @param allowedGameIds  null = global code (no restriction).
+ * @param allowedGameIds  Array of game IDs this player may join.
  */
 export function generateMobileToken(
   userId: number,
-  allowedGameIds: number[] | null,
+  allowedGameIds: number[],
 ): string {
   return makeToken({ role: "player", userId, allowedGameIds, iat: Date.now() });
 }
@@ -140,22 +140,18 @@ export async function injectMobileSession(
         req.session.userId = p.userId;
         req.session.isAdmin = false;
 
-        if (p.allowedGameIds === null) {
-          // Global code — no game restriction.
-          req.session.allowedGameIds = undefined;
-        } else {
-          // Per-game: union of token's allowed IDs + current participant rows.
-          try {
-            const rows = await db
-              .select({ gameId: gameParticipantsTable.gameId })
-              .from(gameParticipantsTable)
-              .where(eq(gameParticipantsTable.userId, p.userId));
-            const dbIds = rows.map((r) => r.gameId);
-            const all = new Set([...p.allowedGameIds, ...dbIds]);
-            req.session.allowedGameIds = [...all];
-          } catch {
-            req.session.allowedGameIds = p.allowedGameIds;
-          }
+        // Per-game: union of token's allowed IDs + current participant rows.
+        const tokenIds = p.allowedGameIds ?? [];
+        try {
+          const rows = await db
+            .select({ gameId: gameParticipantsTable.gameId })
+            .from(gameParticipantsTable)
+            .where(eq(gameParticipantsTable.userId, p.userId));
+          const dbIds = rows.map((r) => r.gameId);
+          const all = new Set([...tokenIds, ...dbIds]);
+          req.session.allowedGameIds = [...all];
+        } catch {
+          req.session.allowedGameIds = tokenIds;
         }
       }
     }

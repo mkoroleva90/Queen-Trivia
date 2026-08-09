@@ -1,7 +1,7 @@
 
 import { Router, type IRouter } from "express";
 import { and, eq, ne } from "drizzle-orm";
-import { db, adminSettingsTable, gamesTable } from "@workspace/db";
+import { db, gamesTable } from "@workspace/db";
 import {
   VerifyAccessCodeBody,
   VerifyAccessCodeResponse,
@@ -12,9 +12,9 @@ import { authRateLimit } from "../middleware/authRateLimit.ts";
 const router: IRouter = Router();
 
 
-// POST /api/auth/verify — verify a trivia or per-game access code.
-// The trivia access code is compared case-insensitively so players who type
-// lower-case on a phone still join successfully.
+// POST /api/auth/verify — verify a per-game access code.
+// Only per-game codes are accepted; the global trivia access code concept
+// has been removed. Returns valid=true with a gameId on success.
 router.post("/auth/verify", authRateLimit, async (req, res): Promise<void> => {
   const parsed = VerifyAccessCodeBody.safeParse(req.body);
   if (!parsed.success) {
@@ -22,24 +22,7 @@ router.post("/auth/verify", authRateLimit, async (req, res): Promise<void> => {
     return;
   }
 
-
-  const [settings] = await db.select().from(adminSettingsTable).limit(1);
-
-
-  if (!settings) {
-    res.json(VerifyAccessCodeResponse.parse({ valid: false, role: "none" }));
-    return;
-  }
-
-
   const code = parsed.data.code.trim();
-
-  // Case-insensitive match against the global trivia access code
-  if (code.toUpperCase() === settings.triviaAccessCode.toUpperCase()) {
-    res.json(VerifyAccessCodeResponse.parse({ valid: true, role: "player" }));
-    return;
-  }
-
 
   // Per-game access codes: match a non-completed game's code (case-insensitive)
   const [game] = await db
@@ -73,7 +56,6 @@ router.post("/auth/verify", authRateLimit, async (req, res): Promise<void> => {
     );
     return;
   }
-
 
   res.json(VerifyAccessCodeResponse.parse({ valid: false, role: "none" }));
 });

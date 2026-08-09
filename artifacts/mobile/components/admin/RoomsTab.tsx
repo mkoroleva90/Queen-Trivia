@@ -20,13 +20,6 @@ import { useColors } from '@/hooks/useColors';
 
 // ── Validation helpers (mirror of server rules in accessCodeValidation.ts) ────
 
-function triviaCodeError(code: string): string | null {
-  const t = code.trim();
-  if (t.length < 4 || t.length > 6) return 'Trivia access code must be 4–6 characters.';
-  if (!/^[A-Za-z0-9]+$/.test(t)) return 'Trivia access code may only contain letters and numbers.';
-  return null;
-}
-
 const ADMIN_COMMON = new Set([
   'password','passw0rd','letmein','welcome','monkey','dragon','master',
   'iloveyou','sunshine','princess','football','shadow','superman','batman',
@@ -61,7 +54,7 @@ function adminCodeError(code: string): string | null {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-type Settings = { triviaAccessCode: string; adminCodeIsSet: boolean };
+type Settings = { adminCodeIsSet: boolean };
 
 async function adminFetch(url: string, options?: RequestInit) {
   const token = await SecureStore.getItemAsync(ADMIN_TOKEN_KEY).catch(() => null);
@@ -78,17 +71,15 @@ async function adminFetch(url: string, options?: RequestInit) {
 type Props = { bottomPadding: number };
 
 /**
- * Rooms tab — access codes management + account danger zone.
+ * Rooms tab — admin access code management + account danger zone.
  */
 export function RoomsTab({ bottomPadding }: Props) {
   const colors = useColors();
   const router = useRouter();
   const { logoutAdmin } = useAdminAuth();
 
-  const [triviaCode, setTriviaCode] = useState('');
   const [adminCode, setAdminCode] = useState('');
   const [adminCodeIsSet, setAdminCodeIsSet] = useState(false);
-  const [currentTrivia, setCurrentTrivia] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -96,14 +87,9 @@ export function RoomsTab({ bottomPadding }: Props) {
   const [success, setSuccess] = useState('');
 
   // Per-field computed validation
-  const triviaErr = triviaCodeError(triviaCode);
   const adminErr = adminCode.trim() ? adminCodeError(adminCode) : null;
-  const codesMatchErr =
-    adminCode.trim() && triviaCode.trim().toUpperCase() === adminCode.trim().toUpperCase()
-      ? 'Trivia access code and admin access code must be different.'
-      : null;
-  const isInvalid = !!triviaErr || !!adminErr || !!codesMatchErr;
-  const unchanged = triviaCode.trim().toUpperCase() === currentTrivia.toUpperCase() && adminCode.trim() === '';
+  const isInvalid = !!adminErr;
+  const unchanged = adminCode.trim() === '';
 
   const baseUrl = API_BASE_URL;
 
@@ -115,10 +101,7 @@ export function RoomsTab({ bottomPadding }: Props) {
         const r = await adminFetch(`${baseUrl}/api/settings`);
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const data = (await r.json()) as Settings;
-        setCurrentTrivia(data.triviaAccessCode);
-        setTriviaCode(data.triviaAccessCode);
         setAdminCodeIsSet(data.adminCodeIsSet);
-        // Admin code field always starts empty — hash is never returned to client.
       } catch {
         setGlobalError('Could not load settings. Check your connection and try again.');
       } finally {
@@ -132,8 +115,8 @@ export function RoomsTab({ bottomPadding }: Props) {
     setGlobalError('');
     setSuccess('');
     setSaving(true);
-    const body: Record<string, string> = { triviaAccessCode: triviaCode.trim() };
-    if (adminCode.trim()) body.adminAccessCode = adminCode; // omit → server keeps existing hash
+    const body: Record<string, string> = {};
+    if (adminCode.trim()) body.adminAccessCode = adminCode;
     try {
       const r = await adminFetch(`${baseUrl}/api/settings`, {
         method: 'PATCH',
@@ -143,9 +126,7 @@ export function RoomsTab({ bottomPadding }: Props) {
         const json = await r.json().catch(() => ({})) as { error?: string };
         throw new Error(json.error ?? `HTTP ${r.status}`);
       }
-      const updated = (await r.json()) as { triviaAccessCode: string; adminCodeIsSet: boolean };
-      setCurrentTrivia(updated.triviaAccessCode);
-      setTriviaCode(updated.triviaAccessCode);
+      const updated = (await r.json()) as { adminCodeIsSet: boolean };
       if (updated.adminCodeIsSet) setAdminCodeIsSet(true);
       setAdminCode(''); // clear after save — hash is never displayed
       setSuccess('Settings saved successfully.');
@@ -205,40 +186,15 @@ export function RoomsTab({ bottomPadding }: Props) {
         contentContainerStyle={[s.body, { paddingBottom: bottomPadding + 24 }]}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Access codes card */}
+        {/* Admin access code card */}
         <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={s.sectionHeader}>
             <Ionicons name="key-outline" size={18} color={colors.primary} />
-            <Text style={[s.sectionTitle, { color: colors.foreground }]}>Access codes</Text>
+            <Text style={[s.sectionTitle, { color: colors.foreground }]}>Admin access code</Text>
           </View>
           <Text style={[s.sectionDesc, { color: colors.mutedForeground }]}>
-            Players use the trivia access code to join. The admin access code is stored encrypted and never shown — enter a new value to change it.
+            The admin access code is stored encrypted and never shown — enter a new value to change it.
           </Text>
-
-          {/* Trivia access code */}
-          <View style={s.fieldGroup}>
-            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Trivia access code</Text>
-            <Text style={[s.fieldHelper, { color: colors.mutedForeground }]}>
-              4–6 characters. Players can type in any case.
-            </Text>
-            <TextInput
-              style={[s.input, {
-                backgroundColor: colors.background,
-                color: colors.foreground,
-                borderColor: triviaErr ? colors.destructive : colors.border,
-              }]}
-              value={triviaCode}
-              onChangeText={(v) => { setTriviaCode(v.toUpperCase()); setGlobalError(''); setSuccess(''); }}
-              placeholder="4–6 characters, e.g. QUIZ5"
-              placeholderTextColor={colors.mutedForeground}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              maxLength={6}
-            />
-            {!!triviaErr && (
-              <Text style={[s.fieldError, { color: colors.destructive }]}>{triviaErr}</Text>
-            )}
-          </View>
 
           {/* Admin access code */}
           <View style={s.fieldGroup}>
@@ -252,7 +208,7 @@ export function RoomsTab({ bottomPadding }: Props) {
               style={[s.input, {
                 backgroundColor: colors.background,
                 color: colors.foreground,
-                borderColor: (adminErr || codesMatchErr) ? colors.destructive : colors.border,
+                borderColor: adminErr ? colors.destructive : colors.border,
               }]}
               value={adminCode}
               onChangeText={(v) => { setAdminCode(v); setGlobalError(''); setSuccess(''); }}
@@ -262,8 +218,8 @@ export function RoomsTab({ bottomPadding }: Props) {
               autoCorrect={false}
               secureTextEntry
             />
-            {!!(adminErr || codesMatchErr) && (
-              <Text style={[s.fieldError, { color: colors.destructive }]}>{codesMatchErr ?? adminErr}</Text>
+            {!!adminErr && (
+              <Text style={[s.fieldError, { color: colors.destructive }]}>{adminErr}</Text>
             )}
           </View>
 
@@ -299,7 +255,7 @@ export function RoomsTab({ bottomPadding }: Props) {
             )}
           </Pressable>
           {unchanged && !isInvalid && (
-            <Text style={[s.noChanges, { color: colors.mutedForeground }]}>No changes to save.</Text>
+            <Text style={[s.noChanges, { color: colors.mutedForeground }]}>Enter a new passphrase to update.</Text>
           )}
         </View>
 

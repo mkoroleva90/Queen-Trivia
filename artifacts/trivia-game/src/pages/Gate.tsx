@@ -127,10 +127,12 @@ export default function Gate() {
                 return;
               }
             } catch {
-              // Network error — fall through to lobby
+              // Network error — show error
             }
           }
-          setLocation("/lobby");
+          setCodeError("Could not join game — please try again");
+          setStep("code");
+          setOnboardingStep(2);
         })
         .catch(() => {
           // Network error — fall through to full onboarding
@@ -229,10 +231,12 @@ export default function Gate() {
             return;
           }
         } catch {
-          // fall through to lobby
+          // fall through to error
         }
       }
-      setLocation("/lobby");
+      setStep("code");
+      setOnboardingStep(2);
+      setCodeError("Could not join game — please try again");
     } catch {
       toast({ variant: "destructive", title: "Connection error — please retry" });
     } finally {

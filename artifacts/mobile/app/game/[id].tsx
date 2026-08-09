@@ -735,7 +735,7 @@ export default function GamePlayScreen() {
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.gameHeader, { paddingTop: topPad + 8 }]}>
-        <TouchableOpacity onPress={() => router.replace('/lobby')} hitSlop={12}>
+        <TouchableOpacity onPress={() => router.replace('/')} hitSlop={12}>
           <Ionicons name="chevron-back" size={24} color={colors.foreground} />
         </TouchableOpacity>
         <View style={styles.gameHeaderCenter}>

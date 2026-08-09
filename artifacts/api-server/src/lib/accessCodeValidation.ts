@@ -1,33 +1,13 @@
 /**
  * Access code validation — authoritative server-side rules.
  *
- * TRIVIA ACCESS CODE  — 4–6 alphanumeric characters; case-insensitive on entry.
- *   Players type this on a phone in a noisy room. Kept short and unambiguous.
- *
  * ADMIN ACCESS CODE   — 12–64 characters; spaces allowed (supports passphrases).
  *   Rejects sequential runs, repeated characters, keyboard patterns, and common
  *   passwords so the code cannot be brute-forced regardless of length.
+ *
+ * Per-game access codes are managed on the game record itself and validated
+ * by the game creation/update routes (4–6 alphanumeric characters).
  */
-
-// ── Trivia code ───────────────────────────────────────────────────────────────
-
-/**
- * Characters used when auto-generating a trivia access code.
- * Excludes visually confusable pairs: 0/O  1/I/l
- */
-export const TRIVIA_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-
-/** Returns null if valid, or an error string naming the field. */
-export function validateTriviaCode(code: string): string | null {
-  const t = code.trim();
-  if (t.length < 4 || t.length > 6) {
-    return "Trivia access code must be 4–6 characters.";
-  }
-  if (!/^[A-Za-z0-9]+$/.test(t)) {
-    return "Trivia access code may only contain letters and numbers (no spaces or symbols).";
-  }
-  return null;
-}
 
 // ── Admin code ────────────────────────────────────────────────────────────────
 

@@ -53,18 +53,12 @@ router.post("/games/:gameId/join", requireUser, async (req, res): Promise<void> 
 
     const sessionUserId = req.session.userId!;
 
-    // Sessions with a per-game access code may only join allowed games.
-    // allowedGameIds (new) takes precedence; fall back to legacy allowedGameId
-    // for sessions that were created before the multi-game update.
-    const allowedIds = req.session.allowedGameIds;
+    // Sessions must have an allowedGameIds list and the requested game must be in it.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const legacyId: number | undefined = (req.session as any).allowedGameId;
-    if (allowedIds !== undefined) {
-        if (!allowedIds.includes(params.data.gameId)) {
-            res.status(403).json({ error: "Your access code is only valid for a different game" });
-            return;
-        }
-    } else if (typeof legacyId === "number" && legacyId !== params.data.gameId) {
+    const allowedIds: number[] = req.session.allowedGameIds
+        ?? (typeof legacyId === "number" ? [legacyId] : []);
+    if (!allowedIds.includes(params.data.gameId)) {
         res.status(403).json({ error: "Your access code is only valid for a different game" });
         return;
     }

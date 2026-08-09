@@ -213,15 +213,6 @@ export function LiveTab({ bottomPadding }: Props) {
     if (applySeed(tallyStore.current, seedStats)) syncTallies();
   }, [seedStats, gameId, syncTallies]);
 
-  // ── Global room code (matches what players type on the home screen) ──────
-  const { data: settings } = useQuery<{ triviaAccessCode?: string }>({
-    queryKey: ['live-tab-settings'],
-    queryFn: () => fetchAdminJson<{ triviaAccessCode?: string }>(`${baseUrl}/api/settings`),
-    enabled: game != null,
-    staleTime: 5 * 60 * 1000,
-  });
-  const roomCode = settings?.triviaAccessCode ?? null;
-
   // ── Data queries ─────────────────────────────────────────────────────────
   const { data: questions } = useListGameQuestions(gameId ?? 0, {
     query: {
@@ -447,12 +438,6 @@ export function LiveTab({ bottomPadding }: Props) {
             {parts.length} player{parts.length !== 1 ? 's' : ''}
           </Text>
         </View>
-        {!!roomCode && (
-          <View style={[s.codeChip, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[s.codeLabel, { color: colors.mutedForeground }]}>ROOM</Text>
-            <Text style={[s.codeText, { color: colors.accent }]}>{roomCode}</Text>
-          </View>
-        )}
       </View>
 
       {/* ── Question card ── */}

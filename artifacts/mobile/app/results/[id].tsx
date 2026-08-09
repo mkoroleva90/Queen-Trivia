@@ -94,7 +94,7 @@ export default function ResultsScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: topPad + 8 }]}>
-        <TouchableOpacity onPress={() => router.replace('/lobby')} hitSlop={12}>
+        <TouchableOpacity onPress={() => router.replace('/')} hitSlop={12}>
           <Ionicons name="chevron-back" size={24} color={colors.foreground} />
         </TouchableOpacity>
         <View style={styles.headerTitle}>
@@ -232,7 +232,7 @@ export default function ResultsScreen() {
 
         {/* Back to Lobby */}
         <TouchableOpacity
-          onPress={() => router.replace('/lobby')}
+          onPress={() => router.replace('/')}
           style={[styles.backBtn, { backgroundColor: colors.accent }]}
         >
           <Text style={[styles.backBtnText, { color: colors.accentForeground }]}>{COPY.results.playAgain}</Text>

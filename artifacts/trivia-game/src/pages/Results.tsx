@@ -439,7 +439,7 @@ export default function Results() {
         >
           {/* Play again */}
           <button
-            onClick={() => setLocation("/lobby")}
+            onClick={() => setLocation("/")}
             className="flex-1 font-extrabold text-[15px]"
             style={{
               height: 52, borderRadius: 14,

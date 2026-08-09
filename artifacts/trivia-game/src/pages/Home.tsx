@@ -6,35 +6,9 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, AlertCircle } from "lucide-react";
 
 // ─── Queen Trivia home / landing page ────────────────────────────────────────
-// Public entry: hero + room-code join card + how-it-works. Responsive.
-// Join wires into the existing /api/auth/verify path, then hands off to /join.
-
-const STEPS = [
-  {
-    glyph: "⌗",
-    title: "Enter the code",
-    desc: "Your host shares a room code. Type it in — no download, no sign-up.",
-    bg: "rgba(255,0,128,.1)",
-    bd: "rgba(255,0,128,.3)",
-    ic: "#ff4d9d",
-  },
-  {
-    glyph: "✦",
-    title: "Answer fast",
-    desc: "Every question is a race. Faster correct answers earn more points and build your streak.",
-    bg: "rgba(255,229,0,.1)",
-    bd: "rgba(255,229,0,.3)",
-    ic: "#ffe500",
-  },
-  {
-    glyph: "♛",
-    title: "Claim the crown",
-    desc: "Climb the live leaderboard and take the throne when the final scores drop.",
-    bg: "rgba(255,0,128,.1)",
-    bd: "rgba(255,0,128,.3)",
-    ic: "#ff4d9d",
-  },
-];
+// Two entry paths: Admin Login and Join a Game (per-game code).
+// Join wires into /api/auth/verify, then hands off to /join?code=...
+// Invalid/expired codes show an inline error.
 
 export default function Home() {
   const [code, setCode] = useState("");
@@ -44,13 +18,12 @@ export default function Home() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
-
   const handleJoin = async (e?: React.FormEvent) => {
     e?.preventDefault();
     const trimmed = code.trim().toUpperCase();
     if (!trimmed) {
-      // No code yet — start the guided join flow
-      setLocation("/join");
+      setError("Enter your game code");
+      inputRef.current?.focus();
       return;
     }
     setError("");
@@ -65,10 +38,6 @@ export default function Home() {
       const data = await res.json();
       if (!data.valid) {
         setError("That code isn't right — try again");
-        return;
-      }
-      if (data.role === "admin") {
-        setLocation("/admin-login");
         return;
       }
       setLocation(`/join?code=${encodeURIComponent(trimmed)}`);
@@ -92,10 +61,7 @@ export default function Home() {
         .qt-tbtn{cursor:pointer;transition:filter .14s,transform .14s}
         .qt-tbtn:hover{filter:brightness(1.1)}
         .qt-tbtn:active{transform:translateY(1px)}
-        .qt-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
         @media (max-width:680px){
-          .qt-steps{grid-template-columns:1fr}
-          .qt-nav-link{display:none}
           .qt-hero{padding:20px 20px 12px!important}
           .qt-motif{display:none}
         }
@@ -146,8 +112,8 @@ export default function Home() {
             boxShadow: "0 34px 80px -30px rgba(255,0,128,.45)",
           }}
         >
-          <div className="font-bold text-[#ffffff]" style={{ fontSize: 10, letterSpacing: ".16em", color: "#66728a" }}>
-            ENTER ROOM CODE
+          <div className="font-bold" style={{ fontSize: 10, letterSpacing: ".16em", color: "#66728a" }}>
+            JOIN A GAME
           </div>
           <input
             ref={inputRef}
@@ -161,7 +127,7 @@ export default function Home() {
             autoComplete="off"
             inputMode="text"
             enterKeyHint="go"
-            aria-label="Room code"
+            aria-label="Game code"
             placeholder="      "
             className="qt-code-input w-full text-center"
             style={{
@@ -206,10 +172,12 @@ export default function Home() {
             )}
           </button>
         </form>
+
+        {/* Admin login */}
         <div className="font-medium" style={{ marginTop: 18, fontSize: 13, color: "#66728a" }}>
           Hosting tonight?{" "}
-          <Link href="/register" className="qt-tbtn font-bold" style={{ color: "#ffe500" }}>
-            Create a game free →
+          <Link href="/admin-login" className="qt-tbtn font-bold" style={{ color: "#ffe500" }}>
+            Admin login →
           </Link>
         </div>
       </div>

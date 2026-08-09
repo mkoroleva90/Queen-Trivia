@@ -8,7 +8,6 @@ import { AuthProvider, useAuth } from "./lib/auth";
 import Home from "./pages/Home";
 import Gate from "./pages/Gate";
 import AdminLogin from "./pages/AdminLogin";
-import Lobby from "./pages/Lobby";
 import GamePlay from "./pages/GamePlay";
 import Results from "./pages/Results";
 import Admin from "./pages/Admin";
@@ -61,9 +60,6 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/join" component={Gate} />
       <Route path="/admin-login" component={AdminLogin} />
-      <Route path="/lobby">
-        <PlayerRoute component={Lobby} />
-      </Route>
       <Route path="/game/:id">
         <PlayerRoute component={GamePlay} />
       </Route>

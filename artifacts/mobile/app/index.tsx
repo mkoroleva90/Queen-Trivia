@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -41,12 +41,7 @@ export default function WelcomeScreen() {
 
   const baseUrl = API_BASE_URL;
 
-  // Redirect already-logged-in users
-  useEffect(() => {
-    if (authReady && user) {
-      router.replace('/lobby');
-    }
-  }, [authReady, user, router]);
+  // Note: logged-in players stay on the home screen so they can enter a per-game code.
 
   const animateStep = (nextStep: Step) => {
     Animated.sequence([
@@ -119,9 +114,11 @@ export default function WelcomeScreen() {
             router.replace(`/game/${userData.gameId}`);
             return;
           }
-        } catch { /* fall through to lobby */ }
+        } catch { /* fall through to error */ }
       }
-      router.replace('/lobby');
+      // Per-game code always has a gameId — show an error if join failed
+      setNameError('Could not join the game — please try again');
+      animateStep(2);
     } catch {
       setNameError('Connection error — please retry');
     } finally {

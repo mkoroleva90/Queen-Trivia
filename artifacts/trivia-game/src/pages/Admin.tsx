@@ -99,11 +99,8 @@ PlusCircle,
 Settings,
 HelpCircle,
 LogOut,
-Eye,
-EyeOff,
 Crown,
 AlertTriangle,
- KeyRound,
 ChevronRight,
 Trophy,
 CheckCircle2,
@@ -2876,314 +2873,6 @@ return (
  </div>
 );
 }
-// ── Validation helpers (mirrors server rules in accessCodeValidation.ts) ──────
-
-function stTriviaErr(code: string): string | null {
-  const t = code.trim();
-  if (t.length < 4 || t.length > 6) return "Trivia access code must be 4–6 characters.";
-  if (!/^[A-Za-z0-9]+$/.test(t)) return "Trivia access code may only contain letters and numbers.";
-  return null;
-}
-
-const ST_ADMIN_COMMON = new Set([
-  "password","passw0rd","letmein","welcome","monkey","dragon","master",
-  "iloveyou","sunshine","princess","football","shadow","superman","batman",
-  "qwerty","qwerty123","abc123","abcdef","trustno1","access","admin","changeme",
-]);
-const ST_KBD_ROWS = ["qwertyuiop","asdfghjkl","zxcvbnm","1234567890",
-  "poiuytrewq","lkjhgfdsa","mnbvcxz","0987654321"];
-
-function stAdminErr(code: string): string | null {
-  if (code.length < 12) return "Admin access code must be at least 12 characters.";
-  if (code.length > 64) return "Admin access code must be at most 64 characters.";
-  const s = code.toLowerCase().replace(/\s+/g, "");
-  if (ST_ADMIN_COMMON.has(s)) return "Admin access code is too common. Choose a less predictable passphrase.";
-  for (let i = 0; i <= s.length - 4; i++) {
-    let asc = true, dsc = true;
-    for (let j = 1; j < 4; j++) {
-      const d = s.charCodeAt(i + j) - s.charCodeAt(i + j - 1);
-      if (d !== 1) asc = false; if (d !== -1) dsc = false;
-    }
-    if (asc || dsc) return "Admin access code contains a sequential run (e.g. \"abcd\" or \"1234\"). Choose something less predictable.";
-  }
-  for (let i = 0; i <= s.length - 3; i++) {
-    if (s[i] === s[i + 1] && s[i] === s[i + 2]) return "Admin access code contains repeated characters (e.g. \"aaa\"). Choose something less predictable.";
-  }
-  for (const row of ST_KBD_ROWS) {
-    for (let i = 0; i <= s.length - 4; i++) {
-      if (row.includes(s.slice(i, i + 4))) return "Admin access code follows a keyboard pattern (e.g. \"qwerty\"). Choose something less predictable.";
-    }
-  }
-  return null;
-}
-
-function SettingsSection() {
-    const { toast } = useToast();
-    const { logout } = useAuth();
-    const [, setLocation] = useLocation();
-    const [triviaCode, setTriviaCode] = useState("");
-    const [adminCode, setAdminCode] = useState("");
-    const [showTrivia, setShowTrivia] = useState(false);
-    const [showAdmin, setShowAdmin] = useState(false);
-    const [currentTrivia, setCurrentTrivia] = useState("");
-    const [adminCodeIsSet, setAdminCodeIsSet] = useState(false);
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
-    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-    const [deleting, setDeleting] = useState(false);
-    // Computed per-field validation (mirrors server rules)
-    const triviaValidErr = stTriviaErr(triviaCode);
-    const adminValidErr = adminCode.trim() ? stAdminErr(adminCode) : null;
-    const codesMatchErr =
-      adminCode.trim() &&
-      triviaCode.trim().toUpperCase() === adminCode.trim().toUpperCase()
-        ? "Trivia access code and admin access code must be different."
-        : null;
-
-
-    useEffect(() => {
-     fetch("/api/settings", { credentials: "include" })
-      .then((r) => r.json())
-      .then((data) => {
-          setCurrentTrivia(data.triviaAccessCode ?? "");
-          setAdminCodeIsSet(data.adminCodeIsSet ?? false);
-     setTriviaCode(data.triviaAccessCode ?? "");
-     // Admin field always starts empty — the stored hash is never sent to the client.
-     setLoading(false);
-   })
-   .catch(() => {
-     toast({ variant: "destructive", title: "Could not load settings" });
-     setLoading(false);
-   });
- }, []);
-
-
- const handleSave = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (triviaValidErr || adminValidErr || codesMatchErr) return;
-  setSaving(true);
-  const body: Record<string, string> = { triviaAccessCode: triviaCode.trim() };
-  if (adminCode.trim()) body.adminAccessCode = adminCode;
-  try {
-   const res = await fetch("/api/settings", {
-     method: "PATCH",
-     headers: { "Content-Type": "application/json" },
-     credentials: "include",
-     body: JSON.stringify(body),
-   });
-   if (!res.ok) {
-     const data = await res.json();
-     toast({ variant: "destructive", title: data.error ?? "Save failed" });
-     return;
-   }
-   const updated = await res.json();
-   setCurrentTrivia(updated.triviaAccessCode);
-   if (updated.adminCodeIsSet) setAdminCodeIsSet(true);
-   setAdminCode("");
-   toast({ title: "Settings saved" });
-  } catch {
-    toast({ variant: "destructive", title: "Network error" });
-  } finally {
-    setSaving(false);
-  }
-};
-
-const handleDeleteAccount = async () => {
-    setDeleting(true);
-    try {
-        const res = await fetch("/api/auth/email/account", {
-            method: "DELETE",
-            credentials: "include",
-        });
-        if (!res.ok) {
-            const data = await res.json().catch(() => ({})) as { error?: string };
-            toast({ variant: "destructive", title: data.error ?? "Failed to delete account. Please try again." });
-            return;
-        }
-        setDeleteDialogOpen(false);
-        await logout();
-        setLocation("/admin-login");
-    } catch {
-        toast({ variant: "destructive", title: "Connection error — please retry." });
-    } finally {
-        setDeleting(false);
-    }
-};
-
-
-if (loading) {
-    return (
-        <div className="space-y-4 max-w-lg">
-            <div className="h-8 w-48 bg-muted/50 animate-pulse rounded" />
-            <div className="h-32 bg-muted/30 animate-pulse rounded-lg" />
-        </div>
-    );
-}
- const unchanged = triviaCode.trim().toUpperCase() === currentTrivia.toUpperCase() && adminCode.trim() === "";
-
-
-return (
- <div className="space-y-6 max-w-lg">
-  <div>
-   <h2 className="text-xl font-bold tracking-tight">Settings</h2>
-   <p className="text-muted-foreground text-sm mt-1">
-    Change the access codes players and admins use to enter the app.
-   </p>
-  </div>
-  <form onSubmit={handleSave} className="space-y-5">
-   <Card className="border-card-border bg-card/60">
-    <CardContent className="p-5 space-y-4">
-
-     {/* Trivia access code */}
-     <div className="space-y-2">
-      <Label htmlFor="trivia-code">
-       Trivia access code
-       <span className="ml-2 text-xs text-muted-foreground font-normal">
-           (shared with players)
-       </span>
-      </Label>
-      <p className="text-xs text-muted-foreground">
-        4–6 characters. Players can type in any case. Avoid easily confused characters like 0/O or 1/I.
-      </p>
-      <div className="relative">
-       <Input
-           id="trivia-code"
-           type={showTrivia ? "text" : "password"}
-           value={triviaCode}
-        onChange={(e) => setTriviaCode(e.target.value.toUpperCase())}
-        className={`pr-10 uppercase tracking-widest font-mono${triviaValidErr ? " border-destructive" : ""}`}
-        placeholder="4–6 characters, e.g. QUIZ5"
-        autoComplete="off"
-       />
-       <button
-        type="button"
-        onClick={() => setShowTrivia((v) => !v)}
-        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-       >
-        {showTrivia ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-       </button>
-      </div>
-      {triviaValidErr && (
-        <p className="text-xs text-destructive">{triviaValidErr}</p>
-      )}
-     </div>
-
-     <Separator />
-
-     {/* Admin access code */}
-     <div className="space-y-2">
-      <Label htmlFor="admin-code">
-       Admin access code
-       <span className="ml-2 text-xs text-muted-foreground font-normal">
-        (hosts only — keep private)
-       </span>
-      </Label>
-      <p className="text-xs text-muted-foreground">
-        {adminCodeIsSet
-          ? "A code is set. Leave blank to keep it, or enter a new passphrase (12–64 characters) to replace it."
-          : "No code is set. Enter a passphrase (12–64 characters). Spaces are allowed."}
-      </p>
-      <div className="relative">
-       <Input
-        id="admin-code"
-        type={showAdmin ? "text" : "password"}
-        value={adminCode}
-        onChange={(e) => setAdminCode(e.target.value)}
-        className={`pr-10${(adminValidErr || codesMatchErr) ? " border-destructive" : ""}`}
-        placeholder={adminCodeIsSet ? "Leave blank to keep existing code" : "Enter new admin access code"}
-        autoComplete="new-password"
-       />
-       <button
-        type="button"
-        onClick={() => setShowAdmin((v) => !v)}
-        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-       >
-        {showAdmin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-       </button>
-      </div>
-      {(adminValidErr || codesMatchErr) && (
-        <p className="text-xs text-destructive">{codesMatchErr ?? adminValidErr}</p>
-      )}
-     </div>
-
-    </CardContent>
-   </Card>
-   <Button
-     type="submit"
-     className="font-bold"
-     disabled={saving || !!triviaValidErr || !!(adminCode.trim() && adminValidErr) || !!codesMatchErr || unchanged}
-   >
-    {saving ? "Saving..." : "Save changes"}
-   </Button>
-   {unchanged && (
-    <p className="text-xs text-muted-foreground">No changes to save.</p>
-   )}
-  </form>
-
-
-  {/* ── Game Start Rules ── */}
-  <div className="space-y-3">
-   <div>
-<h3 className="font-semibold text-base">Game Start Rules</h3>
-<p className="text-muted-foreground text-sm mt-0.5">
- Controls what happens when you click Go Live on a game.
-</p>
-</div>
-         </div>
-
-   {/* ── Danger Zone ── */}
-   <div className="space-y-3">
-    <div>
-     <h3 className="font-semibold text-base text-destructive flex items-center gap-1.5">
-      <AlertTriangle className="h-4 w-4" />
-      Danger Zone
-     </h3>
-     <p className="text-muted-foreground text-sm mt-0.5">
-      These actions are permanent and cannot be undone.
-     </p>
-    </div>
-    <Card className="border-destructive/40 bg-card/60">
-     <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-      <div className="space-y-1">
-       <p className="font-medium text-sm">Delete account</p>
-       <p className="text-xs text-muted-foreground max-w-sm">
-        Permanently removes your account and all associated games. You will be logged out immediately.
-       </p>
-      </div>
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-       <DialogTrigger asChild>
-        <Button variant="destructive" size="sm" className="shrink-0">
-         <Trash2 className="h-4 w-4 mr-2" />
-         Delete account
-        </Button>
-       </DialogTrigger>
-       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-         <DialogTitle className="flex items-center gap-2 text-destructive">
-          <AlertTriangle className="h-5 w-5" />
-          Delete your account?
-         </DialogTitle>
-        </DialogHeader>
-        <p className="text-sm text-muted-foreground">
-         This will permanently delete your account and <strong>all your games</strong>. This action cannot be undone.
-        </p>
-        <div className="flex justify-end gap-3 pt-2">
-         <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
-          Cancel
-         </Button>
-         <Button variant="destructive" onClick={handleDeleteAccount} disabled={deleting}>
-          {deleting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
-          {deleting ? "Deleting…" : "Yes, delete my account"}
-         </Button>
-        </div>
-       </DialogContent>
-      </Dialog>
-     </CardContent>
-    </Card>
-   </div>
-     </div>
-    );
-}
 
 
 // ─── Results section ───────────────────────────────────────────────────────────
@@ -3382,17 +3071,6 @@ function LiveGameView({
     },
   });
 
-  // Room code (global player access code)
-  const { data: settings } = useQuery<{ triviaAccessCode?: string }>({
-    queryKey: ["admin-settings-room"],
-    queryFn: async () => {
-      const res = await fetch("/api/settings", { credentials: "include" });
-      if (!res.ok) throw new Error("settings");
-      return res.json();
-    },
-    enabled: !!activeGame,
-  });
-
   const sortedParticipants = [...parts].sort((a, b) => (b.totalScore ?? 0) - (a.totalScore ?? 0)).slice(0, 6);
 
   if (!activeGame) {
@@ -3419,14 +3097,6 @@ function LiveGameView({
           <span className="text-[9px] font-extrabold tracking-[.16em] text-[#ff5aa8]">LIVE NOW</span>
         </div>
         <h1 className="text-lg font-extrabold text-[#eef2f8] truncate">{activeGame.topic}</h1>
-        {settings?.triviaAccessCode && (
-          <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#00ddff]/10 border border-[#00ddff]/30">
-            <span className="text-[9px] font-semibold tracking-[.14em] text-[#5be9ff]">ROOM</span>
-            <span className="font-mono text-[13px] font-extrabold tracking-[.1em] text-[#00ddff]">
-              {settings.triviaAccessCode}
-            </span>
-          </div>
-        )}
         <div className="ml-auto flex items-center gap-3">
           <div className="text-xs font-semibold text-[#9aa6bc]">
             <span className="text-[#eef2f8] font-extrabold">{parts.length}</span> players
@@ -4319,59 +3989,6 @@ function NewResultsSection({ games }: { games: Game[] }) {
   );
 }
 
-function NewSettingsSection() {
-  const { toast } = useToast();
-  const { data: settings } = useQuery<{ triviaAccessCode?: string }>({
-    queryKey: ["admin-settings-room"],
-    queryFn: async () => {
-      const res = await fetch("/api/settings", { credentials: "include" });
-      if (!res.ok) throw new Error("settings");
-      return res.json();
-    },
-  });
-  const roomCode = settings?.triviaAccessCode ?? "";
-
-  const copyLink = async () => {
-    try {
-      const base = new URL(import.meta.env.BASE_URL, window.location.origin).href;
-      await navigator.clipboard.writeText(base);
-      toast({ title: "Join link copied" });
-    } catch {
-      toast({ variant: "destructive", title: "Couldn't copy link" });
-    }
-  };
-
-  return (
-    <div className="space-y-5">
-      <div className="pb-4 border-b border-[#16223a]">
-        <div className="text-[22px] font-extrabold text-[#eef2f8]">Rooms &amp; codes</div>
-        <div className="text-xs font-medium text-[#66728a] mt-0.5">Share the code so players can join.</div>
-      </div>
-
-      <div className="flex flex-col xl:flex-row gap-5 items-start">
-        {/* active room card */}
-        <div className="w-full xl:w-[340px] shrink-0 bg-[#0f1724] border border-[#00ddff]/35 rounded-2xl p-6 text-center">
-          <div className="text-[10px] font-bold tracking-[.2em] text-[#5be9ff] mb-1.5">ACTIVE ROOM CODE</div>
-          <div className="text-[13px] font-semibold text-[#9aa6bc] mb-4">Players enter this on the home page</div>
-          <div className="font-mono text-[40px] font-extrabold tracking-[.14em] text-[#00ddff] break-all" style={{ textShadow: "0 0 26px rgba(0,221,255,.4)" }}>
-            {roomCode || "· · · ·"}
-          </div>
-          <div className="flex gap-2 mt-5">
-            <button onClick={copyLink} className="flex-1 text-xs font-bold text-[#08130c] bg-[#00ddff] rounded-[10px] py-2.5 hover:brightness-110 transition">
-              Copy join link
-            </button>
-          </div>
-          <div className="mt-3.5 text-xs font-semibold text-[#66728a]">Change it in the settings on the right →</div>
-        </div>
-
-        {/* settings form (existing logic, untouched) */}
-        <div className="flex-1 w-full min-w-0 bg-[#0f1724] border border-[#1b2740] rounded-2xl p-6">
-          <SettingsSection />
-        </div>
-      </div>
-    </div>
-  );
-}
 
 
 function NewAdminDashboard() {
@@ -4419,7 +4036,6 @@ function NewAdminDashboard() {
     { id: "live", label: "Live game", icon: Radio },
     { id: "build", label: "Build a game", icon: Wand2 },
     { id: "results", label: "Results", icon: BarChart3 },
-    { id: "rooms", label: "Rooms & codes", icon: KeyRound },
   ] as const;
 
   const renderSection = () => {
@@ -4428,7 +4044,6 @@ function NewAdminDashboard() {
       case "live": return <LiveGameView activeGame={activeGame} endGame={endGame} />;
       case "build": return <BuildQuizView key={buildResetKey} games={games} preferGameId={preferredGameId} onNavigate={navigate} />;
       case "results": return <NewResultsSection games={games} />;
-      case "rooms": return <NewSettingsSection />;
       default: return null;
     }
   };
@@ -4439,7 +4054,6 @@ function NewAdminDashboard() {
     live: "Live",
     build: "Build",
     results: "Results",
-    rooms: "Rooms",
   };
 
   return (

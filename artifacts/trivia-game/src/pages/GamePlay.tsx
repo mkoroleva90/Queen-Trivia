@@ -1466,7 +1466,7 @@ export default function GamePlay() {
             {/* Back button + game switcher row */}
             <div className="flex items-center justify-between gap-3">
               <button
-                onClick={() => setLocation("/lobby")}
+                onClick={() => setLocation("/")}
                 className="flex items-center justify-center shrink-0"
                 style={{
                   width: 36, height: 36, borderRadius: "50%",
@@ -1724,7 +1724,7 @@ export default function GamePlay() {
                         {COPY.gameplay.allDoneViewResults}
                       </button>
                       <button
-                        onClick={() => setLocation("/lobby")}
+                        onClick={() => setLocation("/")}
                         className="font-bold px-8 text-[14px]"
                         style={{
                           height: 52, borderRadius: 14,

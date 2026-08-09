@@ -1,14 +1,15 @@
 
 import { Router, type IRouter } from "express";
 import { and, eq, ne } from "drizzle-orm";
-import { db, adminSettingsTable, usersTable, gamesTable } from "@workspace/db";
+import { db, usersTable, gamesTable } from "@workspace/db";
 import { toJsonSafe } from "../lib/serialize.ts";
 import { triviaJoinRateLimit } from "../middleware/authRateLimit.ts";
 import { generateMobileToken } from "../lib/mobileAuth.ts";
 
 
 const router: IRouter = Router();
-// POST /api/auth/login — verify trivia code + create/retrieve user, start session.
+// POST /api/auth/login — verify per-game code + create/retrieve user, start session.
+// Only per-game codes are accepted. Sessions always carry an allowedGameIds list.
 // If the caller already has a valid player session (req.session.userId is set),
 // this endpoint simply appends the new game to their allowedGameIds list and
 // returns the existing user — no regenerate, no new user row.
@@ -25,24 +26,14 @@ if (!code) {
 }
 
 
-const [settings] = await db.select().from(adminSettingsTable).limit(1);
-// Case-insensitive: players who type lower-case on a phone still join.
-const isGlobalCode =
-  !!settings &&
-  code.toUpperCase() === settings.triviaAccessCode.toUpperCase();
-
 // Per-game access codes: a code tied to a specific (non-completed) game
-let matchedGame: { id: number } | undefined;
-if (!isGlobalCode) {
-    const [game] = await db
-        .select({ id: gamesTable.id })
-        .from(gamesTable)
-        .where(and(eq(gamesTable.accessCode, code), ne(gamesTable.status, "completed")))
-        .limit(1);
-    matchedGame = game;
-}
+const [matchedGame] = await db
+    .select({ id: gamesTable.id })
+    .from(gamesTable)
+    .where(and(eq(gamesTable.accessCode, code.toUpperCase()), ne(gamesTable.status, "completed")))
+    .limit(1);
 
-if (!isGlobalCode && !matchedGame) {
+if (!matchedGame) {
     res.status(401).json({ error: "Invalid access code" });
     return;
 }
@@ -50,22 +41,17 @@ if (!isGlobalCode && !matchedGame) {
 
 // ── Already-logged-in path: append game to session without regenerating ──
 if (req.session.userId) {
-    if (matchedGame) {
-        // Seed from the legacy single-game field if the new list hasn't been
-        // written yet (sessions created before the multi-game update only have
-        // the old allowedGameId).
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const legacyId: number | undefined = (req.session as any).allowedGameId;
-        const existing: number[] = req.session.allowedGameIds
-            ?? (typeof legacyId === "number" ? [legacyId] : []);
-        if (!existing.includes(matchedGame.id)) {
-            req.session.allowedGameIds = [...existing, matchedGame.id];
-        } else {
-            req.session.allowedGameIds = existing;
-        }
+    // Seed from the legacy single-game field if the new list hasn't been
+    // written yet (sessions created before the multi-game update only have
+    // the old allowedGameId).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const legacyId: number | undefined = (req.session as any).allowedGameId;
+    const existing: number[] = req.session.allowedGameIds
+        ?? (typeof legacyId === "number" ? [legacyId] : []);
+    if (!existing.includes(matchedGame.id)) {
+        req.session.allowedGameIds = [...existing, matchedGame.id];
     } else {
-        // Global code while already logged in — remove game restriction entirely
-        req.session.allowedGameIds = undefined;
+        req.session.allowedGameIds = existing;
     }
 
     const [existingUser] = await db
@@ -83,10 +69,8 @@ if (req.session.userId) {
             res.status(500).json({ error: "Failed to save session" });
             return;
         }
-        // Refresh the mobile token so it reflects the latest allowedGameIds
-        const newAllowed = req.session.allowedGameIds ?? null;
-        const mobileToken = generateMobileToken(req.session.userId!, newAllowed);
-        res.json(toJsonSafe({ id: existingUser.id, name: existingUser.name, gameId: matchedGame?.id ?? null, mobileToken }));
+        const mobileToken = generateMobileToken(req.session.userId!, req.session.allowedGameIds!);
+        res.json(toJsonSafe({ id: existingUser.id, name: existingUser.name, gameId: matchedGame.id, mobileToken }));
     });
     return;
 }
@@ -115,14 +99,10 @@ const [user] = await db.insert(usersTable).values({ name }).returning();
      req.session.userId = user!.id;
      req.session.userName = user!.name;
      req.session.isAdmin = false;
-     // Per-game code: restrict this session to that game initially
-     req.session.allowedGameIds = matchedGame ? [matchedGame.id] : undefined;
+     req.session.allowedGameIds = [matchedGame.id];
 
-     const mobileToken = generateMobileToken(
-         user!.id,
-         matchedGame ? [matchedGame.id] : null,
-     );
-     res.json(toJsonSafe({ id: user!.id, name: user!.name, gameId: matchedGame?.id ?? null, mobileToken }));
+     const mobileToken = generateMobileToken(user!.id, [matchedGame.id]);
+     res.json(toJsonSafe({ id: user!.id, name: user!.name, gameId: matchedGame.id, mobileToken }));
  });
 });
 
@@ -184,4 +164,3 @@ router.post("/admin/logout", (req, res): void => {
 
 
 export default router;
-

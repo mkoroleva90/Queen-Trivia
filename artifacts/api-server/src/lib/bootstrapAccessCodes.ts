@@ -3,25 +3,26 @@ import { asc, eq, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { db, adminSettingsTable } from "@workspace/db";
 import { logger } from "./logger.ts";
-import { TRIVIA_CODE_ALPHABET, isBcryptHash } from "./accessCodeValidation.ts";
+import { isBcryptHash } from "./accessCodeValidation.ts";
 
-// Historical seeded defaults that were documented publicly. If either trivia
-// code is still in use it must be rotated at boot to prevent credential reuse.
-const KNOWN_DEFAULT_TRIVIA_CODES = new Set(["PLAY2026"]);
+// Unambiguous alphabet for access codes (no 0/O, 1/I/L).
+const GAME_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
 /**
- * Generate a trivia access code.
+ * Generate a random per-game access code.
  * Uses an unambiguous alphabet (no 0/O, 1/I/L) that reads clearly aloud.
- * Default length 5 — sits in the middle of the 4–6 character allowed range.
  */
-export function generateTriviaCode(length = 5): string {
+export function generateGameCode(length = 6): string {
 	const bytes = randomBytes(length);
 	let code = "";
 	for (let i = 0; i < length; i++) {
-		code += TRIVIA_CODE_ALPHABET[bytes[i]! % TRIVIA_CODE_ALPHABET.length];
+		code += GAME_CODE_ALPHABET[bytes[i]! % GAME_CODE_ALPHABET.length];
 	}
 	return code;
 }
+
+/** @deprecated Use generateGameCode instead */
+export const generateTriviaCode = generateGameCode;
 
 /**
  * Generate a random admin access code (plaintext).
@@ -49,12 +50,10 @@ export function generateAdminCodePlaintext(length = 20): string {
 const SEED_LOCK_KEY = 727_461_001;
 
 /**
- * Ensure the admin_settings row exists with properly secured access codes.
+ * Ensure the admin_settings row exists with a properly secured admin access code.
  *
- * - If no row exists, seed one with random codes; log the trivia code and the
- *   admin plaintext so the operator can record them before the plaintext is
- *   discarded.
- * - If the trivia code is a known public default, rotate it.
+ * - If no row exists, seed one with a random admin code; log the plaintext so
+ *   the operator can record it before the plaintext is discarded.
  * - If the admin code is NOT a bcrypt hash (i.e. was stored in plain text
  *   before this hardening), rotate it and hash the replacement.
  */
@@ -72,27 +71,20 @@ export async function bootstrapAccessCodes(): Promise<void> {
 
 		if (!row) {
 			// ── Fresh install ───────────────────────────────────────────────────
-			const triviaAccessCode = generateTriviaCode();
 			const adminPlaintext = generateAdminCodePlaintext();
 			const adminAccessCode = await bcrypt.hash(adminPlaintext, 12);
-			await tx.insert(adminSettingsTable).values({ triviaAccessCode, adminAccessCode });
+			await tx.insert(adminSettingsTable).values({ adminAccessCode });
 			logger.warn(
-				{ triviaAccessCode, adminAccessCode: "[hashed — see plaintext below]", adminPlaintext },
-				"No admin_settings row found — seeded random access codes. " +
-					"Record the trivia code and admin plaintext NOW; the plaintext " +
+				{ adminAccessCode: "[hashed — see plaintext below]", adminPlaintext },
+				"No admin_settings row found — seeded random admin access code. " +
+					"Record the admin plaintext NOW; the plaintext " +
 					"will not be stored and cannot be recovered later.",
 			);
 			return;
 		}
 
-		const updates: Partial<{ triviaAccessCode: string; adminAccessCode: string }> = {};
+		const updates: Partial<{ adminAccessCode: string }> = {};
 		let logPayload: Record<string, string> = {};
-
-		// ── Trivia code: rotate known-public defaults ──────────────────────────
-		if (KNOWN_DEFAULT_TRIVIA_CODES.has(row.triviaAccessCode)) {
-			updates.triviaAccessCode = generateTriviaCode();
-			logPayload["triviaAccessCode"] = updates.triviaAccessCode;
-		}
 
 		// ── Admin code: migrate plain-text to bcrypt hash ──────────────────────
 		if (!isBcryptHash(row.adminAccessCode)) {
