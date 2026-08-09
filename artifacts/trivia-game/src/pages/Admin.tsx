@@ -1756,6 +1756,310 @@ return (
      </div>
     );
 }
+
+function ManageGamesSection({
+ games,
+ onManageQuestions,
+}: {
+ games: Game[];
+ onManageQuestions: (game: Game) => void;
+}) {
+ const { toast } = useToast();
+ const queryClient = useQueryClient();
+ const [viewingResults, setViewingResults] = useState<Game | null>(null);
+ const [confirmStart, setConfirmStart] = useState<Game | null>(null);
+ const [playAlong, setPlayAlong] = useState(false);
+ const updateGame = useUpdateGame();
+ const deleteGame = useDeleteGame();
+ const [editingNameId, setEditingNameId] = useState<number | null>(null);
+ const [nameDraft, setNameDraft] = useState("");
+ const [nameError, setNameError] = useState("");
+
+ const invalidate = () => {
+  queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
+  queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
+ };
+
+ const startEditName = (game: Game) => {
+  setEditingNameId(game.id);
+  setNameDraft(game.topic);
+  setNameError("");
+ };
+
+ const saveName = (game: Game) => {
+  const name = nameDraft.trim();
+  if (!name) { setNameError("Name cannot be empty"); return; }
+  if (name === game.topic) { setEditingNameId(null); return; }
+  updateGame.mutate(
+   { gameId: game.id, data: { topic: name } },
+   {
+    onSuccess: () => { setEditingNameId(null); invalidate(); toast({ title: `Quiz renamed to "${name}"` }); },
+    onError: (err: any) => {
+     const msg = err?.response?.data?.error ?? "Failed to rename quiz";
+     toast({ variant: "destructive", title: msg });
+    },
+   }
+  );
+ };
+
+ const doGoLive = (game: Game) => {
+  updateGame.mutate(
+    { gameId: game.id, data: { status: "active", ...(playAlong ? { hostPlaysAlong: true } : {}) } },
+    {
+      onSuccess: () => { invalidate(); toast({ title: `"${game.topic}" is now live!` }); },
+      onError: () => toast({ variant: "destructive", title: "Failed to start" }),
+    },
+  );
+  setConfirmStart(null);
+  setPlayAlong(false);
+};
+
+
+const handleGoLive = (game: Game) => {
+  setConfirmStart(game);
+};
+
+
+if (viewingResults) {
+    return <ResultsPanel game={viewingResults} onClose={() => setViewingResults(null)} />;
+}
+
+
+const ordered = [...games].sort((a, b) => {
+    const rank: Record<string, number> = { active: 0, waiting: 1, completed: 2 };
+    return (rank[a.status] ?? 3) - (rank[b.status] ?? 3);
+});
+
+
+return (
+    <div className="space-y-4">
+        <div>
+            <h2 className="text-xl font-bold tracking-tight">Manage Games</h2>
+</div>
+{ordered.length === 0 ? (
+<Card className="border-dashed border-primary/30 bg-card/40">
+ <CardContent className="py-14 text-center space-y-2">
+  <Gamepad2 className="mx-auto h-10 w-10 text-primary/40" />
+  <p className="font-semibold text-lg">No games yet</p>
+  <p className="text-sm text-muted-foreground">
+      Head to "New game" to set up your first round.
+  </p>
+ </CardContent>
+</Card>
+):(
+<div className="space-y-3">
+ {ordered.map((game, i) => {
+  const isWaiting = game.status === "waiting";
+  const isActive = game.status === "active";
+  const isDone = game.status === "completed";
+  const noQuestions = game.questionCount === 0;
+  return (
+      <motion.div
+      key={game.id}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: i * 0.04 }}
+>
+<Card
+    className={`border-card-border bg-card/60 ${
+     isActive ? "border-primary/40 ring-1 ring-primary/20" : ""
+    }`}
+>
+    <CardContent className="p-4 space-y-3">
+     <div className="flex items-start justify-between gap-3 flex-wrap">
+      <div className="space-y-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+          {editingNameId === game.id ? (
+            <div className="flex flex-col gap-1 min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <Input
+                  value={nameDraft}
+                  onChange={(e) => { setNameDraft(e.target.value); setNameError(""); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveName(game);
+                    if (e.key === "Escape") setEditingNameId(null);
+                  }}
+                  autoFocus
+                  disabled={updateGame.isPending}
+                  className="h-8 flex-1 text-sm font-bold"
+                  aria-label="Quiz name"
+                />
+                <Button
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  aria-label="Save quiz name"
+                  disabled={updateGame.isPending}
+                  onClick={() => saveName(game)}
+                >
+                  {updateGame.isPending ? <span className="w-3 h-3 border-2 border-primary-foreground/40 border-t-primary-foreground rounded-full animate-spin" /> : <Check className="w-4 h-4" />}
+                </Button>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="h-8 w-8 shrink-0"
+                  aria-label="Cancel renaming"
+                  disabled={updateGame.isPending}
+                  onClick={() => setEditingNameId(null)}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              {nameError && <p className="text-xs text-destructive">{nameError}</p>}
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 group">
+              <h3 className="font-bold text-base">{game.topic}</h3>
+              {!isActive && (
+                <button
+                  onClick={() => startEditName(game)}
+                  className="text-muted-foreground hover:text-foreground transition-colors p-0.5 opacity-0 group-hover:opacity-100 shrink-0"
+                  aria-label="Rename quiz"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+          <Badge
+           className={`uppercase text-[10px] ${
+              isActive
+              ? "bg-primary text-primary-foreground"
+              : isWaiting
+                 ? "bg-secondary/20 text-secondary border border-secondary/40"
+                 : "bg-muted text-muted-foreground"
+           }`}
+          >
+           {isActive ? "LIVE" : game.status}
+          </Badge>
+          <Badge variant="outline" className="uppercase text-[10px]">
+           {game.difficulty}
+          </Badge>
+          </div>
+             <p className="text-sm text-muted-foreground">
+             Game #{game.id} · {game.questionCount}{" "}
+             {game.questionCount === 1 ? "question" : "questions"}
+             </p>
+         </div>
+        </div>
+        {isWaiting && noQuestions && (
+         <div className="flex items-center gap-2 rounded-md bg-destructive/10 borderborder-destructive/20 px-3 py-2 text-sm text-destructive">
+             <AlertTriangle className="h-4 w-4 shrink-0" />
+             No questions added — add questions before going live
+         </div>
+        )}
+        <div className="flex items-center gap-2 flex-wrap">
+         <Button variant="outline" size="sm" onClick={() => onManageQuestions(game)}>
+             <ListChecks className="mr-1 h-4 w-4" /> Questions
+         </Button>
+         {isDone && (
+             <Button variant="outline" size="sm" onClick={() => setViewingResults(game)}>
+             <Trophy className="mr-1 h-4 w-4" /> View Results
+             </Button>
+         )}
+         {isWaiting && (
+             <Button
+              size="sm"
+              className="font-bold"
+              disabled={updateGame.isPending || noQuestions}
+              onClick={() => handleGoLive(game)}
+             >
+               <Play className="mr-1 h-4 w-4" />
+              Go Live
+             </Button>
+         )}
+         {isActive && (
+             <Button
+              size="sm"
+              variant="secondary"
+              className="font-bold"
+              disabled={updateGame.isPending}
+              onClick={() =>
+                 updateGame.mutate(
+                       { gameId: game.id, data: { status: "completed" } },
+                       { onSuccess: () => { invalidate(); toast({ title: "Game ended" }); } },
+                   )
+               }
+           >
+               <Flag className="mr-1 h-4 w-4" /> End Game
+           </Button>
+          )}
+          <Button
+           variant="ghost"
+           size="sm"
+           className="text-destructive hover:text-destructive ml-auto"
+           disabled={deleteGame.isPending}
+           onClick={() => {
+            if (window.confirm(`Delete "${game.topic}"? This removes all questions,participants, and answers.`)) {
+                   deleteGame.mutate(
+                       { gameId: game.id },
+                       {
+                           onSuccess: () => { invalidate(); toast({ title: "Game deleted" }); },
+                           onError: () => toast({ variant: "destructive", title: "Delete failed" }),
+                       },
+                   );
+               }
+           }}
+          >
+                <Trash2 className="mr-1 h-4 w-4" /> Delete
+               </Button>
+              </div>
+             </CardContent>
+             </Card>
+         </motion.div>
+        );
+       })}
+   </div>
+  )}
+
+
+  {/* Go live — always offer review first */}
+  {confirmStart && (
+   <Dialog open onOpenChange={() => setConfirmStart(null)}>
+    <DialogContent className="sm:max-w-md">
+     <DialogHeader>
+      <DialogTitle className="flex items-center gap-2">
+       <Play className="h-5 w-5 text-secondary" />
+       Ready to go live?
+      </DialogTitle>
+     </DialogHeader>
+     <p className="text-sm text-muted-foreground py-2">
+      Review and edit questions first, or go live now.
+     </p>
+     {/* Play-along toggle */}
+     <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-[#1b2740] bg-white/[.02] px-4 py-3 hover:bg-white/[.04] transition my-1">
+      <input
+       type="checkbox"
+       checked={playAlong}
+       onChange={(e) => setPlayAlong(e.target.checked)}
+       className="mt-0.5 h-4 w-4 shrink-0 rounded accent-[#ff0080] cursor-pointer"
+      />
+      <span>
+       <span className="block text-sm font-semibold text-foreground">Play along</span>
+       <span className="block text-xs text-muted-foreground mt-0.5">
+        Answer questions from this screen — you'll appear in the standings alongside your players
+       </span>
+      </span>
+     </label>
+     <div className="flex gap-2 justify-end pt-1">
+      <Button variant="outline" onClick={() => { setConfirmStart(null); onManageQuestions(confirmStart); }}>
+       <ListChecks className="mr-1 h-4 w-4" /> Review questions
+      </Button>
+      <Button onClick={() => doGoLive(confirmStart)} disabled={updateGame.isPending}>
+       <Play className="mr-1 h-4 w-4" /> Go live now
+      </Button>
+     </div>
+    </DialogContent>
+   </Dialog>
+  )}
+
+      {/* ── Settings ── */}
+      <div className="pt-2">
+       <Separator className="mb-6" />
+       <SettingsSection />
+      </div>
+     </div>
+    );
+}
 function QuestionsSection({
  games,
  preferGameId,
@@ -2915,9 +3219,9 @@ function AdminGate() {
 
 // ─── NEW COMPONENT CODE INJECTED HERE ───
 
-// =========================================================================
+// -----------------------------------------------------------------
 // NEW DESIGN COMPONENTS
-// =========================================================================
+// -----------------------------------------------------------------
 
 const AVATAR_COLORS: [string, string][] = [
   ["#ff0080", "#ffffff"], ["#00ddff", "#062430"], ["#ffe500", "#3a2f00"],
@@ -3464,12 +3768,44 @@ function GamesView({
   const [editingCodeId, setEditingCodeId] = useState<number | null>(null);
   const [codeDraft, setCodeDraft] = useState("");
   const [copiedCodeId, setCopiedCodeId] = useState<number | null>(null);
+  const [editingNameId, setEditingNameId] = useState<number | null>(null);
+  const [nameDraft, setNameDraft] = useState("");
+  const [nameError, setNameError] = useState("");
   const [confirmStartGame, setConfirmStartGame] = useState<Game | null>(null);
   const [playAlong, setPlayAlong] = useState(false);
 
   const startEditCode = (game: Game) => {
     setEditingCodeId(game.id);
     setCodeDraft(game.accessCode ?? "");
+  };
+
+  const startEditName = (game: Game) => {
+    setEditingNameId(game.id);
+    setNameDraft(game.topic);
+    setNameError("");
+  };
+
+  const saveName = (game: Game) => {
+    const name = nameDraft.trim();
+    if (!name) {
+      setNameError("Name cannot be empty");
+      return;
+    }
+    if (name === game.topic) { setEditingNameId(null); return; }
+    updateGame.mutate(
+      { gameId: game.id, data: { topic: name } },
+      {
+        onSuccess: () => {
+          setEditingNameId(null);
+          invalidate();
+          toast({ title: `Quiz renamed to "${name}"` });
+        },
+        onError: (err: any) => {
+          const msg = err?.response?.data?.error ?? "Failed to rename quiz";
+          toast({ variant: "destructive", title: msg });
+        },
+      }
+    );
   };
 
   const saveCode = (game: Game) => {
@@ -3616,7 +3952,57 @@ function GamesView({
                 <span className="text-xs font-mono text-[#66728a]">#{game.id}</span>
               </div>
               
-              <h3 className="text-lg font-bold text-white mb-1 line-clamp-2 leading-tight">{game.topic}</h3>
+              {editingNameId === game.id ? (
+                <div className="mb-1">
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      value={nameDraft}
+                      onChange={(e) => { setNameDraft(e.target.value); setNameError(""); }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveName(game);
+                        if (e.key === "Escape") setEditingNameId(null);
+                      }}
+                      autoFocus
+                      disabled={updateGame.isPending}
+                      className="h-8 flex-1 text-sm font-bold bg-[#0a1019] border-[#1b2740] text-white"
+                      aria-label="Quiz name"
+                    />
+                    <Button
+                      size="icon"
+                      className="h-8 w-8 shrink-0 bg-[#35d07f] hover:bg-[#35d07f]/90 text-black"
+                      aria-label="Save quiz name"
+                      disabled={updateGame.isPending}
+                      onClick={() => saveName(game)}
+                    >
+                      {updateGame.isPending ? <span className="w-3 h-3 border-2 border-black/40 border-t-black rounded-full animate-spin" /> : <Check className="w-4 h-4" />}
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      className="h-8 w-8 shrink-0 border-[#1b2740] bg-[#0a1019] text-[#9aa6bc] hover:bg-[#1b2740]"
+                      aria-label="Cancel renaming"
+                      disabled={updateGame.isPending}
+                      onClick={() => setEditingNameId(null)}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  {nameError && <p className="text-xs text-[#ff6b6b] mt-1">{nameError}</p>}
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 mb-1 group">
+                  <h3 className="text-lg font-bold text-white line-clamp-2 leading-tight">{game.topic}</h3>
+                  {!isLive && (
+                    <button
+                      onClick={() => startEditName(game)}
+                      className="text-[#66728a] hover:text-white transition-colors p-1 opacity-0 group-hover:opacity-100 shrink-0"
+                      aria-label="Rename quiz"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              )}
               <p className="text-[#9aa6bc] text-sm mb-3">
                 {game.questionCount} {game.questionCount === 1 ? 'question' : 'questions'}
               </p>
