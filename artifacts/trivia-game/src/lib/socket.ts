@@ -1,32 +1,9 @@
 
 import { io, type Socket } from "socket.io-client";
+import type { ServerToClientEvents, ClientToServerEvents } from "@workspace/socket-contract";
 
-
-// ── Typed event maps (mirror server) ─────────────────────────────────────────
-
-
-export type ServerToClientEvents = {
-    "game:started": (payload: { gameId: number; topic: string }) => void;
-    "game:ended": (payload: { gameId: number }) => void;
-    "answer:submitted": (payload: {
-     gameId: number;
-     questionId: number;
-     playerName: string;
-     isCorrect: boolean;
-    }) => void;
-    "player:joined": (payload: {
-     gameId: number;
-     playerName: string;
-     participantCount: number;
- }) => void;
-};
-
-
-export type ClientToServerEvents = {
- "lobby:join": () => void;
- "game:join": (gameId: number) => void;
-};
-
+// Re-export so existing imports of these types from this module keep working.
+export type { ServerToClientEvents, ClientToServerEvents };
 
 export type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -51,5 +28,4 @@ export function getSocket(): AppSocket {
     }
     return _socket;
 }
-
 

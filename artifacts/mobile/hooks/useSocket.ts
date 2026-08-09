@@ -21,26 +21,7 @@ import { API_BASE_URL } from '@/lib/apiBase';
 
 // ─── Typed event maps ─────────────────────────────────────────────────────────
 
-type ServerToClientEvents = {
-  'game:started': (payload: { gameId: number; topic: string }) => void;
-  'game:ended': (payload: { gameId: number }) => void;
-  'answer:submitted': (payload: {
-    gameId: number;
-    questionId: number;
-    playerName: string;
-    isCorrect: boolean;
-  }) => void;
-  'player:joined': (payload: {
-    gameId: number;
-    playerName: string;
-    participantCount: number;
-  }) => void;
-};
-
-type ClientToServerEvents = {
-  'lobby:join': () => void;
-  'game:join': (gameId: number) => void;
-};
+import type { ServerToClientEvents, ClientToServerEvents } from '@workspace/socket-contract';
 
 type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 

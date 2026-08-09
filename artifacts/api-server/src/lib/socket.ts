@@ -9,32 +9,9 @@ import { logger } from "./logger.ts";
 import { sessionMiddleware } from "./session.ts";
 import { corsOrigin, isOriginAllowed } from "./cors.ts";
 import { injectMobileSession } from "./mobileAuth.ts";
+import type { ServerToClientEvents, ClientToServerEvents } from "@workspace/socket-contract";
 
-
-// ── Typed event maps ─────────────────────────────────────────────────────────
-
-
-export type ServerToClientEvents = {
- "game:started": (payload: { gameId: number; topic: string }) => void;
- "game:ended": (payload: { gameId: number }) => void;
- "answer:submitted": (payload: {
-  gameId: number;
-  questionId: number;
-     playerName: string;
-     isCorrect: boolean;
- }) => void;
- "player:joined": (payload: {
-     gameId: number;
-     playerName: string;
-     participantCount: number;
- }) => void;
-};
-
-
-export type ClientToServerEvents = {
- "lobby:join": () => void;
- "game:join": (gameId: number) => void;
-};
+export type { ServerToClientEvents, ClientToServerEvents };
 
 
 // ── Singleton ─────────────────────────────────────────────────────────────────
@@ -152,12 +129,15 @@ export function getIo(): IO {
 }
 
 
+/** Extracts the payload type for a given server-to-client event. */
+type PayloadOf<E extends keyof ServerToClientEvents> =
+  ServerToClientEvents[E] extends (payload: infer P) => void ? P : never;
+
 /** Emit without crashing if socket not initialized (safe for edge cases). */
-export function safeEmit(
+export function safeEmit<E extends keyof ServerToClientEvents>(
     room: string,
-    event: keyof ServerToClientEvents,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    payload: any,
+    event: E,
+    payload: PayloadOf<E>,
 ): void {
     try {
      // Using `any` here because socket.io's overloaded emit generics don't

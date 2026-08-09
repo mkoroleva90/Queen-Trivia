@@ -101,6 +101,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../lib/db
+      '@workspace/socket-contract':
+        specifier: workspace:*
+        version: link:../../lib/socket-contract
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
@@ -238,6 +241,9 @@ importers:
       '@workspace/live-tally':
         specifier: workspace:*
         version: link:../../lib/live-tally
+      '@workspace/socket-contract':
+        specifier: workspace:*
+        version: link:../../lib/socket-contract
       babel-plugin-react-compiler:
         specifier: ^19.0.0-beta-e993439-20250117
         version: 19.0.0-beta-ebf51a3-20250411
@@ -646,6 +652,9 @@ importers:
       '@workspace/live-tally':
         specifier: workspace:*
         version: link:../../lib/live-tally
+      '@workspace/socket-contract':
+        specifier: workspace:*
+        version: link:../../lib/socket-contract
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1
@@ -768,6 +777,8 @@ importers:
         version: 0.31.10
 
   lib/live-tally: {}
+
+  lib/socket-contract: {}
 
   scripts:
     devDependencies:
