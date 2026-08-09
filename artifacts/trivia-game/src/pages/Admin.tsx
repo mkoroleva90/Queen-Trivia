@@ -1897,19 +1897,6 @@ return (
      </CardContent>
     </Card>
    ):(
-    <Card className="border-primary/20 bg-primary/5">
-     <CardContent className="p-4 text-sm space-y-1 flex gap-3">
-      <Database className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-      <div>
-      <p className="font-semibold text-primary">Auto-import from Open Trivia Database</p>
-         <p className="text-muted-foreground">
-         {amount} {difficulty} questions about{" "}
-        <span className="font-medium text-foreground">{selectedCategory?.name}</span>{" "}
-         will be fetched from the free, community-verified database.
-               </p>
-               </div>
-              </CardContent>
-          </Card>
          )}
 
 
