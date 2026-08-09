@@ -4317,6 +4317,11 @@ function LiveGameView({
   }, [activeGame?.id]);
   const currentQ = questions[Math.min(qIndex, Math.max(questions.length - 1, 0))];
 
+  // Suppress correct-answer reveals until the host has submitted their own answer (play-along mode).
+  // hostPlayingAndUnanswered gates every isCorrect-derived style on the current question.
+  const hostAnsweredCurrent = currentQ !== undefined && hostAnswers[currentQ.id] !== undefined;
+  const hostPlayingAndUnanswered = !!(activeGame?.hostPlaysAlong && currentQ && !hostAnsweredCurrent);
+
   const { data: parts = [], refetch: refetchParts } = useListGameParticipants(activeGame?.id ?? 0, {
     query: {
       enabled: !!activeGame,
@@ -4471,9 +4476,16 @@ function LiveGameView({
               {currentQ?.questionText || "Waiting for game to start…"}
             </h2>
 
+            {/* YOUR ANSWER label — only when host is playing along and hasn't answered an MC question yet */}
+            {hostPlayingAndUnanswered && !!((currentQ?.options as any)?.choices?.length) && (
+              <p className="text-[10px] font-bold tracking-[.15em] text-[#66728a] mb-1.5">YOUR ANSWER — tap a choice below</p>
+            )}
             <div className="space-y-2.5">
               {(currentQ?.options as any)?.choices?.map((c: string, i: number) => {
-                const isCorrect = currentQ.correctAnswer === c;
+                // Suppress correct-answer highlight until host has answered (play-along).
+                // When hostPlayingAndUnanswered is true, isCorrect is forced false so no
+                // green row, badge, tally bar, count, or ✓ can leak the answer.
+                const isCorrect = !hostPlayingAndUnanswered && currentQ.correctAnswer === c;
                 // We only know correct-vs-wrong from the socket, not which wrong
                 // option was picked — so only the correct row shows a live tally.
                 const tallyPct = isCorrect && parts.length > 0 ? Math.round((qCorrect / parts.length) * 100) : 0;
@@ -4521,6 +4533,16 @@ function LiveGameView({
                 );
               })}
 
+              {/* Skip button — shown below MC choices when host is playing along and hasn't answered yet */}
+              {hostPlayingAndUnanswered && !!((currentQ?.options as any)?.choices?.length) && (
+                <button
+                  onClick={() => setSkipConfirmForQ({ id: currentQ!.id, direction: 'next' })}
+                  className="w-full text-center text-xs font-semibold text-[#66728a] hover:text-[#9aa6bc] pt-1 pb-0.5 transition"
+                >
+                  Skip this question
+                </button>
+              )}
+
               {/* Play-along answer section for non-MC question types */}
               {activeGame.hostPlaysAlong && currentQ && (() => {
                 const hasChoices = !!((currentQ.options as any)?.choices?.length);
@@ -4559,6 +4581,12 @@ function LiveGameView({
                           </button>
                         ))}
                       </div>
+                      <button
+                        onClick={() => setSkipConfirmForQ({ id: currentQ.id, direction: 'next' })}
+                        className="mt-2 w-full text-center text-xs font-semibold text-[#66728a] hover:text-[#9aa6bc] py-1 transition"
+                      >
+                        Skip this question
+                      </button>
                     </div>
                   );
                 }
@@ -4584,6 +4612,12 @@ function LiveGameView({
                         Submit
                       </button>
                     </div>
+                    <button
+                      onClick={() => setSkipConfirmForQ({ id: currentQ.id, direction: 'next' })}
+                      className="mt-2 w-full text-center text-xs font-semibold text-[#66728a] hover:text-[#9aa6bc] py-1 transition"
+                    >
+                      Skip this question
+                    </button>
                   </div>
                 );
               })()}

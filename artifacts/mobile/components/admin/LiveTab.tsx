@@ -367,6 +367,13 @@ export function LiveTab({ bottomPadding }: Props) {
   const choices: string[] = ((currentQ?.options as { choices?: string[] } | null)?.choices ?? []);
   const standings = [...parts].sort((a, b) => (b.totalScore ?? 0) - (a.totalScore ?? 0)).slice(0, 6);
 
+  // Suppress correct-answer reveals until the host has submitted their own answer (play-along mode).
+  const hostAnsweredCurrent = currentQ !== undefined && hostAnswers[currentQ.id] !== undefined;
+  const hostPlayingAndUnanswered = !!(game?.hostPlaysAlong && currentQ && !hostAnsweredCurrent);
+  // When playing along: hide until host answers, then auto-reveal regardless of the manual toggle.
+  // When play-along is off: respect the manual `revealed` toggle exactly as before.
+  const effectiveRevealed = hostPlayingAndUnanswered ? false : (hostAnsweredCurrent && game?.hostPlaysAlong ? true : revealed);
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <ScrollView
@@ -474,18 +481,18 @@ export function LiveTab({ bottomPadding }: Props) {
           <View
             style={[
               s.revealPill,
-              revealed
+              effectiveRevealed
                 ? { backgroundColor: colors.secondary + '18', borderColor: colors.secondary + '55' }
                 : { backgroundColor: colors.muted, borderColor: colors.border },
             ]}
           >
             <Ionicons
-              name={revealed ? 'eye' : 'eye-off'}
+              name={effectiveRevealed ? 'eye' : 'eye-off'}
               size={13}
-              color={revealed ? colors.secondary : colors.mutedForeground}
+              color={effectiveRevealed ? colors.secondary : colors.mutedForeground}
             />
-            <Text style={[s.revealPillText, { color: revealed ? colors.secondary : colors.mutedForeground }]}>
-              {revealed ? 'ANSWER REVEALED' : 'ANSWER HIDDEN'}
+            <Text style={[s.revealPillText, { color: effectiveRevealed ? colors.secondary : colors.mutedForeground }]}>
+              {effectiveRevealed ? 'ANSWER REVEALED' : 'ANSWER HIDDEN'}
             </Text>
           </View>
           <Text style={[s.answeredMeta, { color: colors.mutedForeground }]}>
@@ -493,11 +500,18 @@ export function LiveTab({ bottomPadding }: Props) {
           </Text>
         </View>
 
+        {/* YOUR ANSWER label — only when host is playing along and hasn't answered this MC question yet */}
+        {hostPlayingAndUnanswered && choices.length > 0 && (
+          <Text style={{ fontSize: 10, fontFamily: 'Manrope_700Bold', color: colors.mutedForeground, letterSpacing: 1.5, marginTop: 12, marginBottom: 2 }}>
+            YOUR ANSWER — tap a choice below
+          </Text>
+        )}
+
         {/* Multiple-choice options */}
         {choices.length > 0 && (
           <View style={s.choices}>
             {choices.map((c, i) => {
-              const isCorrect = revealed && currentQ?.correctAnswer === c;
+              const isCorrect = effectiveRevealed && currentQ?.correctAnswer === c;
               const hostPicked = game?.hostPlaysAlong && currentQ && hostAnswers[currentQ.id] === c;
               const hostAnswered = game?.hostPlaysAlong && currentQ && hostAnswers[currentQ.id] !== undefined;
               const canPick = !!(game?.hostPlaysAlong && currentQ && !hostAnswered && !submittingHostAnswer);
@@ -552,6 +566,18 @@ export function LiveTab({ bottomPadding }: Props) {
           </View>
         )}
 
+        {/* Skip button — only when host is playing along on an unanswered MC question */}
+        {hostPlayingAndUnanswered && choices.length > 0 && (
+          <Pressable
+            onPress={() => setSkipConfirmForQ({ id: currentQ!.id, direction: 'next' })}
+            style={{ alignItems: 'center', paddingVertical: 8 }}
+          >
+            <Text style={{ fontSize: 12, fontFamily: 'Manrope_600SemiBold', color: colors.mutedForeground }}>
+              Skip this question
+            </Text>
+          </Pressable>
+        )}
+
         {/* Play-along: not-answered badge when host explicitly skipped this MC question */}
         {game?.hostPlaysAlong && currentQ && hostAnswers[currentQ.id] === '' && choices.length > 0 && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
@@ -560,7 +586,7 @@ export function LiveTab({ bottomPadding }: Props) {
         )}
 
         {/* Free-text / other question types — show answer when revealed */}
-        {choices.length === 0 && revealed && !!currentQ?.correctAnswer && (
+        {choices.length === 0 && effectiveRevealed && !!currentQ?.correctAnswer && (
           <View style={[s.freeAnswer, { borderColor: colors.secondary + '55', backgroundColor: colors.secondary + '12' }]}>
             <Ionicons name="checkmark-circle" size={16} color={colors.secondary} />
             <Text style={[s.freeAnswerText, { color: colors.foreground }]}>{currentQ.correctAnswer}</Text>
@@ -601,6 +627,12 @@ export function LiveTab({ bottomPadding }: Props) {
                   </Pressable>
                 ))}
               </View>
+              <Pressable
+                onPress={() => setSkipConfirmForQ({ id: currentQ.id, direction: 'next' })}
+                style={{ alignItems: 'center', paddingVertical: 8, marginTop: 4 }}
+              >
+                <Text style={{ fontSize: 12, fontFamily: 'Manrope_600SemiBold', color: colors.mutedForeground }}>Skip this question</Text>
+              </Pressable>
             </View>
           ) : (
             <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
@@ -623,6 +655,12 @@ export function LiveTab({ bottomPadding }: Props) {
                   <Text style={{ fontSize: 13, fontFamily: 'Manrope_700Bold', color: colors.accent }}>Submit</Text>
                 </Pressable>
               </View>
+              <Pressable
+                onPress={() => setSkipConfirmForQ({ id: currentQ.id, direction: 'next' })}
+                style={{ alignItems: 'center', paddingVertical: 8, marginTop: 4 }}
+              >
+                <Text style={{ fontSize: 12, fontFamily: 'Manrope_600SemiBold', color: colors.mutedForeground }}>Skip this question</Text>
+              </Pressable>
             </View>
           )
         )}
@@ -656,18 +694,18 @@ export function LiveTab({ bottomPadding }: Props) {
           <Text style={[s.tBtnText, { color: colors.mutedForeground }]}>Prev</Text>
         </Pressable>
         <Pressable
-          onPress={() => setRevealed((r) => !r)}
+          onPress={hostPlayingAndUnanswered ? undefined : () => setRevealed((r) => !r)}
           style={({ pressed }) => [
             s.tBtn,
             {
               borderColor: colors.accent + '55',
               backgroundColor: colors.accent + '12',
-              opacity: pressed ? 0.7 : 1,
+              opacity: hostPlayingAndUnanswered ? 0.3 : pressed ? 0.7 : 1,
             },
           ]}
         >
-          <Ionicons name={revealed ? 'eye-off-outline' : 'eye-outline'} size={16} color={colors.accent} />
-          <Text style={[s.tBtnText, { color: colors.accent }]}>{revealed ? 'Hide' : 'Reveal'}</Text>
+          <Ionicons name={effectiveRevealed ? 'eye-off-outline' : 'eye-outline'} size={16} color={colors.accent} />
+          <Text style={[s.tBtnText, { color: colors.accent }]}>{effectiveRevealed ? 'Hide' : 'Reveal'}</Text>
         </Pressable>
         <Pressable
           disabled={qIndex >= sortedQs.length - 1}
