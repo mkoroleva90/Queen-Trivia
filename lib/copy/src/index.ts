@@ -144,7 +144,7 @@ export const COPY = {
     /** "Confirm skip" action in the skip dialog. */
     skipDialogSkip:   'Skip anyway',
     /** Label shown above multiple-choice options before the host has answered. */
-    yourAnswerPrompt: 'YOUR ANSWER — tap a choice below',
+    yourAnswerPrompt: 'YOUR ANSWER — select a choice below',
     /** Short badge shown when the host hasn't yet answered the current question. */
     unansweredBadge:  "You haven't answered this question yet",
   },
