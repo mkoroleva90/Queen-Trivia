@@ -61,8 +61,8 @@ const CHOICE_LABELS = ['A', 'B', 'C', 'D', 'E', 'F'];
 // ─── Multiple Choice ──────────────────────────────────────────────────────────
 
 function MultipleChoiceQ({
-  question, onSubmit, disabled, lockedAnswer,
-}: { question: Question; onSubmit: (a: string) => void; disabled: boolean; lockedAnswer: string | null }) {
+  question, onSubmit, disabled, lockedAnswer, feedback,
+}: { question: Question; onSubmit: (a: string) => void; disabled: boolean; lockedAnswer: string | null; feedback: Feedback | null }) {
   const colors = useColors();
   const opts = question.options as { choices?: string[] } | null;
   const choices = opts?.choices ?? [];
@@ -73,8 +73,9 @@ function MultipleChoiceQ({
   return (
     <View style={styles.choicesContainer}>
       {choices.map((choice, i) => {
-        const isLocked = lockedAnswer === choice;
-        const isCorrect = isLocked;
+        const isLocked       = lockedAnswer === choice;
+        const isCorrectChoice = isLocked && !!feedback?.isCorrect;
+        const isWrongChoice   = isLocked && feedback !== null && !feedback.isCorrect;
         const isDimmed = answered && !isLocked;
         const isSel = !answered && selected === choice;
 
@@ -84,8 +85,8 @@ function MultipleChoiceQ({
         let badgeText = colors.mutedForeground;
         let trailing: React.ReactNode = null;
 
-        if (isCorrect) { bg = 'rgba(0,221,255,.15)'; border = '#00ddff'; badgeBg = '#00ddff'; badgeText = '#0a0510'; trailing = <Ionicons name="checkmark" size={18} color="#00ddff" />; }
-        else if (answered && isLocked) { bg = 'rgba(255,0,128,.15)'; border = colors.primary; badgeBg = colors.primary; badgeText = '#fff'; trailing = <Ionicons name="close" size={18} color={colors.primary} />; }
+        if (isCorrectChoice) { bg = 'rgba(0,221,255,.15)'; border = '#00ddff'; badgeBg = '#00ddff'; badgeText = '#0a0510'; trailing = <Ionicons name="checkmark" size={18} color="#00ddff" />; }
+        else if (isWrongChoice) { bg = 'rgba(255,0,128,.15)'; border = colors.primary; badgeBg = colors.primary; badgeText = '#fff'; trailing = <Ionicons name="close" size={18} color={colors.primary} />; }
         else if (isSel) { bg = 'rgba(255,0,128,.12)'; border = colors.primary; badgeBg = colors.primary; badgeText = '#fff'; }
 
         return (
@@ -788,7 +789,7 @@ export default function GamePlayScreen() {
             {/* Question renderer */}
             <View style={styles.questionBody}>
               {current.questionType === 'multiple_choice' && (
-                <MultipleChoiceQ question={current} onSubmit={handleSubmit} disabled={submitAnswer.isPending} lockedAnswer={lockedAnswer} />
+                <MultipleChoiceQ question={current} onSubmit={handleSubmit} disabled={submitAnswer.isPending} lockedAnswer={lockedAnswer} feedback={feedback} />
               )}
               {current.questionType === 'multi_select' && (
                 <MultiSelectQ question={current} onSubmit={handleSubmit} disabled={submitAnswer.isPending} lockedAnswer={lockedAnswer} />
