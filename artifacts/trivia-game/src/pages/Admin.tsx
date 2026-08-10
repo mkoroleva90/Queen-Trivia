@@ -3964,7 +3964,7 @@ function GamesView({
                 {isDraft && <div className="bg-[#1b2740] text-[#9aa6bc] px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider">DRAFT</div>}
                 {isCompleted && <div className="bg-[#1b2740]/50 text-[#66728a] px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider">COMPLETED</div>}
                 
-                <span className="text-xs font-mono text-[#66728a]">#{game.id}</span>
+
               </div>
               
               {editingNameId === game.id ? (
