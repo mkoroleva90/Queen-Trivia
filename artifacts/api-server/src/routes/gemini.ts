@@ -1,6 +1,7 @@
 
 import { Router, type IRouter } from "express";
 import { and, eq } from "drizzle-orm";
+import { COPY } from "@workspace/copy";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import {
  geminiGenerateRateLimit,
@@ -56,6 +57,10 @@ function geminiErrorResponse(
     }
     if (kind === "model_unavailable") {
         res.status(503).json({ error: msg });
+        return;
+    }
+    if (error.code === "safety_block") {
+        res.status(422).json({ error: COPY.aiGenerate.safetyBlock, code: "safety_block" });
         return;
     }
     res.status(502).json({ error: `Gemini error: ${msg}` });

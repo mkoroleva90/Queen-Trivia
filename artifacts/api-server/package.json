@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",
+    "@workspace/copy": "workspace:*",
     "@workspace/db": "workspace:*",
     "@workspace/socket-contract": "workspace:*",
     "bcryptjs": "^3.0.3",

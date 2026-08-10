@@ -265,6 +265,20 @@ export const COPY = {
   },
 
   /**
+   * AI question generation strings — host-facing.
+   * Both platforms must use these keys so wording stays in sync.
+   */
+  aiGenerate: {
+    /**
+     * Shown to the host when Gemini's built-in safety filter blocks the
+     * requested topic entirely (finishReason === "SAFETY" or promptFeedback
+     * blockReason set). The topic is not repeated in the message because it
+     * may itself be the reason for the block.
+     */
+    safetyBlock: "This topic couldn't be generated — it may contain content that can't appear in a trivia game. Please try a different topic or rephrase it.",
+  },
+
+  /**
    * Player results-screen strings — shown after the game ends.
    * Both platforms must use these keys so wording stays in sync.
    */

@@ -25,7 +25,8 @@ export type GeminiGenerateError =
     | { code: "no_api_key" }
     | { code: "api_error"; message: string; kind?: GeminiErrorKind; quotaId?: string; retryAfterSeconds?: number }
     | { code: "parse_error"; message: string }
-    | { code: "fetch_failed"; message: string };
+    | { code: "fetch_failed"; message: string }
+    | { code: "safety_block"; message: string };
 
 
 interface GeminiApiResponse {
@@ -33,10 +34,14 @@ interface GeminiApiResponse {
         content?: {
             parts?: Array<{ text?: string }>;
         };
+        finishReason?: string;
         groundingMetadata?: {
             groundingChunks?: Array<{ web?: { uri?: string; title?: string } }>;
         };
     }>;
+    promptFeedback?: {
+        blockReason?: string;
+    };
 }
 
 
@@ -90,6 +95,12 @@ async function callGeminiRaw(
      body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
       ...(grounding && { tools: [{ googleSearch: {} }] }),
+      safetySettings: [
+          { category: "HARM_CATEGORY_HARASSMENT",        threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+          { category: "HARM_CATEGORY_HATE_SPEECH",       threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+      ],
       generationConfig: {
           temperature,
           maxOutputTokens: maxTokens,
@@ -174,6 +185,18 @@ if (!resp.ok) {
 
 
 const data = (await resp.json()) as GeminiApiResponse;
+
+    // Detect safety filter block before attempting to read candidate text.
+    // Gemini signals a block in two ways: finishReason === "SAFETY" on the
+    // candidate, or blockReason set on promptFeedback (when the prompt itself
+    // is blocked and no candidate is emitted at all).
+    const finishReason = data.candidates?.[0]?.finishReason;
+    const blockReason  = data.promptFeedback?.blockReason;
+    if (finishReason === "SAFETY" || blockReason) {
+        logger.warn({ model, grounding, finishReason, blockReason }, "Gemini safety filter triggered — content blocked");
+        return { ok: false, error: { code: "safety_block", message: "Content blocked by safety filter" } };
+    }
+
 const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
     if (!text) {
         return { ok: false, error: { code: "parse_error", message: "Empty response from Gemini" } };
