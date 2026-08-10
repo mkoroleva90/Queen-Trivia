@@ -1584,9 +1584,9 @@ if (created) {
            className="mt-0.5 h-4 w-4 shrink-0 rounded accent-primary cursor-pointer"
          />
          <span>
-           <span className="block text-sm font-semibold">Play along</span>
+           <span className="block text-sm font-semibold">{COPY.hostPlayAlong.playAlongLabel}</span>
            <span className="block text-xs text-muted-foreground mt-0.5">
-             Answer questions from this screen — you'll appear in the standings
+             {COPY.hostPlayAlong.playAlongDesc}
            </span>
          </span>
        </label>
@@ -4143,9 +4143,9 @@ function GamesView({
                 className="mt-0.5 h-4 w-4 shrink-0 rounded accent-[#ff0080] cursor-pointer"
               />
               <span>
-                <span className="block text-sm font-semibold text-[#eef2f8]">Play along</span>
+                <span className="block text-sm font-semibold text-[#eef2f8]">{COPY.hostPlayAlong.playAlongLabel}</span>
                 <span className="block text-xs text-[#9aa6bc] mt-0.5">
-                  Answer questions from this screen — you'll appear in the standings alongside your players
+                  {COPY.hostPlayAlong.playAlongDesc}
                 </span>
               </span>
             </label>

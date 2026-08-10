@@ -23,6 +23,7 @@ import {
 import type { Game } from '@workspace/api-client-react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
+import { COPY } from '@workspace/copy';
 
 type Difficulty = 'easy' | 'medium' | 'hard';
 type GameFilter = 'all' | 'live' | 'drafts';
@@ -310,9 +311,9 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
             {/* Play-along toggle */}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.border, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, marginBottom: 16, backgroundColor: playAlongPending ? colors.primary + '10' : 'transparent' }}>
               <View style={{ flex: 1, marginRight: 12 }}>
-                <Text style={{ fontSize: 15, fontFamily: 'Manrope_700Bold', color: colors.foreground, marginBottom: 3 }}>Play along</Text>
+                <Text style={{ fontSize: 15, fontFamily: 'Manrope_700Bold', color: colors.foreground, marginBottom: 3 }}>{COPY.hostPlayAlong.playAlongLabel}</Text>
                 <Text style={{ fontSize: 13, color: colors.mutedForeground, lineHeight: 18 }}>
-                  Answer questions from this screen — you'll appear in the standings alongside your players
+                  {COPY.hostPlayAlong.playAlongDesc}
                 </Text>
               </View>
               <Switch

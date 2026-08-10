@@ -32,6 +32,7 @@ import {
 } from '@workspace/api-client-react';
 import type { Game, Question, EnhanceQuestionResult, RegenerateQuestionPreview } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
+import { COPY } from '@workspace/copy';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -226,6 +227,7 @@ export function BuildTab({ bottomPadding }: Props) {
   const [tdbResult, setTdbResult] = useState<number | null>(null);
 
   const [limitMsg, setLimitMsg] = useState<string | null>(null);
+  const [buildPlayAlong, setBuildPlayAlong] = useState(false);
 
   // ── Regen state (Review step)
   const [regenQ, setRegenQ] = useState<Question | null>(null);
@@ -529,7 +531,7 @@ export function BuildTab({ bottomPadding }: Props) {
   const handlePublish = async () => {
     if (!selectedGame) return;
     try {
-      await updateGame.mutateAsync({ gameId: selectedGame.id, data: { status: 'active' } });
+      await updateGame.mutateAsync({ gameId: selectedGame.id, data: { status: 'active', hostPlaysAlong: buildPlayAlong } });
       invalidate(selectedGame.id);
     } catch { /* surfaced through unchanged status */ }
   };
@@ -1009,20 +1011,34 @@ export function BuildTab({ bottomPadding }: Props) {
 
                 {selectedGame && questions.length > 0 && (
                   selectedGame.status === 'waiting' ? (
-                    <Pressable
-                      style={[s.primaryBtn, { backgroundColor: colors.secondary, opacity: updateGame.isPending ? 0.7 : 1 }]}
-                      onPress={handlePublish}
-                      disabled={updateGame.isPending}
-                    >
-                      {updateGame.isPending
-                        ? <ActivityIndicator color="#0a1019" />
-                        : (
-                          <View style={s.btnRow}>
-                            <Ionicons name="play" size={16} color="#0a1019" />
-                            <Text style={[s.primaryBtnText, { color: '#0a1019' }]}>Publish &amp; go live</Text>
-                          </View>
-                        )}
-                    </Pressable>
+                    <>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.border, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, marginBottom: 12, backgroundColor: buildPlayAlong ? colors.primary + '10' : 'transparent' }}>
+                        <View style={{ flex: 1, marginRight: 12 }}>
+                          <Text style={{ fontSize: 15, fontFamily: 'Manrope_700Bold', color: colors.foreground, marginBottom: 3 }}>{COPY.hostPlayAlong.playAlongLabel}</Text>
+                          <Text style={{ fontSize: 13, color: colors.mutedForeground, lineHeight: 18 }}>{COPY.hostPlayAlong.playAlongDesc}</Text>
+                        </View>
+                        <Switch
+                          value={buildPlayAlong}
+                          onValueChange={setBuildPlayAlong}
+                          trackColor={{ false: colors.border, true: colors.primary + '60' }}
+                          thumbColor={buildPlayAlong ? colors.primary : colors.mutedForeground}
+                        />
+                      </View>
+                      <Pressable
+                        style={[s.primaryBtn, { backgroundColor: colors.secondary, opacity: updateGame.isPending ? 0.7 : 1 }]}
+                        onPress={handlePublish}
+                        disabled={updateGame.isPending}
+                      >
+                        {updateGame.isPending
+                          ? <ActivityIndicator color="#0a1019" />
+                          : (
+                            <View style={s.btnRow}>
+                              <Ionicons name="play" size={16} color="#0a1019" />
+                              <Text style={[s.primaryBtnText, { color: '#0a1019' }]}>Publish &amp; go live</Text>
+                            </View>
+                          )}
+                      </Pressable>
+                    </>
                   ) : (
                     <View style={[s.liveBanner, { backgroundColor: colors.secondary + '15', borderColor: colors.secondary + '40' }]}>
                       <View style={[s.liveBannerDot, { backgroundColor: colors.secondary }]} />

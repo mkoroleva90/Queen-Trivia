@@ -147,6 +147,10 @@ export const COPY = {
     yourAnswerPrompt: 'YOUR ANSWER — select a choice below',
     /** Short badge shown when the host hasn't yet answered the current question. */
     unansweredBadge:  "You haven't answered this question yet",
+    /** Heading of the play-along toggle shown on every go-live screen (web and mobile). */
+    playAlongLabel:   'Play along',
+    /** Description beneath the play-along toggle heading. */
+    playAlongDesc:    "Answer questions from this screen — you'll appear in the standings alongside your players",
   },
 
   /**
