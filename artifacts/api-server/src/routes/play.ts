@@ -517,7 +517,7 @@ router.post(
 
         // Duplicate check — host may only answer each question once
         const [existing] = await db
-            .select({ id: answersTable.id })
+            .select({ id: answersTable.id, userAnswer: answersTable.userAnswer })
             .from(answersTable)
             .where(
                 and(
@@ -527,7 +527,9 @@ router.post(
             );
 
         if (existing) {
-            res.status(409).json({ error: "You already answered this question" });
+            // Return the stored answer so the client can seed its local state
+            // and show the already-answered UI without further retries.
+            res.status(409).json({ error: "You already answered this question", existingAnswer: existing.userAnswer });
             return;
         }
 
