@@ -4436,7 +4436,12 @@ function NewAdminDashboard() {
   const endGame = (id: number) => {
     updateGame.mutate(
       { gameId: id, data: { status: "completed" } },
-      { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() }) }
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
+          navigate("results");
+        },
+      }
     );
   };
 
