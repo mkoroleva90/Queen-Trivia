@@ -8,14 +8,6 @@ import { useToast } from "@/hooks/use-toast";
 import { CrownMark } from "@/components/Brand";
 import { Loader2, AlertCircle, ChevronLeft } from "lucide-react";
 
-// ─── Avatar colour swatches (local UI state only) ────────────────────────────
-const AVATAR_COLORS = [
-  { id: "pink",   bg: "#ff0080" },
-  { id: "cyan",   bg: "#00ddff" },
-  { id: "purple", bg: "#8b5cf6" },
-  { id: "green",  bg: "#22c55e" },
-];
-
 // ─── Shared CTA button ───────────────────────────────────────────────────────
 function Cta({
   onClick,
@@ -65,9 +57,8 @@ function Cta({
 
 // ─── Gate (4-step onboarding) ────────────────────────────────────────────────
 export default function Gate() {
-  // ── New local UI state (onboarding steps + avatar) ───────────────────────
+  // ── New local UI state (onboarding steps) ───────────────────────────────
   const [onboardingStep, setOnboardingStep] = useState(0);
-  const [selectedAvatar, setSelectedAvatar] = useState("pink");
 
   // ── Existing auth state (unchanged) ─────────────────────────────────────
   const [code, setCode] = useState("");
@@ -461,29 +452,8 @@ export default function Gate() {
                   You're in!
                 </h2>
                 <p style={{ fontSize: 15, fontWeight: 500, color: "#8b7ea3", marginTop: 8 }}>
-                  Pick a color and a name.
+                  What's your name?
                 </p>
-              </div>
-
-              {/* Avatar swatches */}
-              <div className="flex items-center gap-3">
-                {AVATAR_COLORS.map((av) => (
-                  <button
-                    key={av.id}
-                    type="button"
-                    onClick={() => setSelectedAvatar(av.id)}
-                    style={{
-                      width: 46, height: 46, borderRadius: 16,
-                      background: av.bg, border: "none", cursor: "pointer",
-                      flexShrink: 0,
-                      boxShadow: selectedAvatar === av.id
-                        ? "0 0 0 3px #ffe500, 0 0 12px rgba(255,229,0,.4)"
-                        : "none",
-                      transition: "box-shadow 200ms ease",
-                    }}
-                    aria-label={av.id}
-                  />
-                ))}
               </div>
 
               <form onSubmit={handleNameSubmit} className="flex flex-col gap-4">

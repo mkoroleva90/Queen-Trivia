@@ -19,8 +19,6 @@ import { useAuth } from '@/context/AuthContext';
 import { CrownMark } from '@/components/CrownMark';
 import { API_BASE_URL } from '@/lib/apiBase';
 
-const AVATAR_COLORS = ['#ff0080', '#00ddff', '#8b5cf6', '#22c55e'];
-
 type Step = 0 | 1 | 2 | 3;
 
 export default function WelcomeScreen() {
@@ -32,7 +30,6 @@ export default function WelcomeScreen() {
   const [step, setStep] = useState<Step>(0);
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
-  const [avatar, setAvatar] = useState(0);
   const [codeError, setCodeError] = useState('');
   const [nameError, setNameError] = useState('');
   const [pending, setPending] = useState(false);
@@ -272,23 +269,8 @@ export default function WelcomeScreen() {
               </Pressable>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>You're in!</Text>
               <Text style={[styles.sectionSub, { color: colors.mutedForeground }]}>
-                Pick a color and a name.
+                What's your name?
               </Text>
-
-              {/* Avatar swatches */}
-              <View style={styles.avatarRow}>
-                {AVATAR_COLORS.map((c, i) => (
-                  <Pressable
-                    key={c}
-                    onPress={() => { setAvatar(i); Haptics.selectionAsync(); }}
-                    style={[
-                      styles.avatarSwatch,
-                      { backgroundColor: c },
-                      avatar === i && { borderWidth: 3, borderColor: colors.accent },
-                    ]}
-                  />
-                ))}
-              </View>
 
               <View style={styles.inputGroup}>
                 <TextInput
@@ -402,8 +384,6 @@ const styles = StyleSheet.create({
   codeInput: { height: 70, borderRadius: 18, borderWidth: 2, fontSize: 30, fontWeight: '800', textAlign: 'center', letterSpacing: 6, paddingHorizontal: 16 },
   nameInput: { height: 60, borderRadius: 16, borderWidth: 1.5, fontSize: 20, fontWeight: '700', textAlign: 'center', letterSpacing: 2, paddingHorizontal: 16 },
   errorText: { fontSize: 13, fontWeight: '500' },
-  avatarRow: { flexDirection: 'row', gap: 12 },
-  avatarSwatch: { width: 46, height: 46, borderRadius: 16 },
   ctaBtn: { height: 58, borderRadius: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   ctaBtnText: { fontSize: 15, fontWeight: '800', letterSpacing: 1 },
 });
