@@ -1368,6 +1368,11 @@ function ResultsPanel({ game, onClose }: { game: Game; onClose: () => void }) {
      </div>
     );
 }
+const createGameSuccessVariants = {
+  hidden: { opacity: 0, scale: 0.95 },
+  visible: { opacity: 1, scale: 1 },
+};
+
 function CreateGameSection({ onCreated, onGoLive }: { onCreated: (game: Game) => void; onGoLive?: (game: Game) => void }) {
     const [categoryId, setCategoryId] = useState<string>("9");
     const [customTopic, setCustomTopic] = useState("");
@@ -1577,8 +1582,9 @@ const saveCode = () => {
 if (created) {
  return (
      <motion.div
-         initial={{ opacity: 0, scale: 0.95 }}
-         animate={{ opacity: 1, scale: 1 }}
+         variants={createGameSuccessVariants}
+         initial="hidden"
+         animate="visible"
          className="space-y-4"
      >
          <FreeTierLimitModal msg={upgradeLimitMsg} onClose={() => setUpgradeLimitMsg(null)} />
