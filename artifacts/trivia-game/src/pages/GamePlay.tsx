@@ -1313,6 +1313,10 @@ export default function GamePlay() {
   // ── New display state (UI only) ──
   const [lockedAnswer, setLockedAnswer] = useState<string | null>(null);
 
+  // ── Skip (defer) state — client-side only, no server submission ──
+  const [skippedIds, setSkippedIds] = useState<Set<number>>(new Set());
+  const [skipConfirm, setSkipConfirm] = useState(false);
+
   useGameSocket(gameId || null, {
     onAnswerSubmitted: ({ playerName, isCorrect }) => {
       queryClient.invalidateQueries({ queryKey: getListGameParticipantsQueryKey(gameId) });
@@ -1360,10 +1364,12 @@ export default function GamePlay() {
     [myAnswers],
   );
 
-  const current          = sorted.find((q) => !answeredIds.has(q.id));
+  const unanswered       = sorted.filter((q) => !answeredIds.has(q.id));
+  const current          = unanswered.find((q) => !skippedIds.has(q.id)) ?? unanswered[0];
   const answeredCount    = sorted.filter((q) => answeredIds.has(q.id)).length;
   const total            = sorted.length;
   const isLastQuestion   = !!current && sorted.indexOf(current) === total - 1;
+  const canSkip          = unanswered.length > 1;
 
   const sortedParticipants = useMemo(
     () => [...(participants ?? [])].sort((a, b) => b.totalScore - a.totalScore),
@@ -1592,6 +1598,17 @@ export default function GamePlay() {
                   {/* Answer choices */}
                   {renderQuestion(current)}
 
+                  {/* Skip button — shown when unanswered and more questions remain */}
+                  {!feedback && !lockedAnswer && canSkip && (
+                    <button
+                      onClick={() => setSkipConfirm(true)}
+                      className="w-full text-center text-xs font-semibold transition hover:opacity-70"
+                      style={{ color: "#8b7ea3", paddingTop: 4, paddingBottom: 2, background: "none", border: "none", cursor: "pointer" }}
+                    >
+                      {COPY.gameplay.skipBtn}
+                    </button>
+                  )}
+
                   {/* Hint / feedback footer */}
                   <AnimatePresence mode="wait">
                     {feedback ? (
@@ -1742,6 +1759,41 @@ export default function GamePlay() {
               )}
             </AnimatePresence>
           </div>
+
+          {/* Skip-question confirmation overlay */}
+          {skipConfirm && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/60" onClick={() => setSkipConfirm(false)} />
+              <div
+                className="relative w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4"
+                style={{ background: "#0f1724", border: "1px solid rgba(255,255,255,.1)" }}
+              >
+                <h3 className="font-extrabold text-white text-base">{COPY.gameplay.skipDialogTitle}</h3>
+                <p className="text-sm leading-relaxed" style={{ color: "#9aa6bc" }}>
+                  {COPY.gameplay.skipDialogBody}
+                </p>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={() => setSkipConfirm(false)}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition hover:brightness-110"
+                    style={{ border: "1px solid rgba(255,255,255,.12)", color: "#9aa6bc", background: "transparent", cursor: "pointer" }}
+                  >
+                    {COPY.gameplay.skipDialogGoBack}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (current) setSkippedIds((prev) => new Set([...prev, current.id]));
+                      setSkipConfirm(false);
+                    }}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-bold transition hover:brightness-110"
+                    style={{ background: "rgba(255,229,0,.15)", border: "1px solid rgba(255,229,0,.35)", color: "#ffe500", cursor: "pointer" }}
+                  >
+                    {COPY.gameplay.skipDialogConfirm}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ── Sidebar: live leaderboard (desktop only) ── */}
           <aside className="hidden lg:block px-0 pt-12 pb-16 pr-6">

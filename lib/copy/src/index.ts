@@ -250,6 +250,18 @@ export const COPY = {
     allDoneViewResults: 'View results',
     /** Secondary CTA button in the all-done state (web only; mobile navigates automatically). */
     allDoneBackToLobby: 'Back to Lobby',
+
+    // ── Skip (defer) a question ───────────────────────────────────────────────
+    /** Inline button to defer the current question to the end of the queue. */
+    skipBtn:          'Skip for now',
+    /** Title of the player skip-confirmation dialog. */
+    skipDialogTitle:  'Skip this question?',
+    /** Body of the player skip-confirmation dialog. */
+    skipDialogBody:   'This question will move to the end. You can come back and answer it after the others.',
+    /** Cancel action in the player skip dialog. */
+    skipDialogGoBack:    'Go back',
+    /** Confirm action in the player skip dialog. */
+    skipDialogConfirm:   'Skip for now',
   },
 
   /**

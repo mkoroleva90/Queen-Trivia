@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Animated,
   Image,
+  Modal,
   PanResponder,
   Platform,
   Pressable,
@@ -633,6 +634,8 @@ export default function GamePlayScreen() {
 
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [lockedAnswer, setLockedAnswer] = useState<string | null>(null);
+  const [skippedIds, setSkippedIds] = useState<Set<number>>(new Set());
+  const [skipConfirm, setSkipConfirm] = useState(false);
 
   const { data: game } = useGetGame(gameId, {
     query: { enabled: !!gameId, queryKey: getGetGameQueryKey(gameId), refetchInterval: 10000 },
@@ -663,10 +666,12 @@ export default function GamePlayScreen() {
     [questions],
   );
   const answeredIds = useMemo(() => new Set((myAnswers ?? []).map((a) => a.questionId)), [myAnswers]);
-  const current = sorted.find((q) => !answeredIds.has(q.id));
+  const unanswered = sorted.filter((q) => !answeredIds.has(q.id));
+  const current = unanswered.find((q) => !skippedIds.has(q.id)) ?? unanswered[0];
   const answeredCount = sorted.filter((q) => answeredIds.has(q.id)).length;
   const total = sorted.length;
   const isLastQuestion = !!current && sorted.indexOf(current) === total - 1;
+  const canSkip = unanswered.length > 1;
   const myScore = participants?.find((p) => p.userId === userId)?.totalScore ?? 0;
 
   useEffect(() => {
@@ -751,6 +756,40 @@ export default function GamePlayScreen() {
         </View>
       </View>
 
+      {/* Skip confirmation modal */}
+      <Modal visible={skipConfirm} transparent animationType="fade" onRequestClose={() => setSkipConfirm(false)}>
+        <View style={styles.skipOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setSkipConfirm(false)} />
+          <View style={[styles.skipDialog, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.skipDialogTitle, { color: colors.foreground }]}>
+              {COPY.gameplay.skipDialogTitle}
+            </Text>
+            <Text style={[styles.skipDialogBody, { color: colors.mutedForeground }]}>
+              {COPY.gameplay.skipDialogBody}
+            </Text>
+            <View style={styles.skipDialogBtns}>
+              <TouchableOpacity
+                onPress={() => setSkipConfirm(false)}
+                style={[styles.skipDialogBtnOutline, { borderColor: colors.border }]}
+              >
+                <Text style={[styles.skipDialogBtnText, { color: colors.mutedForeground }]}>
+                  {COPY.gameplay.skipDialogGoBack}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  if (current) setSkippedIds((prev) => new Set([...prev, current.id]));
+                  setSkipConfirm(false);
+                }}
+                style={styles.skipDialogBtnConfirm}
+              >
+                <Text style={styles.skipDialogBtnConfirmText}>{COPY.gameplay.skipDialogConfirm}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <ScrollView
         contentContainerStyle={[styles.gameContent, { paddingBottom: botPad + 32 }]}
         keyboardShouldPersistTaps="handled"
@@ -820,6 +859,18 @@ export default function GamePlayScreen() {
                 <MatchingQ question={current} onSubmit={handleSubmit} disabled={submitAnswer.isPending} lockedAnswer={lockedAnswer} />
               )}
             </View>
+
+            {/* Skip button — shown when unanswered and more questions remain */}
+            {!feedback && !lockedAnswer && canSkip && (
+              <TouchableOpacity
+                onPress={() => setSkipConfirm(true)}
+                style={styles.skipBtn}
+              >
+                <Text style={[styles.skipBtnText, { color: colors.mutedForeground }]}>
+                  {COPY.gameplay.skipBtn}
+                </Text>
+              </TouchableOpacity>
+            )}
 
             {/* Feedback */}
             {feedback && (
@@ -900,4 +951,16 @@ const styles = StyleSheet.create({
   doneState: { alignItems: 'center', justifyContent: 'center', gap: 12, paddingTop: 60 },
   doneTitle: { fontSize: 32, fontWeight: '900', fontFamily: 'Manrope_800ExtraBold' },
   doneSub: { fontSize: 15, fontWeight: '500', textAlign: 'center' },
+  // Skip
+  skipBtn: { alignItems: 'center', paddingVertical: 12 },
+  skipBtnText: { fontSize: 13, fontWeight: '600' },
+  skipOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  skipDialog: { width: '100%', maxWidth: 360, borderRadius: 20, borderWidth: 1, padding: 22, gap: 14 },
+  skipDialogTitle: { fontSize: 17, fontWeight: '800' },
+  skipDialogBody: { fontSize: 14, lineHeight: 21 },
+  skipDialogBtns: { flexDirection: 'row', gap: 10, paddingTop: 4 },
+  skipDialogBtnOutline: { flex: 1, height: 46, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  skipDialogBtnText: { fontSize: 14, fontWeight: '600' },
+  skipDialogBtnConfirm: { flex: 1, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,229,0,.18)', borderWidth: 1, borderColor: 'rgba(255,229,0,.4)' },
+  skipDialogBtnConfirmText: { fontSize: 14, fontWeight: '700', color: '#ffe500' },
 });
