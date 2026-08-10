@@ -164,7 +164,7 @@ export default function WelcomeScreen() {
               </Text>
 
               <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[styles.cardLabel, { color: '#ffffff' }]}>ENTER ROOM CODE</Text>
+                <Text style={[styles.cardLabel, { color: '#ffffff' }]}>JOIN A GAME</Text>
                 <View style={[styles.codePlaceholder, { backgroundColor: colors.muted, borderColor: colors.border }]}>
                   <Text style={[styles.codePlaceholderText, { color: colors.mutedForeground }]}>A1B2…</Text>
                 </View>
