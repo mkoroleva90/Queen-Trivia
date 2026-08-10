@@ -4514,9 +4514,8 @@ function NewAdminDashboard() {
   };
 
   const navItems = [
-    { id: "games", label: "Games", icon: Gamepad2 },
-    { id: "live", label: "Live game", icon: Radio },
     { id: "build", label: "Build a game", icon: Wand2 },
+    { id: "games", label: "Games", icon: Gamepad2 },
     { id: "results", label: "Results", icon: BarChart3 },
   ] as const;
 
