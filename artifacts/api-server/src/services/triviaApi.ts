@@ -1,33 +1,9 @@
 
 import { logger } from "../lib/logger.ts";
+import { decodeHtml } from "../lib/decodeHtml.ts";
 
 
 const OPENTDB_BASE = "https://opentdb.com";
-
-
-// ─── HTML entity decoder ──────────────────────────────────────────────────────
-
-
-function decodeHtml(html: string): string {
- return html
-  .replace(/&amp;/g, "&")
-  .replace(/&lt;/g, "<")
-  .replace(/&gt;/g, ">")
-  .replace(/&quot;/g, '"')
-  .replace(/&#039;/g, "'")
-  .replace(/&apos;/g, "'")
-  .replace(/&ldquo;/g, "\u201C")
-  .replace(/&rdquo;/g, "\u201D")
-  .replace(/&lsquo;/g, "\u2018")
-  .replace(/&rsquo;/g, "\u2019")
-  .replace(/&ndash;/g, "\u2013")
-  .replace(/&mdash;/g, "\u2014")
-        .replace(/&hellip;/g, "\u2026")
-        .replace(/&#(\d+);/g, (_, code: string) => String.fromCharCode(Number(code)))
-        .replace(/&#x([0-9a-fA-F]+);/g, (_, hex: string) =>
-         String.fromCharCode(parseInt(hex, 16)),
-        );
-}
 
 
 // ─── Session token cache ──────────────────────────────────────────────────────

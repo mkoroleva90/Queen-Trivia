@@ -15,6 +15,7 @@ import { requireUser } from "../middleware/requireUser.ts";
 import { requireAuth } from "../middleware/requireAuth.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { assertGameOwnership } from "../lib/assertGameOwnership.ts";
+import { decodeHtml } from "../lib/decodeHtml.ts";
 const answerRateLimit = rateLimit({
     windowMs: 60_000,
     max: 30,
@@ -241,11 +242,11 @@ const alternates = opts?.alternateAnswers ?? [];
 const { isCorrect, pointsEarned, feedback } = await gradeAnswer(
     question.questionType,
     parsed.data.userAnswer,
-    question.correctAnswer,
+    decodeHtml(question.correctAnswer),
     question.points,
     alternates,
     question.options as Record<string, unknown> | null,
-    question.questionText,
+    decodeHtml(question.questionText),
 );
 
 
@@ -549,11 +550,11 @@ router.post(
             ({ isCorrect, pointsEarned, feedback } = await gradeAnswer(
                 question.questionType,
                 parsed.data.userAnswer,
-                question.correctAnswer,
+                decodeHtml(question.correctAnswer),
                 question.points,
                 alternates,
                 question.options as Record<string, unknown> | null,
-                question.questionText,
+                decodeHtml(question.questionText),
             ));
         }
 

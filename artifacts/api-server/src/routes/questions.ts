@@ -16,6 +16,7 @@ import {
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { requireAuth } from "../middleware/requireAuth.ts";
 import { assertGameOwnership } from "../lib/assertGameOwnership.ts";
+import { decodeQuestionFields } from "../lib/decodeHtml.ts";
 
 
 const router: IRouter = Router();
@@ -66,9 +67,10 @@ router.get("/games/:gameId/questions", requireAuth, async (req, res): Promise<vo
     // Reveal correct answers once the game is over — safe to show players their results
     const revealAnswers = isAdmin || game.status === "completed";
 
+    const decoded = questions.map(decodeQuestionFields);
     const response = revealAnswers
-        ? questions
-        : questions.map(({ correctAnswer: _ca, ...rest }) => rest);
+        ? decoded
+        : decoded.map(({ correctAnswer: _ca, ...rest }) => rest);
 
 
  res.json(ListGameQuestionsResponse.parse(response));
