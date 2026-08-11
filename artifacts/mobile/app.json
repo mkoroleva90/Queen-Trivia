@@ -16,7 +16,19 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.queentrivia.app",
-      "buildNumber": "1"
+      "buildNumber": "1",
+      "ITSAppUsesNonExemptEncryption": false,
+      "privacyManifests": {
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+          }
+        ],
+        "NSPrivacyCollectedDataTypes": [],
+        "NSPrivacyTracking": false,
+        "NSPrivacyTrackingDomains": []
+      }
     },
     "android": {
       "package": "com.queentrivia.app"
@@ -24,6 +36,8 @@
     "web": {
       "favicon": "./assets/images/icon.png"
     },
+    "privacyPolicyUrl": "https://queen-trivia.com/privacy",
+    "supportUrl": "https://queen-trivia.com/support",
     "plugins": [
       [
         "expo-router",
