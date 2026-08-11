@@ -9,6 +9,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -44,6 +45,7 @@ import type {
 import { ADMIN_TOKEN_KEY } from '@/context/AdminAuthContext';
 import { useColors } from '@/hooks/useColors';
 import { API_BASE_URL } from '@/lib/apiBase';
+import { COPY } from '@workspace/copy';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1565,6 +1567,7 @@ export default function GameDetailScreen() {
   const [aiMenuQuestion, setAiMenuQuestion] = useState<Question | null>(null);
   const [generateOpen, setGenerateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [playAlong, setPlayAlong] = useState(false);
 
   const { data: games } = useListGames();
   const game = useMemo(() => games?.find((g) => g.id === gameId), [games, gameId]);
@@ -1654,7 +1657,10 @@ export default function GameDetailScreen() {
   };
 
   const handleStatusChange = async (status: 'waiting' | 'active' | 'completed') => {
-    await updateGame.mutateAsync({ gameId, data: { status } });
+    await updateGame.mutateAsync({
+      gameId,
+      data: status === 'active' ? { status, hostPlaysAlong: playAlong } : { status },
+    });
     qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
     if (status === 'active') router.push(`/admin/live/${gameId}`);
     if (status === 'completed') router.push(`/admin/results/${gameId}`);
@@ -1820,6 +1826,27 @@ export default function GameDetailScreen() {
         </View>
       </View>
 
+      {/* Play-along toggle — only for waiting games, full-width row below room-code bar */}
+      {game?.status === 'waiting' && (
+        <Pressable
+          style={[s.playAlongRow, { borderColor: playAlong ? colors.primary + '55' : colors.border, backgroundColor: playAlong ? colors.primary + '10' : 'transparent' }]}
+          onPress={() => setPlayAlong((v) => !v)}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: playAlong }}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13, fontFamily: 'Manrope_700Bold', color: colors.foreground }}>{COPY.hostPlayAlong.playAlongLabel}</Text>
+            <Text style={{ fontSize: 11, color: colors.mutedForeground, lineHeight: 15, marginTop: 2 }}>{COPY.hostPlayAlong.playAlongDesc}</Text>
+          </View>
+          <Switch
+            value={playAlong}
+            onValueChange={setPlayAlong}
+            trackColor={{ false: colors.border, true: colors.primary + '88' }}
+            thumbColor={playAlong ? colors.primary : colors.mutedForeground}
+          />
+        </Pressable>
+      )}
+
       {/* AI Generate + Add row */}
       <View style={[s.toolbarRow, { borderBottomColor: colors.border }]}>
         <Text style={[s.listTitle, { color: colors.foreground }]}>
@@ -1939,6 +1966,7 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     roomRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 8, borderRadius: 14, borderWidth: 1, padding: 12 },
     roomCode: { flex: 1, fontSize: 15, fontFamily: 'Manrope_700Bold', letterSpacing: 3 },
     roomInput: { flex: 1, fontSize: 15, fontFamily: 'Manrope_700Bold', letterSpacing: 3, borderBottomWidth: 1, paddingVertical: 2 },
+    playAlongRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 },
     statusActions: { flexDirection: 'row', gap: 6 },
     actionChip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
     actionChipText: { fontSize: 12, fontFamily: 'Manrope_600SemiBold' },
