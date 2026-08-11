@@ -22,7 +22,9 @@ import {
   Minus,
   Share2,
   BarChart3,
+  Flag,
 } from "lucide-react";
+import { ReportDialog } from "@/components/ReportDialog";
 import { COPY } from "@workspace/copy";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -79,6 +81,7 @@ export default function Results() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [expandedQuestions, setExpandedQuestions] = useState(true);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const { data: results, isLoading: resultsLoading, error: resultsError } = useQuery<GameResults>({
     queryKey: ["game-results", gameId],
@@ -457,7 +460,7 @@ export default function Results() {
             onClick={handleShare}
             className="font-semibold text-sm flex items-center gap-2"
             style={{
-              width: 92, height: 52, borderRadius: 14,
+              width: 52, height: 52, borderRadius: 14,
               background: "rgba(255,255,255,.07)",
               color: "#e2e8f0",
               border: "1px solid rgba(255,255,255,.14)",
@@ -467,9 +470,33 @@ export default function Results() {
           >
             <Share2 className="h-4 w-4 mx-auto" />
           </button>
+
+          {/* Report */}
+          <button
+            onClick={() => setReportOpen(true)}
+            className="font-semibold text-sm flex items-center gap-2"
+            style={{
+              width: 52, height: 52, borderRadius: 14,
+              background: "rgba(255,255,255,.07)",
+              color: "#e2e8f0",
+              border: "1px solid rgba(255,255,255,.14)",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+            title={COPY.report.button}
+            aria-label={COPY.report.button}
+          >
+            <Flag className="h-4 w-4 mx-auto" />
+          </button>
         </motion.div>
 
       </div>
+      {reportOpen && (
+        <ReportDialog
+          gameId={gameId}
+          onClose={() => setReportOpen(false)}
+        />
+      )}
       <Footer />
     </div>
   );

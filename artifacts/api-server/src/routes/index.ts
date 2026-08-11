@@ -13,6 +13,7 @@ import playRouter from "./play.ts";
 import resultsRouter from "./results.ts";
 import statsRouter from "./stats.ts";
 import ownerRouter from "./owner.ts";
+import reportsRouter from "./reports.ts";
 
 const router: IRouter = Router();
 router.use(healthRouter);
@@ -29,5 +30,6 @@ router.use(playRouter);
 router.use(resultsRouter);
 router.use(statsRouter);
 router.use(ownerRouter);
+router.use(reportsRouter);
 
 export default router;

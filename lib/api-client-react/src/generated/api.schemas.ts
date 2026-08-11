@@ -487,6 +487,29 @@ export interface AnswerResult {
   totalScore: number;
 }
 
+export type ReportInputReason = typeof ReportInputReason[keyof typeof ReportInputReason];
+
+
+export const ReportInputReason = {
+  hateful: 'hateful',
+  sexual: 'sexual',
+  harassment: 'harassment',
+  spam: 'spam',
+  other: 'other',
+} as const;
+
+export interface ReportInput {
+  gameId: number;
+  questionId?: number;
+  reason: ReportInputReason;
+  /** @maxLength 1000 */
+  note?: string;
+}
+
+export interface ReportSubmitted {
+  id: number;
+}
+
 export interface StatsSummary {
   totalGames: number;
   activeGames: number;
@@ -506,4 +529,9 @@ export const ListGamesStatus = {
   active: 'active',
   completed: 'completed',
 } as const;
+
+export type SubmitReport422 = {
+  error?: string;
+  code?: string;
+};
 

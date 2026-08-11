@@ -22,6 +22,8 @@ tags:
     description: Gameplay operations
   - name: stats
     description: Aggregate statistics
+  - name: reports
+    description: Content reporting
 paths:
   /healthz:
     get:
@@ -509,6 +511,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StatsSummary"
+  /reports:
+    post:
+      operationId: submitReport
+      tags: [reports]
+      summary: Submit a content report
+      description: >
+        Saves a player-submitted content report. No authentication required —
+        players are anonymous. Returns 201 on success. Returns 422 if the
+        optional note contains content that fails the server-side content filter.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportInput"
+      responses:
+        "201":
+          description: Report saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportSubmitted"
+        "422":
+          description: Note blocked by content filter
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                  code: { type: string }
 components:
   schemas:
     HealthStatus:
@@ -827,6 +860,21 @@ components:
         answeredAt: { type: string }
         pointsEarned: { type: integer }
         totalScore: { type: integer }
+    ReportInput:
+      type: object
+      required: [gameId, reason]
+      properties:
+        gameId: { type: integer }
+        questionId: { type: integer }
+        reason:
+          type: string
+          enum: [hateful, sexual, harassment, spam, other]
+        note: { type: string, maxLength: 1000 }
+    ReportSubmitted:
+      type: object
+      required: [id]
+      properties:
+        id: { type: integer }
     StatsSummary:
       type: object
       required: [totalGames, activeGames, totalPlayers, totalAnswers]

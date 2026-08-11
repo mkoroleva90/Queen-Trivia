@@ -23,6 +23,7 @@ import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
 import { API_BASE_URL } from '@/lib/apiBase';
 import { COPY } from '@workspace/copy';
+import { ReportModal } from '@/components/ReportModal';
 
 const RANK_COLORS = ['#ff0080', '#00ddff', '#8b5cf6', '#22c55e', '#f97316'];
 function rankColor(i: number) { return RANK_COLORS[i % RANK_COLORS.length] ?? '#ff0080'; }
@@ -54,6 +55,7 @@ export default function ResultsScreen() {
   const { user, logout } = useAuth();
   const userId = user?.id ?? 0;
   const [expandBreakdown, setExpandBreakdown] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const { data: results, isLoading, isError, refetch } = useQuery<GameResults>({
     queryKey: ['game-results', gameId],
@@ -270,6 +272,17 @@ export default function ResultsScreen() {
           <Text style={[styles.backBtnText, { color: colors.accentForeground }]}>{COPY.results.playAgain}</Text>
         </TouchableOpacity>
 
+        {/* Report */}
+        <TouchableOpacity
+          onPress={() => setReportOpen(true)}
+          style={styles.reportBtn}
+        >
+          <Ionicons name="flag-outline" size={15} color={colors.mutedForeground} />
+          <Text style={[styles.reportBtnText, { color: colors.mutedForeground }]}>
+            {COPY.report.button}
+          </Text>
+        </TouchableOpacity>
+
         {/* Sign out */}
         <TouchableOpacity
           onPress={() => {
@@ -294,6 +307,11 @@ export default function ResultsScreen() {
           <Text style={[styles.signOutBtnText, { color: colors.mutedForeground }]}>Sign out</Text>
         </TouchableOpacity>
       </ScrollView>
+      <ReportModal
+        visible={reportOpen}
+        gameId={gameId}
+        onClose={() => setReportOpen(false)}
+      />
     </View>
   );
 }
@@ -336,6 +354,8 @@ const styles = StyleSheet.create({
   qUnanswered: { fontSize: 12, fontStyle: 'italic' },
   backBtn: { height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
   backBtnText: { fontSize: 16, fontWeight: '800' },
+  reportBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14 },
+  reportBtnText: { fontSize: 14, fontWeight: '600' },
   signOutBtn: { alignItems: 'center', paddingVertical: 14 },
   signOutBtnText: { fontSize: 14, fontWeight: '600' },
   errorContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },

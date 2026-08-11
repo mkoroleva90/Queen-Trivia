@@ -536,3 +536,23 @@ export const GetStatsSummaryResponse = zod.object({
 })
 
 
+/**
+ * Saves a player-submitted content report. No authentication required — players are anonymous. Returns 201 on success. Returns 422 if the optional note contains content that fails the server-side content filter.
+ * @summary Submit a content report
+ */
+export const submitReportBodyNoteMax = 1000;
+
+
+
+export const SubmitReportBody = zod.object({
+  "gameId": zod.number(),
+  "questionId": zod.number().optional(),
+  "reason": zod.enum(['hateful', 'sexual', 'harassment', 'spam', 'other']),
+  "note": zod.string().max(submitReportBodyNoteMax).optional()
+})
+
+export const SubmitReportResponse = zod.object({
+  "id": zod.number()
+})
+
+

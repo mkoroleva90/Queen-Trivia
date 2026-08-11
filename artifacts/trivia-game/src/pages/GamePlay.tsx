@@ -35,7 +35,9 @@ import {
   X,
   Gamepad2,
   ChevronDown,
+  Flag,
 } from "lucide-react";
+import { ReportDialog } from "@/components/ReportDialog";
 import {
   Select,
   SelectContent,
@@ -1316,6 +1318,7 @@ export default function GamePlay() {
   // ── Skip (defer) state — client-side only, no server submission ──
   const [skippedIds, setSkippedIds] = useState<Set<number>>(new Set());
   const [skipConfirm, setSkipConfirm] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   useGameSocket(gameId || null, {
     onAnswerSubmitted: ({ playerName, isCorrect }) => {
@@ -1486,7 +1489,23 @@ export default function GamePlay() {
               >
                 <ArrowLeft className="h-5 w-5 text-white" />
               </button>
-              <GameSwitcher currentGameId={gameId} userId={userId} />
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setReportOpen(true)}
+                  className="flex items-center justify-center"
+                  style={{
+                    width: 32, height: 32, borderRadius: "50%",
+                    background: "rgba(255,255,255,.06)",
+                    border: "1px solid rgba(255,255,255,.10)",
+                    cursor: "pointer",
+                  }}
+                  aria-label={COPY.report.button}
+                  title={COPY.report.button}
+                >
+                  <Flag className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+                <GameSwitcher currentGameId={gameId} userId={userId} />
+              </div>
             </div>
 
             {/* Header row: question counter + score pill */}
@@ -1853,6 +1872,13 @@ export default function GamePlay() {
 
         </div>
       </div>
+      {reportOpen && (
+        <ReportDialog
+          gameId={gameId}
+          questionId={current?.id}
+          onClose={() => setReportOpen(false)}
+        />
+      )}
       <Footer />
     </div>
   );

@@ -7,3 +7,4 @@ export * from "./adminSettings";
 export * from "./sessions";
 export * from "./adminAccounts";
 export * from "./aiUsageLog";
+export * from "./contentReports";

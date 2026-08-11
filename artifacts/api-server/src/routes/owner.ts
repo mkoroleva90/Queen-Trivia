@@ -9,9 +9,9 @@
  * owner can inspect and manage the platform without needing a host account.
  */
 import { Router } from "express";
-import { isNull, eq } from "drizzle-orm";
+import { isNull, eq, desc } from "drizzle-orm";
 import { getHostUsageSummaries, getOrphanedGames } from "../lib/usageLimits.ts";
-import { db, adminAccountsTable, gamesTable } from "@workspace/db";
+import { db, adminAccountsTable, gamesTable, contentReportsTable } from "@workspace/db";
 
 const router = Router();
 
@@ -120,6 +120,22 @@ router.post("/owner/games/:id/assign", requireOwnerKey, async (req, res): Promis
     .returning({ id: gamesTable.id, topic: gamesTable.topic, ownerAdminId: gamesTable.ownerAdminId });
 
   res.json({ ok: true, game: updated, assignedTo: host.email });
+});
+
+// GET /api/owner/reports — list submitted content reports, newest first
+// Query params: limit (default 100, max 500), offset (default 0)
+router.get("/owner/reports", requireOwnerKey, async (req, res): Promise<void> => {
+  const limit  = Math.min(Number(req.query.limit)  || 100, 500);
+  const offset = Math.max(Number(req.query.offset) || 0,   0);
+
+  const reports = await db
+    .select()
+    .from(contentReportsTable)
+    .orderBy(desc(contentReportsTable.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  res.json({ reports, limit, offset });
 });
 
 export default router;

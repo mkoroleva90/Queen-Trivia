@@ -44,7 +44,10 @@ import type {
   QuestionUpdate,
   RegenerateQuestionInput,
   RegenerateQuestionPreview,
+  ReportInput,
+  ReportSubmitted,
   StatsSummary,
+  SubmitReport422,
   User,
   UserInput
 } from './api.schemas';
@@ -1783,4 +1786,76 @@ export function useGetStatsSummary<TData = Awaited<ReturnType<typeof getStatsSum
 
 
 
+
+export const getSubmitReportUrl = () => {
+
+
+
+
+  return `/api/reports`
+}
+
+/**
+ * Saves a player-submitted content report. No authentication required — players are anonymous. Returns 201 on success. Returns 422 if the optional note contains content that fails the server-side content filter.
+ * @summary Submit a content report
+ */
+export const submitReport = async (reportInput: ReportInput, options?: RequestInit): Promise<ReportSubmitted> => {
+
+  return customFetch<ReportSubmitted>(getSubmitReportUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reportInput)
+  }
+);}
+
+
+
+
+
+export const getSubmitReportMutationOptions = <TError = ErrorType<SubmitReport422>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitReport>>, TError,{data: BodyType<ReportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitReport>>, TError,{data: BodyType<ReportInput>}, TContext> => {
+
+const mutationKey = ['submitReport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitReport>>, {data: BodyType<ReportInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  submitReport(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitReportMutationResult = NonNullable<Awaited<ReturnType<typeof submitReport>>>
+    export type SubmitReportMutationBody = BodyType<ReportInput>
+    export type SubmitReportMutationError = ErrorType<SubmitReport422>
+
+    /**
+ * @summary Submit a content report
+ */
+export const useSubmitReport = <TError = ErrorType<SubmitReport422>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitReport>>, TError,{data: BodyType<ReportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitReport>>,
+        TError,
+        {data: BodyType<ReportInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitReportMutationOptions(options));
+    }
 

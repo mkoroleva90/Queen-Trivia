@@ -337,6 +337,12 @@ export const COPY = {
      */
     playerAnswer:
       "This answer can't be submitted. Please try different wording.",
+    /**
+     * Shown when the optional free-text note in a content report is blocked.
+     * Displayed inline in the report form on both platforms.
+     */
+    reportNote:
+      "Your note contains content that can't be submitted. Please change your wording.",
   },
 
   /**
@@ -378,5 +384,46 @@ export const COPY = {
     couldNotLoad:   'Could not load results.',
     /** Retry link text in the error state. */
     tryAgain:       'Try again',
+  },
+  /**
+   * Content reporting flow — available to players on in-game and results screens.
+   * Apple App Store guideline 1.2 requires a visible report mechanism plus a
+   * stated review commitment; confirmBody fulfils the commitment requirement.
+   * Both platforms must use these keys — do not inline strings in screens.
+   */
+  report: {
+    /** Label on the trigger button shown to players. */
+    button: 'Report',
+    /** Title of the report form dialog / modal. */
+    title: 'Report content',
+    /** Instructional subtitle above the reason selector. */
+    subtitle: "What's the problem?",
+    /** Placeholder for the optional free-text note field. */
+    notePlaceholder: 'Add details (optional)',
+    /** Primary submit button label. */
+    submit: 'Submit report',
+    /** Cancel / close button label. */
+    cancel: 'Cancel',
+    /** Heading shown after a successful submission. */
+    confirmTitle: 'Report received',
+    /**
+     * Body shown after a successful submission.
+     * The "24 hours" commitment is what Apple's guideline 1.2 looks for — do not remove it.
+     */
+    confirmBody:
+      'Thank you. We review all reports and will take action within 24 hours if the content violates our guidelines.',
+    /** Generic submission error shown when the server call fails. */
+    submitError: 'Something went wrong submitting your report. Please try again.',
+    /**
+     * Reason options shown to the player in the order they appear.
+     * Values correspond to the `reason` enum in the API schema.
+     */
+    reasons: {
+      hateful:    'Hateful or offensive content',
+      sexual:     'Sexual content',
+      harassment: 'Harassment',
+      spam:       'Spam or misleading',
+      other:      'Other',
+    },
   },
 } as const;

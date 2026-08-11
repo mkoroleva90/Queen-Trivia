@@ -52,6 +52,68 @@ export async function sendVerificationEmail(
   }
 }
 
+export async function sendContentReportEmail(report: {
+  id: number;
+  gameId: number | null;
+  questionId: number | null;
+  reporterUserId: number | null;
+  reason: string;
+  note: string | null;
+  createdAt: Date;
+}): Promise<void> {
+  const to = process.env["REPORT_RECIPIENT_EMAIL"];
+  if (!to) {
+    // Best-effort: log and return without throwing so a missing env var
+    // does not fail the player's submission — the report is already saved.
+    console.warn(
+      "[email] REPORT_RECIPIENT_EMAIL is not set — content report notification skipped"
+    );
+    return;
+  }
+
+  // RESEND_API_KEY / EMAIL_FROM are validated inside getEmailClient/getFromAddress.
+  // If they are missing the error is caught by the caller (.catch on the fire-and-forget call).
+  const resend = getEmailClient();
+  const from = getFromAddress();
+
+  const reasonLabel: Record<string, string> = {
+    hateful:    "Hateful or offensive content",
+    sexual:     "Sexual content",
+    harassment: "Harassment",
+    spam:       "Spam or misleading",
+    other:      "Other",
+  };
+
+  const { error } = await resend.emails.send({
+    from,
+    to,
+    subject: `[Queen Trivia] Content report #${report.id} — ${reasonLabel[report.reason] ?? report.reason}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:0 auto">
+        <h2 style="color:#ff2d8e">Queen Trivia — Content Report #${report.id}</h2>
+        <table style="width:100%;border-collapse:collapse;font-size:14px">
+          <tr><td style="padding:6px 0;color:#666;width:140px">Reason</td><td style="padding:6px 0;font-weight:bold">${reasonLabel[report.reason] ?? report.reason}</td></tr>
+          <tr><td style="padding:6px 0;color:#666">Game ID</td><td style="padding:6px 0">${report.gameId ?? "—"}</td></tr>
+          <tr><td style="padding:6px 0;color:#666">Question ID</td><td style="padding:6px 0">${report.questionId ?? "—"}</td></tr>
+          <tr><td style="padding:6px 0;color:#666">Reporter user ID</td><td style="padding:6px 0">${report.reporterUserId ?? "—"}</td></tr>
+          <tr><td style="padding:6px 0;color:#666">Submitted at</td><td style="padding:6px 0">${report.createdAt.toISOString()}</td></tr>
+          ${report.note ? `<tr><td style="padding:6px 0;color:#666;vertical-align:top">Note</td><td style="padding:6px 0">${report.note.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</td></tr>` : ""}
+        </table>
+        <p style="color:#999;font-size:12px;margin-top:20px">
+          Retrieve all reports: <code>GET /api/owner/reports</code> with your ADMIN_ACCESS_KEY.
+        </p>
+      </div>
+    `,
+  });
+
+  if (error) {
+    // Log but don't throw — the report is saved; the email is best-effort.
+    console.error(
+      `[email] Failed to send content report notification: ${error.name}`
+    );
+  }
+}
+
 export async function sendPasswordResetEmail(
   to: string,
   resetUrl: string

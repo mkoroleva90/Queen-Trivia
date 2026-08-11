@@ -36,6 +36,7 @@ import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
 import { useGameSocket } from '@/hooks/useSocket';
 import { COPY } from '@workspace/copy';
+import { ReportModal } from '@/components/ReportModal';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -637,6 +638,7 @@ export default function GamePlayScreen() {
   const [lockedAnswer, setLockedAnswer] = useState<string | null>(null);
   const [skippedIds, setSkippedIds] = useState<Set<number>>(new Set());
   const [skipConfirm, setSkipConfirm] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const { data: game } = useGetGame(gameId, {
     query: { enabled: !!gameId, queryKey: getGetGameQueryKey(gameId), refetchInterval: 10000 },
@@ -779,9 +781,14 @@ export default function GamePlayScreen() {
               {answeredCount}/{total} · {myScore} pts
             </Text>
           </View>
-          <TouchableOpacity onPress={() => router.push('/about')} hitSlop={12}>
-            <Ionicons name="information-circle-outline" size={24} color={colors.mutedForeground} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <TouchableOpacity onPress={() => setReportOpen(true)} hitSlop={12}>
+              <Ionicons name="flag-outline" size={22} color={colors.mutedForeground} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/about')} hitSlop={12}>
+              <Ionicons name="information-circle-outline" size={24} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          </View>
         </View>
         <View style={styles.progressPill}>
           <View style={[styles.progressFill, { width: `${total > 0 ? (answeredCount / total) * 100 : 0}%` as unknown as number, backgroundColor: colors.primary }]} />
@@ -911,6 +918,13 @@ export default function GamePlayScreen() {
           </>
         )}
       </ScrollView>
+
+      <ReportModal
+        visible={reportOpen}
+        gameId={gameId}
+        questionId={current?.id}
+        onClose={() => setReportOpen(false)}
+      />
     </View>
   );
 }
