@@ -243,7 +243,7 @@ export const GenerateGeminiQuestionsBody = zod.object({
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
   "amount": zod.number().min(1).max(generateGeminiQuestionsBodyAmountMax),
   "existingQuestions": zod.array(zod.string()).optional(),
-  "brief": zod.string().max(generateGeminiQuestionsBodyBriefMax).optional(),
+  "brief": zod.string().max(generateGeminiQuestionsBodyBriefMax).nullish(),
   "skipFactCheck": zod.boolean().optional()
 })
 

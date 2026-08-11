@@ -717,6 +717,7 @@ components:
           items: { type: string }
         brief:
           type: string
+          nullable: true
           maxLength: 2000
         skipFactCheck:
           type: boolean
