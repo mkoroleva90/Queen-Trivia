@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -65,6 +66,11 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [upgradeLimitMsg, setUpgradeLimitMsg] = useState<string | null>(null);
+  // Rename state
+  const [renamingId, setRenamingId] = useState<number | null>(null);
+  const [renameText, setRenameText] = useState('');
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [renameSaving, setRenameSaving] = useState(false);
   // Start-game confirmation state
   const [startTarget, setStartTarget] = useState<Game | null>(null);
   const [playAlongPending, setPlayAlongPending] = useState(false);
@@ -102,6 +108,36 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
     setStartTarget(null);
     setPlayAlongPending(false);
     await handleStatus(target, 'active', playAlong ? { hostPlaysAlong: true } : undefined);
+  };
+
+  const startRename = (game: Game) => {
+    setRenamingId(game.id);
+    setRenameText(game.topic ?? '');
+    setRenameError(null);
+  };
+
+  const cancelRename = () => {
+    setRenamingId(null);
+    setRenameText('');
+    setRenameError(null);
+  };
+
+  const handleRename = async (gameId: number) => {
+    const trimmed = renameText.trim();
+    if (!trimmed) {
+      setRenameError('Name cannot be empty');
+      return;
+    }
+    setRenameSaving(true);
+    try {
+      await updateGame.mutateAsync({ gameId, data: { topic: trimmed } });
+      qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
+      cancelRename();
+    } catch {
+      setRenameError('Failed to save. Try again.');
+    } finally {
+      setRenameSaving(false);
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -210,7 +246,7 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
             <Pressable
               key={game.id}
               style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => router.push(`/admin/${game.id}`)}
+              onPress={(e) => { if (renamingId === game.id) { e.stopPropagation(); return; } router.push(`/admin/${game.id}`); }}
             >
               <View style={s.cardTop}>
                 <View style={[s.statusChip, { backgroundColor: (STATUS_COLORS[game.status] ?? '#888') + '22' }]}>
@@ -223,9 +259,54 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
                 </Text>
               </View>
 
-              <Text style={[s.cardTopic, { color: colors.foreground }]} numberOfLines={2}>
-                {game.topic}
-              </Text>
+              {renamingId === game.id ? (
+                <View>
+                  <View style={s.renameRow}>
+                    <TextInput
+                      style={[s.renameInput, { color: colors.foreground, borderColor: colors.primary, backgroundColor: colors.muted }]}
+                      value={renameText}
+                      onChangeText={(t) => { setRenameText(t); setRenameError(null); }}
+                      autoFocus
+                      returnKeyType="done"
+                      onSubmitEditing={() => handleRename(game.id)}
+                    />
+                    {renameSaving ? (
+                      <ActivityIndicator size="small" color={colors.primary} style={{ marginLeft: 8 }} />
+                    ) : (
+                      <>
+                        <Pressable
+                          style={[s.renameIconBtn, { backgroundColor: colors.primary + '20' }]}
+                          onPress={(e) => { e.stopPropagation(); handleRename(game.id); }}
+                        >
+                          <Ionicons name="checkmark" size={18} color={colors.primary} />
+                        </Pressable>
+                        <Pressable
+                          style={[s.renameIconBtn, { backgroundColor: colors.muted }]}
+                          onPress={(e) => { e.stopPropagation(); cancelRename(); }}
+                        >
+                          <Ionicons name="close" size={18} color={colors.mutedForeground} />
+                        </Pressable>
+                      </>
+                    )}
+                  </View>
+                  {renameError && (
+                    <Text style={[s.renameError, { color: colors.destructive }]}>{renameError}</Text>
+                  )}
+                </View>
+              ) : (
+                <View style={s.topicRow}>
+                  <Text style={[s.cardTopic, { color: colors.foreground, flex: 1 }]} numberOfLines={2}>
+                    {game.topic}
+                  </Text>
+                  <Pressable
+                    style={s.editIconBtn}
+                    hitSlop={8}
+                    onPress={(e) => { e.stopPropagation(); startRename(game); }}
+                  >
+                    <Ionicons name="pencil-outline" size={15} color={colors.mutedForeground} />
+                  </Pressable>
+                </View>
+              )}
 
               <View style={s.cardMeta}>
                 <View style={s.metaItem}>
@@ -413,6 +494,12 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     metaText: { fontSize: 13 },
+    topicRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+    editIconBtn: { padding: 2, marginTop: 2 },
+    renameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    renameInput: { flex: 1, borderWidth: 1.5, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 15, fontFamily: 'Manrope_700Bold' },
+    renameIconBtn: { borderRadius: 8, padding: 6 },
+    renameError: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', marginTop: 4 },
     cardActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 4 },
     actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 6 },
     actionText: { fontSize: 13, fontFamily: 'Manrope_600SemiBold' },
