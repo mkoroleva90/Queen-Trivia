@@ -14,8 +14,9 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
+import * as SecureStore from 'expo-secure-store';
 import { useColors } from '@/hooks/useColors';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth, PLAYER_TOKEN_KEY } from '@/context/AuthContext';
 import { CrownMark } from '@/components/CrownMark';
 import { API_BASE_URL } from '@/lib/apiBase';
 
@@ -90,9 +91,17 @@ export default function WelcomeScreen() {
     setNameError('');
     setPending(true);
     try {
+      // If the player already has a stored session token, send it as a Bearer
+      // header. The server's "already-logged-in" path will restore their
+      // existing user identity — preserving any prior answers and score —
+      // rather than creating a duplicate participant record.
+      const storedToken = await SecureStore.getItemAsync(PLAYER_TOKEN_KEY).catch(() => null);
+      const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (storedToken) authHeaders['Authorization'] = `Bearer ${storedToken}`;
+
       const res = await fetch(`${baseUrl}/api/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({ code: trimmedCode, name: trimmedName }),
       });
       if (res.status === 401) { setCodeError('Code expired — re-enter'); animateStep(2); return; }
