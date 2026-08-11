@@ -12,15 +12,15 @@ import {
   TextInput,
   View,
 } from 'react-native';
-
-const PRIVACY_URL = 'https://queen-trivia.com/privacy';
-const TERMS_URL   = 'https://queen-trivia.com/terms';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import { ADMIN_TOKEN_KEY, useAdminAuth } from '@/context/AdminAuthContext';
 import { API_BASE_URL } from '@/lib/apiBase';
 import { useColors } from '@/hooks/useColors';
+
+const PRIVACY_URL = 'https://queen-trivia.com/privacy';
+const TERMS_URL   = 'https://queen-trivia.com/terms';
 
 // ── Validation helpers (mirror of server rules in accessCodeValidation.ts) ────
 
