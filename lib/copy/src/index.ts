@@ -326,6 +326,12 @@ export const COPY = {
     questionContent:
       "One or more fields contain text that can't be used in a question. Please change your wording and try again.",
     /**
+     * Shown when a host's game title (topic) is blocked on create or update.
+     * Displayed as a destructive toast on both platforms.
+     */
+    gameTopic:
+      "This game title can't be used. Please choose a different title.",
+    /**
      * Shown when a player's free-text answer is blocked on submission.
      * Displayed as a destructive toast on web and an Alert on mobile.
      */

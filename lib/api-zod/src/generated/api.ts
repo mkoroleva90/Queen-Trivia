@@ -94,13 +94,14 @@ export const ListGamesResponse = zod.array(ListGamesResponseItem)
 /**
  * @summary Create a game (admin)
  */
+export const createGameBodyTopicMax = 120;
 
 export const createGameBodyBriefMax = 2000;
 
 
 
 export const CreateGameBody = zod.object({
-  "topic": zod.string().min(1),
+  "topic": zod.string().min(1).max(createGameBodyTopicMax),
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
   "createdByAdmin": zod.boolean().optional(),
   "brief": zod.string().max(createGameBodyBriefMax).nullish(),
@@ -153,6 +154,7 @@ export const UpdateGameParams = zod.object({
   "gameId": zod.coerce.number()
 })
 
+export const updateGameBodyTopicMax = 120;
 
 export const updateGameBodyBriefMax = 2000;
 
@@ -164,7 +166,7 @@ export const updateGameBodyAccessCodeRegExp = new RegExp('^[A-Za-z0-9]+$');
 
 
 export const UpdateGameBody = zod.object({
-  "topic": zod.string().min(1).optional(),
+  "topic": zod.string().min(1).max(updateGameBodyTopicMax).optional(),
   "difficulty": zod.enum(['easy', 'medium', 'hard']).optional(),
   "status": zod.enum(['waiting', 'active', 'completed']).optional(),
   "brief": zod.string().max(updateGameBodyBriefMax).nullish(),

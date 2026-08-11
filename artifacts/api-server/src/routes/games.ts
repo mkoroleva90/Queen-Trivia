@@ -27,6 +27,8 @@ import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { requireAuth } from "../middleware/requireAuth.ts";
 import { generateTriviaCode } from "../lib/bootstrapAccessCodes.ts";
 import { checkGameCreationLimit } from "../lib/usageLimits.ts";
+import { containsBannedContent, logFlaggedContent } from "../lib/contentFilter.ts";
+import { COPY } from "@workspace/copy";
 
 
 const router: IRouter = Router();
@@ -86,6 +88,13 @@ router.post("/games", requireAdmin, async (req, res): Promise<void> => {
  const parsed = CreateGameBody.safeParse(req.body);
  if (!parsed.success) {
      res.status(400).json({ error: parsed.error.message });
+     return;
+ }
+
+ // Content filter: block slurs/hate speech in game titles before saving.
+ if (containsBannedContent(parsed.data.topic)) {
+     logFlaggedContent('game_topic_create');
+     res.status(422).json({ error: COPY.contentFilter.gameTopic, code: "content_filtered" });
      return;
  }
 
@@ -174,6 +183,13 @@ router.patch("/games/:gameId", requireAdmin, async (req, res): Promise<void> => 
  }
 
  if (!await assertGameOwnership(req, res, params.data.gameId)) return;
+
+ // Content filter: block slurs/hate speech in game title updates before saving.
+ if (parsed.data.topic !== undefined && containsBannedContent(parsed.data.topic)) {
+     logFlaggedContent('game_topic_update');
+     res.status(422).json({ error: COPY.contentFilter.gameTopic, code: "content_filtered" });
+     return;
+ }
 
  // Normalize custom room codes to uppercase — players enter codes uppercased.
  const updates = parsed.data.accessCode !== undefined

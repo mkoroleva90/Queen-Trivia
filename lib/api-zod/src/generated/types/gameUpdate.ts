@@ -9,7 +9,10 @@ import type { GameUpdateDifficulty } from './gameUpdateDifficulty';
 import type { GameUpdateStatus } from './gameUpdateStatus';
 
 export interface GameUpdate {
-  /** @minLength 1 */
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
   topic?: string;
   difficulty?: GameUpdateDifficulty;
   status?: GameUpdateStatus;

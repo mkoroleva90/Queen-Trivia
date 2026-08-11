@@ -549,7 +549,7 @@ components:
       type: object
       required: [topic, difficulty]
       properties:
-        topic: { type: string, minLength: 1 }
+        topic: { type: string, minLength: 1, maxLength: 120 }
         difficulty:
           type: string
           enum: [easy, medium, hard]
@@ -559,7 +559,7 @@ components:
     GameUpdate:
       type: object
       properties:
-        topic: { type: string, minLength: 1 }
+        topic: { type: string, minLength: 1, maxLength: 120 }
         difficulty:
           type: string
           enum: [easy, medium, hard]

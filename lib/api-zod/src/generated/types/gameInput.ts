@@ -8,7 +8,10 @@
 import type { GameInputDifficulty } from './gameInputDifficulty';
 
 export interface GameInput {
-  /** @minLength 1 */
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
   topic: string;
   difficulty: GameInputDifficulty;
   createdByAdmin?: boolean;

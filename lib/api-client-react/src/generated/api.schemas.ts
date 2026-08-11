@@ -56,7 +56,10 @@ export const GameInputDifficulty = {
 } as const;
 
 export interface GameInput {
-  /** @minLength 1 */
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
   topic: string;
   difficulty: GameInputDifficulty;
   createdByAdmin?: boolean;
@@ -87,7 +90,10 @@ export const GameUpdateStatus = {
 } as const;
 
 export interface GameUpdate {
-  /** @minLength 1 */
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
   topic?: string;
   difficulty?: GameUpdateDifficulty;
   status?: GameUpdateStatus;
