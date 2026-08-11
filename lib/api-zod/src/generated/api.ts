@@ -233,7 +233,9 @@ export const GenerateGeminiQuestionsBody = zod.object({
 export const GenerateGeminiQuestionsResponse = zod.object({
   "imported": zod.number(),
   "total": zod.number(),
-  "discarded": zod.number().optional()
+  "discarded": zod.number().optional(),
+  "contentFilteredCount": zod.number().optional(),
+  "contentFilteredMessage": zod.string().optional()
 })
 
 

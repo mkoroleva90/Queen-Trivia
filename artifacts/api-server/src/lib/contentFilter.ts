@@ -205,7 +205,10 @@ export function extractOptionTexts(options: unknown): string[] {
  */
 export function containsBannedContent(text: string): boolean {
   if (!text?.trim()) return false;
-  return extractTokens(text).some((t) => BANNED.has(t));
+  // ALLOWLIST is checked at both construction time (BANNED never contains
+  // allowlisted forms) and here at lookup time, so the check holds regardless
+  // of how the banned set was constructed.
+  return extractTokens(text).some((t) => BANNED.has(t) && !ALLOWLIST.has(t));
 }
 
 /**

@@ -276,6 +276,25 @@ export const COPY = {
      * may itself be the reason for the block.
      */
     safetyBlock: "This topic couldn't be generated — it may contain content that can't appear in a trivia game. Please try a different topic or rephrase it.",
+
+    /**
+     * Shown when EVERY question in a Gemini batch was removed by the content
+     * filter before saving. Returned as HTTP 422 with code "content_filtered_all".
+     * Tone is neutral — the host did nothing wrong, the AI produced the content.
+     * Displayed as a destructive toast on web and as setAiError/setSetupError on mobile.
+     */
+    contentFilteredAll:
+      "None of the questions could be saved — they contained content that can't be used in a trivia game. Please try a different topic.",
+
+    /**
+     * Shown when SOME (but not all) questions in a Gemini batch were removed
+     * by the content filter. The server calls this function and embeds the
+     * formatted string in the "contentFilteredMessage" field of the success
+     * response body so both clients read a pre-formatted string from the API.
+     * Displayed as a destructive toast on web and alongside the success count on mobile.
+     */
+    contentFilteredPartial: (saved: number, removed: number): string =>
+      `${removed} of ${saved + removed} question${(saved + removed) === 1 ? '' : 's'} were removed because they contained content that can't be used. ${saved} question${saved === 1 ? '' : 's'} saved.`,
   },
 
   /**

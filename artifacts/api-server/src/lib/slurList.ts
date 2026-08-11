@@ -21,16 +21,23 @@
  * ALLOWLIST
  *   ALLOWLIST_TERMS contains normalised forms that must never be flagged even
  *   if they appear in RAW_SLURS. Add entries here to resolve false positives
- *   without touching the banned list — they take precedence over everything.
+ *   without touching the banned list — they take precedence over everything,
+ *   and are enforced both at banned-set construction time AND at the point each
+ *   submitted token is checked against the set.
  */
 
 /**
  * Normalised forms that must never trigger the filter.
- * These are checked against the plain-normalised token before the banned-set
- * lookup, so an allowlisted form can never be blocked.
+ *
+ * The allowlist is applied in two places so it is impossible to circumvent:
+ *   1. At startup, when building the BANNED Set — allowlisted forms are
+ *      excluded from BANNED even if they appear in RAW_SLURS.
+ *   2. At check time in containsBannedContent — every token is tested against
+ *      ALLOWLIST before being tested against BANNED, so no code path can flag
+ *      an allowlisted word regardless of how the banned set was constructed.
  *
  * Add a word here (in its plain lowercase, non-alpha-stripped form) whenever a
- * legitimate proper noun, place name, reclaimed term, or other innocent word
+ * legitimate proper noun, place name, scientific term, or other innocent word
  * would otherwise be caught by the filter.
  */
 export const ALLOWLIST_TERMS: readonly string[] = [
@@ -40,8 +47,23 @@ export const ALLOWLIST_TERMS: readonly string[] = [
   'niger',
 
   // Legitimate common words that have historically doubled as slurs in some
-  // contexts but whose primary modern meaning is innocent.
+  // contexts but whose everyday English meaning clearly dominates.
   'guinea',   // currency unit, Republic of Guinea, guinea pig
+
+  // ── Allowlisted RAW_SLURS entries ───────────────────────────────────────────
+  //
+  // The following words are retained in RAW_SLURS (so the reasoning stays
+  // visible) but must never be flagged because their dominant everyday meaning
+  // in general English is innocent and would produce false positives in trivia.
+
+  'slope',    // mathematics (gradient), geography (hillside), skiing — far more
+              // common in trivia than the anti-Asian slur sense.
+
+  'nip',      // "a nip in the air" (cold), "nip of whisky" (small measure),
+              // "nip out" (leave briefly) — all common everyday phrases.
+
+  'chink',    // "a chink in the armour/armor" is a standard English idiom for
+              // a gap or weakness; appears regularly in history and literature.
 ];
 
 /**
@@ -50,6 +72,8 @@ export const ALLOWLIST_TERMS: readonly string[] = [
  * the raw strings here are never shipped to any client.
  *
  * Each entry is annotated with the group it targets.
+ * Entries that also appear in ALLOWLIST_TERMS are marked — they are retained
+ * here so the reasoning for their original inclusion stays visible.
  */
 export const RAW_SLURS: readonly string[] = [
   // ── Anti-Black ───────────────────────────────────────────────────────────────
@@ -60,11 +84,11 @@ export const RAW_SLURS: readonly string[] = [
   'pickaninny',
 
   // ── Anti-Asian ───────────────────────────────────────────────────────────────
-  'chink',
+  'chink',        // allowlisted — "chink in the armour" idiom dominates
   'gook',
   'jap',
-  'nip',
-  'slope',
+  'nip',          // allowlisted — weather/drink/movement senses dominate
+  'slope',        // allowlisted — mathematical/geographical sense dominates
   'zipperhead',
 
   // ── Anti-Hispanic / Latino ───────────────────────────────────────────────────

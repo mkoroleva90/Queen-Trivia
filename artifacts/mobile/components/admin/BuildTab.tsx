@@ -328,6 +328,10 @@ export function BuildTab({ bottomPadding }: Props) {
       invalidate(game.id);
       setWorkingGameId(game.id);
       setSetupResult({ type: 'ai', imported: result.imported });
+      // If the content filter removed some questions, tell the host.
+      if (result.contentFilteredCount && result.contentFilteredCount > 0 && result.contentFilteredMessage) {
+        setSetupError(result.contentFilteredMessage);
+      }
     } catch (err) {
       const msg = extractApiError(err, 'Failed to create game — please retry');
       if (msg.includes('Free plan') || msg.includes('games allowed this month')) {
@@ -373,6 +377,10 @@ export function BuildTab({ bottomPadding }: Props) {
       });
       invalidate(selectedGame.id);
       setAiResult({ imported: result.imported });
+      // If the content filter removed some questions, tell the host.
+      if (result.contentFilteredCount && result.contentFilteredCount > 0 && result.contentFilteredMessage) {
+        setAiError(result.contentFilteredMessage);
+      }
     } catch (err) {
       const msg = extractApiError(err, 'Generation failed — try again or add questions manually');
       if (msg.includes('Free plan')) {

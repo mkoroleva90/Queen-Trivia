@@ -987,10 +987,20 @@ const handleGenerate = async () => {
   invalidate();
   setGenOpen(false);
   toast({ title: `Added ${result.imported} AI-generated questions` });
+  if (result.contentFilteredCount && result.contentFilteredCount > 0 && result.contentFilteredMessage) {
+   toast({ variant: "destructive", title: result.contentFilteredMessage });
+  }
  } catch (err: unknown) {
   const limitMsg = extractFreeTierLimitMsg(err);
   if (limitMsg) { setUpgradeLimitMsg(limitMsg); return; }
-  toast({ variant: "destructive", title: "Generation failed. Please try again." });
+  const errData = err && typeof err === "object" && "data" in err ? (err as { data: unknown }).data : null;
+  const apiMsg = errData && typeof errData === "object" && "error" in errData ? String((errData as { error: unknown }).error) : null;
+  const errCode = errData && typeof errData === "object" && "code" in errData ? String((errData as { code: unknown }).code) : null;
+  if (errCode === "content_filtered_all" && apiMsg) {
+   toast({ variant: "destructive", title: apiMsg });
+  } else {
+   toast({ variant: "destructive", title: "Generation failed. Please try again." });
+  }
  }
 };
 
@@ -1446,6 +1456,9 @@ const handleSubmit = async (e: React.FormEvent) => {
           setImportedCount(result.imported);
           setImportSource("gemini");
           toast({ title: `${result.imported} questions generated` });
+          if (result.contentFilteredCount && result.contentFilteredCount > 0 && result.contentFilteredMessage) {
+              toast({ variant: "destructive", title: result.contentFilteredMessage });
+          }
       } catch (err: unknown) {
           const limitMsg = extractFreeTierLimitMsg(err);
           if (limitMsg) { setUpgradeLimitMsg(limitMsg); setWorking(false); return; }
@@ -1462,7 +1475,7 @@ const handleSubmit = async (e: React.FormEvent) => {
           } else if (_isPM1) {
               setRetryCountdown(_cd1);
               toast({ variant: "destructive", title: `Rate limited — retry unlocks in ${_cd1} s` });
-          } else if (errCode === "safety_block") {
+          } else if (errCode === "content_filtered_all" || errCode === "safety_block") {
               toast({ variant: "destructive", title: msg });
           } else {
               toast({ variant: "destructive", title: "Generation failed — add questions manually" });

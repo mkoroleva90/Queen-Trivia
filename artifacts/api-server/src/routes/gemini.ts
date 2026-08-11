@@ -146,6 +146,16 @@ router.post(
             return true;
         });
 
+        // Track how many questions were removed by the content filter so the
+        // host can be told rather than receiving a silent partial result.
+        const contentFilteredCount = result.questions.length - questions.length;
+
+        if (questions.length === 0) {
+            // Every question was removed — do not insert anything and tell the host.
+            res.status(422).json({ error: COPY.aiGenerate.contentFilteredAll, code: "content_filtered_all" });
+            return;
+        }
+
         const existing = await db
             .select({ orderIndex: questionsTable.orderIndex })
             .from(questionsTable)
@@ -186,8 +196,21 @@ router.post(
 
         const savedCount = questions.length;
         const discardedCount = result.discarded;
-        logger.info({ gameId: game.id, saved: savedCount, discarded: discardedCount }, `${savedCount} saved, ${discardedCount} discarded`);
-        res.json({ imported: savedCount, total: result.questions.length + result.discarded, discarded: discardedCount });
+        logger.info(
+            { gameId: game.id, saved: savedCount, discarded: discardedCount, contentFiltered: contentFilteredCount },
+            `${savedCount} saved, ${discardedCount} discarded, ${contentFilteredCount} content-filtered`,
+        );
+        res.json({
+            imported: savedCount,
+            total: result.questions.length + result.discarded,
+            discarded: discardedCount,
+            // Only present when the content filter removed at least one question.
+            // Clients must show contentFilteredMessage to the host when this field is > 0.
+            ...(contentFilteredCount > 0 ? {
+                contentFilteredCount,
+                contentFilteredMessage: COPY.aiGenerate.contentFilteredPartial(savedCount, contentFilteredCount),
+            } : {}),
+        });
     },
 );
 

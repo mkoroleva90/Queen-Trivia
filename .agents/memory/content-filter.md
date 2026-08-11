@@ -6,9 +6,15 @@ description: Server-side slur/hate-speech filter — word list source, normaliza
 # Content filter
 
 ## Word list source
-Curated slur-only list in `artifacts/api-server/src/lib/slurList.ts` — 29 entries after normalisation.
+Curated slur-only list in `artifacts/api-server/src/lib/slurList.ts` — 29 raw entries; BANNED set has 26 at runtime (slope, nip, chink allowlisted).
 Slurs and hate speech targeting groups ONLY. General profanity (dick, cock, ass, sex, etc.) is explicitly excluded.
 naughty-words package removed entirely from api-server dependencies.
+
+## Allowlist mechanics
+ALLOWLIST is applied at TWO points: (1) at BANNED set construction — allowlisted forms are never added; (2) at lookup time in containsBannedContent — `BANNED.has(t) && !ALLOWLIST.has(t)`. Both checks mean an allowlisted token can never be flagged regardless of how the set was constructed. The allowlist covers all normalised forms (plain and leet) — so if "chink" is allowlisted, "ch1nk" (leet → "chink") is also ALLOWED.
+
+## Gemini partial-filter response
+When content filter removes some (not all) AI questions, server returns 200 with `contentFilteredCount` and `contentFilteredMessage`. When all questions removed, server returns 422 with `code: "content_filtered_all"`. Both clients read these fields and surface the message. New COPY keys: `aiGenerate.contentFilteredAll` (string) and `aiGenerate.contentFilteredPartial` (function: (saved, removed) => string).
 
 ## Critical normalization design decisions
 

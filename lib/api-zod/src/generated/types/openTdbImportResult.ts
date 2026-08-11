@@ -9,4 +9,8 @@
 export interface OpenTdbImportResult {
   imported: number;
   total: number;
+  /** Present when some AI-generated questions were removed by the content filter. */
+  contentFilteredCount?: number;
+  /** Pre-formatted human-readable message; present when contentFilteredCount > 0. */
+  contentFilteredMessage?: string;
 }
