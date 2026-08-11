@@ -1563,6 +1563,9 @@ export default function GameDetailScreen() {
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [editingRoomCode, setEditingRoomCode] = useState(false);
   const [roomCode, setRoomCode] = useState('');
+  const [editingTopic, setEditingTopic] = useState(false);
+  const [topicInput, setTopicInput] = useState('');
+  const [topicError, setTopicError] = useState('');
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [aiMenuQuestion, setAiMenuQuestion] = useState<Question | null>(null);
   const [generateOpen, setGenerateOpen] = useState(false);
@@ -1642,6 +1645,19 @@ export default function GameDetailScreen() {
       invalidate();
     } finally {
       isSyncing.current = false;
+    }
+  };
+
+  const handleSaveTopic = async () => {
+    const trimmed = topicInput.trim();
+    if (!trimmed) { setTopicError('Quiz name cannot be empty'); return; }
+    setTopicError('');
+    try {
+      await updateGame.mutateAsync({ gameId, data: { topic: trimmed } });
+      qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
+      setEditingTopic(false);
+    } catch {
+      setTopicError('Failed to save — try again');
     }
   };
 
@@ -1753,10 +1769,45 @@ export default function GameDetailScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.foreground} />
         </Pressable>
         <View style={s.headerCenter}>
-          <Text style={[s.headerTitle, { color: colors.foreground }]} numberOfLines={1}>
-            {game?.topic ?? 'Game'}
-          </Text>
-          {game && (
+          {editingTopic ? (
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <TextInput
+                  style={[s.headerTitle, { color: colors.foreground, borderBottomWidth: 1, borderBottomColor: colors.primary, flex: 1, paddingVertical: 2 }]}
+                  value={topicInput}
+                  onChangeText={(v) => { setTopicInput(v); setTopicError(''); }}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={handleSaveTopic}
+                  placeholderTextColor={colors.mutedForeground}
+                  placeholder="Quiz name"
+                />
+                <Pressable onPress={handleSaveTopic} hitSlop={8} disabled={updateGame.isPending}>
+                  {updateGame.isPending
+                    ? <ActivityIndicator size="small" color={colors.secondary} />
+                    : <Ionicons name="checkmark-circle" size={22} color={colors.secondary} />}
+                </Pressable>
+                <Pressable onPress={() => { setEditingTopic(false); setTopicError(''); }} hitSlop={8}>
+                  <Ionicons name="close-circle" size={22} color={colors.mutedForeground} />
+                </Pressable>
+              </View>
+              {topicError ? (
+                <Text style={{ color: colors.destructive, fontSize: 11, marginTop: 2 }}>{topicError}</Text>
+              ) : null}
+            </View>
+          ) : (
+            <Pressable
+              onPress={() => { setTopicInput(game?.topic ?? ''); setTopicError(''); setEditingTopic(true); }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}
+              hitSlop={8}
+            >
+              <Text style={[s.headerTitle, { color: colors.foreground, flex: 1 }]} numberOfLines={1}>
+                {game?.topic ?? 'Game'}
+              </Text>
+              <Ionicons name="pencil" size={14} color={colors.mutedForeground} />
+            </Pressable>
+          )}
+          {game && !editingTopic && (
             <View style={[s.statusBadge, { backgroundColor: (game.status === 'active' ? colors.secondary : game.status === 'completed' ? colors.muted : colors.accent) + '22' }]}>
               <Text style={[s.statusText, { color: game.status === 'active' ? colors.secondary : game.status === 'completed' ? colors.muted : colors.accent }]}>
                 {game.status}
