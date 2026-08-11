@@ -9,6 +9,7 @@ import {
   EmailVerifyBody,
   EmailForgotPasswordBody,
   EmailResetPasswordBody,
+  EmailChangePasswordBody,
 } from "@workspace/api-zod";
 import { authRateLimit } from "../middleware/authRateLimit.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
@@ -290,6 +291,7 @@ router.post(
       .update(adminAccountsTable)
       .set({
         passwordHash,
+        passwordChangedAt: new Date(),
         resetTokenHash: null,
         resetTokenExpiry: null,
       })
@@ -304,6 +306,63 @@ router.post(
       .where(sql`${sessionsTable.sess}->>'adminEmail' = ${account.email}`);
 
     res.json({ ok: true, message: "Password updated. You can now log in." });
+  }
+);
+
+// POST /api/auth/email/change-password
+// Requires an active admin session. Verifies the current password, then hashes
+// and stores the new one. Issues a fresh mobile token; does NOT invalidate the
+// current session so the host stays logged in.
+router.post(
+  "/auth/email/change-password",
+  authRateLimit,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const parsed = EmailChangePasswordBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    const adminAccountId = req.session.adminAccountId;
+    if (adminAccountId == null) {
+      res.status(400).json({ error: "This endpoint requires an email-based account session." });
+      return;
+    }
+
+    const [account] = await db
+      .select()
+      .from(adminAccountsTable)
+      .where(eq(adminAccountsTable.id, adminAccountId))
+      .limit(1);
+
+    if (!account) {
+      res.status(404).json({ error: "Account not found." });
+      return;
+    }
+
+    const currentOk = await bcrypt.compare(parsed.data.currentPassword, account.passwordHash ?? "");
+    if (!currentOk) {
+      res.status(400).json({ error: "Current password is incorrect." });
+      return;
+    }
+
+    const newHash = await bcrypt.hash(parsed.data.newPassword, 12);
+    const passwordChangedAt = new Date();
+    await db
+      .update(adminAccountsTable)
+      .set({ passwordHash: newHash, passwordChangedAt })
+      .where(eq(adminAccountsTable.id, adminAccountId));
+
+    // Issue a fresh mobile token with iat guaranteed to be after passwordChangedAt
+    // (by +1 ms) so it always passes the revocation check in injectMobileSession,
+    // even if JS Date.now() and the stored timestamp land in the same millisecond.
+    const { generateAdminToken } = await import("../lib/mobileAuth.js");
+    const newAdminToken = generateAdminToken(adminAccountId, {
+      issuedAt: passwordChangedAt.getTime() + 1,
+    });
+
+    res.json({ ok: true, message: "Password changed successfully.", newAdminToken });
   }
 );
 

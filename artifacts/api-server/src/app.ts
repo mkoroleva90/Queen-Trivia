@@ -42,7 +42,9 @@ app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(sessionMiddleware);
-// Inject mobile player session from Bearer token when no cookie session exists.
+// Evaluate any Bearer token on every request. For admin tokens this runs before
+// honoring a cookie session, so revoked (post-password-change) tokens cannot
+// fall back to cookie-derived admin access.
 // Must run after sessionMiddleware so req.session is available.
 app.use(injectMobileSession);
 

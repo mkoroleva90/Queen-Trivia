@@ -48,3 +48,15 @@ export const EmailResetPasswordResponse = zod.object({
   ok: zod.boolean(),
   message: zod.string(),
 });
+
+// POST /api/auth/email/change-password
+export const EmailChangePasswordBody = zod.object({
+  currentPassword: zod.string().min(1),
+  newPassword: zod.string().min(8).max(128),
+});
+export const EmailChangePasswordResponse = zod.object({
+  ok: zod.boolean(),
+  message: zod.string(),
+  /** Fresh bearer token for mobile clients to replace the now-revoked old token. */
+  newAdminToken: zod.string().optional(),
+});

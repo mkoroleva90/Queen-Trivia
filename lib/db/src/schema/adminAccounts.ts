@@ -23,6 +23,8 @@ export const adminAccountsTable = pgTable("admin_accounts", {
   // Monetization: plan tier and per-host state.
   // Enforcement is gated behind ENFORCE_FREE_TIER_LIMITS env var (default off).
   plan: text("plan", { enum: ["free", "pro"] }).notNull().default("free"),
+  // Used to invalidate mobile Bearer tokens issued before a password change.
+  passwordChangedAt: timestamp("password_changed_at", { withTimezone: true }),
 });
 
 export type AdminAccount = typeof adminAccountsTable.$inferSelect;

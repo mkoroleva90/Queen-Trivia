@@ -90,6 +90,17 @@ export function RoomsTab({ bottomPadding }: Props) {
   const [globalError, setGlobalError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // Change password state
+  const [pwCurrent, setPwCurrent] = useState('');
+  const [pwNew, setPwNew] = useState('');
+  const [pwConfirm, setPwConfirm] = useState('');
+  const [pwShowCurrent, setPwShowCurrent] = useState(false);
+  const [pwShowNew, setPwShowNew] = useState(false);
+  const [pwShowConfirm, setPwShowConfirm] = useState(false);
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwError, setPwError] = useState('');
+  const [pwSuccess, setPwSuccess] = useState('');
+
   // Per-field computed validation
   const adminErr = adminCode.trim() ? adminCodeError(adminCode) : null;
   const isInvalid = !!adminErr;
@@ -138,6 +149,38 @@ export function RoomsTab({ bottomPadding }: Props) {
       setGlobalError(e instanceof Error ? e.message : 'Failed to save settings.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    setPwError('');
+    setPwSuccess('');
+    if (!pwCurrent) { setPwError('Please enter your current password.'); return; }
+    if (pwNew.length < 8) { setPwError('New password must be at least 8 characters.'); return; }
+    if (pwNew !== pwConfirm) { setPwError('New passwords do not match.'); return; }
+    setPwSaving(true);
+    try {
+      const r = await adminFetch(`${baseUrl}/api/auth/email/change-password`, {
+        method: 'POST',
+        body: JSON.stringify({ currentPassword: pwCurrent, newPassword: pwNew }),
+      });
+      const json = await r.json().catch(() => ({})) as { ok?: boolean; error?: string; message?: string; newAdminToken?: string };
+      if (!r.ok) {
+        setPwError(json.error ?? `HTTP ${r.status}`);
+        return;
+      }
+      // Store the fresh token so the old (now-invalidated) one is replaced.
+      if (json.newAdminToken) {
+        await SecureStore.setItemAsync(ADMIN_TOKEN_KEY, json.newAdminToken).catch(() => null);
+      }
+      setPwCurrent('');
+      setPwNew('');
+      setPwConfirm('');
+      setPwSuccess(json.message ?? 'Password changed successfully.');
+    } catch {
+      setPwError('Connection error — please retry.');
+    } finally {
+      setPwSaving(false);
     }
   };
 
@@ -263,6 +306,124 @@ export function RoomsTab({ bottomPadding }: Props) {
           )}
         </View>
 
+        {/* Change password card */}
+        <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={s.sectionHeader}>
+            <Ionicons name="lock-closed-outline" size={18} color={colors.primary} />
+            <Text style={[s.sectionTitle, { color: colors.foreground }]}>Change Password</Text>
+          </View>
+          <Text style={[s.sectionDesc, { color: colors.mutedForeground }]}>
+            Enter your current password and choose a new one (at least 8 characters).
+          </Text>
+
+          {/* Current password */}
+          <View style={s.fieldGroup}>
+            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Current password</Text>
+            <View style={s.pwRow}>
+              <TextInput
+                style={[s.input, s.pwInput, {
+                  backgroundColor: colors.background,
+                  color: colors.foreground,
+                  borderColor: colors.border,
+                }]}
+                value={pwCurrent}
+                onChangeText={(v) => { setPwCurrent(v); setPwError(''); setPwSuccess(''); }}
+                placeholder="Current password"
+                placeholderTextColor={colors.mutedForeground}
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry={!pwShowCurrent}
+              />
+              <Pressable onPress={() => setPwShowCurrent(v => !v)} style={s.eyeBtn}>
+                <Ionicons name={pwShowCurrent ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.mutedForeground} />
+              </Pressable>
+            </View>
+          </View>
+
+          {/* New password */}
+          <View style={s.fieldGroup}>
+            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>New password</Text>
+            <View style={s.pwRow}>
+              <TextInput
+                style={[s.input, s.pwInput, {
+                  backgroundColor: colors.background,
+                  color: colors.foreground,
+                  borderColor: colors.border,
+                }]}
+                value={pwNew}
+                onChangeText={(v) => { setPwNew(v); setPwError(''); setPwSuccess(''); }}
+                placeholder="New password (min. 8 characters)"
+                placeholderTextColor={colors.mutedForeground}
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry={!pwShowNew}
+              />
+              <Pressable onPress={() => setPwShowNew(v => !v)} style={s.eyeBtn}>
+                <Ionicons name={pwShowNew ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.mutedForeground} />
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Confirm new password */}
+          <View style={s.fieldGroup}>
+            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Confirm new password</Text>
+            <View style={s.pwRow}>
+              <TextInput
+                style={[s.input, s.pwInput, {
+                  backgroundColor: colors.background,
+                  color: colors.foreground,
+                  borderColor: pwConfirm && pwConfirm !== pwNew ? colors.destructive : colors.border,
+                }]}
+                value={pwConfirm}
+                onChangeText={(v) => { setPwConfirm(v); setPwError(''); setPwSuccess(''); }}
+                placeholder="Confirm new password"
+                placeholderTextColor={colors.mutedForeground}
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry={!pwShowConfirm}
+              />
+              <Pressable onPress={() => setPwShowConfirm(v => !v)} style={s.eyeBtn}>
+                <Ionicons name={pwShowConfirm ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.mutedForeground} />
+              </Pressable>
+            </View>
+            {!!pwConfirm && pwConfirm !== pwNew && (
+              <Text style={[s.fieldError, { color: colors.destructive }]}>Passwords do not match.</Text>
+            )}
+          </View>
+
+          {/* Inline error / success */}
+          {!!pwError && (
+            <View style={[s.msgRow, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}>
+              <Ionicons name="alert-circle" size={16} color={colors.destructive} />
+              <Text style={[s.msgText, { color: colors.destructive }]}>{pwError}</Text>
+            </View>
+          )}
+          {!!pwSuccess && (
+            <View style={[s.msgRow, { backgroundColor: colors.secondary + '15', borderColor: colors.secondary + '30' }]}>
+              <Ionicons name="checkmark-circle" size={16} color={colors.secondary} />
+              <Text style={[s.msgText, { color: colors.secondary }]}>{pwSuccess}</Text>
+            </View>
+          )}
+
+          <Pressable
+            style={[s.saveBtn, {
+              backgroundColor: colors.primary,
+              opacity: pwSaving ? 0.45 : 1,
+            }]}
+            onPress={handleChangePassword}
+            disabled={pwSaving}
+          >
+            {pwSaving ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="lock-closed-outline" size={18} color="#fff" />
+                <Text style={s.saveBtnText}>Change Password</Text>
+              </>
+            )}
+          </Pressable>
+        </View>
+
         {/* Danger zone */}
         <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.destructive + '40' }]}>
           <View style={s.sectionHeader}>
@@ -339,4 +500,7 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     legalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 },
     legalLink: { fontSize: 15, fontFamily: 'Manrope_600SemiBold' },
     legalDivider: { height: StyleSheet.hairlineWidth },
+    pwRow: { flexDirection: 'row', alignItems: 'center' },
+    pwInput: { flex: 1 },
+    eyeBtn: { padding: 10, marginLeft: 4 },
   });

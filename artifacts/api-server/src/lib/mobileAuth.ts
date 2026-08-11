@@ -18,7 +18,7 @@
 
 import { createHmac } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
-import { db, gameParticipantsTable } from "@workspace/db";
+import { db, gameParticipantsTable, adminAccountsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -52,8 +52,9 @@ function sign(encoded: string): string {
   return createHmac("sha256", secret()).update(encoded).digest("base64url");
 }
 
-function makeToken(payload: AnyTokenPayload): string {
-  const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
+function makeToken(payload: AnyTokenPayload, issuedAt?: number): string {
+  const withIat = { ...payload, iat: issuedAt ?? payload.iat };
+  const encoded = Buffer.from(JSON.stringify(withIat)).toString("base64url");
   return `${encoded}.${sign(encoded)}`;
 }
 
@@ -94,9 +95,16 @@ export function generateMobileToken(
  * @param adminAccountId  Pass the email-admin account ID for scoped access (owns
  *   only their games), or `null` for a legacy code-based super-admin token (all
  *   games, matching existing code-admin cookie behaviour).
+ * @param options.issuedAt  Override the `iat` field (ms since epoch). Use when you
+ *   need the token to be provably newer than a known `passwordChangedAt` timestamp
+ *   (e.g. pass `passwordChangedAt.getTime() + 1` from the change-password route).
  */
-export function generateAdminToken(adminAccountId: number | null = null): string {
-  return makeToken({ role: "admin", adminAccountId, iat: Date.now() });
+export function generateAdminToken(
+  adminAccountId: number | null = null,
+  options?: { issuedAt?: number },
+): string {
+  const iat = options?.issuedAt ?? Date.now();
+  return makeToken({ role: "admin", adminAccountId, iat }, iat);
 }
 
 // ─── Express middleware ───────────────────────────────────────────────────
@@ -113,47 +121,85 @@ export async function injectMobileSession(
 ): Promise<void> {
   const auth = req.headers.authorization;
 
-  // Only act when there is a Bearer token and no established cookie session.
-  if (
-    auth?.startsWith("Bearer ") &&
-    !req.session?.userId &&
-    !req.session?.isAdmin
-  ) {
-    const token = auth.slice(7);
-    const payload = parseToken(token);
+  // No Bearer header — leave any established cookie session untouched.
+  if (!auth?.startsWith("Bearer ")) {
+    return next();
+  }
 
-    if (payload) {
-      if (payload.role === "admin") {
-        // Admin token — grant admin access, no userId.
-        req.session.isAdmin = true;
-        req.session.userId = undefined;
-        req.session.userName = undefined;
-        // Hydrate ownership scope: null → legacy super-admin (all games);
-        // number → email-authenticated admin (scoped to their games).
-        req.session.adminAccountId = payload.adminAccountId ?? undefined;
-      } else {
-        // Player token (role === 'player', or old token without role field).
-        const p = payload as PlayerTokenPayload;
-        if (!p.userId) {
-          return next(); // malformed
-        }
-        req.session.userId = p.userId;
-        req.session.isAdmin = false;
+  const token = auth.slice(7);
+  const payload = parseToken(token);
 
-        // Per-game: union of token's allowed IDs + current participant rows.
-        const tokenIds = p.allowedGameIds ?? [];
-        try {
-          const rows = await db
-            .select({ gameId: gameParticipantsTable.gameId })
-            .from(gameParticipantsTable)
-            .where(eq(gameParticipantsTable.userId, p.userId));
-          const dbIds = rows.map((r) => r.gameId);
-          const all = new Set([...tokenIds, ...dbIds]);
-          req.session.allowedGameIds = [...all];
-        } catch {
-          req.session.allowedGameIds = tokenIds;
+  // ── Admin bearer token path ──────────────────────────────────────────────
+  // When a Bearer header is present and decodes as an admin token (or fails
+  // to decode entirely), we evaluate it before honoring any cookie session.
+  // This prevents a stale/stolen bearer from falling back to cookie-derived
+  // admin access after a password change.
+  if (!payload || payload.role === "admin") {
+    if (!payload) {
+      // Invalid or expired signature — revoke admin access unconditionally.
+      req.session.isAdmin = false;
+      req.session.adminAccountId = undefined;
+      return next();
+    }
+
+    // For email-authenticated admin tokens, verify the token was issued after
+    // the most recent password change to enforce revocation.
+    if (payload.adminAccountId != null) {
+      let revoked = false;
+      try {
+        const [acct] = await db
+          .select({ passwordChangedAt: adminAccountsTable.passwordChangedAt })
+          .from(adminAccountsTable)
+          .where(eq(adminAccountsTable.id, payload.adminAccountId))
+          .limit(1);
+        // Fail closed: account not found, or token predates the last password change.
+        if (!acct || (acct.passwordChangedAt && payload.iat <= acct.passwordChangedAt.getTime())) {
+          revoked = true;
         }
+      } catch {
+        // DB unavailable — fail closed to ensure stale tokens cannot be used
+        // during transient outages when revocation cannot be verified.
+        revoked = true;
       }
+      if (revoked) {
+        req.session.isAdmin = false;
+        req.session.adminAccountId = undefined;
+        return next();
+      }
+    }
+
+    // Valid admin token — grant admin access, overriding any cookie session.
+    req.session.isAdmin = true;
+    req.session.userId = undefined;
+    req.session.userName = undefined;
+    // null → legacy code-based super-admin; number → email-auth scoped admin.
+    req.session.adminAccountId = payload.adminAccountId ?? undefined;
+    return next();
+  }
+
+  // ── Player bearer token path ─────────────────────────────────────────────
+  // Only hydrate a player session when no session already exists (cookie or
+  // prior admin token). Admin sessions are never overwritten by a player token.
+  if (!req.session?.userId && !req.session?.isAdmin) {
+    const p = payload as PlayerTokenPayload;
+    if (!p.userId) {
+      return next(); // malformed
+    }
+    req.session.userId = p.userId;
+    req.session.isAdmin = false;
+
+    // Per-game: union of token's allowed IDs + current participant rows.
+    const tokenIds = p.allowedGameIds ?? [];
+    try {
+      const rows = await db
+        .select({ gameId: gameParticipantsTable.gameId })
+        .from(gameParticipantsTable)
+        .where(eq(gameParticipantsTable.userId, p.userId));
+      const dbIds = rows.map((r) => r.gameId);
+      const all = new Set([...tokenIds, ...dbIds]);
+      req.session.allowedGameIds = [...all];
+    } catch {
+      req.session.allowedGameIds = tokenIds;
     }
   }
 
