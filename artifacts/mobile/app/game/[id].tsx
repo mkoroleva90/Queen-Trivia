@@ -751,32 +751,37 @@ export default function GamePlayScreen() {
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.gameHeader, { paddingTop: topPad + 8 }]}>
-        <TouchableOpacity
-          onPress={() => {
-            if (current && !lockedAnswer) {
-              Alert.alert(
-                'Leave game?',
-                "You'll lose your progress on the current question. You can rejoin with a room code.",
-                [
-                  { text: 'Stay', style: 'cancel' },
-                  { text: 'Leave', style: 'destructive', onPress: () => router.replace('/') },
-                ],
-              );
-            } else {
-              router.replace('/');
-            }
-          }}
-          hitSlop={12}
-        >
-          <Ionicons name="chevron-back" size={24} color={colors.foreground} />
-        </TouchableOpacity>
-        <View style={styles.gameHeaderCenter}>
-          <Text style={[styles.gameHeaderTitle, { color: colors.foreground }]} numberOfLines={1}>
-            {game?.topic ?? '…'}
-          </Text>
-          <Text style={[styles.gameHeaderMeta, { color: colors.mutedForeground }]}>
-            {answeredCount}/{total} · {myScore} pts
-          </Text>
+        <View style={styles.gameHeaderTop}>
+          <TouchableOpacity
+            onPress={() => {
+              if (current && !lockedAnswer) {
+                Alert.alert(
+                  'Leave game?',
+                  "You'll lose your progress on the current question. You can rejoin with a room code.",
+                  [
+                    { text: 'Stay', style: 'cancel' },
+                    { text: 'Leave', style: 'destructive', onPress: () => router.replace('/') },
+                  ],
+                );
+              } else {
+                router.replace('/');
+              }
+            }}
+            hitSlop={12}
+          >
+            <Ionicons name="chevron-back" size={24} color={colors.foreground} />
+          </TouchableOpacity>
+          <View style={styles.gameHeaderCenter}>
+            <Text style={[styles.gameHeaderTitle, { color: colors.foreground }]} numberOfLines={1}>
+              {game?.topic ?? '…'}
+            </Text>
+            <Text style={[styles.gameHeaderMeta, { color: colors.mutedForeground }]}>
+              {answeredCount}/{total} · {myScore} pts
+            </Text>
+          </View>
+          <TouchableOpacity onPress={() => router.push('/about')} hitSlop={12}>
+            <Ionicons name="information-circle-outline" size={24} color={colors.mutedForeground} />
+          </TouchableOpacity>
         </View>
         <View style={styles.progressPill}>
           <View style={[styles.progressFill, { width: `${total > 0 ? (answeredCount / total) * 100 : 0}%` as unknown as number, backgroundColor: colors.primary }]} />
