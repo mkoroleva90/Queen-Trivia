@@ -1,49 +1,58 @@
 /**
  * Server-side content filter for Queen Trivia.
  *
- * Screens user-submitted text for slurs and hate speech using the naughty-words
- * English word list (https://www.npmjs.com/package/naughty-words) as the source.
- * The word list and all matching logic live entirely on the server — neither the
- * word list nor any fragment of it is shipped inside the web or mobile bundle.
+ * Screens user-submitted text for slurs and hate speech using the curated list
+ * in ./slurList.ts. The list and all matching logic live entirely on the server
+ * — neither the word list nor any fragment of it is shipped inside the web or
+ * mobile bundle.
  *
- * NORMALIZATION — applied identically to every input token and to every word
- * in the word list so the same transform produces a consistent key:
- *   1. Lowercase
- *   2. Common character-for-letter substitutions (leet speak):
- *        @/4 → a   3 → e   1/!/| → i   0 → o   $/5 → s   + → t
- *   3. Collapse consecutive repeated letters to one  ("niggger" → "niger")
- *   4. Strip all non-alphabetic characters — removes punctuation or spaces
- *      that were inserted between letters ("n.i.g" → "nig")
+ * NORMALISATION — two forms are produced per token; BOTH are checked:
+ *
+ *   PLAIN FORM  — lowercase → strip all non-alphabetic characters →
+ *                 collapse runs of 3+ identical letters to 2.
+ *                 Used as the primary token for ordinary text.
+ *
+ *   LEET FORM   — lowercase → apply common character-for-letter substitutions
+ *                 (@/4→a  3→e  1/!/|→i  0→o  $/5→s  +→t) →
+ *                 strip all non-alphabetic characters →
+ *                 collapse runs of 3+ identical letters to 2.
+ *                 Checked alongside the plain form to catch deliberate evasion
+ *                 (e.g. "n1gger") without ever transforming numeric answers.
+ *
+ *   Checking BOTH forms non-destructively ensures that digits and symbols in
+ *   ordinary trivia (years, arithmetic) cannot be converted into letter
+ *   sequences that produce false positives.
  *
  * WHOLE-WORD MATCHING ONLY:
- *   Input is split on whitespace into tokens. Each token is independently
- *   normalised and tested against the pre-computed normalised word set via an
- *   exact Set lookup. A banned term that appears only as a substring inside an
- *   innocent longer word is NOT flagged — "assassin" does not contain "ass" as
- *   a token, so it is never blocked.
+ *   Input is split on whitespace into tokens. Each token produces at most two
+ *   normalised forms (plain + leet). Both are tested against the pre-computed
+ *   normalised banned set via exact Set lookups. A banned term embedded inside
+ *   a longer innocent word is NOT flagged — "assassination" is a single token
+ *   and does not match any shorter term it contains.
  *
  * EVASION HANDLING:
  *   Runs of 3+ consecutive single-letter whitespace-separated tokens are
- *   concatenated and checked as an additional candidate token, catching
+ *   concatenated and checked as an additional candidate, catching
  *   space-separated letter-by-letter spelling ("n i g g e r").
+ *   Only tokens whose PLAIN form (no leet substitution) is a single letter are
+ *   counted — digits or symbols that map to a letter via leet substitution
+ *   (e.g. "1" → "i", "3" → "e") are excluded from run accumulation.
+ *
+ * ALLOWLIST:
+ *   Normalised forms in ALLOWLIST_TERMS (./slurList.ts) are never flagged,
+ *   even if they appear in the banned set. Add entries there to fix false
+ *   positives without touching the banned list.
  */
 
-import { createRequire } from 'node:module';
 import { logger } from './logger.ts';
+import { RAW_SLURS, ALLOWLIST_TERMS } from './slurList.ts';
 
-// ── Word list ─────────────────────────────────────────────────────────────────
-
-// createRequire is used so esbuild can bundle the JSON inline at build time.
-const _require = createRequire(import.meta.url);
-const _rawList: unknown = _require('naughty-words/en.json');
-const rawWordList: string[] = Array.isArray(_rawList) ? (_rawList as string[]) : [];
-
-// ── Normalisation ─────────────────────────────────────────────────────────────
+// ── Normalisation helpers ─────────────────────────────────────────────────────
 
 /**
- * Leet-speak substitution pairs applied before any other transform.
- * Both the input and the word-list entries go through this table so the
- * comparison happens in the same normalised space.
+ * Leet-speak substitution pairs.
+ * Applied only when computing the LEET form of a token — the PLAIN form
+ * intentionally skips these so that digits stay as digits.
  */
 const LEET_SUBS: [RegExp, string][] = [
   [/@|4/g, 'a'],
@@ -54,63 +63,91 @@ const LEET_SUBS: [RegExp, string][] = [
   [/[+]/g, 't'],
 ];
 
-function normaliseWord(w: string): string {
-  let s = w.toLowerCase();
-  for (const [pattern, replacement] of LEET_SUBS) {
-    s = s.replace(pattern, replacement);
-  }
-  // Collapse runs of 3+ identical letters to 2 ("niggger" → "nigger").
-  // Deliberately collapses to 2, not 1, so that legitimate words whose standard
-  // spelling uses a doubled letter (e.g. "nigger" has two g's) stay distinct
-  // from single-letter variants that happen to be innocent proper nouns
-  // (e.g. "Niger" the country has only one g and normalises to "niger", which
-  // does not appear in the banned set).
-  s = s.replace(/(.)\1{2,}/g, '$1$1');
-  s = s.replace(/[^a-z]/g, '');   // strip non-alphabetic characters
-  return s;
+const TRIPLE_COLLAPSE = /(.)\1{2,}/g;
+
+/**
+ * Plain form: lowercase → strip non-alpha → collapse 3+ repeated letters to 2.
+ * Digits are stripped, not converted. "1945" → "" (empty, excluded from checks).
+ */
+function normalisePlain(s: string): string {
+  return s.toLowerCase().replace(/[^a-z]/g, '').replace(TRIPLE_COLLAPSE, '$1$1');
 }
 
 /**
- * Pre-computed normalised banned word set — built once at module load.
- * Runtime lookups are O(1) Set membership tests.
+ * Leet form: lowercase → leet subs → strip non-alpha → collapse 3+ to 2.
+ * "n1gger" → "nigger". Used alongside the plain form to catch evasion.
+ */
+function normaliseLeet(s: string): string {
+  let t = s.toLowerCase();
+  for (const [p, r] of LEET_SUBS) t = t.replace(p, r);
+  return t.replace(/[^a-z]/g, '').replace(TRIPLE_COLLAPSE, '$1$1');
+}
+
+// ── Word lists ────────────────────────────────────────────────────────────────
+
+/** Allowlisted normalised forms — checked first; these can never be flagged. */
+const ALLOWLIST = new Set<string>(
+  ALLOWLIST_TERMS.map(normalisePlain).filter(Boolean),
+);
+
+/**
+ * Pre-computed normalised banned set — built once at module load.
+ * Allowlisted forms are removed during construction so the check path is a
+ * single O(1) Set lookup with no branching.
  */
 const BANNED = new Set<string>(
-  rawWordList.map(normaliseWord).filter((w) => w.length > 0),
+  RAW_SLURS.map(normalisePlain)
+    .filter((w) => w.length > 0 && !ALLOWLIST.has(w)),
 );
 
 // ── Token extraction ──────────────────────────────────────────────────────────
 
 /**
- * Splits `text` into normalised tokens for matching.
- * Also detects and collapses runs of 3+ single-letter tokens to catch
- * space-separated evasion such as "n i g g e r".
+ * Splits `text` into the full set of normalised token candidates.
+ *
+ * For each whitespace-delimited token two candidates are produced:
+ *   1. The plain form (digits stripped as-is).
+ *   2. The leet form (digits substituted to letters, then stripped).
+ *
+ * Additionally, runs of 3+ consecutive tokens whose PLAIN form is a single
+ * letter are concatenated and added as an extra candidate — catching
+ * space-separated evasion such as "n i g g e r". Tokens whose plain form is
+ * empty (pure digits / symbols) break a run and are never included in one.
  */
 function extractTokens(text: string): string[] {
   const tokens = new Set<string>();
-
-  // Apply leet subs before splitting so multi-character tokens are corrected.
-  let processed = text.toLowerCase();
-  for (const [pattern, replacement] of LEET_SUBS) {
-    processed = processed.replace(pattern, replacement);
-  }
-
-  const rawTokens = processed.split(/\s+/).filter(Boolean);
+  const rawTokens = text.toLowerCase().split(/\s+/).filter(Boolean);
   let singleLetterRun: string[] = [];
 
   for (const raw of rawTokens) {
-    const stripped = raw.replace(/[^a-z]/g, ''); // remove inserted punctuation
-    if (!stripped) { singleLetterRun = []; continue; }
+    const plain = normalisePlain(raw);
+    const leet  = normaliseLeet(raw);
 
-    const collapsed = stripped.replace(/(.)\1{2,}/g, '$1$1');
-    tokens.add(collapsed);
+    if (!plain) {
+      // Pure digit / symbol token — breaks any ongoing single-letter run
+      // and contributes nothing to the token set.
+      if (singleLetterRun.length >= 3) {
+        tokens.add(singleLetterRun.join('').replace(TRIPLE_COLLAPSE, '$1$1'));
+      }
+      singleLetterRun = [];
+      continue;
+    }
 
-    // Accumulate single-character tokens for space-separated evasion.
-    if (stripped.length === 1) {
-      singleLetterRun.push(stripped);
+    // Add plain form.
+    tokens.add(plain);
+
+    // Add leet form only when it differs (avoids redundant lookups).
+    if (leet && leet !== plain) tokens.add(leet);
+
+    // Single-letter-run accumulation.
+    // Only count tokens whose PLAIN form is exactly one letter. This excludes
+    // digits ("1" plain → "", leet → "i") from joining a run, so arithmetic
+    // like "5 + 3 - 1" cannot produce letter sequences via concatenation.
+    if (plain.length === 1) {
+      singleLetterRun.push(plain);
     } else {
       if (singleLetterRun.length >= 3) {
-        const joined = singleLetterRun.join('').replace(/(.)\1{2,}/g, '$1$1');
-        if (joined) tokens.add(joined);
+        tokens.add(singleLetterRun.join('').replace(TRIPLE_COLLAPSE, '$1$1'));
       }
       singleLetterRun = [];
     }
@@ -118,8 +155,7 @@ function extractTokens(text: string): string[] {
 
   // Flush any trailing single-letter run.
   if (singleLetterRun.length >= 3) {
-    const joined = singleLetterRun.join('').replace(/(.)\1{2,}/g, '$1$1');
-    if (joined) tokens.add(joined);
+    tokens.add(singleLetterRun.join('').replace(TRIPLE_COLLAPSE, '$1$1'));
   }
 
   return [...tokens];

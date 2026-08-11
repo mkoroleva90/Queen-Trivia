@@ -6,15 +6,21 @@ description: Server-side slur/hate-speech filter — word list source, normaliza
 # Content filter
 
 ## Word list source
-`naughty-words@1.2.0` npm package (English list, `naughty-words/en.json`), 383 entries.
-Imported server-side only via `createRequire` in `artifacts/api-server/src/lib/contentFilter.ts`.
-Never shipped to web or mobile bundles.
+Curated slur-only list in `artifacts/api-server/src/lib/slurList.ts` — 29 entries after normalisation.
+Slurs and hate speech targeting groups ONLY. General profanity (dick, cock, ass, sex, etc.) is explicitly excluded.
+naughty-words package removed entirely from api-server dependencies.
 
-## Critical normalization design decision
-**Collapse 3+ repeated chars to 2, NOT to 1.**  
+## Critical normalization design decisions
+
+**1. Non-destructive leet-speak substitution.**
+Each token produces TWO forms: plain (digits stripped as-is) and leet (digits substituted then stripped). BOTH are checked against the banned set. This prevents digits in trivia (years, arithmetic) from ever producing letter fragments that cause false positives. "1945" → plain="" (empty, skipped); "n1gger" → plain="ngger" (not banned) + leet="nigger" (banned) → BLOCKED.
+
+**2. Collapse 3+ repeated chars to 2, NOT to 1.**  
 `(.)\1{2,}` → `$1$1`
+Collapsing to 1 makes "nigger" (2 g's) normalize to "niger" (1 g), false-positiving on Niger the country. Collapsing to 2 keeps them distinct.
 
-**Why:** Collapsing to 1 makes "nigger" (2 g's) normalize to "niger" (1 g), which then false-positives on "Niger" the country. Collapsing to 2 preserves the double-g distinction: "Niger"→"niger" (1 g, not in banned set), "nigger"→"nigger" (2 g's, in banned set), "niggger"→"nigger" (3 g's→2 g's, caught). This is the same transform applied to both the word list and the input.
+**3. Single-letter-run only accumulates plain-form single letters.**
+Tokens whose plain form is empty (pure digits/symbols) BREAK the run rather than being included. "5 + 3 - 1" produces no single-letter run.
 
 ## Enforcement points (all before any db write)
 1. `session.ts` POST /auth/login — player display name, before `db.insert(usersTable)`
