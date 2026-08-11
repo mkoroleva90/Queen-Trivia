@@ -39,7 +39,7 @@ app.use(
 // with credentials enabled would let any malicious site make authenticated
 // requests using a visitor's session cookie.
 app.use(cors({ origin: corsOrigin, credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: "64kb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(sessionMiddleware);
 // Evaluate any Bearer token on every request. For admin tokens this runs before
@@ -50,6 +50,15 @@ app.use(injectMobileSession);
 
 app.use("/api", router);
 
+// Global error handler — must be registered after all routes.
+// Catches any unhandled async/sync route error and returns a clean JSON
+// response instead of Express's default HTML error page, which could leak
+// stack traces to clients.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  logger.error({ err }, "Unhandled route error");
+  res.status(500).json({ error: "Internal server error" });
+});
 
 export default app;
 

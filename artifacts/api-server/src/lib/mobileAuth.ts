@@ -45,7 +45,14 @@ type AnyTokenPayload = PlayerTokenPayload | AdminTokenPayload;
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function secret(): string {
-  return process.env.SESSION_SECRET ?? "dev-fallback-secret";
+  const s = process.env.SESSION_SECRET;
+  if (!s || s === "dev-fallback-secret") {
+    throw new Error(
+      "FATAL: SESSION_SECRET is missing or set to the insecure fallback value. " +
+        "Set a strong random secret in the SESSION_SECRET environment variable before starting the server.",
+    );
+  }
+  return s;
 }
 
 function sign(encoded: string): string {

@@ -7,6 +7,7 @@ import { triviaJoinRateLimit } from "../middleware/authRateLimit.ts";
 import { generateMobileToken } from "../lib/mobileAuth.ts";
 import { containsBannedContent, logFlaggedContent } from "../lib/contentFilter.ts";
 import { COPY } from "@workspace/copy";
+import { PlayerLoginBody } from "@workspace/api-zod";
 
 
 const router: IRouter = Router();
@@ -16,11 +17,13 @@ const router: IRouter = Router();
 // this endpoint simply appends the new game to their allowedGameIds list and
 // returns the existing user — no regenerate, no new user row.
 router.post("/auth/login", triviaJoinRateLimit, async (req, res): Promise<void> => {
-const code =
-    typeof req.body?.code === "string" ? req.body.code.trim() : "";
-const name =
-    typeof req.body?.name === "string" ? req.body.name.trim() : "";
-
+const parsed = PlayerLoginBody.safeParse(req.body);
+if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request body", details: parsed.error.flatten().fieldErrors });
+    return;
+}
+const code = parsed.data.code.trim();
+const name = typeof parsed.data.name === "string" ? parsed.data.name.trim() : "";
 
 if (!code) {
     res.status(400).json({ error: "Access code is required" });

@@ -5,6 +5,18 @@ import { initSocket } from "./lib/socket.ts";
 import { logger } from "./lib/logger.ts";
 import { bootstrapAccessCodes } from "./lib/bootstrapAccessCodes.ts";
 
+// ── Startup guard: SESSION_SECRET must be set to a non-default value ─────────
+// Checked here (at boot) so the process dies before accepting any traffic,
+// rather than failing on the first token sign/verify.
+const _sessionSecret = process.env.SESSION_SECRET;
+if (!_sessionSecret || _sessionSecret === "dev-fallback-secret") {
+  logger.fatal(
+    "FATAL: SESSION_SECRET is missing or set to the insecure fallback value. " +
+      "Set a strong random secret before starting the server.",
+  );
+  process.exit(1);
+}
+
 
 const rawPort = process.env["PORT"];
 
