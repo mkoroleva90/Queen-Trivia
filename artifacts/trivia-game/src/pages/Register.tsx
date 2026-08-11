@@ -160,6 +160,18 @@ export default function Register() {
               {pending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Create account
             </Button>
+
+            <p className="text-center text-xs text-[#9aa6bc] leading-relaxed">
+              By creating an account you agree to our{" "}
+              <Link href="/terms" className="text-[#ff2d8e] hover:underline">
+                Terms of Service
+              </Link>{" "}
+              and{" "}
+              <Link href="/privacy" className="text-[#ff2d8e] hover:underline">
+                Privacy Policy
+              </Link>
+              .
+            </p>
           </form>
 
           <p className="mt-4 text-center text-sm text-[#9aa6bc]">

@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -19,6 +20,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { API_BASE_URL } from '@/lib/apiBase';
+
+const PRIVACY_URL = 'https://queen-trivia.com/privacy';
+const TERMS_URL = 'https://queen-trivia.com/terms';
 
 export default function AdminRegisterScreen() {
   const colors = useColors();
@@ -167,6 +171,18 @@ export default function AdminRegisterScreen() {
               </View>
             )}
 
+            <Text style={[s.legalText, { color: colors.mutedForeground }]}>
+              By creating an account you agree to our{' '}
+              <Text style={{ color: colors.primary }} onPress={() => Linking.openURL(TERMS_URL)}>
+                Terms of Service
+              </Text>
+              {' '}and{' '}
+              <Text style={{ color: colors.primary }} onPress={() => Linking.openURL(PRIVACY_URL)}>
+                Privacy Policy
+              </Text>
+              .
+            </Text>
+
             <Pressable
               style={({ pressed }) => [s.btn, { backgroundColor: colors.primary, opacity: pressed || pending ? 0.8 : 1 }]}
               onPress={handleSubmit}
@@ -220,4 +236,5 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     btnText:      { color: '#fff', fontSize: 16, fontFamily: 'Manrope_800ExtraBold', letterSpacing: 1 },
     footerLink:   { marginTop: 24, alignItems: 'center' },
     footerText:   { fontSize: 14, textAlign: 'center' },
+    legalText:    { fontSize: 12, textAlign: 'center', lineHeight: 18 },
   });

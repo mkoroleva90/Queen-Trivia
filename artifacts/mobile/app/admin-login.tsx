@@ -9,6 +9,7 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -23,6 +24,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAdminAuth } from '@/context/AdminAuthContext';
 import { API_BASE_URL } from '@/lib/apiBase';
 import { useColors } from '@/hooks/useColors';
+
+const PRIVACY_URL = 'https://queen-trivia.com/privacy';
+const TERMS_URL = 'https://queen-trivia.com/terms';
 
 export default function AdminLoginScreen() {
   const colors = useColors();
@@ -157,6 +161,18 @@ export default function AdminLoginScreen() {
               <Text style={{ color: colors.primary }}>Create one →</Text>
             </Text>
           </Pressable>
+
+          <View style={s.legalRow}>
+            <Text style={[s.legalText, { color: colors.mutedForeground }]}>
+              <Text style={{ color: colors.primary }} onPress={() => Linking.openURL(TERMS_URL)}>
+                Terms of Service
+              </Text>
+              {'  ·  '}
+              <Text style={{ color: colors.primary }} onPress={() => Linking.openURL(PRIVACY_URL)}>
+                Privacy Policy
+              </Text>
+            </Text>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -191,4 +207,6 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     textLinkText: { fontSize: 13, fontFamily: 'Manrope_600SemiBold' },
     footerLink: { marginTop: 24, alignItems: 'center' },
     footerText: { fontSize: 14, textAlign: 'center' },
+    legalRow:   { marginTop: 16, alignItems: 'center' },
+    legalText:  { fontSize: 12, textAlign: 'center', lineHeight: 18 },
   });
