@@ -75,7 +75,7 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
   const [startTarget, setStartTarget] = useState<Game | null>(null);
   const [playAlongPending, setPlayAlongPending] = useState(false);
 
-  const { data: games, isLoading, refetch } = useListGames();
+  const { data: games, isLoading, isError, refetch } = useListGames();
   const { data: stats } = useGetStatsSummary();
   const updateGame = useUpdateGame();
   const deleteGame = useDeleteGame();
@@ -208,6 +208,20 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
       {isLoading ? (
         <View style={s.center}>
           <ActivityIndicator color={colors.primary} />
+        </View>
+      ) : isError ? (
+        <View style={s.center}>
+          <Ionicons name="alert-circle-outline" size={40} color={colors.mutedForeground} />
+          <Text style={[s.errorText, { color: colors.foreground }]}>Couldn't load games</Text>
+          <Text style={[s.errorSub, { color: colors.mutedForeground }]}>
+            Something went wrong. Check your connection and try again.
+          </Text>
+          <Pressable
+            style={[s.retryBtn, { backgroundColor: colors.primary }]}
+            onPress={() => refetch()}
+          >
+            <Text style={s.retryBtnText}>Try again</Text>
+          </Pressable>
         </View>
       ) : filtered.length === 0 ? (
         <ScrollView
@@ -483,6 +497,10 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     emptyCardText: { fontSize: 16, fontFamily: 'Manrope_700Bold' },
     emptyCardSub: { fontSize: 13, textAlign: 'center', lineHeight: 19 },
     emptyText: { fontSize: 15, fontFamily: 'Manrope_600SemiBold' },
+    errorText: { fontSize: 18, fontFamily: 'Manrope_800ExtraBold', textAlign: 'center' },
+    errorSub: { fontSize: 13, fontFamily: 'Manrope_500Medium', textAlign: 'center', lineHeight: 19 },
+    retryBtn: { borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 },
+    retryBtnText: { color: '#fff', fontSize: 14, fontFamily: 'Manrope_700Bold' },
     // List / cards
     list: { padding: 16, gap: 12 },
     card: { borderRadius: 16, borderWidth: 1, padding: 16, gap: 10 },

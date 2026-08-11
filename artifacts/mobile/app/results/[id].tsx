@@ -54,7 +54,7 @@ export default function ResultsScreen() {
   const userId = user?.id ?? 0;
   const [expandBreakdown, setExpandBreakdown] = useState(false);
 
-  const { data: results, isLoading } = useQuery<GameResults>({
+  const { data: results, isLoading, isError, refetch } = useQuery<GameResults>({
     queryKey: ['game-results', gameId],
     queryFn: async () => {
       const r = await fetch(`${baseUrl}/api/games/${gameId}/results`);
@@ -78,10 +78,35 @@ export default function ResultsScreen() {
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
   const botPad = Platform.OS === 'web' ? 34 : insets.bottom;
 
-  if (isLoading || !results) {
+  if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad }]}>
         <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 80 }} />
+      </View>
+    );
+  }
+
+  if (isError || !results) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad }]}>
+        <View style={[styles.header, { paddingTop: topPad + 8 }]}>
+          <TouchableOpacity onPress={() => router.replace('/')} hitSlop={12}>
+            <Ionicons name="chevron-back" size={24} color={colors.foreground} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={48} color={colors.mutedForeground} />
+          <Text style={[styles.errorTitle, { color: colors.foreground }]}>Couldn't load results</Text>
+          <Text style={[styles.errorSub, { color: colors.mutedForeground }]}>
+            Something went wrong fetching the game results.
+          </Text>
+          <TouchableOpacity
+            onPress={() => refetch()}
+            style={[styles.retryBtn, { backgroundColor: colors.primary }]}
+          >
+            <Text style={[styles.retryBtnText, { color: '#fff' }]}>Try again</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -128,7 +153,13 @@ export default function ResultsScreen() {
 
         {/* Leaderboard */}
         <View style={[styles.leaderboard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          {sortedParticipants.map((p, i) => {
+          {sortedParticipants.length === 0 ? (
+            <View style={styles.emptyLeaderboard}>
+              <Text style={[styles.emptyLeaderboardText, { color: colors.mutedForeground }]}>
+                No scores to show yet
+              </Text>
+            </View>
+          ) : sortedParticipants.map((p, i) => {
             const isWinner = p.rank === 1;
             const isMe = p.userId === userId;
             return (
@@ -280,4 +311,11 @@ const styles = StyleSheet.create({
   qUnanswered: { fontSize: 12, fontStyle: 'italic' },
   backBtn: { height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
   backBtnText: { fontSize: 16, fontWeight: '800' },
+  errorContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },
+  errorTitle: { fontSize: 20, fontWeight: '800', textAlign: 'center' },
+  errorSub: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
+  retryBtn: { marginTop: 8, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 14 },
+  retryBtnText: { fontSize: 15, fontWeight: '700' },
+  emptyLeaderboard: { paddingVertical: 32, alignItems: 'center' },
+  emptyLeaderboardText: { fontSize: 14, fontWeight: '500' },
 });

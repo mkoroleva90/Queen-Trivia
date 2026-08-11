@@ -63,8 +63,9 @@ export default function AdminLiveScreen() {
   });
   const [refreshing, setRefreshing] = useState(false);
   const [ending, setEnding] = useState(false);
+  const [endGameError, setEndGameError] = useState<string | null>(null);
 
-  const { data: games } = useListGames();
+  const { data: games, isLoading: gamesLoading, isError: gamesError } = useListGames();
   const game = games?.find((g) => g.id === gameId);
   const { data: questions } = useListGameQuestions(gameId);
   const { data: participants, refetch: refetchParticipants } = useListGameParticipants(gameId);
@@ -144,12 +145,14 @@ export default function AdminLiveScreen() {
 
   const handleEndGame = async () => {
     setEnding(true);
+    setEndGameError(null);
     try {
       await updateGame.mutateAsync({ gameId, data: { status: 'completed' } });
       qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
       router.replace(`/admin/results/${gameId}`);
     } catch {
       setEnding(false);
+      setEndGameError('Failed to end the game. Please try again.');
     }
   };
 
@@ -161,10 +164,28 @@ export default function AdminLiveScreen() {
 
   const s = styles(colors);
 
-  if (!game) {
+  if (gamesLoading) {
     return (
       <View style={[s.container, s.center, { paddingTop: insets.top }]}>
         <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (gamesError || !game) {
+    return (
+      <View style={[s.container, s.center, { paddingTop: insets.top }]}>
+        <Ionicons name="alert-circle-outline" size={48} color={colors.mutedForeground} />
+        <Text style={[s.errorTitle, { color: colors.foreground }]}>Game not found</Text>
+        <Text style={[s.errorSub, { color: colors.mutedForeground }]}>
+          This game may have ended or is no longer available.
+        </Text>
+        <Pressable
+          style={[s.errorBackBtn, { backgroundColor: colors.primary }]}
+          onPress={() => router.back()}
+        >
+          <Text style={s.errorBackBtnText}>Go back</Text>
+        </Pressable>
       </View>
     );
   }
@@ -266,6 +287,9 @@ export default function AdminLiveScreen() {
 
       {/* End Game button */}
       <View style={[s.footer, { paddingBottom: insets.bottom + 12 }]}>
+        {endGameError && (
+          <Text style={[s.endGameError, { color: colors.destructive }]}>{endGameError}</Text>
+        )}
         <Pressable
           style={({ pressed }) => [
             s.endBtn,
@@ -321,4 +345,9 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     footer: { paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#222' },
     endBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, paddingVertical: 16 },
     endBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Manrope_700Bold' },
+    endGameError: { fontSize: 13, fontFamily: 'Manrope_600SemiBold', textAlign: 'center', marginBottom: 8 },
+    errorTitle: { fontSize: 20, fontFamily: 'Manrope_800ExtraBold', textAlign: 'center' },
+    errorSub: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
+    errorBackBtn: { marginTop: 8, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 14 },
+    errorBackBtnText: { color: '#fff', fontSize: 15, fontFamily: 'Manrope_700Bold' },
   });
