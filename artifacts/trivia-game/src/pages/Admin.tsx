@@ -191,7 +191,7 @@ function emptyFormForType(type: QuestionType): QuestionFormState {
 
 // ─── Free-tier upgrade helpers ────────────────────────────────────────────────
 
-/** Returns the "Free plan limit reached: …" message from a 429 ApiError, or null. */
+/** Returns the "Monthly limit reached: …" message from a 429 ApiError, or null. */
 function extractFreeTierLimitMsg(err: unknown): string | null {
   if (!err || typeof err !== "object") return null;
   const status = "status" in err ? (err as { status: number }).status : 0;
@@ -199,7 +199,7 @@ function extractFreeTierLimitMsg(err: unknown): string | null {
   const data = "data" in err ? (err as { data: unknown }).data : null;
   if (data && typeof data === "object" && "error" in data) {
     const msg = String((data as { error: unknown }).error);
-    if (msg.includes("Free plan limit reached")) return msg;
+    if (msg.includes("Monthly limit reached")) return msg;
   }
   return null;
 }
@@ -210,13 +210,13 @@ function FreeTierLimitModal({ msg, onClose }: { msg: string | null; onClose: () 
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Crown className="h-5 w-5 text-yellow-400" /> Plan Limit Reached
+            <Crown className="h-5 w-5 text-yellow-400" /> Monthly limit reached
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground leading-relaxed">{msg}</p>
           <div className="rounded-lg border border-yellow-400/20 bg-yellow-400/5 px-4 py-3 text-sm text-yellow-300 leading-relaxed">
-            To unlock unlimited access, ask your app administrator to upgrade this account to Pro.
+            This resets at the start of next month. You can still add questions manually in the meantime.
           </div>
           <Button className="w-full" onClick={onClose}>Got it</Button>
         </div>
@@ -427,7 +427,7 @@ function QuestionForm({
    if (filled) setForm(filled);
   } catch (err) {
    const msg = err instanceof Error ? err.message : "";
-   if (msg.includes("Free plan limit reached")) {
+   if (msg.includes("Monthly limit reached")) {
     setUpgradeLimitMsg(msg);
    } else {
     toast({ variant: "destructive", title: "AI generation failed. Please try again." });

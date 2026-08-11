@@ -334,7 +334,7 @@ export function BuildTab({ bottomPadding }: Props) {
       }
     } catch (err) {
       const msg = extractApiError(err, 'Failed to create game — please retry');
-      if (msg.includes('Free plan') || msg.includes('games allowed this month')) {
+      if (msg.includes('Monthly limit reached')) {
         setLimitMsg(msg);
       } else {
         setSetupError(msg);
@@ -383,7 +383,7 @@ export function BuildTab({ bottomPadding }: Props) {
       }
     } catch (err) {
       const msg = extractApiError(err, 'Generation failed — try again or add questions manually');
-      if (msg.includes('Free plan')) {
+      if (msg.includes('Monthly limit reached')) {
         setAiOpen(false);
         setLimitMsg(msg);
       } else {

@@ -430,7 +430,7 @@ function QuestionFormModal({
       setForm(previewToForm(preview));
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'AI generation failed — try again';
-      if (msg.includes('Free plan limit reached')) {
+      if (msg.includes('Monthly limit reached')) {
         setUpgradeLimitMsg(msg);
       } else {
         setError(msg);
@@ -512,11 +512,11 @@ function QuestionFormModal({
             <View style={{ borderRadius: 12, borderWidth: 1, borderColor: '#facc1540', backgroundColor: '#facc1508', padding: 14, gap: 6 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Ionicons name="star" size={16} color="#facc15" />
-                <Text style={{ color: '#fcd34d', fontSize: 14, fontFamily: 'Manrope_700Bold' }}>Plan Limit Reached</Text>
+                <Text style={{ color: '#fcd34d', fontSize: 14, fontFamily: 'Manrope_700Bold' }}>Monthly limit reached</Text>
               </View>
               <Text style={{ color: '#fcd34d', fontSize: 12, lineHeight: 18 }}>{upgradeLimitMsg}</Text>
               <Text style={{ color: '#fcd34d', fontSize: 12, lineHeight: 18 }}>
-                Ask your app administrator to upgrade this account to Pro.
+                This resets at the start of next month. You can still add questions manually in the meantime.
               </Text>
               <Pressable onPress={() => setUpgradeLimitMsg('')} hitSlop={8}>
                 <Text style={{ color: '#fcd34d', fontSize: 12, textDecorationLine: 'underline' }}>Dismiss</Text>
@@ -864,7 +864,7 @@ function extractFreeTierLimitMsg(err: unknown): string | null {
   const data = 'data' in err ? (err as { data: unknown }).data : null;
   if (data && typeof data === 'object' && 'error' in data) {
     const msg = String((data as { error: unknown }).error);
-    if (msg.includes('Free plan limit reached')) return msg;
+    if (msg.includes('Monthly limit reached')) return msg;
   }
   return null;
 }
@@ -883,10 +883,10 @@ function UpgradeLimitCard({
   return (
     <View style={[s.resultCard, { backgroundColor: '#facc1508', borderColor: '#facc1540' }]}>
       <Ionicons name="star" size={32} color="#facc15" />
-      <Text style={[s.resultTitle, { color: '#fcd34d' }]}>Plan Limit Reached</Text>
+      <Text style={[s.resultTitle, { color: '#fcd34d' }]}>Monthly limit reached</Text>
       <Text style={[s.resultSub, { color: colors.mutedForeground }]}>{msg}</Text>
       <Text style={[s.resultSub, { color: '#fcd34d', marginTop: 2 }]}>
-        Ask your app administrator to upgrade this account to Pro.
+        This resets at the start of next month. You can still add questions manually in the meantime.
       </Text>
       <Pressable style={[s.closeResultBtn, { borderColor: '#facc15' }]} onPress={onClose}>
         <Text style={[s.closeResultText, { color: '#fcd34d' }]}>Got it</Text>

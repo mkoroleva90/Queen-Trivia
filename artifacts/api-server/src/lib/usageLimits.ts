@@ -96,7 +96,7 @@ export async function checkGameCreationLimit(
   const used = row?.value ?? 0;
   if (used >= limit) {
     return (
-      `You've created ${used} of ${limit} games allowed this month. ` +
+      `Monthly limit reached: you've created ${used} of ${limit} games allowed this month. ` +
       `Your limit resets on ${resetDateString()}.`
     );
   }
@@ -135,7 +135,7 @@ export async function checkAiUsageLimit(
   const used = row?.value ?? 0;
   if (used >= limit) {
     return (
-      `You've used ${used} of ${limit} AI generation actions this month. ` +
+      `Monthly limit reached: you've used ${used} of ${limit} AI generation actions this month. ` +
       `Your limit resets on ${resetDateString()}.`
     );
   }

@@ -451,7 +451,7 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
             <View style={s.sheetHandle} />
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <Ionicons name="information-circle-outline" size={20} color={colors.secondary} />
-              <Text style={[s.sheetTitle, { color: colors.foreground }]}>Monthly Limit Reached</Text>
+              <Text style={[s.sheetTitle, { color: colors.foreground }]}>Monthly limit reached</Text>
             </View>
             <Text style={[{ fontSize: 14, lineHeight: 22 }, { color: colors.mutedForeground }]}>
               {upgradeLimitMsg}
