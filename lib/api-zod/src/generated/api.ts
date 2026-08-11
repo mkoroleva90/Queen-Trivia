@@ -84,9 +84,7 @@ export const ListGamesResponseItem = zod.object({
   "createdByAdmin": zod.boolean(),
   "participantCount": zod.number(),
   "accessCode": zod.string().nullish(),
-  "brief": zod.string().nullish(),
-  "hostPlaysAlong": zod.boolean().optional(),
-  "hostUserId": zod.number().nullish()
+  "brief": zod.string().nullish()
 })
 export const ListGamesResponse = zod.array(ListGamesResponseItem)
 
@@ -95,13 +93,15 @@ export const ListGamesResponse = zod.array(ListGamesResponseItem)
  * @summary Create a game (admin)
  */
 
+export const createGameBodyBriefMax = 2000;
+
 
 
 export const CreateGameBody = zod.object({
   "topic": zod.string().min(1),
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
   "createdByAdmin": zod.boolean().optional(),
-  "brief": zod.string().max(2000).nullish()
+  "brief": zod.string().max(createGameBodyBriefMax).nullish()
 })
 
 export const CreateGameResponse = zod.object({
@@ -112,10 +112,9 @@ export const CreateGameResponse = zod.object({
   "status": zod.enum(['waiting', 'active', 'completed']),
   "createdAt": zod.string(),
   "createdByAdmin": zod.boolean(),
+  "participantCount": zod.number(),
   "accessCode": zod.string().nullish(),
-  "brief": zod.string().nullish(),
-  "hostPlaysAlong": zod.boolean().optional(),
-  "hostUserId": zod.number().nullish()
+  "brief": zod.string().nullish()
 })
 
 
@@ -136,9 +135,7 @@ export const GetGameResponse = zod.object({
   "createdByAdmin": zod.boolean(),
   "participantCount": zod.number(),
   "accessCode": zod.string().nullish(),
-  "brief": zod.string().nullish(),
-  "hostPlaysAlong": zod.boolean().optional(),
-  "hostUserId": zod.number().nullish()
+  "brief": zod.string().nullish()
 })
 
 
@@ -150,15 +147,21 @@ export const UpdateGameParams = zod.object({
 })
 
 
+export const updateGameBodyBriefMax = 2000;
+
+export const updateGameBodyAccessCodeMin = 4;
+export const updateGameBodyAccessCodeMax = 12;
+
+
+export const updateGameBodyAccessCodeRegExp = new RegExp('^[A-Za-z0-9]+$');
 
 
 export const UpdateGameBody = zod.object({
   "topic": zod.string().min(1).optional(),
   "difficulty": zod.enum(['easy', 'medium', 'hard']).optional(),
   "status": zod.enum(['waiting', 'active', 'completed']).optional(),
-  "brief": zod.string().max(2000).nullish(),
-  "accessCode": zod.string().min(4).max(12).regex(/^[A-Za-z0-9]+$/).optional(),
-  "hostPlaysAlong": zod.boolean().optional()
+  "brief": zod.string().max(updateGameBodyBriefMax).nullish(),
+  "accessCode": zod.string().min(updateGameBodyAccessCodeMin).max(updateGameBodyAccessCodeMax).regex(updateGameBodyAccessCodeRegExp).optional()
 })
 
 export const UpdateGameResponse = zod.object({
@@ -169,10 +172,9 @@ export const UpdateGameResponse = zod.object({
   "status": zod.enum(['waiting', 'active', 'completed']),
   "createdAt": zod.string(),
   "createdByAdmin": zod.boolean(),
+  "participantCount": zod.number(),
   "accessCode": zod.string().nullish(),
-  "brief": zod.string().nullish(),
-  "hostPlaysAlong": zod.boolean().optional(),
-  "hostUserId": zod.number().nullish()
+  "brief": zod.string().nullish()
 })
 
 
@@ -205,7 +207,10 @@ export const ImportOpenTdbQuestionsBody = zod.object({
 
 export const ImportOpenTdbQuestionsResponse = zod.object({
   "imported": zod.number(),
-  "total": zod.number()
+  "total": zod.number(),
+  "discarded": zod.number().optional(),
+  "contentFilteredCount": zod.number().optional().describe('Number of AI-generated questions removed by the server-side content filter before saving. Only present in the generate-gemini response and only when at least one question was removed.\n'),
+  "contentFilteredMessage": zod.string().optional().describe('Pre-formatted human-readable message describing how many questions were removed by the content filter. Only present when contentFilteredCount is present and greater than zero.\n')
 })
 
 
@@ -219,6 +224,8 @@ export const GenerateGeminiQuestionsParams = zod.object({
 
 export const generateGeminiQuestionsBodyAmountMax = 20;
 
+export const generateGeminiQuestionsBodyBriefMax = 2000;
+
 
 
 export const GenerateGeminiQuestionsBody = zod.object({
@@ -226,7 +233,7 @@ export const GenerateGeminiQuestionsBody = zod.object({
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
   "amount": zod.number().min(1).max(generateGeminiQuestionsBodyAmountMax),
   "existingQuestions": zod.array(zod.string()).optional(),
-  "brief": zod.string().max(2000).nullish(),
+  "brief": zod.string().max(generateGeminiQuestionsBodyBriefMax).optional(),
   "skipFactCheck": zod.boolean().optional()
 })
 
@@ -234,8 +241,8 @@ export const GenerateGeminiQuestionsResponse = zod.object({
   "imported": zod.number(),
   "total": zod.number(),
   "discarded": zod.number().optional(),
-  "contentFilteredCount": zod.number().optional(),
-  "contentFilteredMessage": zod.string().optional()
+  "contentFilteredCount": zod.number().optional().describe('Number of AI-generated questions removed by the server-side content filter before saving. Only present in the generate-gemini response and only when at least one question was removed.\n'),
+  "contentFilteredMessage": zod.string().optional().describe('Pre-formatted human-readable message describing how many questions were removed by the content filter. Only present when contentFilteredCount is present and greater than zero.\n')
 })
 
 
@@ -249,7 +256,7 @@ export const RegenerateQuestionParams = zod.object({
 
 export const RegenerateQuestionBody = zod.object({
   "difficulty": zod.enum(['easy', 'medium', 'hard']).optional(),
-  "questionType": zod.enum(['multiple_choice', 'true_false', 'write_in', 'multi_select', 'ordering', 'slider', 'image_hotspot', 'short_response']).optional()
+  "questionType": zod.enum(['multiple_choice', 'true_false', 'write_in']).optional()
 })
 
 export const RegenerateQuestionResponse = zod.object({
@@ -293,7 +300,7 @@ export const FactCheckQuestionResponse = zod.object({
   "confidence": zod.enum(['HIGH', 'MEDIUM', 'LOW']),
   "explanation": zod.string(),
   "correctAnswerIfWrong": zod.string().nullish(),
-  "groundingUrl": zod.string().nullish()
+  "groundingUrl": zod.string().nullish().describe('First Google Search grounding source URL used to verify this fact, if grounding was active.')
 })
 
 
@@ -308,7 +315,7 @@ export const ListGameQuestionsResponseItem = zod.object({
   "id": zod.number(),
   "gameId": zod.number(),
   "questionText": zod.string(),
-  "questionType": zod.enum(['multiple_choice', 'write_in', 'matching', 'image_recognition', 'true_false', 'multi_select', 'ordering', 'slider', 'image_hotspot', 'short_response']),
+  "questionType": zod.enum(['multiple_choice', 'write_in', 'matching', 'image_recognition', 'true_false']),
   "correctAnswer": zod.string().optional(),
   "options": zod.record(zod.string(), zod.unknown()).nullable(),
   "imageUrl": zod.string().nullable(),
@@ -338,7 +345,7 @@ export const createQuestionBodyOrderIndexMin = 0;
 
 export const CreateQuestionBody = zod.object({
   "questionText": zod.string().min(1),
-  "questionType": zod.enum(['multiple_choice', 'write_in', 'matching', 'image_recognition', 'true_false', 'multi_select', 'ordering', 'slider', 'image_hotspot', 'short_response']),
+  "questionType": zod.enum(['multiple_choice', 'write_in', 'matching', 'image_recognition', 'true_false']),
   "correctAnswer": zod.string().min(1),
   "options": zod.record(zod.string(), zod.unknown()).nullish(),
   "imageUrl": zod.string().nullish(),
@@ -354,7 +361,7 @@ export const CreateQuestionResponse = zod.object({
   "id": zod.number(),
   "gameId": zod.number(),
   "questionText": zod.string(),
-  "questionType": zod.enum(['multiple_choice', 'write_in', 'matching', 'image_recognition', 'true_false', 'multi_select', 'ordering', 'slider', 'image_hotspot', 'short_response']),
+  "questionType": zod.enum(['multiple_choice', 'write_in', 'matching', 'image_recognition', 'true_false']),
   "correctAnswer": zod.string().optional(),
   "options": zod.record(zod.string(), zod.unknown()).nullable(),
   "imageUrl": zod.string().nullable(),
@@ -383,7 +390,7 @@ export const updateQuestionBodyOrderIndexMin = 0;
 
 export const UpdateQuestionBody = zod.object({
   "questionText": zod.string().min(1).optional(),
-  "questionType": zod.enum(['multiple_choice', 'write_in', 'matching', 'image_recognition', 'true_false', 'multi_select', 'ordering', 'slider', 'image_hotspot', 'short_response']).optional(),
+  "questionType": zod.enum(['multiple_choice', 'write_in', 'matching', 'image_recognition', 'true_false']).optional(),
   "correctAnswer": zod.string().min(1).optional(),
   "options": zod.record(zod.string(), zod.unknown()).nullish(),
   "imageUrl": zod.string().nullish(),
@@ -398,7 +405,7 @@ export const UpdateQuestionResponse = zod.object({
   "id": zod.number(),
   "gameId": zod.number(),
   "questionText": zod.string(),
-  "questionType": zod.enum(['multiple_choice', 'write_in', 'matching', 'image_recognition', 'true_false', 'multi_select', 'ordering', 'slider', 'image_hotspot', 'short_response']),
+  "questionType": zod.enum(['multiple_choice', 'write_in', 'matching', 'image_recognition', 'true_false']),
   "correctAnswer": zod.string().optional(),
   "options": zod.record(zod.string(), zod.unknown()).nullable(),
   "imageUrl": zod.string().nullable(),
@@ -480,9 +487,7 @@ export const SubmitAnswerResponse = zod.object({
   "isCorrect": zod.boolean(),
   "answeredAt": zod.string(),
   "pointsEarned": zod.number(),
-  "totalScore": zod.number(),
-  "correctAnswer": zod.string().optional(),
-  "feedback": zod.string().optional()
+  "totalScore": zod.number()
 })
 
 

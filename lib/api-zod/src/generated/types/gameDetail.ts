@@ -17,6 +17,8 @@ export interface GameDetail {
   createdAt: string;
   createdByAdmin: boolean;
   participantCount: number;
+  /** @nullable */
   accessCode?: string | null;
+  /** @nullable */
   brief?: string | null;
 }

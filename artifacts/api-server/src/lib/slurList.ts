@@ -62,8 +62,11 @@ export const ALLOWLIST_TERMS: readonly string[] = [
   'nip',      // "a nip in the air" (cold), "nip of whisky" (small measure),
               // "nip out" (leave briefly) — all common everyday phrases.
 
-  'chink',    // "a chink in the armour/armor" is a standard English idiom for
-              // a gap or weakness; appears regularly in history and literature.
+  // 'chink' was allowlisted here but was deliberately un-allowlisted.
+  // Rationale: "a chink in the armour" is a genuine false positive in question
+  // text, but the word standing alone as a player display name is unambiguous.
+  // Blocking it was judged the better trade-off. A host who wants the idiom in
+  // a question can rephrase (e.g. "a gap in the armour" or "a weak point").
 ];
 
 /**

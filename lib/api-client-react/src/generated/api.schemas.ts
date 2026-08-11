@@ -26,7 +26,9 @@ export const AccessCodeResultRole = {
 export interface AccessCodeResult {
   valid: boolean;
   role: AccessCodeResultRole;
+  /** @nullable */
   gameId?: number | null;
+  /** @nullable */
   gameTopic?: string | null;
 }
 
@@ -58,6 +60,10 @@ export interface GameInput {
   topic: string;
   difficulty: GameInputDifficulty;
   createdByAdmin?: boolean;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
   brief?: string | null;
 }
 
@@ -84,10 +90,17 @@ export interface GameUpdate {
   topic?: string;
   difficulty?: GameUpdateDifficulty;
   status?: GameUpdateStatus;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
   brief?: string | null;
-  /** @minLength 4 @maxLength 12 @pattern ^[A-Za-z0-9]+$ */
+  /**
+     * @minLength 4
+     * @maxLength 12
+     * @pattern ^[A-Za-z0-9]+$
+     */
   accessCode?: string;
-  hostPlaysAlong?: boolean;
 }
 
 export type GameDifficulty = typeof GameDifficulty[keyof typeof GameDifficulty];
@@ -117,10 +130,10 @@ export interface Game {
   createdAt: string;
   createdByAdmin: boolean;
   participantCount: number;
+  /** @nullable */
   accessCode?: string | null;
+  /** @nullable */
   brief?: string | null;
-  hostPlaysAlong?: boolean;
-  hostUserId?: number | null;
 }
 
 export type GameDetailDifficulty = typeof GameDetailDifficulty[keyof typeof GameDetailDifficulty];
@@ -150,7 +163,9 @@ export interface GameDetail {
   createdAt: string;
   createdByAdmin: boolean;
   participantCount: number;
+  /** @nullable */
   accessCode?: string | null;
+  /** @nullable */
   brief?: string | null;
 }
 
@@ -163,11 +178,6 @@ export const QuestionInputQuestionType = {
   matching: 'matching',
   image_recognition: 'image_recognition',
   true_false: 'true_false',
-  multi_select: 'multi_select',
-  ordering: 'ordering',
-  slider: 'slider',
-  image_hotspot: 'image_hotspot',
-  short_response: 'short_response',
 } as const;
 
 /**
@@ -206,11 +216,6 @@ export const QuestionUpdateQuestionType = {
   matching: 'matching',
   image_recognition: 'image_recognition',
   true_false: 'true_false',
-  multi_select: 'multi_select',
-  ordering: 'ordering',
-  slider: 'slider',
-  image_hotspot: 'image_hotspot',
-  short_response: 'short_response',
 } as const;
 
 /**
@@ -312,6 +317,7 @@ export interface FactCheckSingleResult {
   confidence: FactCheckSingleResultConfidence;
   explanation: string;
   correctAnswerIfWrong?: string | null;
+  /** First Google Search grounding source URL used to verify this fact, if grounding was active. */
   groundingUrl?: string | null;
 }
 
@@ -334,7 +340,8 @@ export interface GeminiGenerateInput {
      */
   amount: number;
   existingQuestions?: string[];
-  brief?: string | null;
+  /** @maxLength 2000 */
+  brief?: string;
   skipFactCheck?: boolean;
 }
 
@@ -361,6 +368,10 @@ export interface OpenTdbImportResult {
   imported: number;
   total: number;
   discarded?: number;
+  /** Number of AI-generated questions removed by the server-side content filter before saving. Only present in the generate-gemini response and only when at least one question was removed. */
+  contentFilteredCount?: number;
+  /** Pre-formatted human-readable message describing how many questions were removed by the content filter. Only present when contentFilteredCount is present and greater than zero. */
+  contentFilteredMessage?: string;
 }
 
 export type QuestionQuestionType = typeof QuestionQuestionType[keyof typeof QuestionQuestionType];
@@ -372,11 +383,6 @@ export const QuestionQuestionType = {
   matching: 'matching',
   image_recognition: 'image_recognition',
   true_false: 'true_false',
-  multi_select: 'multi_select',
-  ordering: 'ordering',
-  slider: 'slider',
-  image_hotspot: 'image_hotspot',
-  short_response: 'short_response',
 } as const;
 
 /**

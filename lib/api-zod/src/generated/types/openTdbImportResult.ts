@@ -9,8 +9,9 @@
 export interface OpenTdbImportResult {
   imported: number;
   total: number;
-  /** Present when some AI-generated questions were removed by the content filter. */
+  discarded?: number;
+  /** Number of AI-generated questions removed by the server-side content filter before saving. Only present in the generate-gemini response and only when at least one question was removed. */
   contentFilteredCount?: number;
-  /** Pre-formatted human-readable message; present when contentFilteredCount > 0. */
+  /** Pre-formatted human-readable message describing how many questions were removed by the content filter. Only present when contentFilteredCount is present and greater than zero. */
   contentFilteredMessage?: string;
 }

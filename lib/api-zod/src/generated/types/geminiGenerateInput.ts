@@ -17,4 +17,7 @@ export interface GeminiGenerateInput {
      */
   amount: number;
   existingQuestions?: string[];
+  /** @maxLength 2000 */
+  brief?: string;
+  skipFactCheck?: boolean;
 }

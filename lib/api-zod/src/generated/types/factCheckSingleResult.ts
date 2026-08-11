@@ -13,4 +13,6 @@ export interface FactCheckSingleResult {
   confidence: FactCheckSingleResultConfidence;
   explanation: string;
   correctAnswerIfWrong?: string | null;
+  /** First Google Search grounding source URL used to verify this fact, if grounding was active. */
+  groundingUrl?: string | null;
 }

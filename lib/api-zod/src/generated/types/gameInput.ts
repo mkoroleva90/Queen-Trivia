@@ -12,4 +12,9 @@ export interface GameInput {
   topic: string;
   difficulty: GameInputDifficulty;
   createdByAdmin?: boolean;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  brief?: string | null;
 }

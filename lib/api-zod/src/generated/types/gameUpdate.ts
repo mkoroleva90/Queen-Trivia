@@ -13,8 +13,15 @@ export interface GameUpdate {
   topic?: string;
   difficulty?: GameUpdateDifficulty;
   status?: GameUpdateStatus;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
   brief?: string | null;
-  /** @minLength 4 @maxLength 12 @pattern ^[A-Za-z0-9]+$ */
+  /**
+     * @minLength 4
+     * @maxLength 12
+     * @pattern ^[A-Za-z0-9]+$
+     */
   accessCode?: string;
-  hostPlaysAlong?: boolean;
 }
