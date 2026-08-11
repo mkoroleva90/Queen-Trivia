@@ -1431,7 +1431,10 @@ const handleSubmit = async (e: React.FormEvent) => {
       } catch (err: unknown) {
           const limitMsg = extractFreeTierLimitMsg(err);
           if (limitMsg) { setUpgradeLimitMsg(limitMsg); setWorking(false); return; }
-          const msg = err instanceof Error ? err.message : "Could not generate questions.";
+          const errData = err && typeof err === "object" && "data" in err ? (err as { data: unknown }).data : null;
+          const apiMsg = errData && typeof errData === "object" && "error" in errData ? String((errData as { error: unknown }).error) : null;
+          const errCode = errData && typeof errData === "object" && "code" in errData ? String((errData as { code: unknown }).code) : null;
+          const msg = apiMsg ?? "Could not generate questions.";
           setImportError(msg);
           setImportSource("gemini");
      const { isDaily: _isDaily1, isPerMinute: _isPM1, countdown: _cd1 } = parseGeminiRateError(err);
@@ -1441,6 +1444,8 @@ const handleSubmit = async (e: React.FormEvent) => {
           } else if (_isPM1) {
               setRetryCountdown(_cd1);
               toast({ variant: "destructive", title: `Rate limited — retry unlocks in ${_cd1} s` });
+          } else if (errCode === "safety_block") {
+              toast({ variant: "destructive", title: msg });
           } else {
               toast({ variant: "destructive", title: "Generation failed — add questions manually" });
           }
@@ -1475,7 +1480,10 @@ const handleRetryGeneration = async () => {
   } catch (err: unknown) {
    const limitMsg2 = extractFreeTierLimitMsg(err);
    if (limitMsg2) { setUpgradeLimitMsg(limitMsg2); return; }
-   const msg = err instanceof Error ? err.message : "Could not generate questions.";
+   const errData2 = err && typeof err === "object" && "data" in err ? (err as { data: unknown }).data : null;
+   const apiMsg2 = errData2 && typeof errData2 === "object" && "error" in errData2 ? String((errData2 as { error: unknown }).error) : null;
+   const errCode2 = errData2 && typeof errData2 === "object" && "code" in errData2 ? String((errData2 as { code: unknown }).code) : null;
+   const msg = apiMsg2 ?? "Could not generate questions.";
    setImportError(msg);
    setImportSource("gemini");
     const status = err && typeof err === "object" && "status" in err ? (err as { status: number}).status : 0;
@@ -1486,6 +1494,8 @@ const handleRetryGeneration = async () => {
    } else if (_isPM2) {
        setRetryCountdown(_cd2);
        toast({ variant: "destructive", title: `Rate limited — retry unlocks in ${_cd2} s` });
+   } else if (errCode2 === "safety_block") {
+       toast({ variant: "destructive", title: msg });
    } else {
        toast({ variant: "destructive", title: "Generation failed — add questions manually" });
    }
