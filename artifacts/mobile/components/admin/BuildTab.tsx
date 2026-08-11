@@ -1210,7 +1210,7 @@ export function BuildTab({ bottomPadding }: Props) {
             <View style={sh.sheetHandle} />
             <View style={sh.sheetTitleRow}>
               <Ionicons name="information-circle-outline" size={20} color={colors.secondary} />
-              <Text style={[sh.sheetTitle, { color: colors.foreground }]}>Plan limit reached</Text>
+              <Text style={[sh.sheetTitle, { color: colors.foreground }]}>Monthly limit reached</Text>
             </View>
             <Text style={[sh.sheetSub, { color: colors.mutedForeground }]}>{limitMsg}</Text>
             <Pressable style={[sh.sheetBtn, { backgroundColor: colors.primary }]} onPress={() => setLimitMsg(null)}>
