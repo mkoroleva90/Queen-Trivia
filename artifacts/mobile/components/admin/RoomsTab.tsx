@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -11,6 +12,9 @@ import {
   TextInput,
   View,
 } from 'react-native';
+
+const PRIVACY_URL = 'https://queen-trivia.com/privacy';
+const TERMS_URL   = 'https://queen-trivia.com/terms';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
@@ -283,6 +287,29 @@ export function RoomsTab({ bottomPadding }: Props) {
             )}
           </Pressable>
         </View>
+
+        {/* Legal */}
+        <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={s.sectionHeader}>
+            <Ionicons name="document-text-outline" size={18} color={colors.primary} />
+            <Text style={[s.sectionTitle, { color: colors.foreground }]}>Legal</Text>
+          </View>
+          <Pressable
+            style={s.legalRow}
+            onPress={() => Linking.openURL(PRIVACY_URL)}
+          >
+            <Text style={[s.legalLink, { color: colors.primary }]}>Privacy Policy</Text>
+            <Ionicons name="open-outline" size={15} color={colors.primary} />
+          </Pressable>
+          <View style={[s.legalDivider, { backgroundColor: colors.border }]} />
+          <Pressable
+            style={s.legalRow}
+            onPress={() => Linking.openURL(TERMS_URL)}
+          >
+            <Text style={[s.legalLink, { color: colors.primary }]}>Terms of Service</Text>
+            <Ionicons name="open-outline" size={15} color={colors.primary} />
+          </Pressable>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -309,4 +336,7 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     saveBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Manrope_700Bold' },
     deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, paddingVertical: 14, borderWidth: 1.5 },
     deleteBtnText: { fontSize: 16, fontFamily: 'Manrope_700Bold' },
+    legalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 },
+    legalLink: { fontSize: 15, fontFamily: 'Manrope_600SemiBold' },
+    legalDivider: { height: StyleSheet.hairlineWidth },
   });
