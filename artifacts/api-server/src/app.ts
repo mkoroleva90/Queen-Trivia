@@ -7,6 +7,11 @@ import { logger } from "./lib/logger.ts";
 import { sessionMiddleware } from "./lib/session.ts";
 import { corsOrigin } from "./lib/cors.ts";
 import { injectMobileSession } from "./lib/mobileAuth.ts";
+import { globalErrorHandler } from "./lib/globalErrorHandler.ts";
+
+// Export for integration tests: the router is mounted at /api before the
+// global error handler, so test routes added to it will have 500-handling.
+export { globalErrorHandler, router };
 
 
 const app: Express = express();
@@ -51,14 +56,7 @@ app.use(injectMobileSession);
 app.use("/api", router);
 
 // Global error handler — must be registered after all routes.
-// Catches any unhandled async/sync route error and returns a clean JSON
-// response instead of Express's default HTML error page, which could leak
-// stack traces to clients.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  logger.error({ err }, "Unhandled route error");
-  res.status(500).json({ error: "Internal server error" });
-});
+app.use(globalErrorHandler);
 
 export default app;
 
