@@ -1654,6 +1654,13 @@ export default function GameDetailScreen() {
     setTopicError('');
     try {
       await updateGame.mutateAsync({ gameId, data: { topic: trimmed } });
+      // Immediately patch the cached list so all screens (list + detail) see
+      // the new name without waiting for a background refetch.
+      qc.setQueryData(
+        getListGamesQueryKey(),
+        (old: import('@workspace/api-client-react').Game[] | undefined) =>
+          old?.map((g) => (g.id === gameId ? { ...g, topic: trimmed } : g)),
+      );
       qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
       setEditingTopic(false);
     } catch {

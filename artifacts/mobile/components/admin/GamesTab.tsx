@@ -131,6 +131,13 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
     setRenameSaving(true);
     try {
       await updateGame.mutateAsync({ gameId, data: { topic: trimmed } });
+      // Immediately patch the cached list so the detail screen also reflects
+      // the new name without waiting for a background refetch.
+      qc.setQueryData(
+        getListGamesQueryKey(),
+        (old: Game[] | undefined) =>
+          old?.map((g) => (g.id === gameId ? { ...g, topic: trimmed } : g)),
+      );
       qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
       cancelRename();
     } catch {
