@@ -733,6 +733,18 @@ components:
         imported: { type: integer }
         total: { type: integer }
         discarded: { type: integer }
+        contentFilteredCount:
+          type: integer
+          description: >
+            Number of AI-generated questions removed by the server-side content
+            filter before saving. Only present in the generate-gemini response
+            and only when at least one question was removed.
+        contentFilteredMessage:
+          type: string
+          description: >
+            Pre-formatted human-readable message describing how many questions
+            were removed by the content filter. Only present when
+            contentFilteredCount is present and greater than zero.
     Question:
       type: object
       required: [id, gameId, questionText, questionType, options, imageUrl, points, orderIndex,verifiedByAdmin, aiGenerated]
