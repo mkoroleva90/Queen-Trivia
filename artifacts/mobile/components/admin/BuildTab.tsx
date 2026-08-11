@@ -322,7 +322,7 @@ export function BuildTab({ bottomPadding }: Props) {
           topic: topic.trim(),
           difficulty,
           amount: setupAmount,
-          brief: brief.trim() || null,
+          brief: brief.trim() || undefined,
         },
       });
       invalidate(game.id);
@@ -372,7 +372,7 @@ export function BuildTab({ bottomPadding }: Props) {
           topic: selectedGame.topic,
           difficulty: (selectedGame.difficulty ?? 'medium') as Difficulty,
           amount: aiAmount,
-          brief: aiBrief.trim() || null,
+          brief: aiBrief.trim() || undefined,
         },
       });
       invalidate(selectedGame.id);

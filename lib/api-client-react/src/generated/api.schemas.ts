@@ -65,6 +65,7 @@ export interface GameInput {
      * @nullable
      */
   brief?: string | null;
+  hostPlaysAlong?: boolean;
 }
 
 export type GameUpdateDifficulty = typeof GameUpdateDifficulty[keyof typeof GameUpdateDifficulty];
@@ -101,6 +102,7 @@ export interface GameUpdate {
      * @pattern ^[A-Za-z0-9]+$
      */
   accessCode?: string;
+  hostPlaysAlong?: boolean;
 }
 
 export type GameDifficulty = typeof GameDifficulty[keyof typeof GameDifficulty];
@@ -134,6 +136,9 @@ export interface Game {
   accessCode?: string | null;
   /** @nullable */
   brief?: string | null;
+  hostPlaysAlong?: boolean;
+  /** @nullable */
+  hostUserId?: number | null;
 }
 
 export type GameDetailDifficulty = typeof GameDetailDifficulty[keyof typeof GameDetailDifficulty];
@@ -167,6 +172,9 @@ export interface GameDetail {
   accessCode?: string | null;
   /** @nullable */
   brief?: string | null;
+  hostPlaysAlong?: boolean;
+  /** @nullable */
+  hostUserId?: number | null;
 }
 
 export type QuestionInputQuestionType = typeof QuestionInputQuestionType[keyof typeof QuestionInputQuestionType];
@@ -178,6 +186,11 @@ export const QuestionInputQuestionType = {
   matching: 'matching',
   image_recognition: 'image_recognition',
   true_false: 'true_false',
+  multi_select: 'multi_select',
+  ordering: 'ordering',
+  slider: 'slider',
+  image_hotspot: 'image_hotspot',
+  short_response: 'short_response',
 } as const;
 
 /**
@@ -216,6 +229,11 @@ export const QuestionUpdateQuestionType = {
   matching: 'matching',
   image_recognition: 'image_recognition',
   true_false: 'true_false',
+  multi_select: 'multi_select',
+  ordering: 'ordering',
+  slider: 'slider',
+  image_hotspot: 'image_hotspot',
+  short_response: 'short_response',
 } as const;
 
 /**
@@ -383,6 +401,11 @@ export const QuestionQuestionType = {
   matching: 'matching',
   image_recognition: 'image_recognition',
   true_false: 'true_false',
+  multi_select: 'multi_select',
+  ordering: 'ordering',
+  slider: 'slider',
+  image_hotspot: 'image_hotspot',
+  short_response: 'short_response',
 } as const;
 
 /**

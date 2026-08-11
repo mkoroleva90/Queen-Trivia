@@ -555,6 +555,7 @@ components:
           enum: [easy, medium, hard]
         createdByAdmin: { type: boolean }
         brief: { type: ["string", "null"], maxLength: 2000 }
+        hostPlaysAlong: { type: boolean }
     GameUpdate:
       type: object
       properties:
@@ -567,6 +568,7 @@ components:
           enum: [waiting, active, completed]
         brief: { type: ["string", "null"], maxLength: 2000 }
         accessCode: { type: string, minLength: 4, maxLength: 12, pattern: "^[A-Za-z0-9]+$" }
+        hostPlaysAlong: { type: boolean }
     Game:
       type: object
       required: [id, topic, difficulty, questionCount, status, createdAt, createdByAdmin, participantCount]
@@ -585,6 +587,8 @@ components:
         participantCount: { type: integer }
         accessCode: { type: ["string", "null"] }
         brief: { type: ["string", "null"] }
+        hostPlaysAlong: { type: boolean }
+        hostUserId: { type: ["integer", "null"] }
     GameDetail:
       type: object
       required: [id, topic, difficulty, questionCount, status, createdAt, createdByAdmin,participantCount]
@@ -603,6 +607,8 @@ components:
         participantCount: { type: integer }
         accessCode: { type: ["string", "null"] }
         brief: { type: ["string", "null"] }
+        hostPlaysAlong: { type: boolean }
+        hostUserId: { type: ["integer", "null"] }
     QuestionInput:
       type: object
       required: [questionText, questionType, correctAnswer, points, orderIndex]
@@ -610,7 +616,7 @@ components:
         questionText: { type: string, minLength: 1 }
         questionType:
           type: string
-          enum: [multiple_choice, write_in, matching, image_recognition, true_false]
+          enum: [multiple_choice, write_in, matching, image_recognition, true_false, multi_select, ordering, slider, image_hotspot, short_response]
         correctAnswer: { type: string, minLength: 1 }
         options:
           type: ["object", "null"]
@@ -628,7 +634,7 @@ components:
         questionText: { type: string, minLength: 1 }
         questionType:
           type: string
-          enum: [multiple_choice, write_in, matching, image_recognition, true_false]
+          enum: [multiple_choice, write_in, matching, image_recognition, true_false, multi_select, ordering, slider, image_hotspot, short_response]
         correctAnswer: { type: string, minLength: 1 }
         options:
           type: ["object", "null"]
@@ -754,7 +760,7 @@ components:
         questionText: { type: string }
         questionType:
           type: string
-          enum: [multiple_choice, write_in, matching, image_recognition, true_false]
+          enum: [multiple_choice, write_in, matching, image_recognition, true_false, multi_select, ordering, slider, image_hotspot, short_response]
         correctAnswer: { type: string }
         options:
           type: ["object", "null"]

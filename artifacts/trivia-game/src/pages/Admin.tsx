@@ -1450,7 +1450,7 @@ const handleSubmit = async (e: React.FormEvent) => {
   try {
       const result = await generateQuestions.mutateAsync({
        gameId: game.id,
-       data: { topic: topicName, difficulty, amount: Number(amount), brief: brief.trim() || null },
+       data: { topic: topicName, difficulty, amount: Number(amount), brief: brief.trim() || undefined },
           });
           queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
           setImportedCount(result.imported);

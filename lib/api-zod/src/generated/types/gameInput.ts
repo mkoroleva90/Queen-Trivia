@@ -17,4 +17,5 @@ export interface GameInput {
      * @nullable
      */
   brief?: string | null;
+  hostPlaysAlong?: boolean;
 }

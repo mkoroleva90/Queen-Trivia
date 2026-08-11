@@ -21,4 +21,7 @@ export interface GameDetail {
   accessCode?: string | null;
   /** @nullable */
   brief?: string | null;
+  hostPlaysAlong?: boolean;
+  /** @nullable */
+  hostUserId?: number | null;
 }

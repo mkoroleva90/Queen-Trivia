@@ -15,4 +15,9 @@ export const QuestionUpdateQuestionType = {
   matching: 'matching',
   image_recognition: 'image_recognition',
   true_false: 'true_false',
+  multi_select: 'multi_select',
+  ordering: 'ordering',
+  slider: 'slider',
+  image_hotspot: 'image_hotspot',
+  short_response: 'short_response',
 } as const;
