@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   ScrollView,
   StyleSheet,
@@ -50,7 +51,7 @@ export default function ResultsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const userId = user?.id ?? 0;
   const [expandBreakdown, setExpandBreakdown] = useState(false);
 
@@ -268,6 +269,30 @@ export default function ResultsScreen() {
         >
           <Text style={[styles.backBtnText, { color: colors.accentForeground }]}>{COPY.results.playAgain}</Text>
         </TouchableOpacity>
+
+        {/* Sign out */}
+        <TouchableOpacity
+          onPress={() => {
+            Alert.alert(
+              'Sign out?',
+              "You'll need to rejoin with a room code to play again.",
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Sign out',
+                  style: 'destructive',
+                  onPress: async () => {
+                    await logout();
+                    router.replace('/');
+                  },
+                },
+              ],
+            );
+          }}
+          style={styles.signOutBtn}
+        >
+          <Text style={[styles.signOutBtnText, { color: colors.mutedForeground }]}>Sign out</Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -311,6 +336,8 @@ const styles = StyleSheet.create({
   qUnanswered: { fontSize: 12, fontStyle: 'italic' },
   backBtn: { height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
   backBtnText: { fontSize: 16, fontWeight: '800' },
+  signOutBtn: { alignItems: 'center', paddingVertical: 14 },
+  signOutBtnText: { fontSize: 14, fontWeight: '600' },
   errorContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },
   errorTitle: { fontSize: 20, fontWeight: '800', textAlign: 'center' },
   errorSub: { fontSize: 14, textAlign: 'center', lineHeight: 20 },

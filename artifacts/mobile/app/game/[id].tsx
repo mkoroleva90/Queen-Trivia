@@ -751,7 +751,23 @@ export default function GamePlayScreen() {
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.gameHeader, { paddingTop: topPad + 8 }]}>
-        <TouchableOpacity onPress={() => router.replace('/')} hitSlop={12}>
+        <TouchableOpacity
+          onPress={() => {
+            if (current && !lockedAnswer) {
+              Alert.alert(
+                'Leave game?',
+                "You'll lose your progress on the current question. You can rejoin with a room code.",
+                [
+                  { text: 'Stay', style: 'cancel' },
+                  { text: 'Leave', style: 'destructive', onPress: () => router.replace('/') },
+                ],
+              );
+            } else {
+              router.replace('/');
+            }
+          }}
+          hitSlop={12}
+        >
           <Ionicons name="chevron-back" size={24} color={colors.foreground} />
         </TouchableOpacity>
         <View style={styles.gameHeaderCenter}>
