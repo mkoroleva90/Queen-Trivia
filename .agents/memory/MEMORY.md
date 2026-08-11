@@ -8,3 +8,4 @@
 - [Admin code source of truth](admin-auth-code-source.md) — /api/admin/login checks ADMIN_ACCESS_KEY env before the DB code; the two can disagree. Socket singleton: one hook cleanup disconnects all.
 - [Live tally seeding](live-tally-seeding.md) — seed+socket live counts must use the synchronous ref store in lib/live-tally; React-state flags misroute transition events and double-count.
 - [Access code security model](access-code-security.md) — trivia 4–6 chars / case-insensitive; admin 12–64 chars / bcrypt hashed / never returned to client; bootstrap auto-migrates plain text.
+- [Content filter](content-filter.md) — naughty-words list, collapse-3+-to-2 normalization (not to-1 or Niger false-positives), 4 server enforcement points, client surfacing pattern.

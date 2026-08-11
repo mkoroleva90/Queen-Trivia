@@ -131,6 +131,9 @@ importers:
       express-session:
         specifier: ^1.19.0
         version: 1.19.0
+      naughty-words:
+        specifier: 1.2.0
+        version: 1.2.0
       pino:
         specifier: ^9.14.0
         version: 9.14.0
@@ -5018,6 +5021,9 @@ packages:
     resolution: {integrity: sha512-bzlKTyNJ7+LdGIIwy8ijFpIqEQIvafahV7eYykJ8Cvh42EdJeODoJ6gUJXpQJvej1BddH8OqTXZNE/KfbWAu8Q==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
+
+  naughty-words@1.2.0:
+    resolution: {integrity: sha512-0iadX6fN+3NsfvIRtWmmpEX9VsoIQ6n9FwyIxmew9w5yzFNqMgs/Ky0eAC/z5xXSHtqlVoByiovdROikwH9SXQ==}
 
   negotiator@0.6.3:
     resolution: {integrity: sha512-+EUsqGPLsM+j/zdChZjsnX51g4XrHFOIXwfnCVPGlQk/k5giakcKsuxCObBRu6DSm9opw/O6slWbJdghQM4bBg==}
@@ -11519,6 +11525,8 @@ snapshots:
       thenify-all: 1.6.0
 
   nanoid@3.3.16: {}
+
+  naughty-words@1.2.0: {}
 
   negotiator@0.6.3: {}
 

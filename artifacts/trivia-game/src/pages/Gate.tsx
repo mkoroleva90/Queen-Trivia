@@ -204,7 +204,12 @@ export default function Gate() {
         return;
       }
       if (!res.ok) {
-        toast({ variant: "destructive", title: "Something went wrong — please retry" });
+        const errBody = await res.json().catch(() => null) as { error?: string; code?: string } | null;
+        if (errBody?.code === "content_filtered" && errBody.error) {
+          setNameError(errBody.error);
+        } else {
+          toast({ variant: "destructive", title: "Something went wrong — please retry" });
+        }
         return;
       }
       const user = await res.json();

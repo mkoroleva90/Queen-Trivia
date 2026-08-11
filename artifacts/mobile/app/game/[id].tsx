@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Image,
   Modal,
@@ -710,6 +711,16 @@ export default function GamePlayScreen() {
           setLockedAnswer(answer);
           Haptics.notificationAsync(res.isCorrect ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error);
           queryClient.invalidateQueries({ queryKey: getListGameParticipantsQueryKey(gameId) });
+        },
+        onError: (err: unknown) => {
+          const status = err && typeof err === 'object' && 'status' in err ? (err as { status: number }).status : 0;
+          if (status === 409) { handleNext(); return; }
+          const errData = err && typeof err === 'object' && 'data' in err ? (err as { data: unknown }).data : null;
+          const apiMsg = errData && typeof errData === 'object' && 'error' in errData ? String((errData as { error: unknown }).error) : null;
+          const errCode = errData && typeof errData === 'object' && 'code' in errData ? String((errData as { code: unknown }).code) : null;
+          if (errCode === 'content_filtered' && apiMsg) {
+            Alert.alert('Answer not submitted', apiMsg);
+          }
         },
       },
     );

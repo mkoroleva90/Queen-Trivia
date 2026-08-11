@@ -23,6 +23,11 @@ import {
 import { logger } from "../lib/logger.ts";
 import { assertGameOwnership } from "../lib/assertGameOwnership.ts";
 import { checkAiUsageLimit, recordAiUsage } from "../lib/usageLimits.ts";
+import {
+  anyContainsBannedContent,
+  extractOptionTexts,
+  logFlaggedContent,
+} from "../lib/contentFilter.ts";
 
 
 const router: IRouter = Router();
@@ -125,7 +130,21 @@ router.post(
         }
 
         // Image URL validation + top-up are now handled inside generateGeminiQuestions.
-        const questions = result.questions;
+        // Content filter: drop any AI-generated question that contains banned content
+        // before it is written to the database. This is a second layer under the AI
+        // provider's own safety filtering; flagged questions are logged and discarded.
+        const questions = result.questions.filter((q) => {
+            const allText: Array<string | null | undefined> = [
+                q.questionText,
+                q.correctAnswer,
+                ...extractOptionTexts(q.options as unknown),
+            ];
+            if (anyContainsBannedContent(allText)) {
+                logFlaggedContent('ai_generated_question');
+                return false;
+            }
+            return true;
+        });
 
         const existing = await db
             .select({ orderIndex: questionsTable.orderIndex })

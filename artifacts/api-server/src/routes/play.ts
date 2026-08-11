@@ -16,6 +16,8 @@ import { requireAuth } from "../middleware/requireAuth.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { assertGameOwnership } from "../lib/assertGameOwnership.ts";
 import { decodeHtml } from "../lib/decodeHtml.ts";
+import { containsBannedContent, logFlaggedContent } from "../lib/contentFilter.ts";
+import { COPY } from "@workspace/copy";
 const answerRateLimit = rateLimit({
     windowMs: 60_000,
     max: 30,
@@ -234,6 +236,13 @@ if (already) {
     return;
 }
 
+// Content filter: block slurs/hate speech in player-typed answers.
+// Runs before grading and before any database write.
+if (containsBannedContent(parsed.data.userAnswer)) {
+    logFlaggedContent('player_answer');
+    res.status(422).json({ error: COPY.contentFilter.playerAnswer, code: "content_filtered" });
+    return;
+}
 
 const opts = question.options as { alternateAnswers?: string[] } | null;
 const alternates = opts?.alternateAnswers ?? [];

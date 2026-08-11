@@ -96,7 +96,15 @@ export default function WelcomeScreen() {
         body: JSON.stringify({ code: trimmedCode, name: trimmedName }),
       });
       if (res.status === 401) { setCodeError('Code expired — re-enter'); animateStep(2); return; }
-      if (!res.ok) { setNameError('Something went wrong — please retry'); return; }
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => null) as { error?: string; code?: string } | null;
+        if (errBody?.code === 'content_filtered' && errBody.error) {
+          setNameError(errBody.error);
+        } else {
+          setNameError('Something went wrong — please retry');
+        }
+        return;
+      }
       const userData = (await res.json()) as { id: number; name: string; gameId: number | null; mobileToken: string };
       await loginUser({ id: userData.id, name: userData.name }, userData.mobileToken);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

@@ -17,6 +17,12 @@ import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { requireAuth } from "../middleware/requireAuth.ts";
 import { assertGameOwnership } from "../lib/assertGameOwnership.ts";
 import { decodeQuestionFields } from "../lib/decodeHtml.ts";
+import {
+  anyContainsBannedContent,
+  extractOptionTexts,
+  logFlaggedContent,
+} from "../lib/contentFilter.ts";
+import { COPY } from "@workspace/copy";
 
 
 const router: IRouter = Router();
@@ -105,6 +111,21 @@ if (!game) {
 
 if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
+// Content filter: block slurs/hate speech in question text and answers
+// before anything is written to the database.
+{
+  const textsToCheck: Array<string | null | undefined> = [
+    parsed.data.questionText,
+    parsed.data.correctAnswer,
+    ...extractOptionTexts(parsed.data.options),
+  ];
+  if (anyContainsBannedContent(textsToCheck)) {
+    logFlaggedContent('question_content_create');
+    res.status(422).json({ error: COPY.contentFilter.questionContent, code: "content_filtered" });
+    return;
+  }
+}
+
 const [question] = await db
     .insert(questionsTable)
     .values({
@@ -151,6 +172,20 @@ router.patch("/questions/:questionId", requireAdmin, async (req, res): Promise<v
  }
 
  if (!await assertGameOwnership(req, res, existing.gameId)) return;
+
+ // Content filter: block slurs/hate speech in any updated field before
+ // the database row is mutated. Only checks fields present in this request.
+ {
+   const textsToCheck: Array<string | null | undefined> = [];
+   if (parsed.data.questionText) textsToCheck.push(parsed.data.questionText);
+   if (parsed.data.correctAnswer) textsToCheck.push(parsed.data.correctAnswer);
+   if (parsed.data.options) textsToCheck.push(...extractOptionTexts(parsed.data.options));
+   if (anyContainsBannedContent(textsToCheck)) {
+     logFlaggedContent('question_content_update');
+     res.status(422).json({ error: COPY.contentFilter.questionContent, code: "content_filtered" });
+     return;
+   }
+ }
 
  const [question] = await db
      .update(questionsTable)

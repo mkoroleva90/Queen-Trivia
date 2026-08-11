@@ -5,6 +5,8 @@ import { db, usersTable, gamesTable } from "@workspace/db";
 import { toJsonSafe } from "../lib/serialize.ts";
 import { triviaJoinRateLimit } from "../middleware/authRateLimit.ts";
 import { generateMobileToken } from "../lib/mobileAuth.ts";
+import { containsBannedContent, logFlaggedContent } from "../lib/contentFilter.ts";
+import { COPY } from "@workspace/copy";
 
 
 const router: IRouter = Router();
@@ -82,6 +84,13 @@ if (!name) {
 }
 if (name.length > 50) {
     res.status(400).json({ error: "Name must be 50 characters or fewer" });
+    return;
+}
+
+// Content filter: block slurs/hate speech in display names before saving.
+if (containsBannedContent(name)) {
+    logFlaggedContent('player_name');
+    res.status(422).json({ error: COPY.contentFilter.playerName, code: "content_filtered" });
     return;
 }
 

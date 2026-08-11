@@ -1406,9 +1406,13 @@ export default function GamePlay() {
           queryClient.invalidateQueries({ queryKey: getListGameParticipantsQueryKey(gameId) });
         },
         onError: (err: unknown) => {
-          const msg = err instanceof Error ? err.message : String(err);
-          if (msg.includes("409") || msg.toLowerCase().includes("already answered")) {
-            nextQuestion();
+          const status = err && typeof err === "object" && "status" in err ? (err as { status: number }).status : 0;
+          if (status === 409) { nextQuestion(); return; }
+          const errData = err && typeof err === "object" && "data" in err ? (err as { data: unknown }).data : null;
+          const apiMsg = errData && typeof errData === "object" && "error" in errData ? String((errData as { error: unknown }).error) : null;
+          const errCode = errData && typeof errData === "object" && "code" in errData ? String((errData as { code: unknown }).code) : null;
+          if (errCode === "content_filtered" && apiMsg) {
+            toast({ variant: "destructive", title: apiMsg });
             return;
           }
           toast({ variant: "destructive", title: "Could not submit answer", description: "Please try again." });

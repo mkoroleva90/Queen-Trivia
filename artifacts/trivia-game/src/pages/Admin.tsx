@@ -1147,7 +1147,16 @@ return (
          setEditing(null);
          toast({ title: "Question updated" });
         },
-        onError: () => toast({ variant: "destructive", title: "Update failed" }),
+        onError: (err: unknown) => {
+            const errData = err && typeof err === "object" && "data" in err ? (err as { data: unknown }).data : null;
+            const apiMsg = errData && typeof errData === "object" && "error" in errData ? String((errData as { error: unknown }).error) : null;
+            const errCode = errData && typeof errData === "object" && "code" in errData ? String((errData as { code: unknown }).code) : null;
+            if (errCode === "content_filtered" && apiMsg) {
+                toast({ variant: "destructive", title: apiMsg });
+            } else {
+                toast({ variant: "destructive", title: "Update failed" });
+            }
+        },
     },
    );
   } else {
@@ -1170,7 +1179,16 @@ return (
             setDialogOpen(false);
             toast({ title: "Question added" });
            },
-           onError: () => toast({ variant: "destructive", title: "Create failed" }),
+           onError: (err: unknown) => {
+               const errData = err && typeof err === "object" && "data" in err ? (err as { data: unknown }).data : null;
+               const apiMsg = errData && typeof errData === "object" && "error" in errData ? String((errData as { error: unknown }).error) : null;
+               const errCode = errData && typeof errData === "object" && "code" in errData ? String((errData as { code: unknown }).code) : null;
+               if (errCode === "content_filtered" && apiMsg) {
+                   toast({ variant: "destructive", title: apiMsg });
+               } else {
+                   toast({ variant: "destructive", title: "Create failed" });
+               }
+           },
        },
       );
   }

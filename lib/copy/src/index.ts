@@ -279,6 +279,42 @@ export const COPY = {
   },
 
   /**
+   * Content filtering strings — shown when a user-submitted field is blocked
+   * because it contains a slur or hate-speech term.
+   *
+   * IMPORTANT: both platforms must surface these strings from the server
+   * response body (err.data.error / res.json().error), not from a raw thrown
+   * error or its message property.  The server always sends the exact string
+   * from this object so phrasing stays consistent across web and mobile.
+   *
+   * Each message tells the user their text cannot be used and to try different
+   * wording.  It does NOT quote the flagged word, does NOT identify which word
+   * triggered the filter, and uses neutral tone so an innocent false-positive
+   * does not feel like an accusation.
+   */
+  contentFilter: {
+    /**
+     * Shown when a player's chosen display name is blocked at login.
+     * Set as an inline field-level error beneath the name input — do not use
+     * a toast for this case (the user needs to correct the field directly).
+     */
+    playerName:
+      "This name can't be used here. Please choose a different name.",
+    /**
+     * Shown when a host's question text or answer options are blocked on
+     * create or edit.  Displayed as a destructive toast on both platforms.
+     */
+    questionContent:
+      "One or more fields contain text that can't be used in a question. Please change your wording and try again.",
+    /**
+     * Shown when a player's free-text answer is blocked on submission.
+     * Displayed as a destructive toast on web and an Alert on mobile.
+     */
+    playerAnswer:
+      "This answer can't be submitted. Please try different wording.",
+  },
+
+  /**
    * Player results-screen strings — shown after the game ends.
    * Both platforms must use these keys so wording stays in sync.
    */
