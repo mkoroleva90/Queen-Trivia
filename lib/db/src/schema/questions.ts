@@ -33,7 +33,9 @@ export const questionsTable = pgTable("questions", {
   ],
  }).notNull(),
  correctAnswer: text("correct_answer").notNull(),
- options: jsonb("options"),
+ // .$type narrows jsonb from `unknown` to the actual runtime shape so
+ // consumers (e.g. decodeQuestionFields) don't need unsafe casts.
+ options: jsonb("options").$type<Record<string, unknown>>(),
  imageUrl: text("image_url"),
  points: integer("points").notNull().default(10),
  orderIndex: integer("order_index").notNull().default(0),
