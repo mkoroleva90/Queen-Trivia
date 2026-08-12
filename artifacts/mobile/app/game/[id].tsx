@@ -786,8 +786,13 @@ export default function GamePlayScreen() {
             </Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <TouchableOpacity onPress={() => setReportOpen(true)} hitSlop={12}>
-              <Ionicons name="flag-outline" size={22} color={colors.mutedForeground} />
+            <TouchableOpacity
+              onPress={() => setReportOpen(true)}
+              hitSlop={12}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+            >
+              <Ionicons name="flag-outline" size={18} color={colors.mutedForeground} />
+              <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>{COPY.report.button}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => router.push('/about')} hitSlop={12}>
               <Ionicons name="information-circle-outline" size={24} color={colors.mutedForeground} />
