@@ -26,6 +26,7 @@ export default function AdminLayout() {
       <Stack.Screen name="[gameId]" />
       <Stack.Screen name="live/[gameId]" />
       <Stack.Screen name="results/[gameId]" />
+      <Stack.Screen name="settings" />
     </Stack>
   );
 }
