@@ -9,7 +9,6 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -24,8 +23,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAdminAuth } from '@/context/AdminAuthContext';
 import { API_BASE_URL } from '@/lib/apiBase';
 import { useColors } from '@/hooks/useColors';
-
-const TERMS_URL = 'https://queen-trivia.com/terms';
 
 export default function AdminLoginScreen() {
   const colors = useColors();
@@ -163,7 +160,7 @@ export default function AdminLoginScreen() {
 
           <View style={s.legalRow}>
             <Text style={[s.legalText, { color: colors.mutedForeground }]}>
-              <Text style={{ color: colors.primary }} onPress={() => Linking.openURL(TERMS_URL)}>
+              <Text style={{ color: colors.primary }} onPress={() => router.push('/terms')}>
                 Terms of Service
               </Text>
               {'  ·  '}

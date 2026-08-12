@@ -6,7 +6,6 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -20,8 +19,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { API_BASE_URL } from '@/lib/apiBase';
-
-const TERMS_URL = 'https://queen-trivia.com/terms';
 
 export default function AdminRegisterScreen() {
   const colors = useColors();
@@ -172,7 +169,7 @@ export default function AdminRegisterScreen() {
 
             <Text style={[s.legalText, { color: colors.mutedForeground }]}>
               By creating an account you agree to our{' '}
-              <Text style={{ color: colors.primary }} onPress={() => Linking.openURL(TERMS_URL)}>
+              <Text style={{ color: colors.primary }} onPress={() => router.push('/terms')}>
                 Terms of Service
               </Text>
               {' '}and{' '}
