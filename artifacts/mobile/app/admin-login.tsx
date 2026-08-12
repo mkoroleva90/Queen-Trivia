@@ -25,7 +25,6 @@ import { useAdminAuth } from '@/context/AdminAuthContext';
 import { API_BASE_URL } from '@/lib/apiBase';
 import { useColors } from '@/hooks/useColors';
 
-const PRIVACY_URL = 'https://queen-trivia.com/privacy';
 const TERMS_URL = 'https://queen-trivia.com/terms';
 
 export default function AdminLoginScreen() {
@@ -168,7 +167,7 @@ export default function AdminLoginScreen() {
                 Terms of Service
               </Text>
               {'  ·  '}
-              <Text style={{ color: colors.primary }} onPress={() => Linking.openURL(PRIVACY_URL)}>
+              <Text style={{ color: colors.primary }} onPress={() => router.push('/privacy')}>
                 Privacy Policy
               </Text>
             </Text>

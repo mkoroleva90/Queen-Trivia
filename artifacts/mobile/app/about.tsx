@@ -14,18 +14,46 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { CrownMark } from '@/components/CrownMark';
 
-const PRIVACY_URL = 'https://queen-trivia.com/privacy';
 const SUPPORT_URL = 'https://queen-trivia.com/support';
 
 interface LinkRowProps {
   icon: React.ComponentProps<typeof Ionicons>['name'];
   label: string;
   sublabel: string;
-  url: string;
   accentColor: string;
+  onPress: () => void;
+  externalIcon?: boolean;
+  loading?: boolean;
 }
 
-function LinkRow({ icon, label, sublabel, url, accentColor }: LinkRowProps) {
+function LinkRow({ icon, label, sublabel, accentColor, onPress, externalIcon = false, loading = false }: LinkRowProps) {
+  const colors = useColors();
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.row,
+        { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.75 : 1 },
+      ]}
+    >
+      <View style={[styles.iconWrap, { backgroundColor: accentColor + '22' }]}>
+        <Ionicons name={icon} size={22} color={accentColor} />
+      </View>
+      <View style={styles.rowText}>
+        <Text style={[styles.rowLabel, { color: colors.foreground }]}>{label}</Text>
+        <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>{sublabel}</Text>
+      </View>
+      {loading ? (
+        <ActivityIndicator size="small" color={colors.mutedForeground} />
+      ) : (
+        <Ionicons name={externalIcon ? 'open-outline' : 'chevron-forward'} size={18} color={colors.mutedForeground} />
+      )}
+    </Pressable>
+  );
+}
+
+function SupportRow({ icon, label, sublabel, accentColor, url }: Omit<LinkRowProps, 'onPress' | 'externalIcon' | 'loading'> & { url: string }) {
   const colors = useColors();
   const [loading, setLoading] = React.useState(false);
 
@@ -43,26 +71,15 @@ function LinkRow({ icon, label, sublabel, url, accentColor }: LinkRowProps) {
   };
 
   return (
-    <Pressable
+    <LinkRow
+      icon={icon}
+      label={label}
+      sublabel={sublabel}
+      accentColor={accentColor}
       onPress={handlePress}
-      style={({ pressed }) => [
-        styles.row,
-        { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.75 : 1 },
-      ]}
-    >
-      <View style={[styles.iconWrap, { backgroundColor: accentColor + '22' }]}>
-        <Ionicons name={icon} size={22} color={accentColor} />
-      </View>
-      <View style={styles.rowText}>
-        <Text style={[styles.rowLabel, { color: colors.foreground }]}>{label}</Text>
-        <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>{sublabel}</Text>
-      </View>
-      {loading ? (
-        <ActivityIndicator size="small" color={colors.mutedForeground} />
-      ) : (
-        <Ionicons name="open-outline" size={18} color={colors.mutedForeground} />
-      )}
-    </Pressable>
+      externalIcon
+      loading={loading}
+    />
   );
 }
 
@@ -102,15 +119,15 @@ export default function AboutScreen() {
             icon="shield-checkmark-outline"
             label="Privacy Policy"
             sublabel="How we handle your data"
-            url={PRIVACY_URL}
             accentColor={colors.primary}
+            onPress={() => router.push('/privacy')}
           />
-          <LinkRow
+          <SupportRow
             icon="chatbubble-ellipses-outline"
             label="Support"
             sublabel="Get help or report an issue"
-            url={SUPPORT_URL}
             accentColor={colors.secondary}
+            url={SUPPORT_URL}
           />
         </View>
       </View>

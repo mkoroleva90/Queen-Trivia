@@ -21,7 +21,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { API_BASE_URL } from '@/lib/apiBase';
 
-const PRIVACY_URL = 'https://queen-trivia.com/privacy';
 const TERMS_URL = 'https://queen-trivia.com/terms';
 
 export default function AdminRegisterScreen() {
@@ -177,7 +176,7 @@ export default function AdminRegisterScreen() {
                 Terms of Service
               </Text>
               {' '}and{' '}
-              <Text style={{ color: colors.primary }} onPress={() => Linking.openURL(PRIVACY_URL)}>
+              <Text style={{ color: colors.primary }} onPress={() => router.push('/privacy')}>
                 Privacy Policy
               </Text>
               .

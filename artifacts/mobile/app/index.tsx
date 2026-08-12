@@ -200,15 +200,19 @@ export default function WelcomeScreen() {
               </Pressable>
 
               {/* Privacy & Support footer */}
-              <Pressable
-                onPress={() => router.push('/about')}
-                hitSlop={12}
-                style={{ alignSelf: 'center', paddingVertical: 4 }}
-              >
-                <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
-                  Privacy Policy · Support
-                </Text>
-              </Pressable>
+              <View style={{ flexDirection: 'row', alignSelf: 'center', gap: 16, paddingVertical: 4 }}>
+                <Pressable onPress={() => router.push('/privacy')} hitSlop={12}>
+                  <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
+                    Privacy Policy
+                  </Text>
+                </Pressable>
+                <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>·</Text>
+                <Pressable onPress={() => router.push('/about')} hitSlop={12}>
+                  <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
+                    Support
+                  </Text>
+                </Pressable>
+              </View>
             </View>
           )}
 
