@@ -80,6 +80,9 @@ overrides:
   image-size: '>=1.2.2'
 
 patchedDependencies:
+  metro@0.83.3:
+    hash: 6142dbe31d079d9645366dd271585bfbf93a6b468ec92b02cf448040e1fa20e8
+    path: patches/metro@0.83.3.patch
   orval@8.22.0:
     hash: 5bdb12206bc34f433ae7dd1e157033208ed8408e5fed2884c1fe07915410ac8a
     path: patches/orval@8.22.0.patch
@@ -7570,7 +7573,7 @@ snapshots:
 
   '@expo/metro@54.2.0':
     dependencies:
-      metro: 0.83.3
+      metro: 0.83.3(patch_hash=6142dbe31d079d9645366dd271585bfbf93a6b468ec92b02cf448040e1fa20e8)
       metro-babel-transformer: 0.83.3
       metro-cache: 0.83.3
       metro-cache-key: 0.83.3
@@ -11303,7 +11306,7 @@ snapshots:
       connect: 3.7.0
       flow-enums-runtime: 0.0.6
       jest-validate: 29.7.0
-      metro: 0.83.3
+      metro: 0.83.3(patch_hash=6142dbe31d079d9645366dd271585bfbf93a6b468ec92b02cf448040e1fa20e8)
       metro-cache: 0.83.3
       metro-core: 0.83.3
       metro-runtime: 0.83.3
@@ -11476,7 +11479,7 @@ snapshots:
       '@babel/parser': 7.29.7
       '@babel/types': 7.29.7
       flow-enums-runtime: 0.0.6
-      metro: 0.83.3
+      metro: 0.83.3(patch_hash=6142dbe31d079d9645366dd271585bfbf93a6b468ec92b02cf448040e1fa20e8)
       metro-babel-transformer: 0.83.3
       metro-cache: 0.83.3
       metro-cache-key: 0.83.3
@@ -11509,7 +11512,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  metro@0.83.3:
+  metro@0.83.3(patch_hash=6142dbe31d079d9645366dd271585bfbf93a6b468ec92b02cf448040e1fa20e8):
     dependencies:
       '@babel/code-frame': 7.29.7
       '@babel/core': 7.29.7
