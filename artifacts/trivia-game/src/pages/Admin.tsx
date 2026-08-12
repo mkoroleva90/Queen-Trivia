@@ -128,6 +128,8 @@ Square,
 SlidersHorizontal,
 Wand2,
 Sparkles,
+ArrowLeft,
+Calendar,
 } from "lucide-react";
 
 
@@ -3979,16 +3981,24 @@ function BuildQuizView({
   );
 }
 
-function NewResultsSection({ games }: { games: Game[] }) {
-  const [selectedGameId, setSelectedGameId] = useState<number | null>(null);
-  const completedGames = games.filter((g) => g.status === "completed");
+function NewResultsSection({ games, preferredGameId }: { games: Game[]; preferredGameId?: number }) {
+  const completedGames = [...games.filter((g) => g.status === "completed")]
+    .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
 
-  // Default to the most recent completed game
+  const [resultsView, setResultsView] = useState<"list" | "detail">(
+    preferredGameId !== undefined ? "detail" : "list"
+  );
+  const [selectedGameId, setSelectedGameId] = useState<number | null>(
+    preferredGameId ?? null
+  );
+
+  // React when the parent changes preferredGameId (e.g. Games tab "Results" shortcut)
   useEffect(() => {
-    if (selectedGameId === null && completedGames.length > 0) {
-      setSelectedGameId(completedGames[completedGames.length - 1].id);
+    if (preferredGameId !== undefined) {
+      setSelectedGameId(preferredGameId);
+      setResultsView("detail");
     }
-  }, [completedGames, selectedGameId]);
+  }, [preferredGameId]);
 
   const { data: resultsData, isLoading: loadingResults } = useQuery<GameResultsData>({
     queryKey: ["admin-results", selectedGameId],
@@ -4020,6 +4030,75 @@ function NewResultsSection({ games }: { games: Game[] }) {
     );
   }
 
+  // ── List view ──────────────────────────────────────────────────────────────
+  if (resultsView === "list") {
+    const totalPlayerSessions = completedGames.reduce((s, g) => s + ((g as any).participantCount ?? 0), 0);
+    const totalQuestions = completedGames.reduce((s, g) => s + ((g as any).questionCount ?? 0), 0);
+
+    const formatDate = (iso?: string) => {
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return "";
+      return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    };
+
+    return (
+      <div className="space-y-5">
+        {/* Summary bar */}
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { v: completedGames.length, l: "GAMES", c: "#ff5aa8" },
+            { v: totalPlayerSessions, l: "PLAYER SESSIONS", c: "#00ddff" },
+            { v: totalQuestions, l: "QUESTIONS ASKED", c: "#35d07f" },
+          ].map((t) => (
+            <div key={t.l} className="bg-[#0f1724] border border-[#1b2740] rounded-[14px] p-4">
+              <div className="font-mono text-[26px] font-extrabold tabular-nums" style={{ color: t.c }}>{t.v}</div>
+              <div className="text-[10px] font-semibold tracking-[.12em] text-[#66728a] mt-0.5">{t.l}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Game cards */}
+        <div className="space-y-2">
+          {completedGames.map((game) => {
+            const date = formatDate((game as any).createdAt);
+            const players = (game as any).participantCount ?? 0;
+            const qCount = (game as any).questionCount ?? 0;
+            return (
+              <button
+                key={game.id}
+                onClick={() => { setSelectedGameId(game.id); setResultsView("detail"); }}
+                className="w-full flex items-center gap-4 bg-[#0f1724] border border-[#1b2740] rounded-2xl px-5 py-4 hover:border-[#2d4060] hover:bg-[#111d2e] transition text-left"
+              >
+                <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: "#ff5aa8" + "20" }}>
+                  <Trophy className="h-5 w-5 text-[#ff5aa8]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[15px] font-bold text-[#eef2f8] truncate">{game.topic}</div>
+                  <div className="flex items-center gap-4 mt-1 flex-wrap">
+                    {date && (
+                      <span className="flex items-center gap-1 text-[12px] text-[#66728a]">
+                        <Calendar className="h-3 w-3" />{date}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1 text-[12px] text-[#66728a]">
+                      <Users className="h-3 w-3" />{players} {players === 1 ? "player" : "players"}
+                    </span>
+                    <span className="flex items-center gap-1 text-[12px] text-[#66728a]">
+                      <HelpCircle className="h-3 w-3" />{qCount} {qCount === 1 ? "question" : "questions"}
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight className="h-5 w-5 text-[#66728a] shrink-0" />
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Detail view ────────────────────────────────────────────────────────────
   const participants = resultsData?.participants ?? [];
   const totalQ = resultsData?.totalQuestions ?? 0;
   const avgScore = participants.length
@@ -4041,22 +4120,21 @@ function NewResultsSection({ games }: { games: Game[] }) {
     <div className="space-y-5">
       {/* header */}
       <div className="flex flex-wrap items-center gap-3 pb-4 border-b border-[#16223a]">
-        <div>
-          <div className="text-[10px] font-bold tracking-[.24em] text-[#66728a] mb-1">FINAL RESULTS</div>
-          <div className="text-[22px] font-extrabold text-[#eef2f8]">{resultsData?.game.topic ?? "…"}</div>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          <select
-            value={selectedGameId ?? ""}
-            onChange={(e) => setSelectedGameId(Number(e.target.value))}
-            className="bg-white/[.05] border border-[#1b2740] rounded-[10px] px-3 py-2.5 text-xs font-bold text-[#c9d1e0] outline-none"
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setResultsView("list")}
+            className="flex items-center gap-1.5 text-xs font-bold text-[#66728a] hover:text-[#c9d1e0] transition"
           >
-            {completedGames.map((g) => (
-              <option key={g.id} value={g.id} className="bg-[#0f1724]">
-                {g.topic}
-              </option>
-            ))}
-          </select>
+            <ArrowLeft className="h-4 w-4" />
+            All results
+          </button>
+          <div className="w-px h-4 bg-[#1b2740]" />
+          <div>
+            <div className="text-[10px] font-bold tracking-[.24em] text-[#66728a] mb-1">FINAL RESULTS</div>
+            <div className="text-[22px] font-extrabold text-[#eef2f8]">{resultsData?.game.topic ?? "…"}</div>
+          </div>
+        </div>
+        <div className="ml-auto">
           <button
             onClick={() => selectedGameId && window.open(`/api/games/${selectedGameId}/results/export.csv`, "_blank")}
             className="text-xs font-bold text-[#c9d1e0] bg-white/[.05] border border-[#1b2740] rounded-[10px] px-4 py-2.5 hover:brightness-110 transition"
@@ -4203,7 +4281,7 @@ function NewAdminDashboard() {
       case "games": return <GamesView games={games} onNavigate={navigate} />;
       case "live": return <LiveGameView activeGame={activeGame} endGame={endGame} />;
       case "build": return <BuildQuizView key={buildResetKey} games={games} preferGameId={preferredGameId} onNavigate={navigate} />;
-      case "results": return <NewResultsSection games={games} />;
+      case "results": return <NewResultsSection games={games} preferredGameId={preferredGameId} />;
       default: return null;
     }
   };
