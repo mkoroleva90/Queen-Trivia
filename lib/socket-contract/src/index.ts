@@ -27,6 +27,8 @@ export type ServerToClientEvents = {
     playerName: string;
     isCorrect: boolean;
   }) => void;
+  /** Emitted when a host removes a player. Clients check userId against their own. */
+  "player:kicked": (payload: { gameId: number; userId: number }) => void;
 };
 
 // ── Client → Server ──────────────────────────────────────────────────────────

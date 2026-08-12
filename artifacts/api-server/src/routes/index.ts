@@ -14,6 +14,7 @@ import resultsRouter from "./results.ts";
 import statsRouter from "./stats.ts";
 import ownerRouter from "./owner.ts";
 import reportsRouter from "./reports.ts";
+import kickRouter from "./kick.ts";
 
 const router: IRouter = Router();
 router.use(healthRouter);
@@ -31,5 +32,6 @@ router.use(resultsRouter);
 router.use(statsRouter);
 router.use(ownerRouter);
 router.use(reportsRouter);
+router.use(kickRouter);
 
 export default router;

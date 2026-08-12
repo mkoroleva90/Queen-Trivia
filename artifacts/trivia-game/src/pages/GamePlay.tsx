@@ -1319,6 +1319,7 @@ export default function GamePlay() {
   const [skippedIds, setSkippedIds] = useState<Set<number>>(new Set());
   const [skipConfirm, setSkipConfirm] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [kicked, setKicked] = useState(false);
 
   useGameSocket(gameId || null, {
     onAnswerSubmitted: ({ playerName, isCorrect }) => {
@@ -1331,6 +1332,9 @@ export default function GamePlay() {
     onGameEnded: () => {
       toast({ title: "🏆 Game over! Redirecting to results…" });
       setTimeout(() => setLocation(`/results/${gameId}`), 1500);
+    },
+    onPlayerKicked: (p) => {
+      if (p.userId === userId) setKicked(true);
     },
   });
 
@@ -1462,6 +1466,17 @@ export default function GamePlay() {
   };
 
   if (!user) return null;
+
+  // Host removed this player — show a blocking screen.
+  if (kicked) {
+    return (
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-[#060d17] text-center px-8 gap-5">
+        <span style={{ fontSize: 56, lineHeight: 1 }}>🚫</span>
+        <h1 className="text-2xl font-extrabold text-[#eef2f8]">{COPY.kick.removedTitle}</h1>
+        <p className="text-[#9aa6bc] max-w-xs leading-relaxed">{COPY.kick.removedBody}</p>
+      </div>
+    );
+  }
 
   // ── Question category label ──
   const categoryLabel = current

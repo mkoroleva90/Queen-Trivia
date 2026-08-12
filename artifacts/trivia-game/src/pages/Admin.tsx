@@ -3000,6 +3000,12 @@ function LiveGameView({
   endGame: (id: number) => void;
 }) {
   const queryClient = useQueryClient();
+
+  // ── Player removal (kick) state ───────────────────────────────────────────
+  const [kickTarget, setKickTarget] = useState<{ userId: number; userName: string } | null>(null);
+  const [kicking, setKicking] = useState(false);
+  const [kickError, setKickError] = useState<string | null>(null);
+
   const { data: qData } = useListGameQuestions(activeGame?.id ?? 0, {
     query: { enabled: !!activeGame, queryKey: getListGameQuestionsQueryKey(activeGame?.id ?? 0) },
   });
@@ -3147,6 +3153,33 @@ function LiveGameView({
     },
   });
 
+  // handleKick is declared after refetchParts (declared above via useListGameParticipants).
+  const handleKick = async () => {
+    if (!kickTarget || !activeGame) return;
+    setKicking(true);
+    setKickError(null);
+    try {
+      const r = await fetch(`/api/games/${activeGame.id}/participants/${kickTarget.userId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!r.ok) {
+        const data: unknown = await r.json().catch(() => null);
+        const msg = data && typeof data === "object" && "error" in data
+          ? String((data as { error: unknown }).error)
+          : COPY.kick.removeError;
+        setKickError(msg);
+        return;
+      }
+      setKickTarget(null);
+      refetchParts();
+    } catch {
+      setKickError(COPY.kick.removeError);
+    } finally {
+      setKicking(false);
+    }
+  };
+
   const sortedParticipants = [...parts].sort((a, b) => (b.totalScore ?? 0) - (a.totalScore ?? 0)).slice(0, 6);
 
   if (!activeGame) {
@@ -3166,6 +3199,37 @@ function LiveGameView({
 
   return (
     <div className="space-y-5 animate-in fade-in duration-300">
+
+      {/* ── Kick confirmation overlay ── */}
+      {kickTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#060d17]/90 backdrop-blur-sm">
+          <div className="max-w-[300px] w-full mx-4 bg-[#0f1724] border border-[#ff6b6b]/40 rounded-2xl p-6 space-y-4">
+            <p className="text-[14px] font-bold text-[#eef2f8]">{COPY.kick.confirmTitle}</p>
+            <p className="text-[13px] text-[#9aa6bc] leading-relaxed">
+              <span className="font-bold text-[#eef2f8]">{kickTarget.userName}</span>{" "}
+              {COPY.kick.confirmBody}
+            </p>
+            {kickError && <p className="text-[11px] text-[#ff6b6b]">{kickError}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setKickTarget(null); setKickError(null); }}
+                disabled={kicking}
+                className="flex-1 py-2.5 rounded-xl border border-[#1b2740] text-sm font-semibold text-[#9aa6bc] hover:brightness-110 transition disabled:opacity-50"
+              >
+                {COPY.kick.confirmCancel}
+              </button>
+              <button
+                onClick={handleKick}
+                disabled={kicking}
+                className="flex-1 py-2.5 rounded-xl bg-[#ff6b6b]/20 border border-[#ff6b6b]/40 text-sm font-bold text-[#ff6b6b] hover:brightness-110 transition disabled:opacity-50"
+              >
+                {kicking ? "…" : COPY.kick.confirmRemove}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Topbar: LIVE badge · title · room chip · players · end ── */}
       <div className="flex flex-wrap items-center gap-3 pb-4 border-b border-[#16223a]">
         <div className="flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-full bg-[#ff0080]/15 border border-[#ff0080]/40">
@@ -3464,10 +3528,12 @@ function LiveGameView({
                 const done = answeredNames.includes(p.userName);
                 const [av, avtx] = AVATAR_COLORS[idx % AVATAR_COLORS.length];
                 return (
-                  <div
+                  <button
                     key={p.id}
-                    className={`flex items-center gap-1.5 pl-1.5 pr-2.5 py-[5px] rounded-full border transition ${
-                      done ? "bg-[#35d07f]/10 border-[#35d07f]/30" : "bg-white/[.02] border-[#1b2740] opacity-50"
+                    onClick={() => setKickTarget({ userId: p.userId, userName: p.userName })}
+                    title={`Remove ${p.userName}`}
+                    className={`group flex items-center gap-1.5 pl-1.5 pr-2 py-[5px] rounded-full border transition cursor-pointer ${
+                      done ? "bg-[#35d07f]/10 border-[#35d07f]/30 hover:border-[#ff6b6b]/50 hover:bg-[#ff6b6b]/10" : "bg-white/[.02] border-[#1b2740] opacity-50 hover:opacity-80 hover:border-[#ff6b6b]/40"
                     }`}
                   >
                     <span
@@ -3479,7 +3545,8 @@ function LiveGameView({
                     <span className={`text-[11px] font-semibold ${done ? "text-[#dfe5f0]" : "text-[#8a97ad]"}`}>
                       {p.userName}
                     </span>
-                  </div>
+                    <span className="text-[10px] text-[#ff6b6b]/0 group-hover:text-[#ff6b6b]/70 transition font-bold leading-none">×</span>
+                  </button>
                 );
               })}
             </div>

@@ -8,3 +8,4 @@ export * from "./sessions";
 export * from "./adminAccounts";
 export * from "./aiUsageLog";
 export * from "./contentReports";
+export * from "./removedParticipants";

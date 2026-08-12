@@ -9,6 +9,7 @@ import {
  questionsTable,
  answersTable,
  gameParticipantsTable,
+ removedParticipantsTable,
 } from "@workspace/db";
 import { safeEmit } from "../lib/socket.ts";
 import { requireUser } from "../middleware/requireUser.ts";
@@ -104,6 +105,22 @@ const [existing] = await db
 
  if (existing) {
      res.status(201).json(JoinGameResponse.parse(toJsonSafe(existing)));
+     return;
+ }
+
+ // Rejoin block: refuse if the host previously removed this player.
+ const [removed] = await db
+     .select({ id: removedParticipantsTable.id })
+     .from(removedParticipantsTable)
+     .where(
+      and(
+       eq(removedParticipantsTable.gameId, game.id),
+       eq(removedParticipantsTable.userId, user.id),
+      ),
+     );
+
+ if (removed) {
+     res.status(403).json({ error: COPY.kick.rejoinBlocked });
      return;
  }
 

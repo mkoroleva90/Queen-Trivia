@@ -132,6 +132,7 @@ export function useGameSocket(
       isCorrect: boolean;
     }) => void;
     onGameEnded?: (p: { gameId: number }) => void;
+    onPlayerKicked?: (p: { gameId: number; userId: number }) => void;
   },
 ) {
   const cbRef = useRef(callbacks);
@@ -159,9 +160,14 @@ export function useGameSocket(
       if (p.gameId === gameId) cbRef.current.onGameEnded?.(p);
     }
 
+    function onPlayerKicked(p: { gameId: number; userId: number }) {
+      if (p.gameId === gameId) cbRef.current.onPlayerKicked?.(p);
+    }
+
     socket.on('connect', onConnect);
     socket.on('answer:submitted', onAnswerSubmitted);
     socket.on('game:ended', onGameEnded);
+    socket.on('player:kicked', onPlayerKicked);
 
     if (socket.connected) {
       socket.emit('game:join', gameId);
@@ -173,6 +179,7 @@ export function useGameSocket(
       socket.off('connect', onConnect);
       socket.off('answer:submitted', onAnswerSubmitted);
       socket.off('game:ended', onGameEnded);
+      socket.off('player:kicked', onPlayerKicked);
       socket.disconnect();
     };
   }, [gameId]);

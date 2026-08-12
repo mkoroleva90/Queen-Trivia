@@ -46,6 +46,7 @@ export function useGameSocket(
          isCorrect: boolean;
      }) => void;
      onGameEnded?: (p: { gameId: number }) => void;
+     onPlayerKicked?: (p: { gameId: number; userId: number }) => void;
     },
 ){
     const cbRef = useRef(callbacks);
@@ -73,14 +74,19 @@ export function useGameSocket(
          if (p.gameId === gameId) cbRef.current.onGameEnded?.(p);
      }
 
+     function onPlayerKicked(p: { gameId: number; userId: number }) {
+         if (p.gameId === gameId) cbRef.current.onPlayerKicked?.(p);
+     }
 
      socket.on("answer:submitted", onAnswerSubmitted);
      socket.on("game:ended", onGameEnded);
+     socket.on("player:kicked", onPlayerKicked);
 
 
      return () => {
          socket.off("answer:submitted", onAnswerSubmitted);
          socket.off("game:ended", onGameEnded);
+         socket.off("player:kicked", onPlayerKicked);
          socket.disconnect();
      };
     }, [gameId]);

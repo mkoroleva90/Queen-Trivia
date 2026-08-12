@@ -426,4 +426,33 @@ export const COPY = {
       other:      'Other',
     },
   },
+
+  /**
+   * Host-initiated player removal flow.
+   * Apple App Store guideline 1.2 requires the ability to block abusive users.
+   * All wording here must match exactly between web and mobile — do not inline.
+   */
+  kick: {
+    /** Label on the remove button shown beside each player in the host screen. */
+    button: 'Remove',
+    /** Confirmation dialog / alert title shown to the host before removing. */
+    confirmTitle: 'Remove player?',
+    /**
+     * Confirmation body. The player name is displayed separately above this line
+     * so the host can see exactly who they are removing before confirming.
+     */
+    confirmBody: 'will be removed from the game immediately and will not be able to rejoin.',
+    /** Destructive action button in the confirmation. */
+    confirmRemove: 'Remove',
+    /** Cancel button in the confirmation. */
+    confirmCancel: 'Cancel',
+    /** Heading shown on the removed player's screen after they are kicked. */
+    removedTitle: 'Removed from game',
+    /** Body shown on the removed player's screen after they are kicked. */
+    removedBody: 'The host has removed you from this game.',
+    /** Error returned and shown when a removed player tries to rejoin the same game. */
+    rejoinBlocked: 'You have been removed from this game and cannot rejoin.',
+    /** Generic error shown to the host if the removal API call fails. */
+    removeError: 'Could not remove player. Please try again.',
+  },
 } as const;

@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -25,6 +27,7 @@ import type { Question } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
 import { useAdminGameSocket } from '@/hooks/useSocket';
 import { API_BASE_URL } from '@/lib/apiBase';
+import { COPY } from '@workspace/copy';
 
 type AnswerCounts = Record<number, number>; // questionId → total submitted
 
@@ -72,6 +75,33 @@ export default function AdminLiveScreen() {
   const updateGame = useUpdateGame();
 
   const baseUrl = API_BASE_URL;
+
+  const handleKickPlayer = (userId: number, userName: string) => {
+    Alert.alert(
+      COPY.kick.confirmTitle,
+      `"${userName}" ${COPY.kick.confirmBody}`,
+      [
+        { text: COPY.kick.confirmCancel, style: 'cancel' },
+        {
+          text: COPY.kick.confirmRemove,
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const token = await SecureStore.getItemAsync(ADMIN_TOKEN_KEY).catch(() => null);
+              const r = await fetch(`${baseUrl}/api/games/${gameId}/participants/${userId}`, {
+                method: 'DELETE',
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+              });
+              if (!r.ok) throw new Error(`HTTP ${r.status}`);
+              void refetchParticipants();
+            } catch {
+              Alert.alert('Error', COPY.kick.removeError);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   // Fetch persisted per-question stats to seed the answer counts on mount.
   // After seeding, socket events increment incrementally from the baseline.
@@ -273,11 +303,17 @@ export default function AdminLiveScreen() {
           <>
             <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>PLAYERS IN GAME</Text>
             {participants!.map((p) => (
-              <View key={p.id} style={[s.playerRow, { borderColor: colors.border }]}>
+              <TouchableOpacity
+                key={p.id}
+                style={[s.playerRow, { borderColor: colors.border }]}
+                onPress={() => handleKickPlayer(p.userId, p.userName)}
+                activeOpacity={0.7}
+              >
                 <Ionicons name="person-circle-outline" size={20} color={colors.mutedForeground} />
                 <Text style={[s.playerName, { color: colors.foreground }]}>{p.userName}</Text>
                 <Text style={[s.playerScore, { color: colors.accent }]}>{p.totalScore} pts</Text>
-              </View>
+                <Ionicons name="close-circle-outline" size={18} color={colors.destructive} style={{ marginLeft: 4 }} />
+              </TouchableOpacity>
             ))}
           </>
         )}
