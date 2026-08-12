@@ -25,7 +25,7 @@ import type { IRouter } from "express";
 
 process.env.SESSION_SECRET = "test-secret-for-unit-tests-32chars!!";
 
-const { default: app } = await import("../../dist/app.mjs") as {
+const { default: app, router } = await import("../../dist/app.mjs") as {
   default: import("express").Express;
   router: IRouter;
 };
@@ -326,6 +326,108 @@ describe("POST /api/auth/login — active session returns existing user", () => 
 
     // Clean up the extra mini-game.
     await cleanupGame(miniGame.id);
+  });
+});
+
+// ─── Suite 4: kick-to-rejoin-block ───────────────────────────────────────────
+//
+// Verifies the full removed_participants flow end-to-end:
+//  1. A player joins an active game.
+//  2. A host (admin session, no adminAccountId → legacy bypass) kicks them.
+//  3. The removed_participants row is written to the database.
+//  4. The kicked player's next join attempt returns 403.
+
+// Inject a test-only route into the live router so we can establish an admin
+// session without real credentials.  This route exists only in the test process
+// and is never shipped to production.
+(router as IRouter).post("/test-set-admin-session", (req, res): void => {
+  req.session.isAdmin = true;
+  // Deliberately omit adminAccountId so assertGameOwnership skips ownership
+  // check (legacy-admin / super-admin code path).
+  req.session.save(() => res.json({ ok: true }));
+});
+
+describe("DELETE /api/games/:gameId/participants/:userId — kick + rejoin block", () => {
+  let game: TestGame;
+  let playerId: number;                        // userId of the joined player
+  // Agents are shared across tests so session cookies persist between steps.
+  let playerAgent: ReturnType<typeof request.agent>;
+  let adminAgent: ReturnType<typeof request.agent>;
+  const ACCESS_CODE = "TKICK1";
+  const PLAYER_NAME = "__test__kick_block";
+
+  before(async () => {
+    ({ game } = await seedGameWithQuestions(ACCESS_CODE, 1));
+
+    // ── Player: login and join ──────────────────────────────────────────────
+    playerAgent = request.agent(app);
+    const loginRes = await playerAgent
+      .post("/api/auth/login")
+      .send({ code: ACCESS_CODE, name: PLAYER_NAME });
+    assert.equal(loginRes.status, 200, `player login failed: ${JSON.stringify(loginRes.body)}`);
+    playerId = loginRes.body.id;
+
+    const joinRes = await playerAgent.post(`/api/games/${game.id}/join`);
+    assert.equal(joinRes.status, 201, `player join failed: ${JSON.stringify(joinRes.body)}`);
+
+    // ── Admin: establish session via test-only route ─────────────────────────
+    adminAgent = request.agent(app);
+    const sessionRes = await adminAgent.post("/api/test-set-admin-session");
+    assert.equal(sessionRes.status, 200, "test admin session setup failed");
+  });
+
+  after(async () => {
+    await cleanupGame(game.id);
+  });
+
+  it("player joined the game successfully (participant row exists)", async () => {
+    const row = await pool.query<{ id: number }>(
+      `SELECT id FROM game_participants WHERE game_id = $1 AND user_id = $2`,
+      [game.id, playerId],
+    );
+    assert.equal(row.rows.length, 1, "game_participants must contain the joined player");
+  });
+
+  it("admin can kick the player (DELETE returns 200 and ok: true)", async () => {
+    const kickRes = await adminAgent.delete(
+      `/api/games/${game.id}/participants/${playerId}`,
+    );
+    assert.equal(kickRes.status, 200, `kick failed: ${JSON.stringify(kickRes.body)}`);
+    assert.equal(kickRes.body.ok, true);
+  });
+
+  it("removed_participants row exists in the database after kick", async () => {
+    const row = await pool.query<{ id: number }>(
+      `SELECT id FROM removed_participants WHERE game_id = $1 AND user_id = $2`,
+      [game.id, playerId],
+    );
+    assert.equal(
+      row.rows.length,
+      1,
+      "removed_participants must contain exactly one row for the kicked player",
+    );
+  });
+
+  it("kicked player is rejected with 403 when attempting to rejoin (same session)", async () => {
+    // playerAgent already holds the session cookie with the original userId.
+    // The login route's "already logged in" path will restore allowedGameIds
+    // without creating a new user, so the join check uses the correct userId.
+    const reloginRes = await playerAgent
+      .post("/api/auth/login")
+      .send({ code: ACCESS_CODE });
+    assert.equal(reloginRes.status, 200, `session restore failed: ${JSON.stringify(reloginRes.body)}`);
+    assert.equal(
+      reloginRes.body.id,
+      playerId,
+      "session restore must return the original userId, not create a new user",
+    );
+
+    const rejoinRes = await playerAgent.post(`/api/games/${game.id}/join`);
+    assert.equal(
+      rejoinRes.status,
+      403,
+      `expected 403 for kicked player rejoin but got ${rejoinRes.status}: ${JSON.stringify(rejoinRes.body)}`,
+    );
   });
 });
 
