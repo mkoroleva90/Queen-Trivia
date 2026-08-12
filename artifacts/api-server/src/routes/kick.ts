@@ -4,6 +4,7 @@ import {
   db,
   gamesTable,
   gameParticipantsTable,
+  usersTable,
   removedParticipantsTable,
 } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
@@ -37,10 +38,12 @@ router.delete(
     // Verify the requesting admin owns this game.
     if (!(await assertGameOwnership(req, res, gameId))) return;
 
-    // Confirm the player is actually a participant.
+    // Confirm the player is actually a participant and fetch their display name
+    // so we can store it in removed_participants for the name-based rejoin block.
     const [participant] = await db
-      .select({ id: gameParticipantsTable.id })
+      .select({ id: gameParticipantsTable.id, userName: usersTable.name })
       .from(gameParticipantsTable)
+      .innerJoin(usersTable, eq(gameParticipantsTable.userId, usersTable.id))
       .where(
         and(
           eq(gameParticipantsTable.gameId, gameId),
@@ -64,11 +67,12 @@ router.delete(
       return;
     }
 
-    // Record removal first (idempotent via ON CONFLICT DO NOTHING equivalent —
-    // the UNIQUE constraint means a second attempt just fails gracefully).
+    // Record removal first (idempotent via ON CONFLICT DO NOTHING).
+    // Store the player's display name so that even a fresh-session rejoin
+    // with the same name is caught by the secondary block in the join route.
     await db
       .insert(removedParticipantsTable)
-      .values({ gameId, userId })
+      .values({ gameId, userId, displayName: participant.userName })
       .onConflictDoNothing();
 
     // Remove from the live leaderboard / answered-by list.

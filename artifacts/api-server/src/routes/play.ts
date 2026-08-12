@@ -1,7 +1,7 @@
 
 import { Router, type IRouter } from "express";
 import { rateLimit } from "express-rate-limit";
-import { eq, and, desc, asc } from "drizzle-orm";
+import { eq, and, desc, asc, sql } from "drizzle-orm";
 import {
  db,
  gamesTable,
@@ -109,7 +109,11 @@ const [existing] = await db
  }
 
  // Rejoin block: refuse if the host previously removed this player.
- const [removed] = await db
+ // Two checks are run:
+ //  1. By userId  — catches the same browser/device after the original kick.
+ //  2. By display name (case-insensitive) — catches a player who cleared their
+ //     storage or switched devices and rejoined with the same name.
+ const [removedByUserId] = await db
      .select({ id: removedParticipantsTable.id })
      .from(removedParticipantsTable)
      .where(
@@ -119,7 +123,22 @@ const [existing] = await db
       ),
      );
 
- if (removed) {
+ if (removedByUserId) {
+     res.status(403).json({ error: COPY.kick.rejoinBlocked });
+     return;
+ }
+
+ const [removedByName] = await db
+     .select({ id: removedParticipantsTable.id })
+     .from(removedParticipantsTable)
+     .where(
+      and(
+       eq(removedParticipantsTable.gameId, game.id),
+       sql`lower(${removedParticipantsTable.displayName}) = lower(${user.name})`,
+      ),
+     );
+
+ if (removedByName) {
      res.status(403).json({ error: COPY.kick.rejoinBlocked });
      return;
  }

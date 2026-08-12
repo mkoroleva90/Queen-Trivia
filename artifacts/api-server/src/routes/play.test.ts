@@ -396,15 +396,20 @@ describe("DELETE /api/games/:gameId/participants/:userId — kick + rejoin block
     assert.equal(kickRes.body.ok, true);
   });
 
-  it("removed_participants row exists in the database after kick", async () => {
-    const row = await pool.query<{ id: number }>(
-      `SELECT id FROM removed_participants WHERE game_id = $1 AND user_id = $2`,
+  it("removed_participants row exists in the database after kick, with display_name stored", async () => {
+    const row = await pool.query<{ id: number; display_name: string | null }>(
+      `SELECT id, display_name FROM removed_participants WHERE game_id = $1 AND user_id = $2`,
       [game.id, playerId],
     );
     assert.equal(
       row.rows.length,
       1,
       "removed_participants must contain exactly one row for the kicked player",
+    );
+    assert.equal(
+      row.rows[0]!.display_name,
+      PLAYER_NAME,
+      "removed_participants must store the kicked player's display name",
     );
   });
 
@@ -427,6 +432,76 @@ describe("DELETE /api/games/:gameId/participants/:userId — kick + rejoin block
       rejoinRes.status,
       403,
       `expected 403 for kicked player rejoin but got ${rejoinRes.status}: ${JSON.stringify(rejoinRes.body)}`,
+    );
+  });
+});
+
+// ─── Suite 5: name-based rejoin block ────────────────────────────────────────
+//
+// Simulates a kicked player returning with a fresh identity (cleared storage /
+// new device / incognito) but reusing the same display name.  The join route
+// must reject them via the display-name check even though their new userId has
+// no removed_participants row.
+
+describe("name-based rejoin block — fresh session, same display name", () => {
+  let game: TestGame;
+  let originalPlayerId: number;
+  let freshPlayerAgent: ReturnType<typeof request.agent>;
+  let adminAgent2: ReturnType<typeof request.agent>;
+  const ACCESS_CODE = "TKICK2";
+  const SHARED_NAME = "__test__kick_by_name";
+
+  before(async () => {
+    ({ game } = await seedGameWithQuestions(ACCESS_CODE, 1));
+
+    // ── Original player: login, join, get kicked ────────────────────────────
+    const originalAgent = request.agent(app);
+    const loginRes = await originalAgent
+      .post("/api/auth/login")
+      .send({ code: ACCESS_CODE, name: SHARED_NAME });
+    assert.equal(loginRes.status, 200, `original player login failed: ${JSON.stringify(loginRes.body)}`);
+    originalPlayerId = loginRes.body.id;
+
+    const joinRes = await originalAgent.post(`/api/games/${game.id}/join`);
+    assert.equal(joinRes.status, 201, `original player join failed: ${JSON.stringify(joinRes.body)}`);
+
+    // Admin kicks the original player.
+    adminAgent2 = request.agent(app);
+    const sessionRes = await adminAgent2.post("/api/test-set-admin-session");
+    assert.equal(sessionRes.status, 200, "test admin session setup failed");
+
+    const kickRes = await adminAgent2.delete(
+      `/api/games/${game.id}/participants/${originalPlayerId}`,
+    );
+    assert.equal(kickRes.status, 200, `kick failed: ${JSON.stringify(kickRes.body)}`);
+
+    // ── Fresh player: brand-new session (no cookie), same display name ──────
+    // This simulates the player clearing their storage or using a new device.
+    // A new user row will be created, giving them a different userId.
+    freshPlayerAgent = request.agent(app);
+    const freshLoginRes = await freshPlayerAgent
+      .post("/api/auth/login")
+      .send({ code: ACCESS_CODE, name: SHARED_NAME });
+    assert.equal(freshLoginRes.status, 200, `fresh player login failed: ${JSON.stringify(freshLoginRes.body)}`);
+
+    // The fresh session must have a different userId than the original.
+    assert.notEqual(
+      freshLoginRes.body.id,
+      originalPlayerId,
+      "fresh login must create a new user row, not reuse the original userId",
+    );
+  });
+
+  after(async () => {
+    await cleanupGame(game.id);
+  });
+
+  it("fresh-session player with the same name is rejected with 403 on join", async () => {
+    const rejoinRes = await freshPlayerAgent.post(`/api/games/${game.id}/join`);
+    assert.equal(
+      rejoinRes.status,
+      403,
+      `expected 403 for name-based rejoin block but got ${rejoinRes.status}: ${JSON.stringify(rejoinRes.body)}`,
     );
   });
 });
