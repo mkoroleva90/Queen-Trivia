@@ -20,7 +20,8 @@
       "image-size": ">=1.2.2"
     },
     "patchedDependencies": {
-      "orval@8.22.0": "patches/orval@8.22.0.patch"
+      "orval@8.22.0": "patches/orval@8.22.0.patch",
+      "metro@0.83.3": "patches/metro@0.83.3.patch"
     }
   },
   "dependencies": {

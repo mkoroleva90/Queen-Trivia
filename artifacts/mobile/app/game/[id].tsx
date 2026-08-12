@@ -802,22 +802,19 @@ export default function GamePlayScreen() {
       {/* Skip confirmation modal */}
       {/* Kicked overlay: host removed this player */}
       <Modal visible={kicked} transparent={false} animationType="fade" onRequestClose={() => {}}>
-        <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12 }]}
-          // eslint-disable-next-line react-native/no-inline-styles -- one-off full-screen overlay
-        >
-          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.background }} />
+        <View style={[StyleSheet.absoluteFill, kickedStyles.container, { backgroundColor: colors.background }]}>
           <Ionicons name="ban" size={56} color={colors.destructive} />
-          <Text style={{ fontSize: 22, fontWeight: '800', color: colors.foreground, textAlign: 'center', marginTop: 8 }}>
+          <Text style={[kickedStyles.title, { color: colors.foreground }]}>
             {COPY.kick.removedTitle}
           </Text>
-          <Text style={{ fontSize: 15, color: colors.mutedForeground, textAlign: 'center', lineHeight: 22 }}>
+          <Text style={[kickedStyles.body, { color: colors.mutedForeground }]}>
             {COPY.kick.removedBody}
           </Text>
           <TouchableOpacity
             onPress={() => router.replace('/')}
-            style={{ marginTop: 16, paddingVertical: 12, paddingHorizontal: 28, borderRadius: 12, backgroundColor: colors.muted }}
+            style={[kickedStyles.btn, { backgroundColor: colors.muted }]}
           >
-            <Text style={{ fontSize: 14, fontWeight: '700', color: colors.foreground }}>Back to Lobby</Text>
+            <Text style={[kickedStyles.btnText, { color: colors.foreground }]}>Back to Lobby</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -954,6 +951,14 @@ export default function GamePlayScreen() {
     </View>
   );
 }
+
+const kickedStyles = StyleSheet.create({
+  container: { alignItems: 'center', justifyContent: 'center', padding: 32 },
+  title: { fontSize: 22, fontWeight: '800', textAlign: 'center', marginTop: 24 },
+  body: { fontSize: 15, textAlign: 'center', lineHeight: 22, marginTop: 12 },
+  btn: { marginTop: 28, paddingVertical: 12, paddingHorizontal: 28, borderRadius: 12 },
+  btnText: { fontSize: 14, fontWeight: '700' },
+});
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
