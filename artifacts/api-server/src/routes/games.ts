@@ -128,7 +128,7 @@ router.post("/games", requireAdmin, async (req, res): Promise<void> => {
  }
 
 
- res.status(201).json(CreateGameResponse.parse(toJsonSafe(game)));
+ res.status(201).json(CreateGameResponse.parse(toJsonSafe({ ...game, participantCount: 0 })));
 });
 
 
@@ -248,7 +248,11 @@ router.patch("/games/:gameId", requireAdmin, async (req, res): Promise<void> => 
      }
  }
 
- res.json(UpdateGameResponse.parse(toJsonSafe(game)));
+ const [pCount] = await db
+     .select({ value: count() })
+     .from(gameParticipantsTable)
+     .where(eq(gameParticipantsTable.gameId, game.id));
+ res.json(UpdateGameResponse.parse(toJsonSafe({ ...game, participantCount: pCount?.value ?? 0 })));
 
  // Real-time: notify relevant rooms when status changes
  if (game.status === "active") {
