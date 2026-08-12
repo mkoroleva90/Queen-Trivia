@@ -474,19 +474,22 @@ export default function Results() {
           {/* Report */}
           <button
             onClick={() => setReportOpen(true)}
-            className="font-semibold text-sm flex items-center gap-2"
+            className="font-semibold text-sm flex items-center gap-1.5"
             style={{
-              width: 52, height: 52, borderRadius: 14,
+              height: 52, borderRadius: 14,
+              padding: "0 16px",
               background: "rgba(255,255,255,.07)",
               color: "#e2e8f0",
               border: "1px solid rgba(255,255,255,.14)",
               cursor: "pointer",
               flexShrink: 0,
+              whiteSpace: "nowrap",
             }}
             title={COPY.report.button}
             aria-label={COPY.report.button}
           >
-            <Flag className="h-4 w-4 mx-auto" />
+            <Flag className="h-4 w-4" />
+            {COPY.report.button}
           </button>
         </motion.div>
 

@@ -1492,17 +1492,23 @@ export default function GamePlay() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setReportOpen(true)}
-                  className="flex items-center justify-center"
+                  className="flex items-center gap-1.5"
                   style={{
-                    width: 32, height: 32, borderRadius: "50%",
+                    height: 28, borderRadius: 14,
+                    padding: "0 10px",
                     background: "rgba(255,255,255,.06)",
                     border: "1px solid rgba(255,255,255,.10)",
                     cursor: "pointer",
+                    color: "rgba(163,174,194,0.9)",
+                    fontSize: 11,
+                    fontWeight: 500,
+                    whiteSpace: "nowrap",
                   }}
                   aria-label={COPY.report.button}
                   title={COPY.report.button}
                 >
-                  <Flag className="h-3.5 w-3.5 text-muted-foreground" />
+                  <Flag className="h-3 w-3 shrink-0" style={{ color: "rgba(163,174,194,0.9)" }} />
+                  {COPY.report.button}
                 </button>
                 <GameSwitcher currentGameId={gameId} userId={userId} />
               </div>
