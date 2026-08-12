@@ -1,6 +1,7 @@
 
 import rateLimit from "express-rate-limit";
 import type { Request } from "express";
+import { PgRateLimitStore } from "./pgRateLimitStore.ts";
 
 const isDev = process.env["NODE_ENV"] !== "production";
 
@@ -22,6 +23,25 @@ export const authRateLimit = rateLimit({
   message: { error: "Too many attempts. Please wait 15 minutes before trying again." },
   skipSuccessfulRequests: false,
   // Skip rate-limiting for loopback requests in development.
+  skip: (req) => isDev && isLoopback(req),
+});
+
+/**
+ * Rate limit for public content reports:
+ * 15 reports per hour per IP.
+ *
+ * Each successful submission inserts a DB row and sends a notification email.
+ * This cap prevents email-quota exhaustion and DB row flooding from
+ * automated abuse while still allowing legitimate players to submit reports.
+ */
+export const reportsRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 15,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many reports submitted. Please wait before submitting another report." },
+  skipSuccessfulRequests: false,
+  store: new PgRateLimitStore(),
   skip: (req) => isDev && isLoopback(req),
 });
 

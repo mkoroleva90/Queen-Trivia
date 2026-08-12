@@ -85,4 +85,4 @@ Correct answers and question data are fetched from the database server-side. Sco
 - Gemini generation is rate-limited (5 req / 10 min per IP); single operations rate-limited (20 req / 10 min).
 - OpenTDB import is rate-limited (10 req / 10 min per IP).
 - `POST /api/users` requires admin — the DB flood vector is closed.
-- `POST /api/reports` (public) is not rate-limited. ℹ️ Low-risk since it requires email-verified session context and inserts to a bounded table.
+- `POST /api/reports` (public) is rate-limited to 15 requests per hour per IP via a shared PostgreSQL-backed store (`rate_limit_hits` table), preventing email-quota exhaustion and DB row flooding. ✅

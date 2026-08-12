@@ -4,6 +4,7 @@ import { db, contentReportsTable } from "@workspace/db";
 import { containsBannedContent, logFlaggedContent } from "../lib/contentFilter.ts";
 import { COPY } from "@workspace/copy";
 import { sendContentReportEmail } from "../lib/email.ts";
+import { reportsRateLimit } from "../middleware/authRateLimit.ts";
 
 const router = Router();
 
@@ -16,8 +17,10 @@ const router = Router();
  * Returns 201 { id } on success.
  * Returns 422 { error, code: "content_filtered" } if the optional note
  * contains content that fails the server-side content filter.
+ * Rate-limited to 15 reports per hour per IP to prevent email-quota
+ * exhaustion and DB row flooding.
  */
-router.post("/reports", async (req, res): Promise<void> => {
+router.post("/reports", reportsRateLimit, async (req, res): Promise<void> => {
   const parsed = SubmitReportBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
