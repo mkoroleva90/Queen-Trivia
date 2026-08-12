@@ -187,6 +187,11 @@ export default function PrivacyScreen() {
             <Text style={{ color: colors.primary }}>privacy@queen-trivia.com</Text>.
           </Text>
         </View>
+
+        {/* Footer link to Terms of Service */}
+        <Pressable onPress={() => router.push('/terms')} style={styles.footerLink}>
+          <Text style={[styles.footerLinkText, { color: colors.primary }]}>Terms of Service</Text>
+        </Pressable>
       </ScrollView>
     </View>
   );
@@ -214,4 +219,6 @@ const styles = StyleSheet.create({
   listBody: { flex: 1, fontSize: 14, lineHeight: 22 },
   strong: { fontWeight: '700', fontFamily: 'Manrope_700Bold' },
   email: { fontSize: 14, marginTop: 6, fontFamily: 'Manrope_600SemiBold' },
+  footerLink: { marginTop: 4, marginBottom: 8 },
+  footerLinkText: { fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
 });
