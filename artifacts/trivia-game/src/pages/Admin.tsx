@@ -3530,7 +3530,7 @@ function GamesView({
   games: Game[];
   onNavigate: (section: Section, gameId?: number) => void;
 }) {
-  const [filter, setFilter] = useState<"all"|"live"|"drafts">("all");
+  const [filter, setFilter] = useState<"live"|"drafts">("live");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const updateGame = useUpdateGame();
@@ -3667,7 +3667,7 @@ function GamesView({
       </div>
 
       <div className="flex items-center gap-2 border-b border-[#1b2740] pb-px">
-        {["all", "live", "drafts"].map(f => (
+        {["live", "drafts"].map(f => (
           <button
             key={f}
             onClick={() => setFilter(f as any)}
