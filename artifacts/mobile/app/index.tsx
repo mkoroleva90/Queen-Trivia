@@ -20,7 +20,7 @@ import { useAuth, PLAYER_TOKEN_KEY } from '@/context/AuthContext';
 import { CrownMark } from '@/components/CrownMark';
 import { API_BASE_URL } from '@/lib/apiBase';
 
-type Step = 0 | 1 | 2 | 3;
+type Step = 0 | 2 | 3;
 
 export default function WelcomeScreen() {
   const colors = useColors();
@@ -180,7 +180,7 @@ export default function WelcomeScreen() {
               <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <Text style={[styles.cardLabel, { color: '#ffffff' }]}>JOIN A GAME</Text>
 
-                <CTAButton bg={colors.accent} color={colors.accentForeground} onPress={goNext}>
+                <CTAButton bg={colors.accent} color={colors.accentForeground} onPress={() => animateStep(2)}>
                   Let's play →
                 </CTAButton>
               </View>
@@ -213,34 +213,6 @@ export default function WelcomeScreen() {
                   </Text>
                 </Pressable>
               </View>
-            </View>
-          )}
-
-          {/* ── Step 1: How it works ── */}
-          {step === 1 && (
-            <View style={styles.stepContainer}>
-              <Pressable onPress={goBack} style={styles.backBtn} hitSlop={12}>
-                <Ionicons name="chevron-back" size={22} color={colors.foreground} />
-              </Pressable>
-              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Here's the deal</Text>
-              <View style={styles.rules}>
-                {[
-                  { color: colors.primary, title: '1 · Enter the code', sub: 'Your host shares it at the door.' },
-                  { color: colors.secondary, title: '2 · Grab a name', sub: "Make it one they'll fear." },
-                  { color: colors.accent, title: '3 · Go fast', sub: 'Speed = bonus points.' },
-                ].map((item) => (
-                  <View key={item.title} style={[styles.ruleCard, { backgroundColor: colors.card }]}>
-                    <View style={[styles.ruleBar, { backgroundColor: item.color }]} />
-                    <View style={styles.ruleText}>
-                      <Text style={[styles.ruleTitle, { color: colors.foreground }]}>{item.title}</Text>
-                      <Text style={[styles.ruleSub, { color: colors.mutedForeground }]}>{item.sub}</Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
-              <CTAButton bg={colors.primary} color={colors.primaryForeground} onPress={goNext}>
-                Got it →
-              </CTAButton>
             </View>
           )}
 
@@ -406,12 +378,6 @@ const styles = StyleSheet.create({
   codePlaceholderText: { fontSize: 22, fontWeight: '800', letterSpacing: 4, fontFamily: 'Manrope_800ExtraBold' },
   sectionTitle: { fontSize: 32, fontWeight: '900', letterSpacing: -1, fontFamily: 'Manrope_800ExtraBold' },
   sectionSub: { fontSize: 15, fontWeight: '500', marginTop: -8 },
-  rules: { gap: 12 },
-  ruleCard: { flexDirection: 'row', borderRadius: 16, overflow: 'hidden' },
-  ruleBar: { width: 8, flexShrink: 0 },
-  ruleText: { flex: 1, padding: 16 },
-  ruleTitle: { fontSize: 16, fontWeight: '800' },
-  ruleSub: { fontSize: 13, fontWeight: '500', marginTop: 3 },
   inputGroup: { gap: 8 },
   codeInput: { height: 70, borderRadius: 18, borderWidth: 2, fontSize: 30, fontWeight: '800', textAlign: 'center', letterSpacing: 6, paddingHorizontal: 16 },
   nameInput: { height: 60, borderRadius: 16, borderWidth: 1.5, fontSize: 20, fontWeight: '700', textAlign: 'center', letterSpacing: 2, paddingHorizontal: 16 },
