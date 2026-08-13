@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -79,6 +79,13 @@ export default function ResultsScreen() {
   const userId = user?.id ?? 0;
   const [expandBreakdown, setExpandBreakdown] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    SecureStore.getItemAsync(ADMIN_TOKEN_KEY)
+      .then((token) => setIsAdmin(!!token))
+      .catch(() => setIsAdmin(false));
+  }, []);
 
   const { data: results, isLoading, isError, refetch } = useQuery<GameResults>({
     queryKey: ['game-results', gameId],
@@ -117,6 +124,31 @@ export default function ResultsScreen() {
   const sortedQuestions = useMemo(() => [...questions].sort((a, b) => a.orderIndex - b.orderIndex), [questions]);
   const answerMap = useMemo(() => new Map(myAnswers.map((a) => [a.questionId, a])), [myAnswers]);
   const statsMap = useMemo(() => new Map(questionStats.map((s) => [s.id, s])), [questionStats]);
+
+  // Host-only summary: computed from already-fetched data (runs after results are available)
+  const adminSummary = useMemo(() => {
+    if (!isAdmin || questionStats.length === 0 || !results) return null;
+    const { participants: pts } = results;
+    const totalPlayers = pts.length;
+    const avgScore = totalPlayers > 0
+      ? Math.round(pts.reduce((sum, p) => sum + p.totalScore, 0) / totalPlayers)
+      : 0;
+
+    // Hardest = lowest percentCorrect among questions that were actually answered
+    let hardestStat: QuestionStat | null = null;
+    for (const s of questionStats) {
+      if (s.totalAnswered === 0 || s.percentCorrect === null) continue;
+      if (!hardestStat || s.percentCorrect < (hardestStat.percentCorrect ?? Infinity)) {
+        hardestStat = s;
+      }
+    }
+    const hardestQuestion = hardestStat
+      ? questions.find((q) => q.id === hardestStat!.id)
+      : null;
+    const hardestPct = hardestStat?.percentCorrect ?? null;
+
+    return { totalPlayers, avgScore, hardestQuestion, hardestPct };
+  }, [isAdmin, questionStats, results, questions]);
 
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
   const botPad = Platform.OS === 'web' ? 34 : insets.bottom;
@@ -200,6 +232,40 @@ export default function ResultsScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: botPad + 32 }]}
         showsVerticalScrollIndicator={false}
       >
+        {/* Host Summary Banner — admins only */}
+        {adminSummary && (
+          <View style={[styles.summaryCard, { backgroundColor: 'rgba(168,85,247,.09)', borderColor: 'rgba(168,85,247,.35)' }]}>
+            <View style={styles.summaryHeader}>
+              <Ionicons name="stats-chart" size={14} color="#a855f7" />
+              <Text style={[styles.summaryLabel, { color: '#a855f7' }]}>HOST SUMMARY</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryStat}>
+                <Text style={[styles.summaryStatValue, { color: '#a855f7' }]}>{adminSummary.totalPlayers}</Text>
+                <Text style={[styles.summaryStatKey, { color: 'rgba(168,85,247,.7)' }]}>players</Text>
+              </View>
+              <View style={[styles.summaryDivider, { backgroundColor: 'rgba(168,85,247,.25)' }]} />
+              <View style={styles.summaryStat}>
+                <Text style={[styles.summaryStatValue, { color: '#a855f7' }]}>{adminSummary.avgScore}</Text>
+                <Text style={[styles.summaryStatKey, { color: 'rgba(168,85,247,.7)' }]}>avg score</Text>
+              </View>
+              {adminSummary.hardestQuestion && (
+                <>
+                  <View style={[styles.summaryDivider, { backgroundColor: 'rgba(168,85,247,.25)' }]} />
+                  <View style={[styles.summaryStat, { flex: 2 }]}>
+                    <Text style={[styles.summaryStatValue, { color: '#a855f7', fontSize: 13 }]} numberOfLines={2}>
+                      {adminSummary.hardestQuestion.questionText}
+                    </Text>
+                    <Text style={[styles.summaryStatKey, { color: 'rgba(168,85,247,.7)' }]}>
+                      hardest · {adminSummary.hardestPct}% correct
+                    </Text>
+                  </View>
+                </>
+              )}
+            </View>
+          </View>
+        )}
+
         {/* My Score Card */}
         {me && (
           <View style={[styles.myScoreCard, { backgroundColor: 'rgba(255,229,0,.08)', borderColor: 'rgba(255,229,0,.3)' }]}>
@@ -448,4 +514,13 @@ const styles = StyleSheet.create({
   retryBtnText: { fontSize: 15, fontWeight: '700' },
   emptyLeaderboard: { paddingVertical: 32, alignItems: 'center' },
   emptyLeaderboardText: { fontSize: 14, fontWeight: '500' },
+  // Host summary banner
+  summaryCard: { borderRadius: 16, padding: 16, borderWidth: 1.5 },
+  summaryHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+  summaryLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
+  summaryRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 0 },
+  summaryStat: { flex: 1, alignItems: 'center', gap: 2 },
+  summaryStatValue: { fontSize: 22, fontWeight: '900', fontFamily: 'Manrope_800ExtraBold' },
+  summaryStatKey: { fontSize: 10, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'center' },
+  summaryDivider: { width: 1, alignSelf: 'stretch', marginHorizontal: 8, marginVertical: 2 },
 });

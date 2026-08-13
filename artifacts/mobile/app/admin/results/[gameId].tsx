@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -94,6 +94,22 @@ export default function AdminResultsScreen() {
     retry: 1,
   });
 
+  const avgScore = useMemo(() => {
+    const pts = results?.participants ?? [];
+    if (pts.length === 0) return 0;
+    return Math.round(pts.reduce((sum, p) => sum + p.totalScore, 0) / pts.length);
+  }, [results]);
+
+  const hardestQuestion = useMemo(() => {
+    if (!qStats || qStats.length === 0) return null;
+    let best: QuestionStat | null = null;
+    for (const s of qStats) {
+      if (s.totalAnswered === 0 || s.percentCorrect === null) continue;
+      if (!best || s.percentCorrect < (best.percentCorrect ?? Infinity)) best = s;
+    }
+    return best;
+  }, [qStats]);
+
   const handleExport = async () => {
     setExporting(true);
     try {
@@ -185,9 +201,9 @@ export default function AdminResultsScreen() {
             </View>
             <View style={s.summaryItem}>
               <Text style={[s.summaryNum, { color: colors.secondary }]}>
-                {results?.totalQuestions ?? 0}
+                {avgScore}
               </Text>
-              <Text style={[s.summaryLabel, { color: colors.mutedForeground }]}>Questions</Text>
+              <Text style={[s.summaryLabel, { color: colors.mutedForeground }]}>Avg Score</Text>
             </View>
             <View style={s.summaryItem}>
               <Text style={[s.summaryNum, { color: colors.accent }]}>
@@ -196,6 +212,19 @@ export default function AdminResultsScreen() {
               <Text style={[s.summaryLabel, { color: colors.mutedForeground }]}>Top Score</Text>
             </View>
           </View>
+          {hardestQuestion && (
+            <View style={[s.hardestRow, { borderTopColor: colors.border }]}>
+              <Ionicons name="flame-outline" size={13} color={colors.destructive} />
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={[s.hardestLabel, { color: colors.mutedForeground }]}>
+                  HARDEST · {hardestQuestion.percentCorrect}% correct
+                </Text>
+                <Text style={[s.hardestText, { color: colors.foreground }]} numberOfLines={2}>
+                  {hardestQuestion.questionText}
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Leaderboard */}
@@ -303,11 +332,14 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
     headerTitle: { flex: 1, fontSize: 18, fontFamily: 'Manrope_700Bold' },
     list: { paddingHorizontal: 16, paddingTop: 8, gap: 10 },
-    summaryCard: { borderRadius: 16, borderWidth: 1, padding: 20 },
+    summaryCard: { borderRadius: 16, borderWidth: 1, padding: 20, gap: 16 },
     summaryRow: { flexDirection: 'row', justifyContent: 'space-around' },
     summaryItem: { alignItems: 'center', gap: 4 },
     summaryNum: { fontSize: 28, fontFamily: 'Manrope_800ExtraBold' },
     summaryLabel: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', textTransform: 'uppercase', letterSpacing: 1 },
+    hardestRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderTopWidth: 1, paddingTop: 14 },
+    hardestLabel: { fontSize: 10, fontFamily: 'Manrope_700Bold', letterSpacing: 1.5, textTransform: 'uppercase' },
+    hardestText: { fontSize: 13, fontFamily: 'Manrope_600SemiBold', lineHeight: 19 },
     sectionLabel: { fontSize: 11, fontFamily: 'Manrope_700Bold', letterSpacing: 2, textTransform: 'uppercase', marginTop: 8, marginBottom: 2 },
     playerCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1, padding: 14, gap: 12 },
     rankBadge: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
