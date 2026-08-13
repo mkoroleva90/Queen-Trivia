@@ -1648,6 +1648,10 @@ export default function GameDetailScreen() {
   };
 
   const handleDragEnd = async ({ data }: { data: Question[] }) => {
+    // Safety guard: drag reorder is only meaningful on the full list.
+    // If a filtered view somehow triggers this, bail out to avoid
+    // overwriting localQs with only the visible subset.
+    if (sourceFilter !== 'all') return;
     setLocalQs(data);
     isSyncing.current = true;
     try {
