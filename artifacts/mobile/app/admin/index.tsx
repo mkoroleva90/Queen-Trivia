@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COPY } from '@workspace/copy';
 import { AdminTabBar, type AdminTab } from '@/components/AdminTabBar';
 import { AdminHeader } from '@/components/AdminHeader';
 import { GamesTab } from '@/components/admin/GamesTab';
@@ -15,7 +16,7 @@ const TAB_TITLES: Record<AdminTab, string> = {
   live:    'Live',
   build:   'Build',
   results: 'Results',
-  rooms:   'Rooms',
+  rooms:   COPY.nav.rooms,
 };
 
 // Tab bar content height (icon + label + top/bottom padding, before safe-area bottom)

@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
+import { COPY } from '@workspace/copy';
 
 export type AdminTab = 'games' | 'live' | 'build' | 'results' | 'rooms';
 
@@ -16,7 +17,7 @@ const TABS: {
   { id: 'live',    label: 'Live',    icon: 'radio-outline',            iconActive: 'radio' },
   { id: 'build',   label: 'Build',   icon: 'sparkles-outline',         iconActive: 'sparkles' },
   { id: 'results', label: 'Results', icon: 'bar-chart-outline',        iconActive: 'bar-chart' },
-  { id: 'rooms',   label: 'Rooms',   icon: 'key-outline',              iconActive: 'key' },
+  { id: 'rooms',   label: COPY.nav.rooms, icon: 'key-outline',          iconActive: 'key' },
 ];
 
 type Props = { active: AdminTab; onChange: (tab: AdminTab) => void };

@@ -124,7 +124,7 @@ export const COPY = {
     live:    'Live',
     build:   'Build a game',
     results: 'Results',
-    rooms:   'Rooms',
+    rooms:   'Account',
   },
 
   /**
