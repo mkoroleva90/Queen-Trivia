@@ -14,6 +14,9 @@ const allowedOrigins = new Set<string>(
  [
   ...(process.env.REPLIT_DOMAINS?.split(",") ?? []),
   process.env.REPLIT_DEV_DOMAIN,
+  // Expo web preview runs on its own subdomain — must be allowlisted so
+  // browser fetch calls from the Expo canvas iframe are not CORS-blocked.
+  process.env.REPLIT_EXPO_DEV_DOMAIN,
  ]
   .filter((d): d is string => Boolean(d))
   .map((d) => `https://${d.trim()}`)
