@@ -747,8 +747,16 @@ export default function GamePlayScreen() {
 
   if (!current && answeredCount === 0 && total === 0) {
     return (
-      <View style={[styles.screen, { backgroundColor: colors.background, paddingTop: topPad, paddingBottom: botPad }]}>
-        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 80 }} />
+      <View style={[styles.screen, { backgroundColor: colors.background, paddingTop: topPad, paddingBottom: botPad, alignItems: 'center', justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <View style={{ marginTop: 24, padding: 24, borderRadius: 16, borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,.12)', backgroundColor: 'rgba(255,255,255,.04)', maxWidth: 320, alignItems: 'center', gap: 8 }}>
+          <Text style={{ fontSize: 20, fontWeight: '800', color: colors.foreground, textAlign: 'center', fontFamily: 'Manrope_800ExtraBold' }}>
+            {COPY.gameplay.noQuestionsTitle}
+          </Text>
+          <Text style={{ fontSize: 14, color: colors.mutedForeground, textAlign: 'center', lineHeight: 20 }}>
+            {COPY.gameplay.noQuestionsBody}
+          </Text>
+        </View>
       </View>
     );
   }

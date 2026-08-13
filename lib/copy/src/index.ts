@@ -200,6 +200,17 @@ export const COPY = {
     pendingSubmitting: 'Submitting…',
     /** Spinner label while a short-response answer is being AI-graded. */
     pendingGrading:    'Grading with AI…',
+    /**
+     * Heading shown when the player is in the game but the host has not yet
+     * added any questions. The screen polls automatically (10 s refetch).
+     * Both platforms must use this key.
+     */
+    noQuestionsTitle: 'Questions loading soon',
+    /**
+     * Body text shown beneath noQuestionsTitle.
+     * Both platforms must use this key.
+     */
+    noQuestionsBody:  "The host hasn't added questions yet — this page checks automatically.",
 
     // ── True/False button labels ───────────────────────────────────────────
     /** Label on the True button. Sentence-case; platforms apply styling. */

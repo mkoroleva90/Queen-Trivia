@@ -266,6 +266,7 @@ export default function WelcomeScreen() {
                 color={colors.secondaryForeground}
                 onPress={handleCodeSubmit}
                 loading={pending}
+                pendingLabel={COPY.join.checking}
               >
                 {COPY.join.checkIt}
               </CTAButton>
@@ -315,6 +316,7 @@ export default function WelcomeScreen() {
                 color={colors.accentForeground}
                 onPress={handleNameSubmit}
                 loading={pending}
+                pendingLabel={COPY.join.joining}
               >
                 {COPY.join.joinGame}
               </CTAButton>
@@ -332,12 +334,14 @@ function CTAButton({
   color,
   onPress,
   loading,
+  pendingLabel,
 }: {
   children: React.ReactNode;
   bg: string;
   color: string;
   onPress: () => void;
   loading?: boolean;
+  pendingLabel?: string;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -359,7 +363,10 @@ function CTAButton({
         ]}
       >
         {loading ? (
-          <ActivityIndicator color={color} size="small" />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <ActivityIndicator color={color} size="small" />
+            {pendingLabel ? <Text style={[styles.ctaBtnText, { color }]}>{pendingLabel}</Text> : null}
+          </View>
         ) : (
           <Text style={[styles.ctaBtnText, { color }]}>{children}</Text>
         )}

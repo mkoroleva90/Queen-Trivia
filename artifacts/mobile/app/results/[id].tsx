@@ -157,6 +157,9 @@ export default function ResultsScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad }]}>
         <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 80 }} />
+        <Text style={{ marginTop: 16, fontSize: 15, color: colors.mutedForeground, textAlign: 'center' }}>
+          {COPY.results.loadingResults}
+        </Text>
       </View>
     );
   }
