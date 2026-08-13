@@ -4,6 +4,7 @@ import {
   Alert,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -22,6 +23,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
 import { API_BASE_URL } from '@/lib/apiBase';
+import * as SecureStore from 'expo-secure-store';
+import { ADMIN_TOKEN_KEY } from '@/context/AdminAuthContext';
 import { COPY } from '@workspace/copy';
 import { ReportModal } from '@/components/ReportModal';
 
@@ -42,6 +45,26 @@ type GameResults = {
   game: { id: number; topic: string; difficulty: string; questionCount: number; status: string };
   participants: Participant[];
   totalQuestions: number;
+};
+
+type QuestionStat = {
+  id: number;
+  totalAnswered: number;
+  correctCount: number;
+  percentCorrect: number | null;
+};
+
+const QUESTION_TYPE_LABELS: Record<string, string> = {
+  multiple_choice: 'Multiple Choice',
+  multi_select: 'Multi-Select',
+  true_false: 'True / False',
+  write_in: 'Write-In',
+  short_response: 'Short Response',
+  ordering: 'Ordering',
+  slider: 'Slider',
+  image_recognition: 'Image',
+  image_hotspot: 'Image Hotspot',
+  matching: 'Matching',
 };
 
 const baseUrl = API_BASE_URL;
@@ -75,8 +98,25 @@ export default function ResultsScreen() {
     query: { enabled: !!gameId && !!userId, queryKey: getListUserAnswersQueryKey(gameId, userId) },
   });
 
+  // Admin-only endpoint (same as web): a host viewing results sees per-question
+  // stats; players silently get none.
+  const { data: questionStats = [] } = useQuery<QuestionStat[]>({
+    queryKey: ['game-question-stats', gameId],
+    queryFn: async () => {
+      const token = await SecureStore.getItemAsync(ADMIN_TOKEN_KEY).catch(() => null);
+      const r = await fetch(`${baseUrl}/api/games/${gameId}/questions/stats`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!r.ok) throw new Error('Failed to load question stats');
+      return r.json() as Promise<QuestionStat[]>;
+    },
+    enabled: !!gameId,
+    retry: false,
+  });
+
   const sortedQuestions = useMemo(() => [...questions].sort((a, b) => a.orderIndex - b.orderIndex), [questions]);
   const answerMap = useMemo(() => new Map(myAnswers.map((a) => [a.questionId, a])), [myAnswers]);
+  const statsMap = useMemo(() => new Map(questionStats.map((s) => [s.id, s])), [questionStats]);
 
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
   const botPad = Platform.OS === 'web' ? 34 : insets.bottom;
@@ -117,6 +157,26 @@ export default function ResultsScreen() {
   const { game, participants, totalQuestions } = results;
   const sortedParticipants = [...participants].sort((a, b) => a.rank - b.rank);
   const me = participants.find((p) => p.userId === userId);
+
+  const handleShare = async () => {
+    const shareText = me
+      ? `I scored ${me.totalScore} points (#${me.rank} of ${participants.length}) in "${game.topic}" trivia — ${me.correctCount}/${totalQuestions} correct! 🎯`
+      : `Check out the results for "${game.topic}" trivia!`;
+    if (Platform.OS === 'web') {
+      try {
+        await navigator.clipboard.writeText(shareText);
+        Alert.alert('Copied!', 'Your results were copied to the clipboard.');
+      } catch {
+        Alert.alert('Share', shareText);
+      }
+    } else {
+      try {
+        await Share.share({ message: shareText });
+      } catch {
+        // user dismissed the share sheet — nothing to do
+      }
+    }
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -232,6 +292,17 @@ export default function ResultsScreen() {
                     <Ionicons name={statusIcon as never} size={20} color={statusColor} style={styles.qStatusIcon} />
                   </View>
 
+                  {/* ── Question meta: type · points · % got it right ── */}
+                  <Text style={[styles.qMeta, { color: colors.mutedForeground }]}>
+                    {QUESTION_TYPE_LABELS[q.questionType] ?? q.questionType} · {q.points} pts
+                    {(() => {
+                      const stat = statsMap.get(q.id);
+                      return stat && stat.percentCorrect !== null && stat.totalAnswered > 0
+                        ? ` · ${stat.percentCorrect}% got it right`
+                        : '';
+                    })()}
+                  </Text>
+
                   {/* ── Answer detail — only for missed / unanswered ── */}
                   {missed && (
                     <View style={styles.qAnswerDetail}>
@@ -263,6 +334,15 @@ export default function ResultsScreen() {
             })}
           </View>
         )}
+
+        {/* Share results */}
+        <TouchableOpacity
+          onPress={handleShare}
+          style={[styles.shareBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
+        >
+          <Ionicons name="share-social-outline" size={16} color={colors.foreground} />
+          <Text style={[styles.shareBtnText, { color: colors.foreground }]}>Share results</Text>
+        </TouchableOpacity>
 
         {/* Back to Lobby */}
         <TouchableOpacity
@@ -346,6 +426,9 @@ const styles = StyleSheet.create({
   // Full wrapping text — no line clamp so phone screens never truncate
   qText: { flex: 1, fontSize: 13, fontWeight: '500', lineHeight: 19 },
   qStatusIcon: { marginTop: 1 },
+  qMeta: { fontSize: 11, paddingLeft: 48, paddingRight: 16, paddingBottom: 10, marginTop: -4 },
+  shareBtn: { height: 48, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, marginTop: 4 },
+  shareBtnText: { fontSize: 14, fontWeight: '700' },
   // Answer detail shown inline for wrong / unanswered — left-indented to align with question text
   qAnswerDetail: { paddingLeft: 48, paddingRight: 16, paddingBottom: 13, gap: 6 },
   qAnswerRow: { gap: 3 },

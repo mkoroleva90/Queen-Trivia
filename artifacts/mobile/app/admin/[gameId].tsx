@@ -1571,6 +1571,7 @@ export default function GameDetailScreen() {
   const [generateOpen, setGenerateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [playAlong, setPlayAlong] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'opentdb' | 'ai' | 'manual'>('all');
 
   const { data: games } = useListGames();
   const game = useMemo(() => games?.find((g) => g.id === gameId), [games, gameId]);
@@ -1598,6 +1599,22 @@ export default function GameDetailScreen() {
     qc.invalidateQueries({ queryKey: getListGameQuestionsQueryKey(gameId) });
     qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
   };
+
+  const matchesSourceFilter = useCallback((q: Question) => {
+    switch (sourceFilter) {
+      case 'opentdb': return q.source === 'opentdb';
+      case 'ai': return !!q.aiGenerated;
+      case 'manual': return q.source === 'manual' || (!q.source && !q.aiGenerated);
+      default: return true;
+    }
+  }, [sourceFilter]);
+
+  // Filtered view of the question list; drag-reorder only allowed on "All"
+  // since partial lists would corrupt order indexes.
+  const visibleQs = useMemo(
+    () => (sourceFilter === 'all' ? localQs : localQs.filter(matchesSourceFilter)),
+    [localQs, sourceFilter, matchesSourceFilter],
+  );
 
   const openAdd = () => { setEditingQuestion(null); setFormOpen(true); };
   const openEdit = (q: Question) => { setEditingQuestion(q); setFormOpen(true); };
@@ -1720,15 +1737,33 @@ export default function GameDetailScreen() {
             ]}
           >
             <View style={s.qHeader}>
-              {/* Drag handle — long press to drag */}
-              <Pressable onLongPress={drag} delayLongPress={150} hitSlop={6} style={s.dragHandle}>
-                <Ionicons name="reorder-two" size={20} color={colors.mutedForeground} />
-              </Pressable>
+              {/* Drag handle — long press to drag (only when showing all questions) */}
+              {sourceFilter === 'all' && (
+                <Pressable onLongPress={drag} delayLongPress={150} hitSlop={6} style={s.dragHandle}>
+                  <Ionicons name="reorder-two" size={20} color={colors.mutedForeground} />
+                </Pressable>
+              )}
 
               <View style={[s.typeTag, { backgroundColor: colors.primary + '22' }]}>
                 <Ionicons name={TYPE_ICONS[qtype] as 'checkmark-circle'} size={12} color={colors.primary} />
                 <Text style={[s.typeTagText, { color: colors.primary }]}>{TYPE_LABELS[qtype]}</Text>
               </View>
+              {q.aiGenerated ? (
+                <View style={[s.typeTag, { backgroundColor: '#a855f7' + '22' }]}>
+                  <Ionicons name="sparkles" size={11} color="#a855f7" />
+                  <Text style={[s.typeTagText, { color: '#a855f7' }]}>AI</Text>
+                </View>
+              ) : q.source === 'opentdb' ? (
+                <View style={[s.typeTag, { backgroundColor: '#3b82f6' + '22' }]}>
+                  <Ionicons name="cloud-download-outline" size={11} color="#3b82f6" />
+                  <Text style={[s.typeTagText, { color: '#3b82f6' }]}>OpenTDB</Text>
+                </View>
+              ) : (
+                <View style={[s.typeTag, { backgroundColor: colors.muted + '33' }]}>
+                  <Ionicons name="create-outline" size={11} color={colors.mutedForeground} />
+                  <Text style={[s.typeTagText, { color: colors.mutedForeground }]}>Manual</Text>
+                </View>
+              )}
               <Text style={[s.qPoints, { color: colors.accent }]}>{q.points}pts</Text>
               <Text style={[s.qNum, { color: colors.mutedForeground }]}>#{idx + 1}</Text>
             </View>
@@ -1765,7 +1800,7 @@ export default function GameDetailScreen() {
       );
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [colors, deletingId],
+    [colors, deletingId, sourceFilter],
   );
 
   return (
@@ -1932,6 +1967,41 @@ export default function GameDetailScreen() {
         </View>
       </View>
 
+      {/* Source filter chips */}
+      {localQs.length > 0 && (
+        <View style={s.filterRow}>
+          {([
+            { key: 'all', label: 'All' },
+            { key: 'opentdb', label: 'Open Trivia DB' },
+            { key: 'ai', label: 'AI' },
+            { key: 'manual', label: 'Manual' },
+          ] as const).map(({ key, label }) => {
+            const active = sourceFilter === key;
+            const count = key === 'all' ? localQs.length : localQs.filter((q) => {
+              switch (key) {
+                case 'opentdb': return q.source === 'opentdb';
+                case 'ai': return !!q.aiGenerated;
+                default: return q.source === 'manual' || (!q.source && !q.aiGenerated);
+              }
+            }).length;
+            return (
+              <Pressable
+                key={key}
+                style={[s.filterChip, {
+                  borderColor: active ? colors.primary : colors.border,
+                  backgroundColor: active ? colors.primary + '18' : 'transparent',
+                }]}
+                onPress={() => setSourceFilter(key)}
+              >
+                <Text style={[s.filterChipText, { color: active ? colors.primary : colors.mutedForeground }]}>
+                  {label} ({count})
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+
       {/* Questions list */}
       {isLoading ? (
         <View style={s.center}>
@@ -1957,11 +2027,16 @@ export default function GameDetailScreen() {
         </View>
       ) : (
         <DraggableFlatList
-          data={localQs}
+          data={visibleQs}
           keyExtractor={(item) => String(item.id)}
           onDragEnd={handleDragEnd}
           renderItem={renderItem}
           contentContainerStyle={s.list}
+          ListEmptyComponent={
+            <Text style={{ color: colors.mutedForeground, fontSize: 13, textAlign: 'center', marginTop: 24 }}>
+              No questions match this filter
+            </Text>
+          }
           ListFooterComponent={<View style={{ height: insets.bottom + 24 }} />}
         />
       )}
@@ -2018,6 +2093,9 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     headerCenter: { flex: 1, gap: 4 },
     headerTitle: { fontSize: 18, fontFamily: 'Manrope_700Bold' },
     statusBadge: { alignSelf: 'flex-start', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
+    filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 16, paddingVertical: 8 },
+    filterChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+    filterChipText: { fontSize: 12, fontFamily: 'Manrope_700Bold' },
     statusText: { fontSize: 11, fontFamily: 'Manrope_700Bold', textTransform: 'uppercase' },
     liveBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
     liveBtnText: { fontSize: 13, fontFamily: 'Manrope_700Bold' },
