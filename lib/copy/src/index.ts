@@ -253,7 +253,7 @@ export const COPY = {
 
     // ── Skip (defer) a question ───────────────────────────────────────────────
     /** Inline button to defer the current question to the end of the queue. */
-    skipBtn:          'Skip for now',
+    skipBtn:          'Skip this question',
     /** Title of the player skip-confirmation dialog. */
     skipDialogTitle:  'Skip this question?',
     /** Body of the player skip-confirmation dialog. */
@@ -454,5 +454,162 @@ export const COPY = {
     rejoinBlocked: 'You have been removed from this game and cannot rejoin.',
     /** Generic error shown to the host if the removal API call fails. */
     removeError: 'Could not remove player. Please try again.',
+  },
+
+  /**
+   * Player join flow — all user-facing strings on the landing/code/name
+   * entry screens on web (Home.tsx, Gate.tsx) and mobile (app/index.tsx).
+   * Both platforms must use these keys; web wording is the canonical form
+   * where the platforms previously differed.
+   */
+  join: {
+    /** Section label above the code-entry card. Platforms apply uppercase styling. */
+    heading:         'JOIN A GAME',
+    /** Tagline on the welcome screen. */
+    tagline:         'Enter the code. Answer fast. Take the throne.',
+    /** Placeholder for the game-code input. Web Home and Gate step 2; mobile step 2. */
+    codePlaceholder: 'CODE',
+    /** Aria-label for the code input (web). */
+    codeAriaLabel:   'Game code',
+    /** Label above the code tile on the Gate welcome screen (web). Styled uppercase. */
+    enterRoomCode:   'ENTER ROOM CODE',
+    /** Example code shown in the welcome-step preview tile (web Gate step 0). */
+    codeExample:     'A1B2…',
+    /** Primary CTA on the welcome step. */
+    letsPlay:        "Let's play →",
+    /** Button on the "how it works" step (web). */
+    gotIt:           'Got it →',
+    /** Button on the code-entry step. */
+    checkIt:         'Check it →',
+    /** Pending label while code is being verified. */
+    checking:        'Checking…',
+    /** Button on the name-entry step (web). */
+    enterLobby:      'Enter the lobby →',
+    /** Button on the name-entry step (mobile). */
+    joinGame:        'Join the game →',
+    /** Pending label while the player is joining. */
+    joining:         'Joining…',
+    /** Heading on the name-entry step. */
+    youreIn:         "You're in!",
+    /** Sub-heading on the name-entry step. */
+    whatsYourName:   "What's your name?",
+    /** Placeholder for the display-name input. Platforms apply uppercase styling. */
+    yourName:        'YOUR NAME',
+    /** Heading on the code-entry step. */
+    magicWord:       'Magic word?',
+    /** Sub-heading on the code-entry step. */
+    punchIn:         "Punch in tonight's access code.",
+    /** Heading of the "how it works" screen (web Gate step 1). */
+    heresDeal:       "Here's the deal",
+    /** Step 1 title in the "how it works" list. */
+    howStep1Title:   '1 · Enter the code',
+    /** Step 1 subtitle. */
+    howStep1Sub:     'Your host shares it at the door.',
+    /** Step 2 title. */
+    howStep2Title:   '2 · Grab a name',
+    /** Step 2 subtitle. */
+    howStep2Sub:     "Make it one they'll fear.",
+    /** Step 3 title. */
+    howStep3Title:   '3 · Go fast',
+    /** Step 3 subtitle. */
+    howStep3Sub:     'Speed = bonus points.',
+    /** Text prompt before the admin login link. */
+    hostingTonight:  'Hosting tonight?',
+    /** Admin login link text. Web wording is canonical. */
+    adminLink:       'Admin login →',
+    /** Admin-create link text shown in the Gate footer (web). */
+    createGameFree:  'Create a game free →',
+    /** Aria-label for the back chevron button. */
+    goBack:          'Go back',
+    error: {
+      /** Blank-code validation error. Web wording is canonical. */
+      enterCode:       'Enter your game code',
+      /** Invalid-code error. */
+      wrongCode:       "That code isn't right — try again",
+      /** Expired-code error; shown on code step when name submit returns 401. Web wording. */
+      codeExpired:     'Code expired — please re-enter it',
+      /** Game-join failure. Web wording is canonical. */
+      couldNotJoin:    'Could not join game — please try again',
+      /** Blank-name validation error. */
+      enterName:       'Enter your display name',
+      /** Name-too-long validation error. */
+      nameTooLong:     'Name must be 50 characters or fewer',
+      /** Unexpected server error on name or code submit. */
+      somethingWrong:  'Something went wrong — please retry',
+      /** Network failure on code or name submit. */
+      connectionError: 'Connection error — please retry',
+      /** Shown on mobile when the code belongs to an admin account. */
+      adminCode:       'Use the admin app to manage games',
+    },
+  },
+
+  /**
+   * Host login flow — all user-facing strings on the admin sign-in screen
+   * on web (AdminLogin.tsx) and mobile (app/admin-login.tsx).
+   * Web wording is canonical where the platforms previously differed.
+   */
+  hostLogin: {
+    /** Main heading on the web host-login page. */
+    heading:                  'HOST ACCESS',
+    /** Card heading inside the login form (web). */
+    cardHeading:              'Sign In',
+    /** Helper text beneath the heading (web). */
+    helper:                   'Sign in with your email and password to manage your games',
+    /** Main heading on the mobile host-login page. */
+    mobileHeading:            'HOST SIGN IN',
+    /** Helper text beneath the mobile heading. */
+    mobileHelper:             'Sign in to manage your trivia games',
+    /** Email field label. Platforms apply uppercase styling. */
+    emailLabel:               'EMAIL',
+    /** Email field placeholder (web). */
+    emailPlaceholder:         'Email address',
+    /** Email field placeholder (mobile). */
+    mobileEmailPlaceholder:   'your@email.com',
+    /** Password field label. Platforms apply uppercase styling. */
+    passwordLabel:            'PASSWORD',
+    /** Password field placeholder (web). */
+    passwordPlaceholder:      'Password',
+    /** Password field placeholder (mobile). */
+    mobilePasswordPlaceholder: '••••••••',
+    /** Remember-me checkbox label (web). */
+    rememberMe:               'Remember me for 30 days',
+    /**
+     * Sign-in button label. Sentence case is canonical for both platforms.
+     * Previously mobile showed all-caps 'SIGN IN'.
+     */
+    signInBtn:                'Sign in',
+    /** Pending label while signing in (web). */
+    signingIn:                'Signing in…',
+    /** Back link on the web login page. */
+    backToPlayer:             'Back to player login',
+    /** Create-account link. */
+    createAccount:            'Create account',
+    /** Forgot-password link. */
+    forgotPassword:           'Forgot password?',
+    /** Back button label (mobile). */
+    back:                     'Back',
+    /** Prompt above the create-account link (mobile). */
+    noAccount:                "Don't have an account?",
+    /** Create-account link (mobile). */
+    createOne:                'Create one →',
+    error: {
+      /** Shown when email or password field is empty (web). */
+      enterBoth:          'Enter your email and password',
+      /** Shown when the email field is empty (mobile). */
+      enterEmail:         'Enter your email address',
+      /** Shown when the password field is empty (mobile). */
+      enterPassword:      'Enter your password',
+      /**
+       * Shown on unverified-account responses. Web wording is canonical.
+       * Previously mobile had a shorter, spam-folder-aware variant.
+       */
+      verifyEmail:        'Please verify your email address before logging in. Check your inbox for the verification link.',
+      /** Shown on wrong-credentials responses. Web wording is canonical. */
+      invalidCredentials: 'Invalid email or password',
+      /** Shown on unexpected server errors. */
+      somethingWrong:     'Something went wrong — please retry',
+      /** Shown on network failure. */
+      connectionError:    'Connection error — please retry',
+    },
   },
 } as const;

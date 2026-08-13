@@ -5,6 +5,7 @@ import { CrownMark } from "@/components/Brand";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Footer } from "@/components/Footer";
+import { COPY } from "@workspace/copy";
 
 // ─── Queen Trivia home / landing page ────────────────────────────────────────
 // Two entry paths: Admin Login and Join a Game (per-game code).
@@ -23,7 +24,7 @@ export default function Home() {
     e?.preventDefault();
     const trimmed = code.trim().toUpperCase();
     if (!trimmed) {
-      setError("Enter your game code");
+      setError(COPY.join.error.enterCode);
       inputRef.current?.focus();
       return;
     }
@@ -38,12 +39,12 @@ export default function Home() {
       });
       const data = await res.json();
       if (!data.valid) {
-        setError("That code isn't right — try again");
+        setError(COPY.join.error.wrongCode);
         return;
       }
       setLocation(`/join?code=${encodeURIComponent(trimmed)}`);
     } catch {
-      toast({ variant: "destructive", title: "Connection error — please retry" });
+      toast({ variant: "destructive", title: COPY.join.error.connectionError });
     } finally {
       setPending(false);
     }
@@ -96,7 +97,7 @@ export default function Home() {
           TRIVIA
         </h1>
         <p className="font-medium" style={{ fontSize: "clamp(14px,3.6vw,16px)", lineHeight: 1.4, color: "#b09aa6", margin: "0 0 30px", maxWidth: 360 }}>
-          Enter the code. Answer fast. Take the throne.
+          {COPY.join.tagline}
         </p>
 
         {/* join centerpiece */}
@@ -114,7 +115,7 @@ export default function Home() {
           }}
         >
           <div className="font-bold" style={{ fontSize: 10, letterSpacing: ".16em", color: "#66728a" }}>
-            JOIN A GAME
+            {COPY.join.heading}
           </div>
           <input
             ref={inputRef}
@@ -128,8 +129,8 @@ export default function Home() {
             autoComplete="off"
             inputMode="text"
             enterKeyHint="go"
-            aria-label="Game code"
-            placeholder="      "
+            aria-label={COPY.join.codeAriaLabel}
+            placeholder={COPY.join.codePlaceholder}
             className="qt-code-input w-full text-center"
             style={{
               fontFamily: "ui-monospace,monospace",
@@ -166,19 +167,19 @@ export default function Home() {
           >
             {pending ? (
               <span className="flex items-center justify-center gap-2">
-                <Loader2 className="h-5 w-5 animate-spin" /> Checking…
+                <Loader2 className="h-5 w-5 animate-spin" /> {COPY.join.checking}
               </span>
             ) : (
-              "Let's play →"
+              COPY.join.letsPlay
             )}
           </button>
         </form>
 
         {/* Admin login */}
         <div className="font-medium" style={{ marginTop: 18, fontSize: 13, color: "#66728a" }}>
-          Hosting tonight?{" "}
+          {COPY.join.hostingTonight}{" "}
           <Link href="/admin-login" className="qt-tbtn font-bold" style={{ color: "#ffe500" }}>
-            Admin login →
+            {COPY.join.adminLink}
           </Link>
         </div>
       </div>

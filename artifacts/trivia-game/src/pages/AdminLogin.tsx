@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Shield, Loader2, AlertCircle, ArrowLeft } from "lucide-react";
+import { COPY } from "@workspace/copy";
 
 
 export default function AdminLogin() {
@@ -23,7 +24,7 @@ export default function AdminLogin() {
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password) {
-      setEmailError("Enter your email and password");
+      setEmailError(COPY.hostLogin.error.enterBoth);
       return;
     }
     setEmailError("");
@@ -37,22 +38,22 @@ export default function AdminLogin() {
       });
 
       if (res.status === 403) {
-        setEmailError("Please verify your email address before logging in. Check your inbox for the verification link.");
+        setEmailError(COPY.hostLogin.error.verifyEmail);
         return;
       }
       if (res.status === 401) {
-        setEmailError("Invalid email or password");
+        setEmailError(COPY.hostLogin.error.invalidCredentials);
         return;
       }
       if (!res.ok) {
-        toast({ variant: "destructive", title: "Something went wrong — please retry" });
+        toast({ variant: "destructive", title: COPY.hostLogin.error.somethingWrong });
         return;
       }
 
       loginAdmin();
       setLocation("/admin");
     } catch {
-      toast({ variant: "destructive", title: "Connection error — please retry" });
+      toast({ variant: "destructive", title: COPY.hostLogin.error.connectionError });
     } finally {
       setPending(false);
     }
@@ -66,18 +67,18 @@ export default function AdminLogin() {
           <div className="flex items-center justify-center gap-3">
             <Shield className="h-10 w-10 text-primary" />
             <h1 className="text-4xl font-bold tracking-tighter">
-              HOST ACCESS
+              {COPY.hostLogin.heading}
             </h1>
           </div>
           <p className="text-muted-foreground">
-            Sign in with your email and password to manage your games
+            {COPY.hostLogin.helper}
           </p>
         </div>
 
         <Card className="border-primary/20 bg-card/50 backdrop-blur">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-medium text-muted-foreground uppercase tracking-widest">
-              Sign In
+              {COPY.hostLogin.cardHeading}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -90,7 +91,7 @@ export default function AdminLogin() {
                     setEmail(e.target.value);
                     setEmailError("");
                   }}
-                  placeholder="Email address"
+                  placeholder={COPY.hostLogin.emailPlaceholder}
                   autoComplete="email"
                   autoFocus
                   aria-invalid={!!emailError}
@@ -105,7 +106,7 @@ export default function AdminLogin() {
                     setPassword(e.target.value);
                     setEmailError("");
                   }}
-                  placeholder="Password"
+                  placeholder={COPY.hostLogin.passwordPlaceholder}
                   autoComplete="current-password"
                   aria-invalid={!!emailError}
                   className={`h-12 bg-background border-primary/30 focus-visible:ring-primary ${
@@ -127,7 +128,7 @@ export default function AdminLogin() {
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="h-4 w-4 rounded border-primary/30 accent-primary"
                 />
-                Remember me for 30 days
+                {COPY.hostLogin.rememberMe}
               </label>
 
               <Button
@@ -138,10 +139,10 @@ export default function AdminLogin() {
                 {pending ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    SIGNING IN...
+                    {COPY.hostLogin.signingIn}
                   </>
                 ) : (
-                  "SIGN IN"
+                  COPY.hostLogin.signInBtn
                 )}
               </Button>
             </form>
@@ -154,15 +155,15 @@ export default function AdminLogin() {
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to player login
+            {COPY.hostLogin.backToPlayer}
           </Link>
           <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
             <Link href="/register" className="hover:text-foreground transition-colors">
-              Create account
+              {COPY.hostLogin.createAccount}
             </Link>
             <span>·</span>
             <Link href="/forgot-password" className="hover:text-foreground transition-colors">
-              Forgot password?
+              {COPY.hostLogin.forgotPassword}
             </Link>
           </div>
         </div>

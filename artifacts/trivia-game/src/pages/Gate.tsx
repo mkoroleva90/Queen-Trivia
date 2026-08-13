@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CrownMark } from "@/components/Brand";
 import { Loader2, AlertCircle, ChevronLeft } from "lucide-react";
 import { Footer } from "@/components/Footer";
+import { COPY } from "@workspace/copy";
 
 // ─── Shared CTA button ───────────────────────────────────────────────────────
 function Cta({
@@ -122,7 +123,7 @@ export default function Gate() {
               // Network error — show error
             }
           }
-          setCodeError("Could not join game — please try again");
+          setCodeError(COPY.join.error.couldNotJoin);
           setStep("code");
           setOnboardingStep(2);
         })
@@ -148,7 +149,7 @@ export default function Gate() {
     e.preventDefault();
     const trimmed = code.trim().toUpperCase();
     if (!trimmed) {
-      setCodeError("Enter your access code");
+      setCodeError(COPY.join.error.enterCode);
       return;
     }
     setCodeError("");
@@ -162,7 +163,7 @@ export default function Gate() {
       });
       const data = await res.json();
       if (!data.valid) {
-        setCodeError("That code isn't right — try again");
+        setCodeError(COPY.join.error.wrongCode);
         return;
       }
       if (data.role === "admin") {
@@ -172,7 +173,7 @@ export default function Gate() {
       setStep("name");
       setOnboardingStep(3); // advance UI to name step
     } catch {
-      toast({ variant: "destructive", title: "Connection error — please retry" });
+      toast({ variant: "destructive", title: COPY.join.error.connectionError });
     } finally {
       setPending(false);
     }
@@ -182,11 +183,11 @@ export default function Gate() {
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) {
-      setNameError("Enter your display name");
+      setNameError(COPY.join.error.enterName);
       return;
     }
     if (trimmed.length > 50) {
-      setNameError("Name must be 50 characters or fewer");
+      setNameError(COPY.join.error.nameTooLong);
       return;
     }
     setNameError("");
@@ -201,7 +202,7 @@ export default function Gate() {
       if (res.status === 401) {
         setStep("code");
         setOnboardingStep(2); // send back to code step
-        setCodeError("Code expired — please re-enter it");
+        setCodeError(COPY.join.error.codeExpired);
         return;
       }
       if (!res.ok) {
@@ -209,7 +210,7 @@ export default function Gate() {
         if (errBody?.code === "content_filtered" && errBody.error) {
           setNameError(errBody.error);
         } else {
-          toast({ variant: "destructive", title: "Something went wrong — please retry" });
+          toast({ variant: "destructive", title: COPY.join.error.somethingWrong });
         }
         return;
       }
@@ -233,9 +234,9 @@ export default function Gate() {
       }
       setStep("code");
       setOnboardingStep(2);
-      setCodeError("Could not join game — please try again");
+      setCodeError(COPY.join.error.couldNotJoin);
     } catch {
-      toast({ variant: "destructive", title: "Connection error — please retry" });
+      toast({ variant: "destructive", title: COPY.join.error.connectionError });
     } finally {
       setPending(false);
     }
@@ -280,7 +281,7 @@ export default function Gate() {
               background: "rgba(255,255,255,.10)",
               border: "none", cursor: "pointer",
             }}
-            aria-label="Go back"
+            aria-label={COPY.join.goBack}
           >
             <ChevronLeft className="h-5 w-5 text-white" />
           </button>
@@ -324,7 +325,7 @@ export default function Gate() {
                 <span style={{ color: "#ff0080" }}>TRIVIA</span>
               </h1>
               <p style={{ fontSize: 15, fontWeight: 500, color: "#b7a8d0", lineHeight: 1.4, margin: 0 }}>
-                Enter the code. Answer fast. Take the throne.
+                {COPY.join.tagline}
               </p>
 
               <div
@@ -339,7 +340,7 @@ export default function Gate() {
                 }}
               >
                 <div className="font-bold" style={{ fontSize: 10, letterSpacing: ".16em", color: "#66728a" }}>
-                  ENTER ROOM CODE
+                  {COPY.join.enterRoomCode}
                 </div>
                 <div
                   className="w-full text-center font-extrabold"
@@ -354,9 +355,9 @@ export default function Gate() {
                     padding: "12px",
                   }}
                 >
-                  A1B2…
+                  {COPY.join.codeExample}
                 </div>
-                <Cta bg="#ffe500" color="#041016" onClick={goNext}>Let's play →</Cta>
+                <Cta bg="#ffe500" color="#041016" onClick={goNext}>{COPY.join.letsPlay}</Cta>
               </div>
             </motion.div>
           )}
@@ -368,14 +369,14 @@ export default function Gate() {
                 className="font-extrabold"
                 style={{ fontSize: 30, color: "#ffffff", letterSpacing: "-.02em" }}
               >
-                Here's the deal
+                {COPY.join.heresDeal}
               </h2>
 
               <div className="flex flex-col gap-3">
                 {[
-                  { bar: "#ff0080", title: "1 · Enter the code",  sub: "Your host shares it at the door." },
-                  { bar: "#00ddff", title: "2 · Grab a name",     sub: "Make it one they'll fear."       },
-                  { bar: "#ffe500", title: "3 · Go fast",          sub: "Speed = bonus points."           },
+                  { bar: "#ff0080", title: COPY.join.howStep1Title, sub: COPY.join.howStep1Sub },
+                  { bar: "#00ddff", title: COPY.join.howStep2Title, sub: COPY.join.howStep2Sub },
+                  { bar: "#ffe500", title: COPY.join.howStep3Title, sub: COPY.join.howStep3Sub },
                 ].map((item) => (
                   <div
                     key={item.title}
@@ -391,7 +392,7 @@ export default function Gate() {
                 ))}
               </div>
 
-              <Cta bg="#ff0080" color="#ffffff" onClick={goNext}>Got it →</Cta>
+              <Cta bg="#ff0080" color="#ffffff" onClick={goNext}>{COPY.join.gotIt}</Cta>
             </motion.div>
           )}
 
@@ -403,10 +404,10 @@ export default function Gate() {
                   className="font-extrabold"
                   style={{ fontSize: 32, color: "#ffffff", letterSpacing: "-.02em" }}
                 >
-                  Magic word?
+                  {COPY.join.magicWord}
                 </h2>
                 <p style={{ fontSize: 15, fontWeight: 500, color: "#8b7ea3", marginTop: 8 }}>
-                  Punch in tonight's access code.
+                  {COPY.join.punchIn}
                 </p>
               </div>
 
@@ -415,7 +416,7 @@ export default function Gate() {
                   <Input
                     value={code}
                     onChange={(e) => { setCode(e.target.value); setCodeError(""); }}
-                    placeholder="CODE"
+                    placeholder={COPY.join.codePlaceholder}
                     autoCapitalize="characters"
                     autoComplete="off"
                     aria-invalid={!!codeError}
@@ -440,8 +441,8 @@ export default function Gate() {
                     </p>
                   )}
                 </div>
-                <Cta type="submit" bg="#00ddff" color="#0a0510" pending={pending} pendingLabel="CHECKING...">
-                  Check it →
+                <Cta type="submit" bg="#00ddff" color="#0a0510" pending={pending} pendingLabel={COPY.join.checking}>
+                  {COPY.join.checkIt}
                 </Cta>
               </form>
             </motion.div>
@@ -455,10 +456,10 @@ export default function Gate() {
                   className="font-extrabold"
                   style={{ fontSize: 32, color: "#ffffff", letterSpacing: "-.02em" }}
                 >
-                  You're in!
+                  {COPY.join.youreIn}
                 </h2>
                 <p style={{ fontSize: 15, fontWeight: 500, color: "#8b7ea3", marginTop: 8 }}>
-                  What's your name?
+                  {COPY.join.whatsYourName}
                 </p>
               </div>
 
@@ -467,7 +468,7 @@ export default function Gate() {
                   <Input
                     value={name}
                     onChange={(e) => { setName(e.target.value); setNameError(""); }}
-                    placeholder="YOUR NAME"
+                    placeholder={COPY.join.yourName}
                     autoFocus
                     aria-invalid={!!nameError}
                     className="text-center font-extrabold uppercase"
@@ -490,8 +491,8 @@ export default function Gate() {
                     </p>
                   )}
                 </div>
-                <Cta type="submit" bg="#ffe500" color="#0a0510" pending={pending} pendingLabel="JOINING...">
-                  Enter the lobby →
+                <Cta type="submit" bg="#ffe500" color="#0a0510" pending={pending} pendingLabel={COPY.join.joining}>
+                  {COPY.join.enterLobby}
                 </Cta>
               </form>
             </motion.div>
@@ -502,12 +503,12 @@ export default function Gate() {
       {/* ── Footer ── */}
       <div className="relative z-10 pb-4 text-center px-[22px]">
         <p style={{ fontSize: 12, fontWeight: 500, color: "#66728a" }}>
-          Hosting tonight?{" "}
+          {COPY.join.hostingTonight}{" "}
           <Link
             href="/admin-login"
             style={{ color: "#ffe500", fontWeight: 700 }}
           >
-            Create a game free →
+            {COPY.join.createGameFree}
           </Link>
         </p>
       </div>

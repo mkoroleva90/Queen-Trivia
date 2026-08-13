@@ -171,7 +171,7 @@ export default function ResultsScreen() {
         </View>
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle-outline" size={48} color={colors.mutedForeground} />
-          <Text style={[styles.errorTitle, { color: colors.foreground }]}>Couldn't load results</Text>
+          <Text style={[styles.errorTitle, { color: colors.foreground }]}>{COPY.results.couldNotLoad}</Text>
           <Text style={[styles.errorSub, { color: colors.mutedForeground }]}>
             Something went wrong fetching the game results.
           </Text>
@@ -179,7 +179,7 @@ export default function ResultsScreen() {
             onPress={() => refetch()}
             style={[styles.retryBtn, { backgroundColor: colors.primary }]}
           >
-            <Text style={[styles.retryBtnText, { color: '#fff' }]}>Try again</Text>
+            <Text style={[styles.retryBtnText, { color: '#fff' }]}>{COPY.results.tryAgain}</Text>
           </TouchableOpacity>
         </View>
       </View>

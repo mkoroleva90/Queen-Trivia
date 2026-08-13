@@ -19,6 +19,7 @@ import { useColors } from '@/hooks/useColors';
 import { useAuth, PLAYER_TOKEN_KEY } from '@/context/AuthContext';
 import { CrownMark } from '@/components/CrownMark';
 import { API_BASE_URL } from '@/lib/apiBase';
+import { COPY } from '@workspace/copy';
 
 type Step = 0 | 2 | 3;
 
@@ -62,7 +63,7 @@ export default function WelcomeScreen() {
 
   const handleCodeSubmit = async () => {
     const trimmed = code.trim().toUpperCase();
-    if (!trimmed) { setCodeError('Enter your room code'); return; }
+    if (!trimmed) { setCodeError(COPY.join.error.enterCode); return; }
     setCodeError('');
     setPending(true);
     try {
@@ -72,12 +73,12 @@ export default function WelcomeScreen() {
         body: JSON.stringify({ code: trimmed }),
       });
       const data = (await res.json()) as { valid: boolean; role: string };
-      if (!data.valid) { setCodeError("That code isn't right — try again"); return; }
-      if (data.role === 'admin') { setCodeError('Use the admin app to manage games'); return; }
+      if (!data.valid) { setCodeError(COPY.join.error.wrongCode); return; }
+      if (data.role === 'admin') { setCodeError(COPY.join.error.adminCode); return; }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       animateStep(3);
     } catch {
-      setCodeError('Connection error — please retry');
+      setCodeError(COPY.join.error.connectionError);
     } finally {
       setPending(false);
     }
@@ -86,8 +87,8 @@ export default function WelcomeScreen() {
   const handleNameSubmit = async () => {
     const trimmedName = name.trim();
     const trimmedCode = code.trim().toUpperCase();
-    if (!trimmedName) { setNameError('Enter your display name'); return; }
-    if (trimmedName.length > 50) { setNameError('Name must be 50 characters or fewer'); return; }
+    if (!trimmedName) { setNameError(COPY.join.error.enterName); return; }
+    if (trimmedName.length > 50) { setNameError(COPY.join.error.nameTooLong); return; }
     setNameError('');
     setPending(true);
     try {
@@ -104,13 +105,13 @@ export default function WelcomeScreen() {
         headers: authHeaders,
         body: JSON.stringify({ code: trimmedCode, name: trimmedName }),
       });
-      if (res.status === 401) { setCodeError('Code expired — re-enter'); animateStep(2); return; }
+      if (res.status === 401) { setCodeError(COPY.join.error.codeExpired); animateStep(2); return; }
       if (!res.ok) {
         const errBody = await res.json().catch(() => null) as { error?: string; code?: string } | null;
         if (errBody?.code === 'content_filtered' && errBody.error) {
           setNameError(errBody.error);
         } else {
-          setNameError('Something went wrong — please retry');
+          setNameError(COPY.join.error.somethingWrong);
         }
         return;
       }
@@ -131,10 +132,10 @@ export default function WelcomeScreen() {
         } catch { /* fall through to error */ }
       }
       // Per-game code always has a gameId — show an error if join failed
-      setNameError('Could not join the game — please try again');
+      setNameError(COPY.join.error.couldNotJoin);
       animateStep(2);
     } catch {
-      setNameError('Connection error — please retry');
+      setNameError(COPY.join.error.connectionError);
     } finally {
       setPending(false);
     }
@@ -174,14 +175,14 @@ export default function WelcomeScreen() {
                 <Text style={{ color: colors.primary }}>TRIVIA</Text>
               </Text>
               <Text style={[styles.tagline, { color: colors.mutedForeground }]}>
-                Enter the code. Answer fast. Take the throne.
+                {COPY.join.tagline}
               </Text>
 
               <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[styles.cardLabel, { color: '#ffffff' }]}>JOIN A GAME</Text>
+                <Text style={[styles.cardLabel, { color: '#ffffff' }]}>{COPY.join.heading}</Text>
 
                 <CTAButton bg={colors.accent} color={colors.accentForeground} onPress={() => animateStep(2)}>
-                  Let's play →
+                  {COPY.join.letsPlay}
                 </CTAButton>
               </View>
 
@@ -192,9 +193,9 @@ export default function WelcomeScreen() {
                 style={{ alignSelf: 'center', paddingVertical: 4 }}
               >
                 <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>
-                  Hosting tonight?{' '}
+                  {COPY.join.hostingTonight}{' '}
                   <Text style={{ color: colors.primary, fontFamily: 'Manrope_600SemiBold' }}>
-                    Admin sign-in →
+                    {COPY.join.adminLink}
                   </Text>
                 </Text>
               </Pressable>
@@ -228,9 +229,9 @@ export default function WelcomeScreen() {
               <Pressable onPress={goBack} style={styles.backBtn} hitSlop={12}>
                 <Ionicons name="chevron-back" size={22} color={colors.foreground} />
               </Pressable>
-              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Magic word?</Text>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{COPY.join.magicWord}</Text>
               <Text style={[styles.sectionSub, { color: colors.mutedForeground }]}>
-                Punch in tonight's access code.
+                {COPY.join.punchIn}
               </Text>
 
               <View style={styles.inputGroup}>
@@ -245,7 +246,7 @@ export default function WelcomeScreen() {
                   ]}
                   value={code}
                   onChangeText={(t) => { setCode(t); setCodeError(''); }}
-                  placeholder="ROOM CODE"
+                  placeholder={COPY.join.codePlaceholder}
                   placeholderTextColor={colors.mutedForeground}
                   autoCapitalize="characters"
                   autoCorrect={false}
@@ -266,7 +267,7 @@ export default function WelcomeScreen() {
                 onPress={handleCodeSubmit}
                 loading={pending}
               >
-                Check it →
+                {COPY.join.checkIt}
               </CTAButton>
             </View>
           )}
@@ -277,9 +278,9 @@ export default function WelcomeScreen() {
               <Pressable onPress={goBack} style={styles.backBtn} hitSlop={12}>
                 <Ionicons name="chevron-back" size={22} color={colors.foreground} />
               </Pressable>
-              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>You're in!</Text>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{COPY.join.youreIn}</Text>
               <Text style={[styles.sectionSub, { color: colors.mutedForeground }]}>
-                What's your name?
+                {COPY.join.whatsYourName}
               </Text>
 
               <View style={styles.inputGroup}>
@@ -294,7 +295,7 @@ export default function WelcomeScreen() {
                   ]}
                   value={name}
                   onChangeText={(t) => { setName(t); setNameError(''); }}
-                  placeholder="YOUR NAME"
+                  placeholder={COPY.join.yourName}
                   placeholderTextColor={colors.mutedForeground}
                   autoCapitalize="words"
                   returnKeyType="join"
@@ -315,7 +316,7 @@ export default function WelcomeScreen() {
                 onPress={handleNameSubmit}
                 loading={pending}
               >
-                Join the game →
+                {COPY.join.joinGame}
               </CTAButton>
             </View>
           )}

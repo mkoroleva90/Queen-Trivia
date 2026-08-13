@@ -23,6 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAdminAuth } from '@/context/AdminAuthContext';
 import { API_BASE_URL } from '@/lib/apiBase';
 import { useColors } from '@/hooks/useColors';
+import { COPY } from '@workspace/copy';
 
 export default function AdminLoginScreen() {
   const colors = useColors();
@@ -40,8 +41,8 @@ export default function AdminLoginScreen() {
 
   const handleLogin = async () => {
     const trimmedEmail = email.trim().toLowerCase();
-    if (!trimmedEmail) { setError('Enter your email address'); return; }
-    if (!password) { setError('Enter your password'); return; }
+    if (!trimmedEmail) { setError(COPY.hostLogin.error.enterEmail); return; }
+    if (!password) { setError(COPY.hostLogin.error.enterPassword); return; }
     setError('');
     setPending(true);
     try {
@@ -50,17 +51,17 @@ export default function AdminLoginScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: trimmedEmail, password, rememberMe: true }),
       });
-      if (res.status === 401) { setError('Incorrect email or password'); return; }
+      if (res.status === 401) { setError(COPY.hostLogin.error.invalidCredentials); return; }
       if (res.status === 403) {
-        setError('Account not verified — check your inbox (and spam folder) for the verification email');
+        setError(COPY.hostLogin.error.verifyEmail);
         return;
       }
-      if (!res.ok) { setError('Something went wrong — please retry'); return; }
+      if (!res.ok) { setError(COPY.hostLogin.error.somethingWrong); return; }
       const data = (await res.json()) as { ok: boolean; adminToken: string };
       await loginAdmin(data.adminToken);
       router.replace('/admin');
     } catch {
-      setError('Connection error — please retry');
+      setError(COPY.hostLogin.error.connectionError);
     } finally {
       setPending(false);
     }
@@ -83,26 +84,26 @@ export default function AdminLoginScreen() {
 
         <Pressable onPress={() => router.back()} style={s.backBtn}>
           <Ionicons name="chevron-back" size={22} color={colors.mutedForeground} />
-          <Text style={[s.backText, { color: colors.mutedForeground }]}>Back</Text>
+          <Text style={[s.backText, { color: colors.mutedForeground }]}>{COPY.hostLogin.back}</Text>
         </Pressable>
 
         <View style={s.content}>
           <View style={s.iconRow}>
             <Ionicons name="shield-checkmark" size={48} color={colors.primary} />
           </View>
-          <Text style={[s.title, { color: colors.foreground }]}>HOST SIGN IN</Text>
+          <Text style={[s.title, { color: colors.foreground }]}>{COPY.hostLogin.mobileHeading}</Text>
           <Text style={[s.subtitle, { color: colors.mutedForeground }]}>
-            Sign in to manage your trivia games
+            {COPY.hostLogin.mobileHelper}
           </Text>
 
           <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {/* Email */}
-            <Text style={[s.label, { color: colors.mutedForeground }]}>EMAIL</Text>
+            <Text style={[s.label, { color: colors.mutedForeground }]}>{COPY.hostLogin.emailLabel}</Text>
             <TextInput
               style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: error ? colors.destructive : colors.border }]}
               value={email}
               onChangeText={(t) => { setEmail(t); setError(''); }}
-              placeholder="your@email.com"
+              placeholder={COPY.hostLogin.mobileEmailPlaceholder}
               placeholderTextColor={colors.mutedForeground}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -111,13 +112,13 @@ export default function AdminLoginScreen() {
             />
 
             {/* Password */}
-            <Text style={[s.label, { color: colors.mutedForeground }]}>PASSWORD</Text>
+            <Text style={[s.label, { color: colors.mutedForeground }]}>{COPY.hostLogin.passwordLabel}</Text>
             <View style={s.passwordRow}>
               <TextInput
                 style={[s.input, s.passwordInput, { backgroundColor: colors.background, color: colors.foreground, borderColor: error ? colors.destructive : colors.border }]}
                 value={password}
                 onChangeText={(t) => { setPassword(t); setError(''); }}
-                placeholder="••••••••"
+                placeholder={COPY.hostLogin.mobilePasswordPlaceholder}
                 placeholderTextColor={colors.mutedForeground}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
@@ -143,18 +144,18 @@ export default function AdminLoginScreen() {
             >
               {pending
                 ? <ActivityIndicator color="#fff" />
-                : <Text style={s.btnText}>SIGN IN</Text>}
+                : <Text style={s.btnText}>{COPY.hostLogin.signInBtn}</Text>}
             </Pressable>
 
             <Pressable onPress={() => router.push('/admin-forgot-password')} style={s.textLink}>
-              <Text style={[s.textLinkText, { color: colors.primary }]}>Forgot password?</Text>
+              <Text style={[s.textLinkText, { color: colors.primary }]}>{COPY.hostLogin.forgotPassword}</Text>
             </Pressable>
           </View>
 
           <Pressable onPress={() => router.push('/admin-register')} style={s.footerLink}>
             <Text style={[s.footerText, { color: colors.mutedForeground }]}>
-              Don't have an account?{' '}
-              <Text style={{ color: colors.primary }}>Create one →</Text>
+              {COPY.hostLogin.noAccount}{' '}
+              <Text style={{ color: colors.primary }}>{COPY.hostLogin.createOne}</Text>
             </Text>
           </Pressable>
 
