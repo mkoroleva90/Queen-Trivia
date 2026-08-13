@@ -18,6 +18,7 @@ import ResetPassword from "./pages/ResetPassword";
 import OwnerDashboard from "./pages/OwnerDashboard";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
+import Support from "./pages/Support";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -76,6 +77,7 @@ function Router() {
       <Route path="/owner-dashboard" component={OwnerDashboard} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
+      <Route path="/support" component={Support} />
       <Route component={NotFound} />
     </Switch>
   );

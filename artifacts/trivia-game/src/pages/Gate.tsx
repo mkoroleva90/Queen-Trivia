@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { CrownMark } from "@/components/Brand";
 import { Loader2, AlertCircle, ChevronLeft } from "lucide-react";
+import { Footer } from "@/components/Footer";
 
 // ─── Shared CTA button ───────────────────────────────────────────────────────
 function Cta({
@@ -499,7 +500,7 @@ export default function Gate() {
         </AnimatePresence>
       </div>
       {/* ── Footer ── */}
-      <div className="relative z-10 pb-10 text-center px-[22px]">
+      <div className="relative z-10 pb-4 text-center px-[22px]">
         <p style={{ fontSize: 12, fontWeight: 500, color: "#66728a" }}>
           Hosting tonight?{" "}
           <Link
@@ -510,6 +511,7 @@ export default function Gate() {
           </Link>
         </p>
       </div>
+      <Footer />
     </div>
   );
 }

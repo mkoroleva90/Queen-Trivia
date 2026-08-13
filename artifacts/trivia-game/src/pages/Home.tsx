@@ -4,6 +4,7 @@ import { useLocation, Link } from "wouter";
 import { CrownMark } from "@/components/Brand";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, AlertCircle } from "lucide-react";
+import { Footer } from "@/components/Footer";
 
 // ─── Queen Trivia home / landing page ────────────────────────────────────────
 // Two entry paths: Admin Login and Join a Game (per-game code).
@@ -181,6 +182,7 @@ export default function Home() {
           </Link>
         </div>
       </div>
+      <Footer />
     </div>
   );
 }
