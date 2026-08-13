@@ -1,6 +1,7 @@
 
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
+import AdminSettings from "./AdminSettings";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -4341,6 +4342,7 @@ function NewAdminDashboard() {
     { id: "build", label: "Build a game", icon: Wand2 },
     { id: "games", label: "Games", icon: Gamepad2 },
     { id: "results", label: "Results", icon: BarChart3 },
+    { id: "rooms", label: COPY.nav.rooms, icon: Settings },
   ] as const;
 
   const renderSection = () => {
@@ -4349,6 +4351,7 @@ function NewAdminDashboard() {
       case "live": return <LiveGameView activeGame={activeGame} endGame={endGame} />;
       case "build": return <BuildQuizView key={buildResetKey} games={games} preferGameId={preferredGameId} onNavigate={navigate} />;
       case "results": return <NewResultsSection games={games} preferredGameId={preferredGameId} />;
+      case "rooms": return <AdminSettings />;
       default: return null;
     }
   };
@@ -4359,6 +4362,7 @@ function NewAdminDashboard() {
     live: "Live",
     build: "Build",
     results: "Results",
+    rooms: COPY.nav.rooms,
   };
 
   return (
