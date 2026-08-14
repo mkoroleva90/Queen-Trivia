@@ -34,6 +34,7 @@ export default function AdminLoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
 
@@ -49,7 +50,7 @@ export default function AdminLoginScreen() {
       const res = await fetch(`${baseUrl}/api/auth/email/admin-mobile-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: trimmedEmail, password, rememberMe: true }),
+        body: JSON.stringify({ email: trimmedEmail, password, rememberMe }),
       });
       if (res.status === 401) { setError(COPY.hostLogin.error.invalidCredentials); return; }
       if (res.status === 403) {
@@ -130,6 +131,27 @@ export default function AdminLoginScreen() {
               </Pressable>
             </View>
 
+            <Pressable
+              style={s.checkboxRow}
+              onPress={() => setRememberMe(v => !v)}
+              hitSlop={4}
+            >
+              <View
+                style={[
+                  s.checkbox,
+                  {
+                    borderColor: rememberMe ? colors.primary : colors.border,
+                    backgroundColor: rememberMe ? colors.primary : 'transparent',
+                  },
+                ]}
+              >
+                {rememberMe && <Ionicons name="checkmark" size={14} color="#fff" />}
+              </View>
+              <Text style={[s.checkboxLabel, { color: colors.mutedForeground }]}>
+                {COPY.hostLogin.rememberMe}
+              </Text>
+            </Pressable>
+
             {!!error && (
               <View style={s.errorRow}>
                 <Ionicons name="alert-circle" size={16} color={colors.destructive} />
@@ -151,6 +173,12 @@ export default function AdminLoginScreen() {
               <Text style={[s.textLinkText, { color: colors.primary }]}>{COPY.hostLogin.forgotPassword}</Text>
             </Pressable>
           </View>
+
+          <Pressable onPress={() => router.replace('/')} style={s.footerLink}>
+            <Text style={[s.footerText, { color: colors.mutedForeground }]}>
+              <Text style={{ color: colors.primary }}>{COPY.hostLogin.backToPlayer}</Text>
+            </Text>
+          </Pressable>
 
           <Pressable onPress={() => router.push('/admin-register')} style={s.footerLink}>
             <Text style={[s.footerText, { color: colors.mutedForeground }]}>
@@ -196,6 +224,12 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     passwordRow: { position: 'relative' },
     passwordInput: { paddingRight: 48 },
     eyeBtn: { position: 'absolute', right: 14, top: 14 },
+    checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 2 },
+    checkbox: {
+      width: 20, height: 20, borderRadius: 5, borderWidth: 1.5,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    checkboxLabel: { fontSize: 13, fontFamily: 'Manrope_600SemiBold' },
     errorRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     errorText: { flex: 1, fontSize: 13, lineHeight: 18 },
     btn:      { borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 4 },
