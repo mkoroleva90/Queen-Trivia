@@ -11,6 +11,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
+import { COPY } from '@workspace/copy';
 
 export default function SupportScreen() {
   const colors = useColors();
@@ -94,10 +95,10 @@ export default function SupportScreen() {
         {/* Footer links */}
         <View style={styles.footerLinks}>
           <Pressable onPress={() => router.push('/privacy')} style={styles.footerLink}>
-            <Text style={[styles.footerLinkText, { color: colors.primary }]}>Privacy Policy</Text>
+            <Text style={[styles.footerLinkText, { color: colors.primary }]}>{COPY.footer.privacyPolicy}</Text>
           </Pressable>
           <Pressable onPress={() => router.push('/terms')} style={styles.footerLink}>
-            <Text style={[styles.footerLinkText, { color: colors.primary }]}>Terms of Service</Text>
+            <Text style={[styles.footerLinkText, { color: colors.primary }]}>{COPY.footer.termsOfService}</Text>
           </Pressable>
         </View>
       </ScrollView>

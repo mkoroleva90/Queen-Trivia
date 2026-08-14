@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { ArrowLeft } from "lucide-react";
+import { Footer } from "@/components/Footer";
 
 export default function Support() {
   return (
@@ -64,15 +65,8 @@ export default function Support() {
           </section>
         </div>
 
-        <div className="mt-12 pt-8 border-t border-[#1b2740] text-sm text-[#9aa6bc] flex gap-4">
-          <Link href="/privacy" className="text-[#ff2d8e] hover:underline">
-            Privacy Policy
-          </Link>
-          <Link href="/terms" className="text-[#ff2d8e] hover:underline">
-            Terms of Service
-          </Link>
-        </div>
       </div>
+      <Footer />
     </div>
   );
 }

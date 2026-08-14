@@ -165,7 +165,12 @@ export default function AdminLoginScreen() {
               disabled={pending}
             >
               {pending
-                ? <ActivityIndicator color="#fff" />
+                ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <ActivityIndicator color="#fff" />
+                    <Text style={s.btnText}>{COPY.hostLogin.signingIn}</Text>
+                  </View>
+                )
                 : <Text style={s.btnText}>{COPY.hostLogin.signInBtn}</Text>}
             </Pressable>
 
@@ -190,11 +195,11 @@ export default function AdminLoginScreen() {
           <View style={s.legalRow}>
             <Text style={[s.legalText, { color: colors.mutedForeground }]}>
               <Text style={{ color: colors.primary }} onPress={() => router.push('/terms')}>
-                Terms of Service
+                {COPY.footer.termsOfService}
               </Text>
               {'  ·  '}
               <Text style={{ color: colors.primary }} onPress={() => router.push('/privacy')}>
-                Privacy Policy
+                {COPY.footer.privacyPolicy}
               </Text>
             </Text>
           </View>

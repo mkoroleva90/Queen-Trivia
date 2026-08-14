@@ -13,6 +13,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { CrownMark } from '@/components/CrownMark';
+import { COPY } from '@workspace/copy';
 
 const SUPPORT_URL = 'https://queen-trivia.com/support';
 
@@ -117,14 +118,14 @@ export default function AboutScreen() {
           <Text style={[styles.sectionHeader, { color: colors.mutedForeground }]}>LEGAL & SUPPORT</Text>
           <LinkRow
             icon="shield-checkmark-outline"
-            label="Privacy Policy"
+            label={COPY.footer.privacyPolicy}
             sublabel="How we handle your data"
             accentColor={colors.primary}
             onPress={() => router.push('/privacy')}
           />
           <SupportRow
             icon="chatbubble-ellipses-outline"
-            label="Support"
+            label={COPY.footer.support}
             sublabel="Get help or report an issue"
             accentColor={colors.secondary}
             url={SUPPORT_URL}

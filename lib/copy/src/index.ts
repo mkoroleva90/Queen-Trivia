@@ -505,10 +505,8 @@ export const COPY = {
     checkIt:         'Check it →',
     /** Pending label while code is being verified. */
     checking:        'Checking…',
-    /** Button on the name-entry step (web). */
+    /** Button on the name-entry step (web + mobile). */
     enterLobby:      'Enter the lobby →',
-    /** Button on the name-entry step (mobile). */
-    joinGame:        'Join the game →',
     /** Pending label while the player is joining. */
     joining:         'Joining…',
     /** Heading on the name-entry step. */
@@ -647,6 +645,19 @@ export const COPY = {
     factCheckUrlPlaceholder: 'https://en.wikipedia.org/wiki/…',
     /** Label for the avoid-duplicates toggle in the AI generation panel. */
     avoidDuplicates: 'Avoid duplicating existing questions',
+  },
+
+  /**
+   * Footer link labels — shown in the shared web Footer and the mobile
+   * privacy/terms/support link rows. Both platforms must use these keys.
+   */
+  footer: {
+    /** Link to the privacy policy page. */
+    privacyPolicy:  'Privacy Policy',
+    /** Link to the terms of service page. */
+    termsOfService: 'Terms of Service',
+    /** Link to the support page. */
+    support:        'Support',
   },
 } as const;
 

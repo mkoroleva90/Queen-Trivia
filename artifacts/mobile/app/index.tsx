@@ -214,27 +214,6 @@ export default function WelcomeScreen() {
                   </Text>
                 </Text>
               </Pressable>
-
-              {/* Privacy, Terms & Support footer */}
-              <View style={{ flexDirection: 'row', alignSelf: 'center', gap: 16, paddingVertical: 4, flexWrap: 'wrap', justifyContent: 'center' }}>
-                <Pressable onPress={() => router.push('/privacy')} hitSlop={12}>
-                  <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
-                    Privacy Policy
-                  </Text>
-                </Pressable>
-                <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>·</Text>
-                <Pressable onPress={() => router.push('/terms')} hitSlop={12}>
-                  <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
-                    Terms of Service
-                  </Text>
-                </Pressable>
-                <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>·</Text>
-                <Pressable onPress={() => router.push('/support')} hitSlop={12}>
-                  <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
-                    Support
-                  </Text>
-                </Pressable>
-              </View>
             </View>
           )}
 
@@ -381,10 +360,31 @@ export default function WelcomeScreen() {
                 loading={pending}
                 pendingLabel={COPY.join.joining}
               >
-                {COPY.join.joinGame}
+                {COPY.join.enterLobby}
               </CTAButton>
             </View>
           )}
+
+          {/* Privacy, Terms & Support footer — shown on every step (matches web) */}
+          <View style={{ flexDirection: 'row', alignSelf: 'center', gap: 16, paddingVertical: 4, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <Pressable onPress={() => router.push('/privacy')} hitSlop={12}>
+              <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
+                {COPY.footer.privacyPolicy}
+              </Text>
+            </Pressable>
+            <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>·</Text>
+            <Pressable onPress={() => router.push('/terms')} hitSlop={12}>
+              <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
+                {COPY.footer.termsOfService}
+              </Text>
+            </Pressable>
+            <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>·</Text>
+            <Pressable onPress={() => router.push('/support')} hitSlop={12}>
+              <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
+                {COPY.footer.support}
+              </Text>
+            </Pressable>
+          </View>
         </ScrollView>
       </Animated.View>
     </View>
