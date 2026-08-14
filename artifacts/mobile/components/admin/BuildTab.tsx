@@ -31,6 +31,7 @@ import {
   useUpdateQuestion,
 } from '@workspace/api-client-react';
 import type { Game, Question, EnhanceQuestionResult, RegenerateQuestionPreview } from '@workspace/api-client-react';
+import * as Clipboard from 'expo-clipboard';
 import { useColors } from '@/hooks/useColors';
 import { COPY } from '@workspace/copy';
 
@@ -41,8 +42,8 @@ type Difficulty = 'easy' | 'medium' | 'hard';
 type Source = 'ai' | 'opentdb';
 
 type SetupResult =
-  | { type: 'ai'; imported: number }
-  | { type: 'opentdb'; imported: number };
+  | { type: 'ai'; imported: number; game: Game }
+  | { type: 'opentdb'; imported: number; game: Game };
 
 const STEPS: { id: Step; label: string }[] = [
   { id: 'setup', label: 'Setup' },
@@ -211,6 +212,9 @@ export function BuildTab({ bottomPadding }: Props) {
   const [catOpen, setCatOpen] = useState(false);
   const [setupError, setSetupError] = useState('');
   const [setupResult, setSetupResult] = useState<SetupResult | null>(null);
+  const [codeInput, setCodeInput] = useState('');
+  const [codeCopied, setCodeCopied] = useState(false);
+  const [playAlong, setPlayAlong] = useState(false);
 
   // ── Questions state (for adding more after initial import)
   const [aiOpen, setAiOpen] = useState(false);
@@ -299,8 +303,53 @@ export function BuildTab({ bottomPadding }: Props) {
     }
   };
 
+  const saveCode = async () => {
+    if (!setupResult || updateGame.isPending) return;
+    const code = codeInput.trim().toUpperCase();
+    if (!code || code === setupResult.game.accessCode) return;
+    setSetupError('');
+    try {
+      const updated = await updateGame.mutateAsync({
+        gameId: setupResult.game.id,
+        data: { accessCode: code },
+      });
+      setSetupResult({ ...setupResult, game: { ...setupResult.game, accessCode: updated.accessCode ?? code } });
+      setCodeInput(updated.accessCode ?? code);
+      qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
+    } catch (err) {
+      setSetupError(extractApiError(err, 'Could not update the join code — please retry'));
+    }
+  };
+
+  const copyCode = async () => {
+    // Copy what the host sees in the field (matches web behavior).
+    const code = codeInput.trim().toUpperCase() || setupResult?.game.accessCode;
+    if (!code) return;
+    await Clipboard.setStringAsync(code);
+    setCodeCopied(true);
+    setTimeout(() => setCodeCopied(false), 2000);
+  };
+
+  const goLive = async () => {
+    if (!setupResult) return;
+    setSetupError('');
+    try {
+      await updateGame.mutateAsync({
+        gameId: setupResult.game.id,
+        data: { status: 'active', hostPlaysAlong: playAlong },
+      });
+      qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
+      router.push(`/admin/live/${setupResult.game.id}`);
+    } catch (err) {
+      setSetupError(extractApiError(err, 'Could not go live — please retry'));
+    }
+  };
+
   const resetSetup = () => {
     setSetupResult(null);
+    setCodeInput('');
+    setPlayAlong(false);
+    setCodeCopied(false);
     setTopic('');
     setBrief('');
     setSetupError('');
@@ -328,7 +377,9 @@ export function BuildTab({ bottomPadding }: Props) {
       });
       invalidate(game.id);
       setWorkingGameId(game.id);
-      setSetupResult({ type: 'ai', imported: result.imported });
+      setSetupResult({ type: 'ai', imported: result.imported, game });
+      setCodeInput(game.accessCode ?? '');
+      setPlayAlong(false);
       // If the content filter removed some questions, tell the host.
       if (result.contentFilteredCount && result.contentFilteredCount > 0 && result.contentFilteredMessage) {
         setSetupError(result.contentFilteredMessage);
@@ -356,7 +407,9 @@ export function BuildTab({ bottomPadding }: Props) {
       });
       invalidate(game.id);
       setWorkingGameId(game.id);
-      setSetupResult({ type: 'opentdb', imported: result.imported });
+      setSetupResult({ type: 'opentdb', imported: result.imported, game });
+      setCodeInput(game.accessCode ?? '');
+      setPlayAlong(false);
     } catch (err) {
       setSetupError(extractApiError(err, 'Could not import questions — please retry'));
     }
@@ -616,13 +669,88 @@ export function BuildTab({ bottomPadding }: Props) {
                   </View>
                 </View>
 
+                {/* ── Player join code (editable, matches web) ── */}
+                <View style={{ gap: 6 }}>
+                  <Text style={[s.fieldLabel, { color: colors.mutedForeground, marginTop: 0 }]}>
+                    PLAYER JOIN CODE
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                    <TextInput
+                      style={[s.textInput, {
+                        flex: 1, backgroundColor: colors.card, color: colors.foreground,
+                        borderColor: colors.border, textTransform: 'uppercase',
+                      }]}
+                      value={codeInput}
+                      onChangeText={(t) => setCodeInput(t.toUpperCase())}
+                      onSubmitEditing={saveCode}
+                      placeholder="e.g. SPORTS"
+                      placeholderTextColor={colors.mutedForeground}
+                      maxLength={12}
+                      autoCapitalize="characters"
+                    />
+                    <Pressable
+                      style={[s.smallBtn, { backgroundColor: colors.primary, opacity: updateGame.isPending ? 0.6 : 1 }]}
+                      onPress={saveCode}
+                      disabled={updateGame.isPending}
+                    >
+                      <Text style={s.primaryBtnText}>Save</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[s.smallBtn, { backgroundColor: colors.muted }]}
+                      onPress={copyCode}
+                    >
+                      <Ionicons
+                        name={codeCopied ? 'checkmark' : 'copy-outline'}
+                        size={18}
+                        color={codeCopied ? colors.secondary : colors.foreground}
+                      />
+                    </Pressable>
+                  </View>
+                  <Text style={[s.helperText, { color: colors.mutedForeground, marginTop: 0 }]}>
+                    Choose a code your players will remember, then save it
+                  </Text>
+                </View>
+
+                {/* ── Play along ── */}
                 <Pressable
-                  style={[s.primaryBtn, { backgroundColor: colors.primary }]}
+                  style={[s.playAlongCard, { borderColor: colors.border, backgroundColor: colors.card }]}
+                  onPress={() => setPlayAlong((p) => !p)}
+                >
+                  <Ionicons
+                    name={playAlong ? 'checkbox' : 'square-outline'}
+                    size={22}
+                    color={playAlong ? colors.primary : colors.mutedForeground}
+                  />
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={[s.successTitle, { color: colors.foreground }]}>
+                      {COPY.hostPlayAlong.playAlongLabel}
+                    </Text>
+                    <Text style={[s.successSub, { color: colors.mutedForeground }]}>
+                      {COPY.hostPlayAlong.playAlongDesc}
+                    </Text>
+                  </View>
+                </Pressable>
+
+                <Pressable
+                  style={[s.primaryBtn, { backgroundColor: colors.muted }]}
                   onPress={() => setStep('questions')}
                 >
-                  <Text style={s.primaryBtnText}>See questions</Text>
-                  <Ionicons name="arrow-forward" size={16} color="#fff" />
+                  <Text style={[s.primaryBtnText, { color: colors.foreground }]}>Review questions</Text>
+                  <Ionicons name="arrow-forward" size={16} color={colors.foreground} />
                 </Pressable>
+
+                <Pressable
+                  style={[s.primaryBtn, { backgroundColor: colors.primary, opacity: updateGame.isPending ? 0.6 : 1 }]}
+                  onPress={goLive}
+                  disabled={updateGame.isPending}
+                >
+                  <Ionicons name="play" size={16} color="#fff" />
+                  <Text style={s.primaryBtnText}>{updateGame.isPending ? 'Going live…' : 'Go Live'}</Text>
+                </Pressable>
+
+                {!!setupError && (
+                  <Text style={[s.helperText, { color: colors.destructive }]}>{setupError}</Text>
+                )}
 
                 <Pressable style={s.secondaryLink} onPress={resetSetup}>
                   <Text style={[s.secondaryLinkText, { color: colors.mutedForeground }]}>
@@ -1414,6 +1542,10 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     emptyTitle: { fontSize: 16, fontFamily: 'Manrope_700Bold' },
     emptySub: { fontSize: 13, lineHeight: 19, textAlign: 'center' },
     smallBtn: { borderRadius: 10, paddingHorizontal: 18, paddingVertical: 10, marginTop: 4 },
+    playAlongCard: {
+      flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+      borderWidth: 1, borderRadius: 12, padding: 14,
+    },
     smallBtnText: { color: '#fff', fontSize: 14, fontFamily: 'Manrope_700Bold' },
     // Action cards
     actionCards: { gap: 10, marginTop: 4 },
