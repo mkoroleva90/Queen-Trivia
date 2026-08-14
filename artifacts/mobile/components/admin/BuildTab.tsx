@@ -202,7 +202,7 @@ export function BuildTab({ bottomPadding }: Props) {
   const [workingGameId, setWorkingGameId] = useState<number | null>(null);
 
   // ── Setup state
-  const [source, setSource] = useState<Source>('ai');
+  const [source, setSource] = useState<Source>('opentdb');
   const [topic, setTopic] = useState('');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [brief, setBrief] = useState('');
