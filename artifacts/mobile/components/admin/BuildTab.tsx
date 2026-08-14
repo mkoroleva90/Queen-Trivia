@@ -119,7 +119,7 @@ function DifficultyChips({ value, onChange, colors }: {
           onPress={() => onChange(d)}
         >
           <Text style={[sh.diffChipText, { color: value === d ? colors.primary : colors.mutedForeground }]}>
-            {DIFF_LABELS[d]}
+            {d.charAt(0).toUpperCase() + d.slice(1)}
           </Text>
         </Pressable>
       ))}
@@ -1460,7 +1460,7 @@ const sh = StyleSheet.create({
   // Difficulty chips
   diffRow: { flexDirection: 'row', gap: 8 },
   diffChip: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
-  diffChipText: { fontSize: 12.5, fontFamily: 'Manrope_600SemiBold' },
+  diffChipText: { fontSize: 12.5, fontFamily: 'Manrope_600SemiBold', textAlign: 'center' },
   // Stepper
   stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   stepperBtn: { width: 36, height: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
