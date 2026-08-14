@@ -601,11 +601,6 @@ function FeedbackCard({ feedback, onNext, isLast }: { feedback: Feedback; onNext
         </View>
         <Text style={[styles.feedbackScore, { color: colors.accent }]}>{feedback.totalScore}</Text>
       </View>
-      {feedback.correctAnswer && !feedback.isCorrect && (
-        <Text style={[styles.feedbackCorrect, { color: colors.mutedForeground }]}>
-          Correct: <Text style={{ color: colors.secondary }}>{feedback.correctAnswer}</Text>
-        </Text>
-      )}
       {feedback.feedback && (
         <Text style={[styles.feedbackAI, { color: colors.mutedForeground }]}>{feedback.feedback}</Text>
       )}

@@ -731,10 +731,6 @@ function ImageHotspotQuestion({
   const playerTap  = answered
     ? (() => { const [x, y] = feedbackResult!.lockedAnswer.split(",").map(Number); return { x: x!, y: y! }; })()
     : tap;
-  const correctTap = answered && feedbackResult!.correctAnswer
-    ? (() => { const [x, y] = feedbackResult!.correctAnswer.split(",").map(Number); return { x: x!, y: y! }; })()
-    : null;
-
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (disabled || answered) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -784,25 +780,6 @@ function ImageHotspotQuestion({
           </div>
         )}
 
-        {/* Correct location marker (cyan) — shown after reveal if wrong */}
-        {answered && correctTap && !feedbackResult!.isCorrect && (
-          <div
-            style={{
-              position: "absolute",
-              left: `${correctTap.x}%`,
-              top:  `${correctTap.y}%`,
-              transform: "translate(-50%, -100%)",
-              pointerEvents: "none",
-            }}
-          >
-            <svg width="28" height="36" viewBox="0 0 28 36">
-              <circle cx="14" cy="14" r="12" fill="#00ddff" stroke="white" strokeWidth="2" />
-              <polygon points="14,36 7,22 21,22" fill="#00ddff" />
-              <text x="14" y="19" textAnchor="middle" fontSize="13" fontWeight="bold" fill="#0a0510">✓</text>
-            </svg>
-          </div>
-        )}
-
         {/* Single cyan pin when correct */}
         {answered && feedbackResult!.isCorrect && playerTap && (
           <div
@@ -834,20 +811,6 @@ function ImageHotspotQuestion({
           </div>
         )}
       </div>
-
-      {/* Legend after answer */}
-      {answered && !feedbackResult!.isCorrect && correctTap && (
-        <div className="flex justify-center gap-6">
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-full" style={{ background: "#ff0080" }} />
-            <span className="text-[12px] font-semibold" style={{ color: "#ff0080" }}>{COPY.gameplay.hotspotYourGuess}</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-full" style={{ background: "#00ddff" }} />
-            <span className="text-[12px] font-semibold" style={{ color: "#00ddff" }}>{COPY.gameplay.hotspotCorrectLocation}</span>
-          </div>
-        </div>
-      )}
 
       {/* Confirm button */}
       {!answered && tap && (
@@ -1688,6 +1651,14 @@ export default function GamePlay() {
                           >
                             {feedback.isCorrect ? COPY.gameplay.feedbackCorrect : COPY.gameplay.feedbackWrong}{" "}
                             {feedback.pointsEarned > 0 ? `+${feedback.pointsEarned}` : "0"} pts
+                          </span>
+                          <span style={{ color: "#475569" }}>·</span>
+                          <span className="text-sm text-muted-foreground">
+                            {feedback.timeTaken}{COPY.gameplay.feedbackSecondsSuffix}
+                          </span>
+                          <span style={{ color: "#475569" }}>·</span>
+                          <span className="text-sm font-semibold" style={{ color: "#ffe500" }}>
+                            {COPY.gameplay.feedbackTotalLabel} {feedback.totalScore}
                           </span>
                           {questionStats && (
                             <>

@@ -239,10 +239,16 @@ export const COPY = {
      * Web button has CSS `uppercase` — sentence-case value displays correctly.
      */
     feedbackSeeResults: 'See results →',
-    /** Legend label for the player's own pin on a hotspot reveal. */
-    hotspotYourGuess:       'Your guess',
-    /** Legend label for the correct-location pin on a hotspot reveal. */
-    hotspotCorrectLocation: 'Correct location',
+    /**
+     * Suffix appended directly to the time-taken value in post-answer feedback
+     * (e.g. "8.2s"). No leading space.
+     */
+    feedbackSecondsSuffix: 's',
+    /**
+     * Label preceding the player's running total in post-answer feedback
+     * (e.g. "Total: 340").
+     */
+    feedbackTotalLabel: 'Total:',
     /** Pulsing hint shown below the question while waiting for the player to answer. */
     clockHint: "Tap your answer — the clock's ticking",
 
