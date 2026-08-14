@@ -513,7 +513,7 @@ export const COPY = {
     /** Example code shown in the welcome-step preview tile (web Gate step 0). */
     codeExample:     'A1B2…',
     /** Primary CTA on the welcome step. */
-    letsPlay:        "Let's play →",
+    letsPlay:        'JOIN A GAME',
     /** Button on the "how it works" step (web). */
     gotIt:           'Got it →',
     /** Button on the code-entry step. */

@@ -194,8 +194,6 @@ export default function WelcomeScreen() {
               </Text>
 
               <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[styles.cardLabel, { color: '#ffffff' }]}>{COPY.join.heading}</Text>
-
                 <CTAButton bg={colors.accent} color={colors.accentForeground} onPress={() => animateStep(1)}>
                   {COPY.join.letsPlay}
                 </CTAButton>
