@@ -635,7 +635,7 @@ export function BuildTab({ bottomPadding }: Props) {
                 <Text style={[s.heading, { color: colors.foreground }]}>Create a new game</Text>
 
                 {/* ── Category (matches web: Custom topic + Open Trivia categories) ── */}
-                <Text style={[s.fieldLabel, { color: '#ffe500' }]}>Category</Text>
+                <Text style={[s.fieldLabel, { color: '#ffe500', fontSize: 15, fontFamily: 'Manrope_700Bold' }]}>Category</Text>
                 <View style={[s.catList, { borderColor: colors.border, backgroundColor: colors.card }]}>
                   <Pressable
                     style={[s.catRow, source === 'ai' && { backgroundColor: AI_COLOR + '18' }]}
@@ -709,7 +709,7 @@ export function BuildTab({ bottomPadding }: Props) {
                 <Text style={[s.fieldLabel, { color: '#ffe500', fontSize: 15, fontFamily: 'Manrope_700Bold' }]}>Difficulty</Text>
                 <DifficultyChips value={difficulty} onChange={setDifficulty} colors={colors} />
 
-                <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>
+                <Text style={[s.fieldLabel, { color: '#ffe500', fontSize: 15, fontFamily: 'Manrope_700Bold' }]}>
                   Questions to {source === 'ai' ? 'generate' : 'import'}
                 </Text>
                 <View style={sh.diffRow}>
