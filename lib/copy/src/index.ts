@@ -623,4 +623,18 @@ export const COPY = {
       connectionError:    'Connection error — please retry',
     },
   },
+
+  /**
+   * Question editor field labels — host-facing, shown in the create/edit
+   * question form and the AI generation panel. Both platforms must use
+   * these keys so labels stay in sync.
+   */
+  questionEditor: {
+    /** Label for the optional fact-check source URL field. */
+    factCheckUrl: 'Fact-check URL',
+    /** Placeholder for the fact-check URL input. */
+    factCheckUrlPlaceholder: 'https://en.wikipedia.org/wiki/…',
+    /** Label for the avoid-duplicates toggle in the AI generation panel. */
+    avoidDuplicates: 'Avoid duplicating existing questions',
+  },
 } as const;

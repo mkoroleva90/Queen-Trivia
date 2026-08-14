@@ -74,6 +74,7 @@ type QForm = {
   hotspotY: string;
   pairs: { left: string; right: string }[];
   source: string;
+  factCheckUrl: string;
 };
 
 const DEFAULT_POINTS: Record<QType, number> = {
@@ -114,6 +115,7 @@ function emptyForm(type: QType = 'multiple_choice'): QForm {
     imageUrl: '', hotspotX: '0.5', hotspotY: '0.5',
     pairs: [{ left: '', right: '' }, { left: '', right: '' }, { left: '', right: '' }],
     source: '',
+    factCheckUrl: '',
   };
 }
 
@@ -154,6 +156,7 @@ function formFromQuestion(q: Question): QForm {
       { left: '', right: '' }, { left: '', right: '' }, { left: '', right: '' },
     ],
     source: q.source ?? '',
+    factCheckUrl: q.factCheckUrl ?? '',
   };
 }
 
@@ -165,7 +168,7 @@ function buildPayload(form: QForm, orderIndex: number) {
     points,
     orderIndex,
     source: form.source.trim() || null,
-    factCheckUrl: null as string | null,
+    factCheckUrl: form.factCheckUrl.trim() || null,
     imageUrl: null as string | null,
   };
 
@@ -832,6 +835,21 @@ function QuestionFormModal({
             placeholderTextColor={colors.mutedForeground}
           />
 
+          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>
+            {COPY.questionEditor.factCheckUrl}{' '}
+            <Text style={{ fontWeight: '400' }}>(optional)</Text>
+          </Text>
+          <TextInput
+            style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
+            value={form.factCheckUrl}
+            onChangeText={(v) => set('factCheckUrl', v)}
+            placeholder={COPY.questionEditor.factCheckUrlPlaceholder}
+            placeholderTextColor={colors.mutedForeground}
+            keyboardType="url"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+
           {!!error && (
             <View style={[s.errorRow, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}>
               <Ionicons name="alert-circle" size={16} color={colors.destructive} />
@@ -902,6 +920,7 @@ function BulkGenerateModal({
   gameId,
   gameTopic,
   gameDifficulty,
+  questions,
   onClose,
   onGenerated,
 }: {
@@ -909,6 +928,7 @@ function BulkGenerateModal({
   gameId: number;
   gameTopic: string;
   gameDifficulty: string;
+  questions: Question[];
   onClose: () => void;
   onGenerated: (count: number) => void;
 }) {
@@ -917,6 +937,7 @@ function BulkGenerateModal({
   const [topic, setTopic] = useState('');
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [amount, setAmount] = useState('10');
+  const [avoidDups, setAvoidDups] = useState(true);
   const [result, setResult] = useState<{ imported: number; discarded: number } | null>(null);
   const [error, setError] = useState('');
   const [upgradeLimitMsg, setUpgradeLimitMsg] = useState('');
@@ -927,6 +948,7 @@ function BulkGenerateModal({
       setTopic(gameTopic);
       setDifficulty((gameDifficulty as 'easy' | 'medium' | 'hard') ?? 'medium');
       setAmount('10');
+      setAvoidDups(true);
       setResult(null);
       setError('');
     }
@@ -940,7 +962,7 @@ function BulkGenerateModal({
     try {
       const res = await generateGemini.mutateAsync({
         gameId,
-        data: { topic: topic.trim(), difficulty, amount: n, existingQuestions: [] },
+        data: { topic: topic.trim(), difficulty, amount: n, existingQuestions: avoidDups ? questions.map((q) => q.questionText) : [] },
       });
       setResult({ imported: res.imported, discarded: res.discarded ?? 0 });
       onGenerated(res.imported);
@@ -1019,6 +1041,13 @@ function BulkGenerateModal({
                 placeholder="10"
                 placeholderTextColor={colors.mutedForeground}
               />
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 }}>
+                <Switch value={avoidDups} onValueChange={setAvoidDups} />
+                <Text style={[s.fieldLabel, { color: colors.mutedForeground, marginTop: 0, flex: 1 }]}>
+                  {COPY.questionEditor.avoidDuplicates}
+                </Text>
+              </View>
 
               {!!error && (
                 <View style={[s.errorRow, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}>
@@ -2063,6 +2092,7 @@ export default function GameDetailScreen() {
         gameId={gameId}
         gameTopic={game?.topic ?? ''}
         gameDifficulty={game?.difficulty ?? 'medium'}
+        questions={questions ?? []}
         onClose={() => setGenerateOpen(false)}
         onGenerated={() => { invalidate(); }}
       />
