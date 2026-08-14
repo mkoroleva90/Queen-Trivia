@@ -634,6 +634,75 @@ export const COPY = {
   },
 
   /**
+   * Forgot-password and reset-code screens (mobile only).
+   * The web reset flow uses a link and does not share these strings.
+   */
+  hostForgotPassword: {
+    /** Main heading on the request-code screen. */
+    heading:              'FORGOT PASSWORD',
+    /** Helper text beneath the heading. */
+    helper:               "Enter your email and we'll send a 6-digit reset code",
+    /** Email field label. */
+    emailLabel:           'EMAIL ADDRESS',
+    /** Email field placeholder. */
+    emailPlaceholder:     'you@example.com',
+    /** Submit button while idle. */
+    sendBtn:              'SEND CODE',
+    /** Submit button while request is in flight. */
+    sending:              'Sending…',
+    /** Back button label. */
+    back:                 'Back',
+    /** Footer prompt on the request-code screen. */
+    rememberedIt:         'Remembered it?',
+    /** Footer sign-in link on the request-code screen. */
+    signIn:               'Sign in →',
+
+    /** Main heading on the enter-code + new-password screen. */
+    resetHeading:         'RESET PASSWORD',
+    /** Helper text beneath the reset heading. */
+    resetHelper:          'Enter the 6-digit code from your email and choose a new password',
+    /** Code field label. */
+    codeLabel:            'RESET CODE',
+    /** Code field placeholder. */
+    codePlaceholder:      '6-digit code',
+    /** New-password field label. */
+    newPasswordLabel:     'NEW PASSWORD',
+    /** New-password field placeholder. */
+    newPasswordPlaceholder: '••••••••',
+    /** Confirm-password field label. */
+    confirmLabel:         'CONFIRM PASSWORD',
+    /** Confirm-password field placeholder. */
+    confirmPlaceholder:   'Repeat your password',
+    /** Submit button while idle. */
+    submitBtn:            'SET NEW PASSWORD',
+    /** Submit button while request is in flight. */
+    submitting:           'Saving…',
+
+    error: {
+      /** Email field is empty. */
+      enterEmail:        'Enter your email address',
+      /** Email service returned 503. */
+      emailServiceDown:  'Email service unavailable — try again later',
+      /** Network failure. */
+      connectionError:   'Connection error — please retry',
+      /** Code field is empty. */
+      enterCode:         'Enter the 6-digit code from your email',
+      /** Code is not exactly 6 digits. */
+      codeLength:        'The code must be exactly 6 digits',
+      /** New-password field is empty. */
+      enterNewPassword:  'Enter your new password',
+      /** Password does not meet the 8-character minimum. */
+      passwordTooShort:  'Password must be at least 8 characters',
+      /** Confirm-password does not match. */
+      passwordsNoMatch:  'Passwords do not match',
+      /** API rejected the code (wrong or expired). */
+      invalidCode:       'That code is invalid or has expired — request a new one',
+      /** Unexpected server error. */
+      somethingWrong:    'Something went wrong — please retry',
+    },
+  },
+
+  /**
    * Question editor field labels — host-facing, shown in the create/edit
    * question form and the AI generation panel. Both platforms must use
    * these keys so labels stay in sync.

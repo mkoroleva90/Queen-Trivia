@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db, adminAccountsTable, sessionsTable, gamesTable } from "@workspace/db";
 import {
   EmailRegisterBody,
@@ -10,12 +10,15 @@ import {
   EmailForgotPasswordBody,
   EmailResetPasswordBody,
   EmailChangePasswordBody,
+  MobileForgotPasswordBody,
+  MobileResetPasswordBody,
 } from "@workspace/api-zod";
 import { authRateLimit } from "../middleware/authRateLimit.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import {
   sendVerificationEmail,
   sendPasswordResetEmail,
+  sendPasswordResetCodeEmail,
 } from "../lib/email.ts";
 
 const router: IRouter = Router();
@@ -306,6 +309,120 @@ router.post(
       .where(sql`${sessionsTable.sess}->>'adminEmail' = ${account.email}`);
 
     res.json({ ok: true, message: "Password updated. You can now log in." });
+  }
+);
+
+// POST /api/auth/email/mobile-forgot-password
+// Mobile variant: generates a 6-digit numeric code (rather than a URL token)
+// and emails it directly so the host can complete the reset inside the app.
+// Uses the same resetTokenHash / resetTokenExpiry columns; no schema change.
+router.post(
+  "/auth/email/mobile-forgot-password",
+  authRateLimit,
+  async (req, res): Promise<void> => {
+    const parsed = MobileForgotPasswordBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid request" });
+      return;
+    }
+
+    const normalised = parsed.data.email.toLowerCase().trim();
+
+    // Always respond with the same message to avoid account enumeration.
+    const genericOk = { ok: true, message: "If that address is registered, a reset code is on its way." };
+
+    const [account] = await db
+      .select({ id: adminAccountsTable.id })
+      .from(adminAccountsTable)
+      .where(eq(adminAccountsTable.email, normalised))
+      .limit(1);
+
+    if (!account) {
+      res.json(genericOk);
+      return;
+    }
+
+    const code = crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
+    const tokenHash = hashToken(code);
+    const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 min
+
+    await db
+      .update(adminAccountsTable)
+      .set({ resetTokenHash: tokenHash, resetTokenExpiry: expiry })
+      .where(eq(adminAccountsTable.id, account.id));
+
+    try {
+      await sendPasswordResetCodeEmail(normalised, code);
+    } catch (err) {
+      console.error((err as Error).message);
+      res.status(503).json({ error: "Email service unavailable. Check server configuration." });
+      return;
+    }
+
+    res.json(genericOk);
+  }
+);
+
+// POST /api/auth/email/mobile-reset-password
+// Mobile variant: accepts email + 6-digit code + new password.
+// Looks up by both email and hash for extra safety (low code entropy).
+// On success clears the token, invalidates web sessions, and returns a
+// mobile Bearer token so the app can sign the host in immediately.
+router.post(
+  "/auth/email/mobile-reset-password",
+  authRateLimit,
+  async (req, res): Promise<void> => {
+    const parsed = MobileResetPasswordBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    const { email, code, password } = parsed.data;
+    const normalised = email.toLowerCase().trim();
+    const tokenHash = hashToken(code);
+    const now = new Date();
+
+    const [account] = await db
+      .select()
+      .from(adminAccountsTable)
+      .where(
+        and(
+          eq(adminAccountsTable.email, normalised),
+          eq(adminAccountsTable.resetTokenHash, tokenHash)
+        )
+      )
+      .limit(1);
+
+    if (
+      !account ||
+      !account.resetTokenExpiry ||
+      account.resetTokenExpiry < now
+    ) {
+      res.status(400).json({ error: "That code is invalid or has expired." });
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    await db
+      .update(adminAccountsTable)
+      .set({
+        passwordHash,
+        passwordChangedAt: new Date(),
+        resetTokenHash: null,
+        resetTokenExpiry: null,
+      })
+      .where(eq(adminAccountsTable.id, account.id));
+
+    // Invalidate existing web sessions for this admin.
+    await db
+      .delete(sessionsTable)
+      .where(sql`${sessionsTable.sess}->>'adminEmail' = ${account.email}`);
+
+    const { generateAdminToken } = await import("../lib/mobileAuth.js");
+    const adminToken = generateAdminToken(account.id);
+    res.json({ ok: true, adminToken });
   }
 );
 

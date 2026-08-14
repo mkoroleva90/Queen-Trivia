@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { API_BASE_URL } from '@/lib/apiBase';
+import { COPY } from '@workspace/copy';
 
 export default function AdminForgotPasswordScreen() {
   const colors = useColors();
@@ -22,28 +23,30 @@ export default function AdminForgotPasswordScreen() {
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
-  const [done, setDone] = useState(false);
 
   const baseUrl = API_BASE_URL;
 
   const handleSubmit = async () => {
-    if (!email.trim()) { setError('Enter your email address'); return; }
+    if (!email.trim()) { setError(COPY.hostForgotPassword.error.enterEmail); return; }
     setError('');
     setPending(true);
     try {
-      const res = await fetch(`${baseUrl}/api/auth/email/forgot-password`, {
+      const res = await fetch(`${baseUrl}/api/auth/email/mobile-forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim().toLowerCase() }),
       });
       if (res.status === 503) {
-        setError('Email service unavailable — try again later');
+        setError(COPY.hostForgotPassword.error.emailServiceDown);
         return;
       }
-      // Always show success to avoid account enumeration, same as the web app.
-      setDone(true);
+      // Always navigate forward to avoid account enumeration — same pattern as web.
+      router.push({
+        pathname: '/admin-reset-password',
+        params: { email: email.trim().toLowerCase() },
+      });
     } catch {
-      setError('Connection error — please retry');
+      setError(COPY.hostForgotPassword.error.connectionError);
     } finally {
       setPending(false);
     }
@@ -62,77 +65,56 @@ export default function AdminForgotPasswordScreen() {
 
       <Pressable onPress={() => router.back()} style={s.backBtn}>
         <Ionicons name="chevron-back" size={22} color={colors.mutedForeground} />
-        <Text style={[s.backText, { color: colors.mutedForeground }]}>Back</Text>
+        <Text style={[s.backText, { color: colors.mutedForeground }]}>{COPY.hostForgotPassword.back}</Text>
       </Pressable>
 
       <View style={s.content}>
         <View style={s.iconRow}>
           <Ionicons name="lock-open" size={48} color={colors.primary} />
         </View>
-        <Text style={[s.title, { color: colors.foreground }]}>FORGOT PASSWORD</Text>
+        <Text style={[s.title, { color: colors.foreground }]}>{COPY.hostForgotPassword.heading}</Text>
         <Text style={[s.subtitle, { color: colors.mutedForeground }]}>
-          Enter your email and we'll send a reset link
+          {COPY.hostForgotPassword.helper}
         </Text>
 
-        {done ? (
-          <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={s.successIcon}>
-              <Ionicons name="mail" size={36} color={colors.primary} />
+        <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[s.label, { color: colors.mutedForeground }]}>{COPY.hostForgotPassword.emailLabel}</Text>
+          <TextInput
+            style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: error ? colors.destructive : colors.border }]}
+            value={email}
+            onChangeText={(t) => { setEmail(t); setError(''); }}
+            placeholder={COPY.hostForgotPassword.emailPlaceholder}
+            placeholderTextColor={colors.mutedForeground}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            autoComplete="email"
+            returnKeyType="go"
+            onSubmitEditing={handleSubmit}
+          />
+
+          {!!error && (
+            <View style={s.errorRow}>
+              <Ionicons name="alert-circle" size={14} color={colors.destructive} />
+              <Text style={[s.errorText, { color: colors.destructive }]}>{error}</Text>
             </View>
-            <Text style={[s.successTitle, { color: colors.foreground }]}>Check your inbox</Text>
-            <Text style={[s.successBody, { color: colors.mutedForeground }]}>
-              If that address is registered, a reset link is on its way.
-            </Text>
-            <Text style={[s.successBody, { color: colors.mutedForeground, marginTop: 4 }]}>
-              Don't see it? Check your spam folder.
-            </Text>
-            <Pressable
-              style={[s.btn, { backgroundColor: colors.primary }]}
-              onPress={() => router.replace('/admin-login')}
-            >
-              <Text style={s.btnText}>BACK TO SIGN IN</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[s.label, { color: colors.mutedForeground }]}>EMAIL ADDRESS</Text>
-            <TextInput
-              style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
-              value={email}
-              onChangeText={(t) => { setEmail(t); setError(''); }}
-              placeholder="you@example.com"
-              placeholderTextColor={colors.mutedForeground}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="email-address"
-              autoComplete="email"
-              returnKeyType="go"
-              onSubmitEditing={handleSubmit}
-            />
+          )}
 
-            {!!error && (
-              <View style={s.errorRow}>
-                <Ionicons name="alert-circle" size={14} color={colors.destructive} />
-                <Text style={[s.errorText, { color: colors.destructive }]}>{error}</Text>
-              </View>
-            )}
-
-            <Pressable
-              style={({ pressed }) => [s.btn, { backgroundColor: colors.primary, opacity: pressed || pending ? 0.8 : 1 }]}
-              onPress={handleSubmit}
-              disabled={pending}
-            >
-              {pending
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={s.btnText}>SEND RESET LINK</Text>}
-            </Pressable>
-          </View>
-        )}
+          <Pressable
+            style={({ pressed }) => [s.btn, { backgroundColor: colors.primary, opacity: pressed || pending ? 0.8 : 1 }]}
+            onPress={handleSubmit}
+            disabled={pending}
+          >
+            {pending
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={s.btnText}>{COPY.hostForgotPassword.sendBtn}</Text>}
+          </Pressable>
+        </View>
 
         <Pressable onPress={() => router.replace('/admin-login')} style={s.footerLink}>
           <Text style={[s.footerText, { color: colors.mutedForeground }]}>
-            Remembered it?{' '}
-            <Text style={{ color: colors.primary }}>Sign in →</Text>
+            {COPY.hostForgotPassword.rememberedIt}{' '}
+            <Text style={{ color: colors.primary }}>{COPY.hostForgotPassword.signIn}</Text>
           </Text>
         </Pressable>
       </View>
@@ -161,9 +143,6 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     errorText: { fontSize: 13 },
     btn:     { borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 4 },
     btnText: { color: '#fff', fontSize: 16, fontFamily: 'Manrope_800ExtraBold', letterSpacing: 1 },
-    successIcon:  { alignItems: 'center', marginBottom: 8 },
-    successTitle: { fontSize: 20, fontFamily: 'Manrope_800ExtraBold', textAlign: 'center' },
-    successBody:  { fontSize: 14, textAlign: 'center', lineHeight: 20 },
     footerLink: { marginTop: 20, alignItems: 'center' },
     footerText: { fontSize: 14, textAlign: 'center' },
   });

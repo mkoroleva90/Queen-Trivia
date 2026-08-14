@@ -114,6 +114,36 @@ export async function sendContentReportEmail(report: {
   }
 }
 
+export async function sendPasswordResetCodeEmail(
+  to: string,
+  code: string
+): Promise<void> {
+  const resend = getEmailClient();
+  const from = getFromAddress();
+
+  const { error } = await resend.emails.send({
+    from,
+    to,
+    subject: "Your Queen Trivia password reset code",
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+        <h2 style="color:#ff2d8e">Queen Trivia — Reset your password</h2>
+        <p>Use the code below to set a new password in the app. This code expires in <strong>15 minutes</strong>.</p>
+        <div style="margin:24px 0;text-align:center">
+          <span style="display:inline-block;background:#f3f4f6;border-radius:12px;padding:16px 32px;font-size:36px;font-weight:bold;letter-spacing:8px;color:#111">${code}</span>
+        </div>
+        <p style="color:#666;font-size:13px">If you didn't request a password reset, you can safely ignore this email.</p>
+      </div>
+    `,
+  });
+
+  if (error) {
+    throw new Error(
+      `[email] Failed to send password reset code email: ${error.name}`
+    );
+  }
+}
+
 export async function sendPasswordResetEmail(
   to: string,
   resetUrl: string
