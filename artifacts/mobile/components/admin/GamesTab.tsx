@@ -201,14 +201,6 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
         })}
         {/* Spacer so underlines don't span full width */}
         <View style={{ flex: 1 }} />
-        {activeCount > 0 && (
-          <View style={s.liveIndicator}>
-            <View style={[s.liveDot, { backgroundColor: colors.secondary }]} />
-            <Text style={[s.liveLabel, { color: colors.secondary }]}>
-              {activeCount} live
-            </Text>
-          </View>
-        )}
       </View>
 
       {/* Game list */}
@@ -486,9 +478,6 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     filterTab: { alignItems: 'center', marginRight: 24, paddingBottom: 0 },
     filterLabel: { fontSize: 14, fontFamily: 'Manrope_600SemiBold', paddingVertical: 10 },
     filterUnderline: { height: 2, borderRadius: 1, width: '100%' },
-    liveIndicator: { flexDirection: 'row', alignItems: 'center', gap: 5, marginLeft: 'auto', paddingVertical: 10 },
-    liveDot: { width: 6, height: 6, borderRadius: 3 },
-    liveLabel: { fontSize: 12, fontFamily: 'Manrope_600SemiBold' },
     // States
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
     emptyCard: {
