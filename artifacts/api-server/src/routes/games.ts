@@ -1,6 +1,6 @@
 
 import { Router, type IRouter } from "express";
-import { and, eq, desc, count } from "drizzle-orm";
+import { and, or, eq, desc, count } from "drizzle-orm";
 import {
  db,
  gamesTable,
@@ -25,6 +25,7 @@ import {
 import { toJsonSafe } from "../lib/serialize.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { requireAuth } from "../middleware/requireAuth.ts";
+import { requireUser } from "../middleware/requireUser.ts";
 import { generateTriviaCode } from "../lib/bootstrapAccessCodes.ts";
 import { checkGameCreationLimit } from "../lib/usageLimits.ts";
 import { containsBannedContent, logFlaggedContent } from "../lib/contentFilter.ts";
@@ -260,6 +261,74 @@ router.patch("/games/:gameId", requireAdmin, async (req, res): Promise<void> => 
  } else if (game.status === "completed") {
      safeEmit(`game:${game.id}`, "game:ended", { gameId: game.id });
  }
+});
+
+
+// ─── Next-game-by-host (player-facing, no auth required) ─────────────────────
+// Given a completed game, returns the first waiting/active game by the same
+// host (excluding the current game). Used to power the mobile bridge button.
+router.get("/games/:gameId/next-by-host", async (req, res): Promise<void> => {
+ const gameId = parseInt(String(req.params['gameId'] ?? ""), 10);
+ if (!gameId || isNaN(gameId)) { res.status(400).json({ error: "Invalid gameId" }); return; }
+
+ const [current] = await db.select({ ownerAdminId: gamesTable.ownerAdminId })
+   .from(gamesTable).where(eq(gamesTable.id, gameId));
+ if (!current || current.ownerAdminId == null) { res.json({ game: null }); return; }
+
+ const [next] = await db.select({ id: gamesTable.id, topic: gamesTable.topic, status: gamesTable.status })
+   .from(gamesTable)
+   .where(and(
+     eq(gamesTable.ownerAdminId, current.ownerAdminId),
+     or(eq(gamesTable.status, "waiting"), eq(gamesTable.status, "active")),
+     // exclude the current game
+   ))
+   .orderBy(desc(gamesTable.createdAt))
+   .limit(1);
+
+ const game = next && next.id !== gameId ? next : null;
+ res.json({ game: game ? toJsonSafe(game) : null });
+});
+
+
+// ─── Bridge-to-next (requireUser — adds next game to session allowedGameIds) ──
+// Verifies the calling player is a participant of the current game, then finds
+// the next game by the same host and adds it to the session so the player can
+// call POST /games/:nextId/join without a room code.
+router.post("/games/:gameId/bridge-to-next", requireUser, async (req, res): Promise<void> => {
+ const gameId = parseInt(String(req.params['gameId'] ?? ""), 10);
+ if (!gameId || isNaN(gameId)) { res.status(400).json({ error: "Invalid gameId" }); return; }
+
+ const userId = req.session.userId!;
+
+ // Verify the player is a participant of the current game.
+ const [participant] = await db.select({ id: gameParticipantsTable.id })
+   .from(gameParticipantsTable)
+   .where(and(eq(gameParticipantsTable.gameId, gameId), eq(gameParticipantsTable.userId, userId)));
+ if (!participant) { res.status(403).json({ error: "Not a participant of this game" }); return; }
+
+ // Find the next game by the same host.
+ const [current] = await db.select({ ownerAdminId: gamesTable.ownerAdminId })
+   .from(gamesTable).where(eq(gamesTable.id, gameId));
+ if (!current || current.ownerAdminId == null) { res.json({ game: null }); return; }
+
+ const [next] = await db.select({ id: gamesTable.id, topic: gamesTable.topic, status: gamesTable.status })
+   .from(gamesTable)
+   .where(and(
+     eq(gamesTable.ownerAdminId, current.ownerAdminId),
+     or(eq(gamesTable.status, "waiting"), eq(gamesTable.status, "active")),
+   ))
+   .orderBy(desc(gamesTable.createdAt))
+   .limit(1);
+
+ if (!next || next.id === gameId) { res.json({ game: null }); return; }
+
+ // Grant session access to the next game so the player can call POST /join.
+ const existing: number[] = req.session.allowedGameIds ?? [];
+ if (!existing.includes(next.id)) {
+   req.session.allowedGameIds = [...existing, next.id];
+ }
+
+ res.json({ game: toJsonSafe(next) });
 });
 
 

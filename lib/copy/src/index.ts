@@ -401,6 +401,11 @@ export const COPY = {
     couldNotLoad:   'Could not load results.',
     /** Retry link text in the error state. */
     tryAgain:       'Try again',
+    /**
+     * Bridge button shown on mobile results when the same host has another game
+     * that is live or waiting. Tapping it takes the player directly into that game.
+     */
+    nextGameLive:   'Next game is live — join →',
   },
   /**
    * Content reporting flow — available to players on in-game and results screens.
@@ -644,3 +649,19 @@ export const COPY = {
     avoidDuplicates: 'Avoid duplicating existing questions',
   },
 } as const;
+
+/**
+ * Build the player results share message.
+ * Both platforms must call this so the wording stays in sync.
+ * Matches the mobile format: rank, score, topic, correct count.
+ */
+export function buildShareText(params: {
+  score: number;
+  rank: number;
+  playerCount: number;
+  topic: string;
+  correct: number;
+  questions: number;
+}): string {
+  return `I scored ${params.score} points (#${params.rank} of ${params.playerCount}) in "${params.topic}" trivia — ${params.correct}/${params.questions} correct! 🎯`;
+}

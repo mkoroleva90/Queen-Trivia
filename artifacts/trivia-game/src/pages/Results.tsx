@@ -23,9 +23,10 @@ import {
   Share2,
   BarChart3,
   Flag,
+  ArrowLeft,
 } from "lucide-react";
 import { ReportDialog } from "@/components/ReportDialog";
-import { COPY } from "@workspace/copy";
+import { COPY, buildShareText } from "@workspace/copy";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,12 +59,38 @@ type QuestionStat = {
 };
 
 const QUESTION_TYPE_LABELS: Record<string, string> = {
-  multiple_choice: "Multiple Choice",
-  true_false:      "True / False",
-  write_in:        "Write-In",
-  matching:        "Matching",
+  multiple_choice:   "Multiple Choice",
+  multi_select:      "Multi-Select",
+  true_false:        "True / False",
+  write_in:          "Write-In",
+  short_response:    "Short Response",
+  ordering:          "Ordering",
+  slider:            "Slider",
   image_recognition: "Image",
+  image_hotspot:     "Image Hotspot",
+  matching:          "Matching",
 };
+
+function formatCorrectAnswer(questionType: string, correctAnswer: string): string {
+  if (!correctAnswer) return correctAnswer;
+  if (questionType === "image_hotspot") {
+    const parts = correctAnswer.split(",").map((s) => parseFloat(s).toFixed(1));
+    if (parts.length === 2) return `X: ${parts[0]}%, Y: ${parts[1]}%`;
+  }
+  if (questionType === "ordering") {
+    try {
+      const items = JSON.parse(correctAnswer) as string[];
+      if (Array.isArray(items)) return items.map((item, i) => `${i + 1}. ${item}`).join("\n");
+    } catch { /* fall through */ }
+  }
+  if (questionType === "matching") {
+    try {
+      const pairs = JSON.parse(correctAnswer) as [string, string][];
+      if (Array.isArray(pairs)) return pairs.map(([a, b]) => `${a} → ${b}`).join("\n");
+    } catch { /* fall through */ }
+  }
+  return correctAnswer;
+}
 
 // Avatar colours cycling for leaderboard rows
 const RANK_AVATAR_COLORS = ["#ff0080", "#00ddff", "#8b5cf6", "#22c55e", "#f97316", "#a78bfa", "#34d399"];
@@ -163,7 +190,9 @@ export default function Results() {
   void accuracy; void streak; void bestType;
 
   const handleShare = async () => {
-    const text = `I scored ${myScore} points${totalQ > 0 ? ` (${myCorrect}/${totalQ} correct)` : ""} on "${results?.game.topic ?? "Queen Trivia"}!" 🏆`;
+    const text = me
+      ? buildShareText({ score: myScore, rank: myRank, playerCount: results!.participants.length, topic: results!.game.topic, correct: myCorrect, questions: totalQ })
+      : `Check out the results for "${results?.game.topic ?? "Queen Trivia"}" trivia!`;
     try {
       await navigator.clipboard.writeText(text);
       toast({ title: "Copied to clipboard!", description: text });
@@ -207,6 +236,16 @@ export default function Results() {
     <div className="min-h-[100dvh]">
       <div className="mx-auto max-w-md px-[22px] pt-12 pb-16 space-y-6">
 
+        {/* ── Back button ── */}
+        <button
+          onClick={() => setLocation("/")}
+          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors w-fit"
+          style={{ fontSize: 13, fontWeight: 500, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          {COPY.results.backToLobby}
+        </button>
+
         {/* ── Header ── */}
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="space-y-1">
           <p
@@ -222,6 +261,20 @@ export default function Results() {
             {totalQ} question{totalQ !== 1 ? "s" : ""} · {participants.length} player{participants.length !== 1 ? "s" : ""}
           </p>
         </motion.div>
+
+        {/* ── My score card ── */}
+        {me && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+            <div style={{ background: "rgba(255,229,0,.08)", border: "1.5px solid rgba(255,229,0,.3)", borderRadius: 18, padding: 20, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 800, letterSpacing: 0.5, color: "#ffe500", margin: 0 }}>#{myRank}</p>
+                <p style={{ fontSize: 20, fontWeight: 800, color: "#ffffff", marginTop: 2 }}>{me.userName}</p>
+                <p style={{ fontSize: 13, fontWeight: 500, color: "#a3aec2", marginTop: 2 }}>{myCorrect}/{totalQ} correct</p>
+              </div>
+              <p style={{ fontSize: 40, fontWeight: 900, color: "#ffe500", fontVariantNumeric: "tabular-nums", margin: 0 }}>{myScore}</p>
+            </div>
+          </motion.div>
+        )}
 
         {/* ── Leaderboard ── */}
         <motion.div
@@ -410,8 +463,8 @@ export default function Results() {
                                     <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400/80 shrink-0">
                                       {COPY.results.correctAnswer}
                                     </span>
-                                    <span className="text-sm text-emerald-400 font-bold leading-snug break-words">
-                                      {correctAnswer}
+                                    <span className="text-sm text-emerald-400 font-bold leading-snug break-words" style={{ whiteSpace: "pre-wrap" }}>
+                                      {formatCorrectAnswer(q.questionType, correctAnswer)}
                                     </span>
                                   </div>
                                 )}

@@ -25,7 +25,7 @@ import { useAuth } from '@/context/AuthContext';
 import { API_BASE_URL } from '@/lib/apiBase';
 import * as SecureStore from 'expo-secure-store';
 import { ADMIN_TOKEN_KEY } from '@/context/AdminAuthContext';
-import { COPY } from '@workspace/copy';
+import { COPY, buildShareText } from '@workspace/copy';
 import { ReportModal } from '@/components/ReportModal';
 
 const RANK_COLORS = ['#ff0080', '#00ddff', '#8b5cf6', '#22c55e', '#f97316'];
@@ -69,6 +69,27 @@ const QUESTION_TYPE_LABELS: Record<string, string> = {
 
 const baseUrl = API_BASE_URL;
 
+function formatCorrectAnswer(questionType: string, correctAnswer: string): string {
+  if (!correctAnswer) return correctAnswer;
+  if (questionType === 'image_hotspot') {
+    const parts = correctAnswer.split(',').map((s) => parseFloat(s).toFixed(1));
+    if (parts.length === 2) return `X: ${parts[0]}%, Y: ${parts[1]}%`;
+  }
+  if (questionType === 'ordering') {
+    try {
+      const items = JSON.parse(correctAnswer) as string[];
+      if (Array.isArray(items)) return items.map((item, i) => `${i + 1}. ${item}`).join('\n');
+    } catch { /* fall through */ }
+  }
+  if (questionType === 'matching') {
+    try {
+      const pairs = JSON.parse(correctAnswer) as [string, string][];
+      if (Array.isArray(pairs)) return pairs.map(([a, b]) => `${a} → ${b}`).join('\n');
+    } catch { /* fall through */ }
+  }
+  return correctAnswer;
+}
+
 export default function ResultsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const gameId = Number(id);
@@ -77,7 +98,7 @@ export default function ResultsScreen() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const userId = user?.id ?? 0;
-  const [expandBreakdown, setExpandBreakdown] = useState(false);
+  const [expandBreakdown, setExpandBreakdown] = useState(true);
   const [reportOpen, setReportOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -95,7 +116,7 @@ export default function ResultsScreen() {
       return r.json() as Promise<GameResults>;
     },
     enabled: !!gameId,
-    refetchInterval: 15000,
+    refetchInterval: 10000,
   });
 
   const { data: questions = [] } = useListGameQuestions(gameId, {
@@ -119,6 +140,17 @@ export default function ResultsScreen() {
     },
     enabled: !!gameId,
     retry: false,
+  });
+
+  const { data: nextGame } = useQuery<{ game: { id: number; topic: string; status: string } | null }>({
+    queryKey: ['next-game-by-host', gameId],
+    queryFn: async () => {
+      const r = await fetch(`${baseUrl}/api/games/${gameId}/next-by-host`);
+      if (!r.ok) return { game: null };
+      return r.json() as Promise<{ game: { id: number; topic: string; status: string } | null }>;
+    },
+    enabled: !!gameId,
+    refetchInterval: 10000,
   });
 
   const sortedQuestions = useMemo(() => [...questions].sort((a, b) => a.orderIndex - b.orderIndex), [questions]);
@@ -193,9 +225,23 @@ export default function ResultsScreen() {
   const sortedParticipants = [...participants].sort((a, b) => a.rank - b.rank);
   const me = participants.find((p) => p.userId === userId);
 
+  const handleBridgeJoin = async () => {
+    if (!nextGame?.game) return;
+    try {
+      const r = await fetch(`${baseUrl}/api/games/${gameId}/bridge-to-next`, { method: 'POST' });
+      if (!r.ok) return;
+      const bridged = await r.json() as { game: { id: number; topic: string; status: string } | null };
+      if (!bridged.game) return;
+      await fetch(`${baseUrl}/api/games/${bridged.game.id}/join`, { method: 'POST' });
+      router.replace(`/game/${bridged.game.id}`);
+    } catch {
+      // silently ignore — button disappears on next poll if game is gone
+    }
+  };
+
   const handleShare = async () => {
     const shareText = me
-      ? `I scored ${me.totalScore} points (#${me.rank} of ${participants.length}) in "${game.topic}" trivia — ${me.correctCount}/${totalQuestions} correct! 🎯`
+      ? buildShareText({ score: me.totalScore, rank: me.rank, playerCount: participants.length, topic: game.topic, correct: me.correctCount, questions: totalQuestions })
       : `Check out the results for "${game.topic}" trivia!`;
     if (Platform.OS === 'web') {
       try {
@@ -283,6 +329,17 @@ export default function ResultsScreen() {
           </View>
         )}
 
+        {/* Next-game bridge */}
+        {nextGame?.game && (
+          <TouchableOpacity
+            style={[styles.nextGameBridgeBtn, { backgroundColor: colors.primary }]}
+            onPress={handleBridgeJoin}
+          >
+            <Ionicons name="arrow-forward-circle" size={18} color="#ffffff" />
+            <Text style={styles.nextGameBridgeBtnText}>{COPY.results.nextGameLive}</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Leaderboard */}
         <View style={[styles.leaderboard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {sortedParticipants.length === 0 ? (
@@ -302,7 +359,7 @@ export default function ResultsScreen() {
                   { borderBottomColor: colors.border },
                   i === sortedParticipants.length - 1 && { borderBottomWidth: 0 },
                   isWinner && { backgroundColor: 'rgba(255,0,128,.1)' },
-                  isMe && { boxShadow: undefined },
+                  isMe && !isWinner && { backgroundColor: 'rgba(255,229,0,.06)', borderLeftWidth: 2, borderLeftColor: '#ffe500' },
                 ]}
               >
                 <Text style={[styles.rankNum, { color: isMe ? colors.accent : isWinner ? colors.primary : colors.mutedForeground, width: 28 }]}>
@@ -387,7 +444,7 @@ export default function ResultsScreen() {
                         <View style={styles.qAnswerRow}>
                           <Text style={[styles.qAnswerLabel, { color: 'rgba(52,211,153,.8)' }]}>{COPY.results.correctAnswer}</Text>
                           <Text style={[styles.qAnswerValue, { color: '#34d399', fontWeight: '700' }]}>
-                            {correctAnswer}
+                            {formatCorrectAnswer(q.questionType, correctAnswer)}
                           </Text>
                         </View>
                       )}
@@ -508,6 +565,8 @@ const styles = StyleSheet.create({
   backBtnText: { fontSize: 16, fontWeight: '800' },
   reportBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14 },
   reportBtnText: { fontSize: 14, fontWeight: '600' },
+  nextGameBridgeBtn: { height: 54, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  nextGameBridgeBtnText: { fontSize: 15, fontWeight: '800', color: '#ffffff' },
   signOutBtn: { alignItems: 'center', paddingVertical: 14 },
   signOutBtnText: { fontSize: 14, fontWeight: '600' },
   errorContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },
