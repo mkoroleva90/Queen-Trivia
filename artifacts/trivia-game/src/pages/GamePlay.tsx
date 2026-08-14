@@ -36,6 +36,7 @@ import {
   Gamepad2,
   ChevronDown,
   Flag,
+  Ban,
 } from "lucide-react";
 import { ReportDialog } from "@/components/ReportDialog";
 import {
@@ -1471,9 +1472,25 @@ export default function GamePlay() {
   if (kicked) {
     return (
       <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-[#060d17] text-center px-8 gap-5">
-        <span style={{ fontSize: 56, lineHeight: 1 }}>🚫</span>
+        <Ban size={56} style={{ color: "#ef4444" }} />
         <h1 className="text-2xl font-extrabold text-[#eef2f8]">{COPY.kick.removedTitle}</h1>
         <p className="text-[#9aa6bc] max-w-xs leading-relaxed">{COPY.kick.removedBody}</p>
+        <button
+          onClick={() => setLocation("/")}
+          style={{
+            height: 52,
+            borderRadius: 14,
+            background: "rgba(255,255,255,.08)",
+            color: "#ffffff",
+            border: "1px solid rgba(255,255,255,.14)",
+            cursor: "pointer",
+            padding: "0 32px",
+            fontWeight: 700,
+            fontSize: 14,
+          }}
+        >
+          {COPY.results.backToLobby}
+        </button>
       </div>
     );
   }

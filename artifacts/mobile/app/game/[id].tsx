@@ -827,7 +827,7 @@ export default function GamePlayScreen() {
             onPress={() => router.replace('/')}
             style={[kickedStyles.btn, { backgroundColor: colors.muted }]}
           >
-            <Text style={[kickedStyles.btnText, { color: colors.foreground }]}>Back to Lobby</Text>
+            <Text style={[kickedStyles.btnText, { color: colors.foreground }]}>{COPY.results.backToLobby}</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -883,6 +883,12 @@ export default function GamePlayScreen() {
               style={[styles.confirmBtn, { backgroundColor: colors.accent, marginTop: 8 }]}
             >
               <Text style={[styles.confirmBtnText, { color: colors.accentForeground }]}>{COPY.gameplay.allDoneViewResults}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.replace('/')}
+              style={[styles.confirmBtn, { backgroundColor: colors.muted, marginTop: 8 }]}
+            >
+              <Text style={[styles.confirmBtnText, { color: colors.foreground }]}>{COPY.results.backToLobby}</Text>
             </TouchableOpacity>
           </View>
         ) : (
