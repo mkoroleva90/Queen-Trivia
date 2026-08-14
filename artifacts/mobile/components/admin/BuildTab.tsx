@@ -633,40 +633,47 @@ export function BuildTab({ bottomPadding }: Props) {
               /* ── Setup form ── */
               <>
                 <Text style={[s.heading, { color: colors.foreground }]}>Create a new game</Text>
-                <Text style={[s.sub, { color: colors.mutedForeground }]}>
-                  Choose where questions come from, then we'll build the set for you.
+
+                {/* ── Category (matches web: Custom topic + Open Trivia categories) ── */}
+                <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Category</Text>
+                <View style={[s.catList, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                  <Pressable
+                    style={[s.catRow, source === 'ai' && { backgroundColor: AI_COLOR + '18' }]}
+                    onPress={() => {
+                      setSource('ai');
+                      // AI offers 5/10/15 only — clamp a leftover OpenTDB 20 selection.
+                      if (setupAmount > 15) setSetupAmount(15);
+                    }}
+                  >
+                    <Text style={[s.catText, { color: source === 'ai' ? AI_COLOR : colors.foreground }]}>
+                      Custom topic — Gemini AI generates questions
+                    </Text>
+                    {source === 'ai' && <Ionicons name="checkmark" size={16} color={AI_COLOR} />}
+                  </Pressable>
+                  <View style={{ height: 1, backgroundColor: colors.border }} />
+                  {OPENTDB_CATEGORIES.map((c) => {
+                    const active = source === 'opentdb' && c.id === setupCategory;
+                    return (
+                      <Pressable
+                        key={c.id}
+                        style={[s.catRow, active && { backgroundColor: colors.primary + '18' }]}
+                        onPress={() => { setSource('opentdb'); setSetupCategory(c.id); }}
+                      >
+                        <Text style={[s.catText, { color: active ? colors.primary : colors.foreground }]}>
+                          {c.name}
+                        </Text>
+                        {active && <Ionicons name="checkmark" size={16} color={colors.primary} />}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <Text style={[s.helperText, { color: colors.mutedForeground }]}>
+                  {source === 'ai'
+                    ? 'Gemini AI generates questions on the topic you enter below.'
+                    : 'Questions are pulled from Open Trivia Database.'}
                 </Text>
 
-                {/* Source picker */}
-                <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Question source</Text>
-                <View style={s.sourcePicker}>
-                  <Pressable
-                    style={[s.sourcePill, {
-                      borderColor: source === 'ai' ? AI_COLOR : colors.border,
-                      backgroundColor: source === 'ai' ? AI_COLOR + '18' : colors.card,
-                    }]}
-                    onPress={() => setSource('ai')}
-                  >
-                    <Ionicons name="sparkles" size={16} color={source === 'ai' ? AI_COLOR : colors.mutedForeground} />
-                    <Text style={[s.sourcePillText, { color: source === 'ai' ? AI_COLOR : colors.mutedForeground }]}>
-                      Gemini AI
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    style={[s.sourcePill, {
-                      borderColor: source === 'opentdb' ? colors.primary : colors.border,
-                      backgroundColor: source === 'opentdb' ? colors.primary + '18' : colors.card,
-                    }]}
-                    onPress={() => setSource('opentdb')}
-                  >
-                    <Ionicons name="cloud-download-outline" size={16} color={source === 'opentdb' ? colors.primary : colors.mutedForeground} />
-                    <Text style={[s.sourcePillText, { color: source === 'opentdb' ? colors.primary : colors.mutedForeground }]} numberOfLines={1}>
-                      Open Trivia Database
-                    </Text>
-                  </Pressable>
-                </View>
-
-                {/* ── AI-specific fields ── */}
+                {/* ── Custom topic fields ── */}
                 {source === 'ai' && (
                   <>
                     <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Topic</Text>
@@ -680,9 +687,6 @@ export function BuildTab({ bottomPadding }: Props) {
                       placeholder="e.g. Harry Potter, The Office, 80s Music, Local History…"
                       placeholderTextColor={colors.mutedForeground}
                     />
-                    <Text style={[s.helperText, { color: colors.mutedForeground }]}>
-                      Gemini AI generates questions on this topic.
-                    </Text>
 
                     <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>
                       Brief <Text style={[s.fieldLabelOpt, { color: colors.mutedForeground }]}>(optional)</Text>
@@ -693,36 +697,11 @@ export function BuildTab({ bottomPadding }: Props) {
                       }]}
                       value={brief}
                       onChangeText={setBrief}
-                      placeholder="e.g. Focus on the 1990s. Skip obvious questions. No chart positions."
+                      placeholder="e.g. Focus on the 1990s. Players are experts — skip the obvious. No chart position questions."
                       placeholderTextColor={colors.mutedForeground}
                       multiline
+                      maxLength={2000}
                     />
-
-
-                  </>
-                )}
-
-                {/* ── OpenTDB-specific fields ── */}
-                {source === 'opentdb' && (
-                  <>
-                    <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Category</Text>
-                    <View style={[s.catList, { borderColor: colors.border, backgroundColor: colors.card }]}>
-                      {OPENTDB_CATEGORIES.map((c) => {
-                        const active = c.id === setupCategory;
-                        return (
-                          <Pressable
-                            key={c.id}
-                            style={[s.catRow, active && { backgroundColor: colors.primary + '18' }]}
-                            onPress={() => setSetupCategory(c.id)}
-                          >
-                            <Text style={[s.catText, { color: active ? colors.primary : colors.foreground }]}>
-                              {c.name}
-                            </Text>
-                            {active && <Ionicons name="checkmark" size={16} color={colors.primary} />}
-                          </Pressable>
-                        );
-                      })}
-                    </View>
                   </>
                 )}
 
@@ -733,45 +712,44 @@ export function BuildTab({ bottomPadding }: Props) {
                 <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>
                   Questions to {source === 'ai' ? 'generate' : 'import'}
                 </Text>
-                <AmountStepper value={setupAmount} onChange={setSetupAmount} colors={colors} />
-
-                {/* Info callout */}
-                <View style={[s.callout, {
-                  borderColor: source === 'ai' ? AI_COLOR + '40' : colors.primary + '30',
-                  backgroundColor: source === 'ai' ? AI_COLOR + '08' : colors.primary + '08',
-                }]}>
-                  <Ionicons
-                    name={source === 'ai' ? 'bulb-outline' : 'server-outline'}
-                    size={16}
-                    color={source === 'ai' ? AI_COLOR : colors.primary}
-                    style={{ marginTop: 1 }}
-                  />
-                  <View style={{ flex: 1, gap: 2 }}>
-                    {source === 'ai' ? (
-                      <>
-                        <Text style={[s.calloutTitle, { color: source === 'ai' ? AI_COLOR : colors.primary }]}>
-                          AI-generated questions
+                <View style={sh.diffRow}>
+                  {([5, 10, 15, 20] as const)
+                    .filter((n) => source !== 'ai' || n !== 20)
+                    .map((n) => (
+                      <Pressable
+                        key={n}
+                        style={[sh.diffChip, {
+                          borderColor: setupAmount === n ? colors.primary : colors.border,
+                          backgroundColor: setupAmount === n ? colors.primary + '22' : 'transparent',
+                        }]}
+                        onPress={() => setSetupAmount(n)}
+                      >
+                        <Text style={[sh.diffChipText, { color: setupAmount === n ? colors.primary : colors.mutedForeground }]}>
+                          {n} questions
                         </Text>
-                        <Text style={[s.calloutBody, { color: colors.mutedForeground }]}>
-                          Questions are generated by Gemini AI. Review them in the Review step before going live.
-                        </Text>
-                      </>
-                    ) : (
-                      <>
-                        <Text style={[s.calloutTitle, { color: colors.primary }]}>
-                          Auto-import from Open Trivia Database
-                        </Text>
-                        <Text style={[s.calloutBody, { color: colors.mutedForeground }]}>
-                          {setupAmount} {difficulty} question{setupAmount === 1 ? '' : 's'} about{' '}
-                          <Text style={{ color: colors.foreground, fontFamily: 'Manrope_600SemiBold' }}>
-                            {selectedCategory?.name}
-                          </Text>{' '}
-                          will be fetched from the free, community-verified database.
-                        </Text>
-                      </>
-                    )}
-                  </View>
+                      </Pressable>
+                    ))}
                 </View>
+
+                {/* Info callout — AI only, matching web */}
+                {source === 'ai' && (
+                  <View style={[s.callout, {
+                    borderColor: AI_COLOR + '40',
+                    backgroundColor: AI_COLOR + '08',
+                  }]}>
+                    <Ionicons
+                      name="bulb-outline"
+                      size={16}
+                      color={AI_COLOR}
+                      style={{ marginTop: 1 }}
+                    />
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={[s.calloutBody, { color: colors.mutedForeground }]}>
+                        Questions are generated by Gemini AI. Review them in the Review step before going live.
+                      </Text>
+                    </View>
+                  </View>
+                )}
 
                 {!!setupError && (
                   <Text style={[s.errorText, { color: colors.destructive }]}>{setupError}</Text>
@@ -1363,20 +1341,12 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     body: { padding: 16 },
     section: { gap: 12 },
     heading: { fontSize: 20, fontFamily: 'Manrope_800ExtraBold' },
-    sub: { fontSize: 13, lineHeight: 19, marginTop: -6 },
     helperText: { fontSize: 11.5, lineHeight: 16, marginTop: -6 },
     fieldLabel: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', marginTop: 6 },
     fieldLabelOpt: { fontSize: 12, fontFamily: 'Manrope_400Regular' },
     textInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
     textArea: { minHeight: 80, textAlignVertical: 'top' },
     errorText: { fontSize: 13 },
-    // Source picker
-    sourcePicker: { flexDirection: 'row', gap: 8 },
-    sourcePill: {
-      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-      gap: 6, borderWidth: 1.5, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 10,
-    },
-    sourcePillText: { fontSize: 13, fontFamily: 'Manrope_700Bold', flexShrink: 1 },
     // Switch
     switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
     switchLabel: { fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
@@ -1392,7 +1362,6 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     callout: {
       flexDirection: 'row', gap: 10, borderWidth: 1, borderRadius: 12, padding: 14, marginTop: 2,
     },
-    calloutTitle: { fontSize: 13, fontFamily: 'Manrope_700Bold', marginBottom: 2 },
     calloutBody: { fontSize: 12.5, lineHeight: 18 },
     // Button
     primaryBtn: {
