@@ -19,6 +19,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import {
   getGetGameQueryKey,
@@ -785,7 +786,7 @@ export default function GamePlayScreen() {
               {game?.topic ?? '…'}
             </Text>
             <Text style={[styles.gameHeaderMeta, { color: colors.mutedForeground }]}>
-              {answeredCount}/{total} · {myScore} pts
+              {answeredCount}/{total} · {myScore} {COPY.gameplay.scorePtsSuffix}
             </Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -803,7 +804,12 @@ export default function GamePlayScreen() {
           </View>
         </View>
         <View style={styles.progressPill}>
-          <View style={[styles.progressFill, { width: `${total > 0 ? (answeredCount / total) * 100 : 0}%` as unknown as number, backgroundColor: colors.primary }]} />
+          <LinearGradient
+            colors={['#ff0080', '#ffe500']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={[styles.progressFill, { width: `${total > 0 ? (answeredCount / total) * 100 : 0}%` as unknown as number }]}
+          />
         </View>
       </View>
 
@@ -981,7 +987,7 @@ const styles = StyleSheet.create({
   gameHeaderCenter: { flex: 1, paddingHorizontal: 12 },
   gameHeaderTitle: { fontSize: 16, fontWeight: '700', letterSpacing: -0.3 },
   gameHeaderMeta: { fontSize: 12, fontWeight: '500', marginTop: 1 },
-  progressPill: { height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,.08)', overflow: 'hidden' },
+  progressPill: { height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,.08)', overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 2 },
   gameContent: { paddingHorizontal: 18, paddingTop: 8, gap: 20 },
   questionMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

@@ -3600,7 +3600,7 @@ function GamesView({
   games: Game[];
   onNavigate: (section: Section, gameId?: number) => void;
 }) {
-  const [filter, setFilter] = useState<"live"|"drafts">("live");
+  const [filter, setFilter] = useState<"all"|"live"|"drafts">("all");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const updateGame = useUpdateGame();
@@ -3737,17 +3737,17 @@ function GamesView({
       </div>
 
       <div className="flex items-center gap-2 border-b border-[#1b2740] pb-px">
-        {["live", "drafts"].map(f => (
+        {([{ id: "all", label: COPY.admin.filterAll }, { id: "live", label: "Live" }, { id: "drafts", label: "Drafts" }] as const).map(f => (
           <button
-            key={f}
-            onClick={() => setFilter(f as any)}
-            className={`px-4 py-2 text-sm font-bold capitalize transition-colors border-b-2 -mb-px ${
-              filter === f 
+            key={f.id}
+            onClick={() => setFilter(f.id)}
+            className={`px-4 py-2 text-sm font-bold transition-colors border-b-2 -mb-px ${
+              filter === f.id
                 ? 'border-[#ff0080] text-white' 
                 : 'border-transparent text-[#66728a] hover:text-[#9aa6bc]'
             }`}
           >
-            {f}
+            {f.label}
           </button>
         ))}
       </div>
@@ -3843,9 +3843,14 @@ function GamesView({
                   )}
                 </div>
               )}
-              <p className="text-[#9aa6bc] text-sm mb-3">
+              <p className="text-[#9aa6bc] text-sm mb-1">
                 {game.questionCount} {game.questionCount === 1 ? 'question' : 'questions'}
               </p>
+              <div className="flex items-center gap-3 mb-3" style={{ color: "#66728a", fontSize: 12, fontWeight: 600 }}>
+                <span>{(game as any).participantCount ?? 0} players</span>
+                <span>·</span>
+                <span>{game.difficulty ? game.difficulty.charAt(0).toUpperCase() + game.difficulty.slice(1) : '—'}</span>
+              </div>
 
               <div className="mb-6 flex-1">
                   {editingCodeId === game.id ? (

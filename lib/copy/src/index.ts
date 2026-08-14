@@ -128,6 +128,16 @@ export const COPY = {
   },
 
   /**
+   * Admin games-list strings — host-facing labels on the games list screen
+   * (web Admin.tsx GamesView and mobile GamesTab.tsx).
+   * Both platforms must use these keys so wording stays in sync.
+   */
+  admin: {
+    /** Label for the filter tab that shows all games regardless of status. */
+    filterAll: 'All',
+  },
+
+  /**
    * Host play-along strings — shown on the host's live control screen (web
    * admin panel and mobile live tab) when the host is playing along with their
    * own game.  Both platforms must use these keys so wording stays in sync.
@@ -251,6 +261,11 @@ export const COPY = {
     feedbackTotalLabel: 'Total:',
     /** Pulsing hint shown below the question while waiting for the player to answer. */
     clockHint: "Tap your answer — the clock's ticking",
+    /**
+     * Suffix appended after the player's score in the compact gameplay header
+     * (e.g. "4/10 · 150 pts"). Used on both web and mobile.
+     */
+    scorePtsSuffix: 'pts',
 
     // ── All-questions-answered state ───────────────────────────────────────
     /**

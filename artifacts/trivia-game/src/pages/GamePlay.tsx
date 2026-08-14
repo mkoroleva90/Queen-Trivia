@@ -30,7 +30,7 @@ import {
   Crown,
   Sparkles,
   Loader2,
-  Star,
+
   Check,
   X,
   Gamepad2,
@@ -1471,8 +1471,8 @@ export default function GamePlay() {
           {/* ── Main question column ── */}
           <div className="px-[22px] pt-12 pb-16 space-y-5">
 
-            {/* Back button + game switcher row */}
-            <div className="flex items-center justify-between gap-3">
+            {/* Back button + topic centre + game switcher row */}
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => setLocation("/")}
                 className="flex items-center justify-center shrink-0"
@@ -1484,6 +1484,22 @@ export default function GamePlay() {
               >
                 <ArrowLeft className="h-5 w-5 text-white" />
               </button>
+              {total > 0 && (
+                <div className="flex-1 text-center min-w-0 px-2">
+                  <p
+                    className="font-bold text-white truncate leading-tight"
+                    style={{ fontSize: 15 }}
+                  >
+                    {game?.topic ?? '…'}
+                  </p>
+                  <p
+                    className="font-medium"
+                    style={{ fontSize: 12, color: "#a3aec2", marginTop: 2 }}
+                  >
+                    {answeredCount}/{total} · {myScore} {COPY.gameplay.scorePtsSuffix}
+                  </p>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setReportOpen(true)}
@@ -1508,32 +1524,6 @@ export default function GamePlay() {
                 <GameSwitcher currentGameId={gameId} userId={userId} />
               </div>
             </div>
-
-            {/* Header row: question counter + score pill */}
-            {total > 0 && (
-              <div className="flex items-center justify-between">
-                <span
-                  className="font-bold uppercase"
-                  style={{ fontSize: 10, letterSpacing: ".24em", color: "#a3aec2" }}
-                >
-                  Question {Math.min(answeredCount + 1, total)} / {total}
-                </span>
-                <div
-                  className="flex items-center gap-1.5 font-extrabold"
-                  style={{
-                    fontSize: 14,
-                    background: "#ffe500",
-                    color: "#0a0510",
-                    borderRadius: 20,
-                    padding: "5px 14px",
-                    boxShadow: "0 4px 16px rgba(255,229,0,.4)",
-                  }}
-                >
-                  <Star className="h-3.5 w-3.5 fill-current" />
-                  {myScore}
-                </div>
-              </div>
-            )}
 
             {/* Progress bar */}
             {total > 0 && (

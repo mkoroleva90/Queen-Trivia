@@ -45,7 +45,7 @@ function statusSort(s: string) {
 }
 
 const FILTERS: { id: GameFilter; label: string }[] = [
-  { id: 'all', label: 'All' },
+  { id: 'all', label: COPY.admin.filterAll },
   { id: 'live', label: 'Live' },
   { id: 'drafts', label: 'Drafts' },
 ];
