@@ -208,6 +208,7 @@ export function BuildTab({ bottomPadding }: Props) {
   const [brief, setBrief] = useState('');
   const [setupAmount, setSetupAmount] = useState(10);
   const [setupCategory, setSetupCategory] = useState<number>(9);
+  const [catOpen, setCatOpen] = useState(false);
   const [setupError, setSetupError] = useState('');
   const [setupResult, setSetupResult] = useState<SetupResult | null>(null);
 
@@ -638,34 +639,51 @@ export function BuildTab({ bottomPadding }: Props) {
                 <Text style={[s.fieldLabel, { color: '#ffe500', fontSize: 15, fontFamily: 'Manrope_700Bold' }]}>Category</Text>
                 <View style={[s.catList, { borderColor: colors.border, backgroundColor: colors.card }]}>
                   <Pressable
-                    style={[s.catRow, source === 'ai' && { backgroundColor: AI_COLOR + '18' }]}
-                    onPress={() => {
-                      setSource('ai');
-                      // AI offers 5/10/15 only — clamp a leftover OpenTDB 20 selection.
-                      if (setupAmount > 15) setSetupAmount(15);
-                    }}
+                    style={s.catRow}
+                    onPress={() => setCatOpen((o) => !o)}
                   >
-                    <Text style={[s.catText, { color: source === 'ai' ? AI_COLOR : colors.foreground }]}>
-                      Custom topic — Gemini AI generates questions
+                    <Text style={[s.catText, { color: source === 'ai' ? AI_COLOR : colors.primary }]}>
+                      {source === 'ai'
+                        ? 'Custom topic — Gemini AI generates questions'
+                        : selectedCategory?.name ?? 'Select a category'}
                     </Text>
-                    {source === 'ai' && <Ionicons name="checkmark" size={16} color={AI_COLOR} />}
+                    <Ionicons name={catOpen ? 'chevron-up' : 'chevron-down'} size={16} color={colors.mutedForeground} />
                   </Pressable>
-                  <View style={{ height: 1, backgroundColor: colors.border }} />
-                  {OPENTDB_CATEGORIES.map((c) => {
-                    const active = source === 'opentdb' && c.id === setupCategory;
-                    return (
+                  {catOpen && (
+                    <>
+                      <View style={{ height: 1, backgroundColor: colors.border }} />
                       <Pressable
-                        key={c.id}
-                        style={[s.catRow, active && { backgroundColor: colors.primary + '18' }]}
-                        onPress={() => { setSource('opentdb'); setSetupCategory(c.id); }}
+                        style={[s.catRow, source === 'ai' && { backgroundColor: AI_COLOR + '18' }]}
+                        onPress={() => {
+                          setSource('ai');
+                          // AI offers 5/10/15 only — clamp a leftover OpenTDB 20 selection.
+                          if (setupAmount > 15) setSetupAmount(15);
+                          setCatOpen(false);
+                        }}
                       >
-                        <Text style={[s.catText, { color: active ? colors.primary : colors.foreground }]}>
-                          {c.name}
+                        <Text style={[s.catText, { color: source === 'ai' ? AI_COLOR : colors.foreground }]}>
+                          Custom topic — Gemini AI generates questions
                         </Text>
-                        {active && <Ionicons name="checkmark" size={16} color={colors.primary} />}
+                        {source === 'ai' && <Ionicons name="checkmark" size={16} color={AI_COLOR} />}
                       </Pressable>
-                    );
-                  })}
+                      <View style={{ height: 1, backgroundColor: colors.border }} />
+                      {OPENTDB_CATEGORIES.map((c) => {
+                        const active = source === 'opentdb' && c.id === setupCategory;
+                        return (
+                          <Pressable
+                            key={c.id}
+                            style={[s.catRow, active && { backgroundColor: colors.primary + '18' }]}
+                            onPress={() => { setSource('opentdb'); setSetupCategory(c.id); setCatOpen(false); }}
+                          >
+                            <Text style={[s.catText, { color: active ? colors.primary : colors.foreground }]}>
+                              {c.name}
+                            </Text>
+                            {active && <Ionicons name="checkmark" size={16} color={colors.primary} />}
+                          </Pressable>
+                        );
+                      })}
+                    </>
+                  )}
                 </View>
                 <Text style={[s.helperText, { color: colors.mutedForeground }]}>
                   {source === 'ai'
