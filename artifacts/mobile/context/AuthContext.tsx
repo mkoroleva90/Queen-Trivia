@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import * as SecureStore from 'expo-secure-store';
+import * as storage from '@/lib/storage';
 import { API_BASE_URL } from '@/lib/apiBase';
 
 export const PLAYER_TOKEN_KEY = 'trivia_mobile_token';
@@ -30,8 +30,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const restore = async () => {
       try {
         const [stored, token] = await Promise.all([
-          SecureStore.getItemAsync(USER_KEY),
-          SecureStore.getItemAsync(PLAYER_TOKEN_KEY),
+          storage.getItem(USER_KEY),
+          storage.getItem(PLAYER_TOKEN_KEY),
         ]);
 
         if (stored && token) {
@@ -45,8 +45,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setUser(data.user);
             } else {
               await Promise.all([
-                SecureStore.deleteItemAsync(USER_KEY),
-                SecureStore.deleteItemAsync(PLAYER_TOKEN_KEY),
+                storage.deleteItem(USER_KEY),
+                storage.deleteItem(PLAYER_TOKEN_KEY),
               ]);
             }
           } catch {
@@ -65,14 +65,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginUser = async (u: User, mobileToken: string) => {
     await Promise.all([
-      SecureStore.setItemAsync(USER_KEY, JSON.stringify(u)),
-      SecureStore.setItemAsync(PLAYER_TOKEN_KEY, mobileToken),
+      storage.setItem(USER_KEY, JSON.stringify(u)),
+      storage.setItem(PLAYER_TOKEN_KEY, mobileToken),
     ]);
     setUser(u);
   };
 
   const logout = async () => {
-    const token = await SecureStore.getItemAsync(PLAYER_TOKEN_KEY).catch(() => null);
+    const token = await storage.getItem(PLAYER_TOKEN_KEY).catch(() => null);
     try {
       await fetch(`${baseUrl}/api/auth/logout`, {
         method: 'POST',
@@ -82,8 +82,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // ignore
     }
     await Promise.all([
-      SecureStore.deleteItemAsync(USER_KEY).catch(() => {}),
-      SecureStore.deleteItemAsync(PLAYER_TOKEN_KEY).catch(() => {}),
+      storage.deleteItem(USER_KEY).catch(() => {}),
+      storage.deleteItem(PLAYER_TOKEN_KEY).catch(() => {}),
     ]);
     setUser(null);
   };

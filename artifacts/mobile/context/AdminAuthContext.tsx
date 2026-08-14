@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import * as SecureStore from 'expo-secure-store';
+import * as storage from '@/lib/storage';
 import { type QueryClient } from '@tanstack/react-query';
 import { setAuthTokenGetter } from '@workspace/api-client-react';
 import { PLAYER_TOKEN_KEY } from '@/context/AuthContext';
@@ -24,7 +24,7 @@ const AdminAuthContext = createContext<AdminAuthContextType | null>(null);
 function setAdminTokenGetter() {
   setAuthTokenGetter(async () => {
     try {
-      return await SecureStore.getItemAsync(ADMIN_TOKEN_KEY);
+      return await storage.getItem(ADMIN_TOKEN_KEY);
     } catch {
       return null;
     }
@@ -38,7 +38,7 @@ function setAdminTokenGetter() {
 function setPlayerTokenGetter() {
   setAuthTokenGetter(async () => {
     try {
-      return await SecureStore.getItemAsync(PLAYER_TOKEN_KEY);
+      return await storage.getItem(PLAYER_TOKEN_KEY);
     } catch {
       return null;
     }
@@ -61,7 +61,7 @@ export function AdminAuthProvider({
   useEffect(() => {
     const restore = async () => {
       try {
-        const token = await SecureStore.getItemAsync(ADMIN_TOKEN_KEY);
+        const token = await storage.getItem(ADMIN_TOKEN_KEY);
         if (token) {
           try {
             const r = await fetch(`${baseUrl}/api/admin/me`, {
@@ -74,7 +74,7 @@ export function AdminAuthProvider({
               setAdminTokenGetter();
               setIsAdmin(true);
             } else {
-              await SecureStore.deleteItemAsync(ADMIN_TOKEN_KEY);
+              await storage.deleteItem(ADMIN_TOKEN_KEY);
               setPlayerTokenGetter();
             }
           } catch {
@@ -93,7 +93,7 @@ export function AdminAuthProvider({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loginAdmin = async (adminToken: string) => {
-    await SecureStore.setItemAsync(ADMIN_TOKEN_KEY, adminToken);
+    await storage.setItem(ADMIN_TOKEN_KEY, adminToken);
     // Switch auth getter so subsequent api-client-react calls use admin token.
     setAdminTokenGetter();
     // Invalidate all cached queries so admin screens refetch with correct creds.
@@ -102,7 +102,7 @@ export function AdminAuthProvider({
   };
 
   const logoutAdmin = async () => {
-    const token = await SecureStore.getItemAsync(ADMIN_TOKEN_KEY).catch(() => null);
+    const token = await storage.getItem(ADMIN_TOKEN_KEY).catch(() => null);
     try {
       await fetch(`${baseUrl}/api/admin/logout`, {
         method: 'POST',
@@ -111,7 +111,7 @@ export function AdminAuthProvider({
     } catch {
       // ignore
     }
-    await SecureStore.deleteItemAsync(ADMIN_TOKEN_KEY).catch(() => {});
+    await storage.deleteItem(ADMIN_TOKEN_KEY).catch(() => {});
     // Restore player token getter and clear admin-fetched cache.
     setPlayerTokenGetter();
     queryClient.invalidateQueries();
