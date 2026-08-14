@@ -21,7 +21,7 @@ import { CrownMark } from '@/components/CrownMark';
 import { API_BASE_URL } from '@/lib/apiBase';
 import { COPY } from '@workspace/copy';
 
-type Step = 0 | 2 | 3;
+type Step = 0 | 1 | 2 | 3;
 
 export default function WelcomeScreen() {
   const colors = useColors();
@@ -158,6 +158,21 @@ export default function WelcomeScreen() {
       <View style={[styles.blob, { top: 80, left: -60, backgroundColor: colors.primary }]} />
       <View style={[styles.blob2, { top: 300, right: -80, backgroundColor: colors.secondary }]} />
 
+      {/* ── Progress dots ── */}
+      <View style={styles.dotsRow}>
+        {([0, 1, 2, 3] as const).map((s) => (
+          <View
+            key={s}
+            style={[
+              styles.dot,
+              s === step
+                ? { width: 24, backgroundColor: '#ffe500' }
+                : { width: 8, backgroundColor: 'rgba(255,255,255,.22)' },
+            ]}
+          />
+        ))}
+      </View>
+
       <Animated.View
         style={[styles.content, { transform: [{ translateY: slideAnim }], paddingBottom: botPad + 16 }]}
       >
@@ -181,7 +196,7 @@ export default function WelcomeScreen() {
               <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <Text style={[styles.cardLabel, { color: '#ffffff' }]}>{COPY.join.heading}</Text>
 
-                <CTAButton bg={colors.accent} color={colors.accentForeground} onPress={() => animateStep(2)}>
+                <CTAButton bg={colors.accent} color={colors.accentForeground} onPress={() => animateStep(1)}>
                   {COPY.join.letsPlay}
                 </CTAButton>
               </View>
@@ -220,6 +235,54 @@ export default function WelcomeScreen() {
                   </Text>
                 </Pressable>
               </View>
+            </View>
+          )}
+
+          {/* ── Step 1: How it works ── */}
+          {step === 1 && (
+            <View style={styles.stepContainer}>
+              <Pressable onPress={goBack} style={styles.backBtn} hitSlop={12}>
+                <Ionicons name="chevron-back" size={22} color={colors.foreground} />
+              </Pressable>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+                {COPY.join.heresDeal}
+              </Text>
+
+              <View style={{ gap: 12 }}>
+                {[
+                  { bar: '#ff0080', title: COPY.join.howStep1Title, sub: COPY.join.howStep1Sub },
+                  { bar: '#00ddff', title: COPY.join.howStep2Title, sub: COPY.join.howStep2Sub },
+                  { bar: '#ffe500', title: COPY.join.howStep3Title, sub: COPY.join.howStep3Sub },
+                ].map((item) => (
+                  <View
+                    key={item.title}
+                    style={{
+                      flexDirection: 'row',
+                      borderRadius: 16,
+                      overflow: 'hidden',
+                      backgroundColor: 'rgba(255,255,255,.05)',
+                    }}
+                  >
+                    <View style={{ width: 8, backgroundColor: item.bar }} />
+                    <View style={{ flex: 1, paddingHorizontal: 16, paddingVertical: 14, gap: 3 }}>
+                      <Text style={{ fontSize: 16, fontWeight: '800', color: colors.foreground, fontFamily: 'Manrope_800ExtraBold' }}>
+                        {item.title}
+                      </Text>
+                      <Text style={{ fontSize: 13, fontWeight: '500', color: colors.mutedForeground }}>
+                        {item.sub}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+
+              <CTAButton
+                bg={colors.accent}
+                color={colors.accentForeground}
+                onPress={() => animateStep(2)}
+              >
+                {COPY.join.gotIt}
+              </CTAButton>
             </View>
           )}
 
@@ -398,4 +461,6 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 13, fontWeight: '500' },
   ctaBtn: { height: 58, borderRadius: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   ctaBtnText: { fontSize: 15, fontWeight: '800', letterSpacing: 1 },
+  dotsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingTop: 12, paddingBottom: 4 },
+  dot: { height: 8, borderRadius: 4 },
 });
