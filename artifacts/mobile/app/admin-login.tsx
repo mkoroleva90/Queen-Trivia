@@ -18,6 +18,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAdminAuth } from '@/context/AdminAuthContext';
@@ -37,8 +38,93 @@ export default function AdminLoginScreen() {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
+  const [ssoPending, setSsoPending] = useState<'google' | 'apple' | null>(null);
 
   const baseUrl = API_BASE_URL;
+
+  /** Posts an SSO ID token to the server, stores the admin token and enters the admin area. */
+  const submitSsoToken = async (
+    endpoint: '/api/auth/sso/google/mobile' | '/api/auth/sso/apple/mobile',
+    body: { idToken: string; name?: string },
+  ) => {
+    const res = await fetch(`${baseUrl}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      let message: string = COPY.hostLogin.error.somethingWrong;
+      try {
+        const data = (await res.json()) as { error?: string };
+        if (typeof data?.error === 'string' && data.error) message = data.error;
+      } catch {
+        /* non-JSON error body — keep the generic message */
+      }
+      setError(message);
+      return;
+    }
+    const data = (await res.json()) as { ok: boolean; adminToken: string };
+    await loginAdmin(data.adminToken);
+    router.replace('/admin');
+  };
+
+  const handleGoogleLogin = async () => {
+    setError('');
+    setSsoPending('google');
+    try {
+      // Lazily required: the native module is unavailable on web builds.
+      const { GoogleSignin } = require('@react-native-google-signin/google-signin');
+      GoogleSignin.configure({
+        webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+        iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+      });
+      await GoogleSignin.hasPlayServices();
+      const result = await GoogleSignin.signIn();
+      if (result.type === 'cancelled') return;
+      const idToken: string | undefined = result.data?.idToken ?? undefined;
+      if (!idToken) {
+        setError(COPY.hostLogin.error.somethingWrong);
+        return;
+      }
+      await submitSsoToken('/api/auth/sso/google/mobile', { idToken });
+    } catch {
+      setError(COPY.hostLogin.error.somethingWrong);
+    } finally {
+      setSsoPending(null);
+    }
+  };
+
+  const handleAppleLogin = async () => {
+    setError('');
+    setSsoPending('apple');
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      const idToken = credential.identityToken;
+      if (!idToken) {
+        setError(COPY.hostLogin.error.somethingWrong);
+        return;
+      }
+      // Apple only supplies the name on the very first authorization — pass it
+      // through only when present so the server can backfill displayName.
+      const nameParts = [credential.fullName?.givenName, credential.fullName?.familyName]
+        .filter(Boolean)
+        .join(' ');
+      await submitSsoToken('/api/auth/sso/apple/mobile', {
+        idToken,
+        ...(nameParts ? { name: nameParts } : {}),
+      });
+    } catch (e: any) {
+      if (e?.code === 'ERR_REQUEST_CANCELED') return; // user dismissed the sheet
+      setError(COPY.hostLogin.error.somethingWrong);
+    } finally {
+      setSsoPending(null);
+    }
+  };
 
   const handleLogin = async () => {
     const trimmedEmail = email.trim().toLowerCase();
@@ -174,6 +260,52 @@ export default function AdminLoginScreen() {
                 : <Text style={s.btnText}>{COPY.hostLogin.signInBtn}</Text>}
             </Pressable>
 
+            {Platform.OS !== 'web' && (
+              <>
+                <View style={s.dividerRow}>
+                  <View style={[s.dividerLine, { backgroundColor: colors.border }]} />
+                  <Text style={[s.dividerText, { color: colors.mutedForeground }]}>
+                    {COPY.hostLogin.orDivider}
+                  </Text>
+                  <View style={[s.dividerLine, { backgroundColor: colors.border }]} />
+                </View>
+
+                <Pressable
+                  style={({ pressed }) => [
+                    s.ssoBtn,
+                    { borderColor: colors.border, backgroundColor: colors.background, opacity: pressed || ssoPending !== null ? 0.7 : 1 },
+                  ]}
+                  onPress={handleGoogleLogin}
+                  disabled={ssoPending !== null || pending}
+                >
+                  {ssoPending === 'google'
+                    ? <ActivityIndicator color={colors.foreground} />
+                    : <Ionicons name="logo-google" size={18} color={colors.foreground} />}
+                  <Text style={[s.ssoBtnText, { color: colors.foreground }]}>
+                    {COPY.hostLogin.continueWithGoogle}
+                  </Text>
+                </Pressable>
+
+                {Platform.OS === 'ios' && (
+                  <Pressable
+                    style={({ pressed }) => [
+                      s.ssoBtn,
+                      { borderColor: colors.border, backgroundColor: colors.background, opacity: pressed || ssoPending !== null ? 0.7 : 1 },
+                    ]}
+                    onPress={handleAppleLogin}
+                    disabled={ssoPending !== null || pending}
+                  >
+                    {ssoPending === 'apple'
+                      ? <ActivityIndicator color={colors.foreground} />
+                      : <Ionicons name="logo-apple" size={20} color={colors.foreground} />}
+                    <Text style={[s.ssoBtnText, { color: colors.foreground }]}>
+                      {COPY.hostLogin.continueWithApple}
+                    </Text>
+                  </Pressable>
+                )}
+              </>
+            )}
+
             <Pressable onPress={() => router.push('/admin-forgot-password')} style={s.textLink}>
               <Text style={[s.textLinkText, { color: colors.primary }]}>{COPY.hostLogin.forgotPassword}</Text>
             </Pressable>
@@ -239,6 +371,14 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     errorText: { flex: 1, fontSize: 13, lineHeight: 18 },
     btn:      { borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 4 },
     btnText:  { color: '#fff', fontSize: 16, fontFamily: 'Manrope_800ExtraBold', letterSpacing: 1 },
+    dividerRow:  { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 4 },
+    dividerLine: { flex: 1, height: StyleSheet.hairlineWidth },
+    dividerText: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', letterSpacing: 1 },
+    ssoBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+      borderWidth: 1, borderRadius: 12, paddingVertical: 14,
+    },
+    ssoBtnText: { fontSize: 15, fontFamily: 'Manrope_700Bold' },
     textLink: { alignItems: 'center', paddingVertical: 4 },
     textLinkText: { fontSize: 13, fontFamily: 'Manrope_600SemiBold' },
     footerLink: { marginTop: 24, alignItems: 'center' },

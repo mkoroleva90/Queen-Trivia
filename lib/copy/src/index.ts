@@ -621,6 +621,12 @@ export const COPY = {
     createAccount:            'Create account',
     /** Forgot-password link. */
     forgotPassword:           'Forgot password?',
+    /** Google SSO button label (web + mobile). */
+    continueWithGoogle:       'Continue with Google',
+    /** Apple SSO button label (web + mobile, iOS-only on mobile). */
+    continueWithApple:        'Continue with Apple',
+    /** Divider text between the email form and the SSO buttons. */
+    orDivider:                'or',
     /** Back button label (mobile). */
     back:                     'Back',
     /** Prompt above the create-account link (mobile). */

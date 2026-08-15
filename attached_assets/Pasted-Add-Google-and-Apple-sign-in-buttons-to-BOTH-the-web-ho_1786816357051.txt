@@ -1,0 +1,43 @@
+Add Google and Apple sign-in buttons to BOTH the web host login screen and the mobile host login screen, wire them to the SSO endpoints that already exist on the server, change the mobile URL scheme, and add the shared copy. This spans two codebases — do the web part AND the mobile part.
+
+The server endpoints already exist and MUST NOT be changed:
+
+POST /auth/sso/google and POST /auth/sso/apple finish as a web cookie session.
+POST /auth/sso/google/mobile and POST /auth/sso/apple/mobile return an admin bearer token as { ok, adminToken, email }.
+SHARED COPY FIRST (lib/copy/src/index.ts): In the hostLogin block, add three entries: a Google button label "Continue with Google", an Apple button label "Continue with Apple", and a divider label "or". Both web and mobile must read these from shared copy — do not hard-code the labels in either client.
+
+WEB — first confirm which file is actually mounted at /admin-login, then edit that file:
+
+Below the existing email/password form, add a divider and the two buttons.
+Google: use Google Identity Services (official Google Sign-In for Web). Get the Google ID token and POST it as { idToken } to /auth/sso/google. On success, do exactly what the existing email login does after success — same session handling, same post-login redirect.
+Apple: use Sign in with Apple JS. Configure it with the Services ID com.queentrivia.web and the return URL https://queen-trivia.com/auth/apple/callback. Get the Apple identity token and POST it as { idToken, name } to /auth/sso/apple. The name is only present on the user's first authorization — include it only when present. On success, same post-login redirect as email login.
+The Google Web client ID is not secret. Read it from a public build env var; if one does not already exist, introduce it and report its exact name.
+Show any server error message to the user (e.g. the "sign in with your password to connect this provider" case).
+MOBILE — first confirm which file is actually mounted for the admin login screen, then edit that file:
+
+Below the existing email/password form, add a divider and the two buttons, using the same shared copy labels.
+Google: use @react-native-google-signin/google-signin. Configure it with the iOS client ID and the Web client ID (both non-secret; read from public EXPO_PUBLIC_ env vars — introduce them if absent and report their exact names). Get the Google ID token and POST { idToken } to /auth/sso/google/mobile. On success, store the returned adminToken exactly the way the existing mobile admin login stores it (trivia_admin_token via the same AdminAuthContext / SecureStore path) and navigate exactly where the existing admin login navigates on success.
+Apple: use expo-apple-authentication. Render the Apple button ONLY on iOS. Get the identity token and the full name (name is only provided on the FIRST sign-in). POST { idToken, name } to /auth/sso/apple/mobile, including name only when present. On success, store the adminToken the same way and navigate the same way.
+Add the required dependencies.
+MOBILE NATIVE CONFIG (artifacts/mobile/app.json):
+
+Change "scheme" from "mobile" to "queentrivia".
+Add the Google sign-in config plugin with iosUrlScheme set to exactly: com.googleusercontent.apps.1055345874809-q83hnfpk2dm6a5ecgs8n0f5v45hppmlj
+Add the expo-apple-authentication plugin, and set the iOS usesAppleSignIn flag to true so the entitlement is included in the build.
+CONSTRAINTS:
+
+Host login only. Do not touch player login or the players table.
+Do not change any server endpoint. If a client needs a field the server doesn't accept, STOP and tell me instead of changing the server.
+Web and mobile must present the same two buttons with the same wording, from shared copy.
+Do not use drizzle push.
+Do not rename any existing internal variables or functions.
+Do not edit any Orval-generated files.
+Do not make any changes beyond what I described.
+WHEN DONE, report and self-verify:
+
+Confirm, by tracing which component is actually mounted, that the buttons were added to the REAL web login screen and the REAL mobile login screen (name the mounted files).
+For each of the four buttons (web Google, web Apple, mobile Google, mobile Apple), state the exact endpoint it POSTs to, and for the two mobile buttons confirm the adminToken is stored under the same key as the existing admin login.
+Quote the mobile Apple handler showing name is sent only when present.
+Quote the new app.json scheme line and the two plugin entries.
+List every new public env var name you introduced and the exact value each should be set to.
+List every dependency added, with versions.
