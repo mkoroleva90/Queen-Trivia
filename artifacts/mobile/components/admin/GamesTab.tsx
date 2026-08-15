@@ -71,6 +71,11 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
   const [renameText, setRenameText] = useState('');
   const [renameError, setRenameError] = useState<string | null>(null);
   const [renameSaving, setRenameSaving] = useState(false);
+
+  const [codeEditId, setCodeEditId] = useState<number | null>(null);
+  const [codeText, setCodeText] = useState('');
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [codeSaving, setCodeSaving] = useState(false);
   // Start-game confirmation state
   const [startTarget, setStartTarget] = useState<Game | null>(null);
   const [playAlongPending, setPlayAlongPending] = useState(false);
@@ -144,6 +149,48 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
       setRenameError('Failed to save. Try again.');
     } finally {
       setRenameSaving(false);
+    }
+  };
+
+  const startCodeEdit = (game: Game) => {
+    setCodeEditId(game.id);
+    setCodeText(game.accessCode ?? '');
+    setCodeError(null);
+  };
+
+  const cancelCodeEdit = () => {
+    setCodeEditId(null);
+    setCodeText('');
+    setCodeError(null);
+  };
+
+  const handleCodeSave = async (game: Game) => {
+    const code = codeText.trim().toUpperCase();
+    if (!code) {
+      setCodeError('Code cannot be empty');
+      return;
+    }
+    if (code === game.accessCode) {
+      cancelCodeEdit();
+      return;
+    }
+    setCodeSaving(true);
+    try {
+      const updated = await updateGame.mutateAsync({ gameId: game.id, data: { accessCode: code } });
+      qc.setQueryData(
+        getListGamesQueryKey(),
+        (old: Game[] | undefined) =>
+          old?.map((g) => (g.id === game.id ? { ...g, accessCode: updated.accessCode ?? code } : g)),
+      );
+      qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
+      cancelCodeEdit();
+    } catch (err) {
+      const msg = err instanceof Error && /409/.test(err.message)
+        ? 'That code is already taken — try another'
+        : 'Could not save the code. It must be 4–12 letters or numbers.';
+      setCodeError(msg);
+    } finally {
+      setCodeSaving(false);
     }
   };
 
@@ -267,10 +314,53 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
                     {STATUS_LABELS[game.status] ?? game.status}
                   </Text>
                 </View>
-                <Text style={[s.cardCode, { color: colors.mutedForeground }]}>
-                  {game.accessCode ?? '——'}
-                </Text>
+                {codeEditId === game.id ? (
+                  <View style={s.renameRow}>
+                    <TextInput
+                      style={[s.codeInput, { color: colors.foreground, borderColor: colors.primary, backgroundColor: colors.muted }]}
+                      value={codeText}
+                      onChangeText={(t) => { setCodeText(t.toUpperCase()); setCodeError(null); }}
+                      autoFocus
+                      autoCapitalize="characters"
+                      maxLength={12}
+                      returnKeyType="done"
+                      onSubmitEditing={() => handleCodeSave(game)}
+                    />
+                    {codeSaving ? (
+                      <ActivityIndicator size="small" color={colors.primary} style={{ marginLeft: 8 }} />
+                    ) : (
+                      <>
+                        <Pressable
+                          style={[s.renameIconBtn, { backgroundColor: colors.primary + '20' }]}
+                          onPress={(e) => { e.stopPropagation(); handleCodeSave(game); }}
+                        >
+                          <Ionicons name="checkmark" size={18} color={colors.primary} />
+                        </Pressable>
+                        <Pressable
+                          style={[s.renameIconBtn, { backgroundColor: colors.muted }]}
+                          onPress={(e) => { e.stopPropagation(); cancelCodeEdit(); }}
+                        >
+                          <Ionicons name="close" size={18} color={colors.mutedForeground} />
+                        </Pressable>
+                      </>
+                    )}
+                  </View>
+                ) : (
+                  <Pressable
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                    onPress={(e) => { e.stopPropagation(); startCodeEdit(game); }}
+                    hitSlop={8}
+                  >
+                    <Text style={[s.cardCode, { color: colors.mutedForeground }]}>
+                      {game.accessCode ?? '——'}
+                    </Text>
+                    <Ionicons name="pencil-outline" size={13} color={colors.mutedForeground} />
+                  </Pressable>
+                )}
               </View>
+              {codeEditId === game.id && codeError && (
+                <Text style={[s.renameError, { color: colors.destructive }]}>{codeError}</Text>
+              )}
 
               {renamingId === game.id ? (
                 <View>
@@ -511,6 +601,7 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     topicRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
     editIconBtn: { padding: 2, marginTop: 2 },
     renameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    codeInput: { flex: 1, borderWidth: 1.5, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, fontSize: 13, fontFamily: 'Manrope_700Bold', letterSpacing: 2, minWidth: 120 },
     renameInput: { flex: 1, borderWidth: 1.5, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 15, fontFamily: 'Manrope_700Bold' },
     renameIconBtn: { borderRadius: 8, padding: 6 },
     renameError: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', marginTop: 4 },

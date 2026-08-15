@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { COPY } from '@workspace/copy';
 
-export type AdminTab = 'games' | 'live' | 'build' | 'results' | 'rooms';
+export type AdminTab = 'games' | 'build' | 'results' | 'rooms';
 
 const TABS: {
   id: AdminTab;
@@ -14,7 +14,6 @@ const TABS: {
   iconActive: keyof typeof Ionicons.glyphMap;
 }[] = [
   { id: 'games',   label: 'Games',   icon: 'game-controller-outline', iconActive: 'game-controller' },
-  { id: 'live',    label: 'Live',    icon: 'radio-outline',            iconActive: 'radio' },
   { id: 'build',   label: 'Build',   icon: 'sparkles-outline',         iconActive: 'sparkles' },
   { id: 'results', label: 'Results', icon: 'bar-chart-outline',        iconActive: 'bar-chart' },
   { id: 'rooms',   label: COPY.nav.rooms, icon: 'key-outline',          iconActive: 'key' },

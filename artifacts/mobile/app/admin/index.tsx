@@ -5,7 +5,6 @@ import { COPY } from '@workspace/copy';
 import { AdminTabBar, type AdminTab } from '@/components/AdminTabBar';
 import { AdminHeader } from '@/components/AdminHeader';
 import { GamesTab } from '@/components/admin/GamesTab';
-import { LiveTab } from '@/components/admin/LiveTab';
 import { BuildTab } from '@/components/admin/BuildTab';
 import { ResultsTab } from '@/components/admin/ResultsTab';
 import { RoomsTab } from '@/components/admin/RoomsTab';
@@ -13,7 +12,6 @@ import { useColors } from '@/hooks/useColors';
 
 const TAB_TITLES: Record<AdminTab, string> = {
   games:   'Games',
-  live:    'Live',
   build:   'Build',
   results: 'Results',
   rooms:   COPY.nav.rooms,
@@ -35,11 +33,10 @@ export default function AdminHomeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <AdminHeader title={TAB_TITLES[activeTab]} isLive={activeTab === 'live'} />
+      <AdminHeader title={TAB_TITLES[activeTab]} isLive={false} />
 
       <View style={styles.content}>
         {activeTab === 'games'   && <GamesTab   bottomPadding={bottomPadding} onGoToBuild={handleGoToBuild} />}
-        {activeTab === 'live'    && <LiveTab     bottomPadding={bottomPadding} />}
         {activeTab === 'build'   && <BuildTab    bottomPadding={bottomPadding} />}
         {activeTab === 'results' && <ResultsTab  bottomPadding={bottomPadding} />}
         {activeTab === 'rooms'   && <RoomsTab    bottomPadding={bottomPadding} />}
