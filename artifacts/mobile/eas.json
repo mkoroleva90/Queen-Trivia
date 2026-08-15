@@ -28,5 +28,14 @@
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "1055345874809-q83hnfpk2dm6a5ecgs8n0f5v45hppmlj.apps.googleusercontent.com"
       }
     }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "mariyakoroleva@alumni.stanford.edu",
+        "ascAppId": "6800869656",
+        "appleTeamId": "T3J6VB57GQ"
+      }
+    }
   }
 }
