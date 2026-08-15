@@ -4,8 +4,11 @@
 --          created exclusively via SSO never need a password; (3) display_name is
 --          added to admin_accounts because Apple only returns the user's name on the
 --          very first sign-in and never again.
--- Applied manually via executeSql (drizzle push requires an interactive TTY).
--- Idempotent: all statements use IF NOT EXISTS / IF EXISTS patterns.
+-- Applied to the workspace database via executeSql (drizzle push requires an interactive TTY).
+-- Production picks this up through the normal publish sync.
+-- Mostly idempotent: the ADD COLUMN and CREATE TABLE/INDEX statements use IF NOT EXISTS,
+-- but ALTER COLUMN ... DROP NOT NULL is not conditional and will error if re-run after
+-- the column is already nullable. Safe to re-run only once per environment.
 
 -- 1. Allow password_hash to be NULL on existing accounts (SSO-only hosts have none).
 ALTER TABLE admin_accounts
