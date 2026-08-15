@@ -476,7 +476,13 @@ router.post(
       return;
     }
 
-    const currentOk = await bcrypt.compare(parsed.data.currentPassword, account.passwordHash ?? "");
+    // Guard: SSO-only accounts have no password to change.
+    if (account.passwordHash === null) {
+      res.status(400).json({ error: "This account uses Google or Apple sign-in and has no password to change." });
+      return;
+    }
+
+    const currentOk = await bcrypt.compare(parsed.data.currentPassword, account.passwordHash);
     if (!currentOk) {
       res.status(400).json({ error: "Current password is incorrect." });
       return;

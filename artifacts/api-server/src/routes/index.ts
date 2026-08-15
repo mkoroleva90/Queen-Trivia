@@ -15,12 +15,14 @@ import statsRouter from "./stats.ts";
 import ownerRouter from "./owner.ts";
 import reportsRouter from "./reports.ts";
 import kickRouter from "./kick.ts";
+import ssoAuthRouter from "./ssoAuth.ts";
 
 const router: IRouter = Router();
 router.use(healthRouter);
 router.use(authRouter);
 router.use(sessionRouter);
 router.use(emailAuthRouter);
+router.use(ssoAuthRouter);
 router.use(settingsRouter);
 router.use(usersRouter);
 router.use(gamesRouter);
