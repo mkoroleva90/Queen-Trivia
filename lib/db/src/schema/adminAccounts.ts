@@ -9,7 +9,7 @@ import {
 export const adminAccountsTable = pgTable("admin_accounts", {
   id: serial("id").primaryKey(),
   email: text("email").notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
+  passwordHash: text("password_hash"),
   emailVerified: boolean("email_verified").notNull().default(false),
   verificationTokenHash: text("verification_token_hash"),
   verificationTokenExpiry: timestamp("verification_token_expiry", {
@@ -25,6 +25,8 @@ export const adminAccountsTable = pgTable("admin_accounts", {
   plan: text("plan", { enum: ["free", "pro"] }).notNull().default("free"),
   // Used to invalidate mobile Bearer tokens issued before a password change.
   passwordChangedAt: timestamp("password_changed_at", { withTimezone: true }),
+  // Apple only returns the user's name on the very first sign-in; store it here immediately.
+  displayName: text("display_name"),
 });
 
 export type AdminAccount = typeof adminAccountsTable.$inferSelect;

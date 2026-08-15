@@ -176,6 +176,12 @@ router.post(
       .where(eq(adminAccountsTable.email, normalised))
       .limit(1);
 
+    // Guard: SSO-only accounts have no password set.
+    if (account && account.passwordHash === null) {
+      res.status(401).json({ error: "This account uses Google or Apple sign-in. Please sign in with your connected provider." });
+      return;
+    }
+
     // Constant-time path: always run bcrypt.compare to avoid timing attacks
     const dummyHash = "$2b$12$invalidhashpaddingtoensureconstanttimepath000000000000";
     const passwordHash = account?.passwordHash ?? dummyHash;
@@ -285,6 +291,12 @@ router.post(
       account.resetTokenExpiry < now
     ) {
       res.status(400).json({ error: "Reset link is invalid or has expired." });
+      return;
+    }
+
+    // Guard: SSO-only accounts have no password; they cannot use the password reset flow.
+    if (account.passwordHash === null) {
+      res.status(400).json({ error: "This account uses Google or Apple sign-in. Please sign in with your connected provider." });
       return;
     }
 
@@ -400,6 +412,12 @@ router.post(
       account.resetTokenExpiry < now
     ) {
       res.status(400).json({ error: "That code is invalid or has expired." });
+      return;
+    }
+
+    // Guard: SSO-only accounts have no password; they cannot use the password reset flow.
+    if (account.passwordHash === null) {
+      res.status(400).json({ error: "This account uses Google or Apple sign-in. Please sign in with your connected provider." });
       return;
     }
 
@@ -599,6 +617,12 @@ router.post(
       .from(adminAccountsTable)
       .where(eq(adminAccountsTable.email, normalised))
       .limit(1);
+
+    // Guard: SSO-only accounts have no password set.
+    if (account && account.passwordHash === null) {
+      res.status(401).json({ error: "This account uses Google or Apple sign-in. Please sign in with your connected provider." });
+      return;
+    }
 
     // Constant-time path to prevent timing attacks.
     const dummyHash = "$2b$12$invalidhashpaddingtoensureconstanttimepath000000000000";
