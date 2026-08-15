@@ -1,5 +1,7 @@
 # Memory index
 
+- [API server stale bundle](api-server-stale-bundle.md) — no hot reload; new routes 404 until the workflow rebuilds dist; check dist vs src mtimes on unexpected 404s.
+
 - [Mobile regen/enhance API](mobile-regen-enhance-api.md) — useRegenerateQuestion/useEnhanceQuestion signatures differ from web; no topic in data, improvedQuestionText not questionText.
 
 - [PDF code restore](pdf-code-restore.md) — how the Trivia Night app was reconstructed from a PDF code export; wrap-join loses spaces, YAML indentation must come from bbox coords.
