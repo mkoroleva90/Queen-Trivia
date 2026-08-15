@@ -352,7 +352,7 @@ export default function AdminLiveScreen() {
               QUESTION {qIndex + 1}/{sortedQs.length}
             </Text>
             <View style={[s.qCard, { backgroundColor: colors.card, borderColor: colors.primary + '66' }]}>
-              <Text style={[s.qNum, { color: colors.mutedForeground, width: undefined }]}>
+              <Text style={[s.playMeta, { color: colors.mutedForeground }]}>
                 {currentQ.questionType.replace(/_/g, ' ')} · {currentQ.points} pts
               </Text>
               <Text style={[s.playQText, { color: colors.foreground }]}>{currentQ.questionText}</Text>
@@ -365,7 +365,7 @@ export default function AdminLiveScreen() {
                 </Text>
               ) : (
                 <>
-                  <Text style={[s.qNum, { color: colors.accent, width: undefined }]}>
+                  <Text style={[s.playMeta, { color: colors.accent }]}>
                     {COPY.hostPlayAlong.yourAnswerPrompt}
                   </Text>
 
@@ -424,7 +424,7 @@ export default function AdminLiveScreen() {
                   )}
 
                   <Pressable onPress={() => skipCurrent(1)} disabled={submittingAnswer}>
-                    <Text style={[s.qNum, { color: colors.mutedForeground, width: undefined, textAlign: 'center', paddingVertical: 4 }]}>
+                    <Text style={[s.playMeta, { color: colors.mutedForeground, textAlign: 'center', paddingVertical: 4 }]}>
                       {COPY.hostPlayAlong.skipBtn}
                     </Text>
                   </Pressable>
@@ -569,6 +569,7 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     qCorrect: { fontSize: 13, fontFamily: 'Manrope_600SemiBold' },
     qText: { fontSize: 14, lineHeight: 20 },
     playQText: { fontSize: 16, lineHeight: 23, fontFamily: 'Manrope_700Bold' },
+    playMeta: { fontSize: 12, fontFamily: 'Manrope_700Bold', alignSelf: 'stretch' },
     choiceBtn: { borderWidth: 1, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14 },
     choiceText: { fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
     answerInput: { borderWidth: 1, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14, fontSize: 14 },
