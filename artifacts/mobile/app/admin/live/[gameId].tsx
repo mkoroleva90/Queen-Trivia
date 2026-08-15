@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -14,7 +15,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import * as SecureStore from 'expo-secure-store';
+import { getItem } from '@/lib/storage';
 import { ADMIN_TOKEN_KEY } from '@/context/AdminAuthContext';
 import {
   useListGames,
@@ -38,7 +39,7 @@ type QuestionStat = {
 };
 
 async function fetchAdminJson<T>(url: string): Promise<T> {
-  const token = await SecureStore.getItemAsync(ADMIN_TOKEN_KEY).catch(() => null);
+  const token = await getItem(ADMIN_TOKEN_KEY).catch(() => null);
   const r = await fetch(url, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
@@ -68,6 +69,13 @@ export default function AdminLiveScreen() {
   const [ending, setEnding] = useState(false);
   const [endGameError, setEndGameError] = useState<string | null>(null);
 
+  // ── Host play-along state ──
+  const [qIndex, setQIndex] = useState(0);
+  const [hostAnswers, setHostAnswers] = useState<Record<number, string>>({});
+  const [textAnswer, setTextAnswer] = useState('');
+  const [submittingAnswer, setSubmittingAnswer] = useState(false);
+  const [answerError, setAnswerError] = useState('');
+
   const { data: games, isLoading: gamesLoading, isError: gamesError } = useListGames();
   const game = games?.find((g) => g.id === gameId);
   const { data: questions } = useListGameQuestions(gameId);
@@ -87,7 +95,7 @@ export default function AdminLiveScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const token = await SecureStore.getItemAsync(ADMIN_TOKEN_KEY).catch(() => null);
+              const token = await getItem(ADMIN_TOKEN_KEY).catch(() => null);
               const r = await fetch(`${baseUrl}/api/games/${gameId}/participants/${userId}`, {
                 method: 'DELETE',
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -172,6 +180,80 @@ export default function AdminLiveScreen() {
   useAdminGameSocket(isNaN(gameId) ? null : gameId, { onAnswerSubmitted, onGameEnded });
 
   const totalPlayers = participants?.length ?? 0;
+
+  // ── Host play-along ──
+  const playAlong = !!game?.hostPlaysAlong;
+  const currentQ = sortedQs.length > 0 ? sortedQs[Math.min(qIndex, sortedQs.length - 1)] : undefined;
+  const currentAnswered = currentQ ? currentQ.id in hostAnswers : false;
+
+  /** Submits the host's answer. Returns true when the question is now answered
+   *  (successful submit or confirmed already-answered 409), false otherwise. */
+  const submitHostAnswer = async (answer: string): Promise<boolean> => {
+    if (!currentQ || submittingAnswer) return false;
+    if (currentAnswered) return true;
+    setSubmittingAnswer(true);
+    setAnswerError('');
+    try {
+      const token = await getItem(ADMIN_TOKEN_KEY).catch(() => null);
+      const r = await fetch(`${baseUrl}/api/games/${gameId}/host-answer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ questionId: currentQ.id, userAnswer: answer }),
+      });
+      if (r.status === 409) {
+        // Already answered (e.g. from another device) — adopt the persisted answer.
+        const body = await r.json().catch(() => null);
+        setHostAnswers((prev) => ({ ...prev, [currentQ.id]: body?.existingAnswer ?? '' }));
+        setTextAnswer('');
+        return true;
+      }
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setHostAnswers((prev) => ({ ...prev, [currentQ.id]: answer }));
+      setTextAnswer('');
+      void refetchParticipants();
+      return true;
+    } catch {
+      setAnswerError('Could not submit your answer — please retry');
+      return false;
+    } finally {
+      setSubmittingAnswer(false);
+    }
+  };
+
+  const skipCurrent = (direction: 1 | -1) => {
+    if (!currentQ || submittingAnswer) return;
+    Alert.alert(
+      COPY.hostPlayAlong.skipDialogTitle,
+      COPY.hostPlayAlong.skipDialogBody,
+      [
+        { text: COPY.hostPlayAlong.skipDialogGoBack, style: 'cancel' },
+        {
+          text: COPY.hostPlayAlong.skipDialogSkip,
+          style: 'destructive',
+          onPress: async () => {
+            // Only navigate once the skip is actually recorded.
+            const ok = await submitHostAnswer('');
+            if (ok) setQIndex((i) => Math.max(0, Math.min(sortedQs.length - 1, i + direction)));
+          },
+        },
+      ],
+    );
+  };
+
+  const goToQuestion = (direction: 1 | -1) => {
+    if (!currentQ || submittingAnswer) return;
+    const next = qIndex + direction;
+    if (next < 0 || next > sortedQs.length - 1) return;
+    if (playAlong && !currentAnswered) {
+      skipCurrent(direction);
+    } else {
+      setQIndex(next);
+      setTextAnswer('');
+    }
+  };
 
   const handleEndGame = async () => {
     setEnding(true);
@@ -263,6 +345,119 @@ export default function AdminLiveScreen() {
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
+        {/* ── Host play-along question card ── */}
+        {playAlong && currentQ && (
+          <>
+            <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>
+              QUESTION {qIndex + 1}/{sortedQs.length}
+            </Text>
+            <View style={[s.qCard, { backgroundColor: colors.card, borderColor: colors.primary + '66' }]}>
+              <Text style={[s.qNum, { color: colors.mutedForeground, width: undefined }]}>
+                {currentQ.questionType.replace(/_/g, ' ')} · {currentQ.points} pts
+              </Text>
+              <Text style={[s.playQText, { color: colors.foreground }]}>{currentQ.questionText}</Text>
+
+              {currentAnswered ? (
+                <Text style={[s.qAnswered, { color: colors.secondary }]}>
+                  {hostAnswers[currentQ.id]
+                    ? `YOUR ANSWER — ${hostAnswers[currentQ.id]}`
+                    : 'Not answered · 0 pts'}
+                </Text>
+              ) : (
+                <>
+                  <Text style={[s.qNum, { color: colors.accent, width: undefined }]}>
+                    {COPY.hostPlayAlong.yourAnswerPrompt}
+                  </Text>
+
+                  {currentQ.questionType === 'multiple_choice' && (
+                    ((currentQ.options as { choices?: string[] } | null)?.choices ?? []).map((choice) => (
+                      <Pressable
+                        key={choice}
+                        style={[s.choiceBtn, { borderColor: colors.border, backgroundColor: colors.background }]}
+                        disabled={submittingAnswer}
+                        onPress={() => submitHostAnswer(choice)}
+                      >
+                        <Text style={[s.choiceText, { color: colors.foreground }]}>{choice}</Text>
+                      </Pressable>
+                    ))
+                  )}
+
+                  {currentQ.questionType === 'true_false' && (
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                      {['True', 'False'].map((v) => (
+                        <Pressable
+                          key={v}
+                          style={[s.choiceBtn, { flex: 1, borderColor: colors.border, backgroundColor: colors.background }]}
+                          disabled={submittingAnswer}
+                          onPress={() => submitHostAnswer(v)}
+                        >
+                          <Text style={[s.choiceText, { color: colors.foreground, textAlign: 'center' }]}>{v}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+
+                  {(currentQ.questionType === 'write_in' || currentQ.questionType === 'short_response') && (
+                    <View style={{ gap: 8 }}>
+                      <TextInput
+                        style={[s.answerInput, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.background }]}
+                        value={textAnswer}
+                        onChangeText={setTextAnswer}
+                        placeholder="Type your answer…"
+                        placeholderTextColor={colors.mutedForeground}
+                        onSubmitEditing={() => textAnswer.trim() && submitHostAnswer(textAnswer.trim())}
+                      />
+                      <Pressable
+                        style={[s.choiceBtn, { borderColor: colors.primary, backgroundColor: colors.primary, opacity: submittingAnswer || !textAnswer.trim() ? 0.6 : 1 }]}
+                        disabled={submittingAnswer || !textAnswer.trim()}
+                        onPress={() => submitHostAnswer(textAnswer.trim())}
+                      >
+                        <Text style={[s.choiceText, { color: '#fff', textAlign: 'center' }]}>Submit</Text>
+                      </Pressable>
+                    </View>
+                  )}
+
+                  {!['multiple_choice', 'true_false', 'write_in', 'short_response'].includes(currentQ.questionType) && (
+                    <Text style={[s.qText, { color: colors.mutedForeground }]}>
+                      This question type can't be answered from the host screen — skip it to keep playing.
+                    </Text>
+                  )}
+
+                  <Pressable onPress={() => skipCurrent(1)} disabled={submittingAnswer}>
+                    <Text style={[s.qNum, { color: colors.mutedForeground, width: undefined, textAlign: 'center', paddingVertical: 4 }]}>
+                      {COPY.hostPlayAlong.skipBtn}
+                    </Text>
+                  </Pressable>
+                </>
+              )}
+
+              {!!answerError && (
+                <Text style={[s.qText, { color: colors.destructive }]}>{answerError}</Text>
+              )}
+
+              {/* Prev / Next */}
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <Pressable
+                  style={[s.navBtn, { borderColor: colors.border, opacity: qIndex === 0 ? 0.4 : 1 }]}
+                  disabled={qIndex === 0}
+                  onPress={() => goToQuestion(-1)}
+                >
+                  <Ionicons name="chevron-back" size={16} color={colors.foreground} />
+                  <Text style={[s.choiceText, { color: colors.foreground }]}>Prev</Text>
+                </Pressable>
+                <Pressable
+                  style={[s.navBtn, { borderColor: colors.border, opacity: qIndex >= sortedQs.length - 1 ? 0.4 : 1 }]}
+                  disabled={qIndex >= sortedQs.length - 1}
+                  onPress={() => goToQuestion(1)}
+                >
+                  <Text style={[s.choiceText, { color: colors.foreground }]}>Next</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.foreground} />
+                </Pressable>
+              </View>
+            </View>
+          </>
+        )}
+
         <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>ANSWER PROGRESS</Text>
         {sortedQs.length === 0 ? (
           <Text style={[s.emptyText, { color: colors.mutedForeground }]}>No questions in this game.</Text>
@@ -373,6 +568,11 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     qAnswered: { flex: 1, fontSize: 13, fontFamily: 'Manrope_600SemiBold' },
     qCorrect: { fontSize: 13, fontFamily: 'Manrope_600SemiBold' },
     qText: { fontSize: 14, lineHeight: 20 },
+    playQText: { fontSize: 16, lineHeight: 23, fontFamily: 'Manrope_700Bold' },
+    choiceBtn: { borderWidth: 1, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14 },
+    choiceText: { fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
+    answerInput: { borderWidth: 1, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14, fontSize: 14 },
+    navBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderWidth: 1, borderRadius: 12, paddingVertical: 10 },
     progressBg: { height: 4, borderRadius: 2, overflow: 'hidden' },
     progressFill: { height: 4, borderRadius: 2 },
     playerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1 },
