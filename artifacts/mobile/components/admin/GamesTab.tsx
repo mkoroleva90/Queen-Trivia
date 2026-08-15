@@ -306,7 +306,11 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
             <Pressable
               key={game.id}
               style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={(e) => { if (renamingId === game.id) { e.stopPropagation(); return; } router.push(`/admin/${game.id}`); }}
+              onPress={(e) => {
+                if (renamingId === game.id || codeEditId === game.id) { e.stopPropagation(); return; }
+                if (game.status === 'active') { router.push(`/admin/live/${game.id}`); return; }
+                router.push(`/admin/${game.id}`);
+              }}
             >
               <View style={s.cardTop}>
                 <View style={[s.statusChip, { backgroundColor: (STATUS_COLORS[game.status] ?? '#888') + '22' }]}>
