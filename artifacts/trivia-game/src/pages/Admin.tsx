@@ -3677,6 +3677,7 @@ function GamesView({
   const deleteGame = useDeleteGame();
   const [editingCodeId, setEditingCodeId] = useState<number | null>(null);
   const [codeDraft, setCodeDraft] = useState("");
+  const [codeError, setCodeError] = useState<string | null>(null);
   const [copiedCodeId, setCopiedCodeId] = useState<number | null>(null);
   const [editingNameId, setEditingNameId] = useState<number | null>(null);
   const [nameDraft, setNameDraft] = useState("");
@@ -3687,6 +3688,7 @@ function GamesView({
   const startEditCode = (game: Game) => {
     setEditingCodeId(game.id);
     setCodeDraft(game.accessCode ?? "");
+    setCodeError(null);
   };
 
   const startEditName = (game: Game) => {
@@ -3721,21 +3723,25 @@ function GamesView({
   const saveCode = (game: Game) => {
     const code = codeDraft.trim().toUpperCase();
     if (!/^[A-Z0-9]{4,12}$/.test(code)) {
-      toast({ variant: "destructive", title: "Room codes must be 4–12 letters or numbers" });
+      setCodeError(COPY.joinCode.invalidError);
       return;
     }
-    if (code === (game.accessCode ?? "")) { setEditingCodeId(null); return; }
+    if (code === (game.accessCode ?? "")) { setEditingCodeId(null); setCodeError(null); return; }
     updateGame.mutate(
       { gameId: game.id, data: { accessCode: code } },
       {
         onSuccess: () => {
           setEditingCodeId(null);
+          setCodeError(null);
           invalidate();
           toast({ title: `Room code updated to ${code}` });
         },
         onError: (err: any) => {
-          const msg = err?.response?.data?.error ?? "Failed to update room code";
-          toast({ variant: "destructive", title: msg });
+          const errCode = err?.response?.data?.code ?? err?.data?.code;
+          const status = err?.response?.status ?? err?.status ?? 0;
+          if (errCode === "content_filtered") setCodeError(COPY.contentFilter.accessCode);
+          else if (errCode === "code_taken" || status === 409) setCodeError(COPY.joinCode.takenError);
+          else setCodeError(COPY.joinCode.invalidError);
         },
       }
     );
@@ -3924,36 +3930,39 @@ function GamesView({
 
               <div className="mb-6 flex-1">
                   {editingCodeId === game.id ? (
-                    <div className="flex items-center gap-1.5">
-                      <Input
-                        value={codeDraft}
-                        onChange={(e) => setCodeDraft(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12))}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") saveCode(game);
-                          if (e.key === "Escape") setEditingCodeId(null);
-                        }}
-                        autoFocus
-                        className="h-8 flex-1 font-mono text-sm tracking-widest bg-[#0a1019] border-[#1b2740] text-white"
-                        aria-label="Room code"
-                      />
-                      <Button
-                        size="icon"
-                        className="h-8 w-8 shrink-0 bg-[#35d07f] hover:bg-[#35d07f]/90 text-black"
-                        aria-label="Save room code"
-                        disabled={updateGame.isPending}
-                        onClick={() => saveCode(game)}
-                      >
-                        <Check className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        className="h-8 w-8 shrink-0 border-[#1b2740] bg-[#0a1019] text-[#9aa6bc] hover:bg-[#1b2740]"
-                        aria-label="Cancel editing room code"
-                        onClick={() => setEditingCodeId(null)}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <Input
+                          value={codeDraft}
+                          onChange={(e) => { setCodeDraft(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12)); setCodeError(null); }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveCode(game);
+                            if (e.key === "Escape") { setEditingCodeId(null); setCodeError(null); }
+                          }}
+                          autoFocus
+                          className="h-8 flex-1 font-mono text-sm tracking-widest bg-[#0a1019] border-[#1b2740] text-white"
+                          aria-label="Room code"
+                        />
+                        <Button
+                          size="icon"
+                          className="h-8 w-8 shrink-0 bg-[#35d07f] hover:bg-[#35d07f]/90 text-black"
+                          aria-label="Save room code"
+                          disabled={updateGame.isPending}
+                          onClick={() => saveCode(game)}
+                        >
+                          <Check className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="h-8 w-8 shrink-0 border-[#1b2740] bg-[#0a1019] text-[#9aa6bc] hover:bg-[#1b2740]"
+                          aria-label="Cancel editing room code"
+                          onClick={() => { setEditingCodeId(null); setCodeError(null); }}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      {codeError && <p className="mt-1 text-xs text-red-400">{codeError}</p>}
                     </div>
                   ) : game.accessCode != null ? (
                     <div className="flex items-center gap-1.5">

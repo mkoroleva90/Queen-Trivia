@@ -85,12 +85,12 @@ function randomAccessCode(): string {
  return generateTriviaCode(10);
 }
 
-// Host-chosen custom join codes: 6–12 characters, letters and digits only
+// Host-chosen custom join codes: 4–12 characters, letters and digits only
 // (case-insensitive input; uppercased before storing). Applies only to newly
 // entered codes — existing games are never re-validated.
 const CUSTOM_ACCESS_CODE_PATTERN = /^[A-Za-z0-9]{4,12}$/;
 const INVALID_ACCESS_CODE_MESSAGE =
- "Join code must be 6\u201312 characters using only letters A\u2013Z and numbers 0\u20139, with no spaces.";
+ "Join code must be 4\u201312 characters using only letters A\u2013Z and numbers 0\u20139, with no spaces.";
 
 router.post("/games", requireAdmin, async (req, res): Promise<void> => {
  const parsed = CreateGameBody.safeParse(req.body);
@@ -252,7 +252,7 @@ router.patch("/games/:gameId", requireAdmin, async (req, res): Promise<void> => 
      return;
  }
 
- // Newly entered custom room codes must match the shared rule: 6–12 chars,
+ // Newly entered custom room codes must match the shared rule: 4–12 chars,
  // A–Z / 0–9 only (the generated body schema allows 4+, so enforce here too).
  if (parsed.data.accessCode !== undefined
      && !CUSTOM_ACCESS_CODE_PATTERN.test(parsed.data.accessCode.trim())) {

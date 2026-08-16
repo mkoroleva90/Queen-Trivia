@@ -205,7 +205,7 @@ export const COPY = {
     helper:       '4–12 letters or numbers. No spaces.',
     /** Continue button. */
     continueBtn:  'Continue',
-    /** Field-level error for a code that fails the 6–12 A–Z 0–9 format. */
+    /** Field-level error for a code that fails the 4–12 A–Z 0–9 format. */
     invalidError: 'Use 4–12 letters and numbers only.',
     /** Field-level error when another game already uses the code (409 code_taken). */
     takenError:   "That code's taken — try another.",

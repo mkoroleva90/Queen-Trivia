@@ -166,8 +166,8 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
 
   const handleCodeSave = async (game: Game) => {
     const code = codeText.trim().toUpperCase();
-    if (!code) {
-      setCodeError('Code cannot be empty');
+    if (!/^[A-Z0-9]{4,12}$/.test(code)) {
+      setCodeError(COPY.joinCode.invalidError);
       return;
     }
     if (code === game.accessCode) {
@@ -185,9 +185,13 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
       qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
       cancelCodeEdit();
     } catch (err) {
-      const msg = err instanceof Error && /409/.test(err.message)
-        ? 'That code is already taken — try another'
-        : 'Could not save the code. It must be 4–12 letters or numbers.';
+      const errCode = (err as any)?.data?.code ?? (err as any)?.response?.data?.code;
+      const status = (err as any)?.status ?? (err as any)?.response?.status ?? 0;
+      const msg = errCode === 'content_filtered'
+        ? COPY.contentFilter.accessCode
+        : (errCode === 'code_taken' || status === 409)
+          ? COPY.joinCode.takenError
+          : COPY.joinCode.invalidError;
       setCodeError(msg);
     } finally {
       setCodeSaving(false);
@@ -323,7 +327,7 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
                     <TextInput
                       style={[s.codeInput, { color: colors.foreground, borderColor: colors.primary, backgroundColor: colors.muted }]}
                       value={codeText}
-                      onChangeText={(t) => { setCodeText(t.toUpperCase()); setCodeError(null); }}
+                      onChangeText={(t) => { setCodeText(t.toUpperCase().replace(/[^A-Z0-9]/g, '')); setCodeError(null); }}
                       autoFocus
                       autoCapitalize="characters"
                       maxLength={12}
