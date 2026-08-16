@@ -103,6 +103,7 @@ Plus,
 Trash2,
 Pencil,
 Play,
+Info,
 Flag,
 ListChecks,
 X,
@@ -1380,9 +1381,6 @@ const [runMode, setRunMode] = useState<RunMode | null>(null);
 const [runModeChosen, setRunModeChosen] = useState(false);
 const [joinCodeChosen, setJoinCodeChosen] = useState(false);
 const [joinCodeError, setJoinCodeError] = useState<string | null>(null);
-const [codeCopied, setCodeCopied] = useState(false);
-const [codeInput, setCodeInput] = useState("");
-const [codeSaving, setCodeSaving] = useState(false);
 
 const [upgradeLimitMsg, setUpgradeLimitMsg] = useState<string | null>(null);
 const { toast } = useToast();
@@ -1398,12 +1396,6 @@ useEffect(() => {
  const t = setTimeout(() => setRetryCountdown((n) => Math.max(0, n - 1)), 1000);
  return () => clearTimeout(t);
 }, [retryCountdown]);
-
-useEffect(() => {
- if (created?.accessCode) setCodeInput(created.accessCode);
-}, [created?.accessCode]);
-
-
 
 const parseGeminiRateError = (err: unknown): { isDaily: boolean; isPerMinute: boolean; countdown: number } => {
  const status = err && typeof err === "object" && "status" in err ? (err as { status: number }).status : 0;
@@ -1573,23 +1565,6 @@ const handleReset = () => {
  setJoinCodeError(null);
 };
 
-const saveCode = () => {
- const code = codeInput.trim().toUpperCase();
- if (!code || !created || code === created.accessCode) return;
- setCodeSaving(true);
- updateGame.mutate(
-   { gameId: created.id, data: { accessCode: code } },
-   {
-     onSuccess: () => {
-       setCreated((prev) => prev ? { ...prev, accessCode: code } : prev);
-       setCodeSaving(false);
-     },
-     onError: () => setCodeSaving(false),
-   }
- );
-};
-
-
 if (created && importedCount !== null && !working && !runModeChosen) {
  return (
      <RunModeScreen
@@ -1630,6 +1605,90 @@ if (created && importedCount !== null && !working && !joinCodeChosen) {
  );
 }
 
+if (created && importedCount !== null && !working) {
+ // ── "Ready to go live" confirmation ──
+ return (
+     <motion.div
+         variants={createGameSuccessVariants}
+         initial="hidden"
+         animate="visible"
+         className="space-y-4"
+     >
+      <FreeTierLimitModal msg={upgradeLimitMsg} onClose={() => setUpgradeLimitMsg(null)} />
+      <div className="mx-auto w-full max-w-[480px] rounded-[24px] border-[1.5px] border-[rgba(25,210,237,0.3)] bg-[#0c1116] px-11 py-10 text-center">
+       <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border-[3px] border-[#19d2ed]">
+         <Check className="h-8 w-8 text-[#19d2ed]" strokeWidth={3} />
+       </span>
+       <h3 className="mt-4 text-[30px] font-bold leading-tight text-white">{COPY.readyToGoLive.title}</h3>
+       <p className="mt-2 text-[15px] text-[#8b93a4]">
+         {COPY.readyToGoLive.subtitle(
+           created.topic,
+           importedCount,
+           importSource === "gemini" ? "Gemini AI" : "Open Trivia Database",
+         )}
+       </p>
+       <div className="mt-6 space-y-3 text-left">
+         <div className="flex items-center gap-3 rounded-[14px] border border-[#1e2431] bg-[#0f1420] px-4 py-[14px]">
+           <div className="min-w-0 flex-1">
+             <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#6b7387]">{COPY.readyToGoLive.joinLabel}</p>
+             <p className="text-xl font-bold tracking-[0.12em] text-[#ffde17]">{created.accessCode}</p>
+           </div>
+           <button
+             type="button"
+             onClick={() => setJoinCodeChosen(false)}
+             className="text-sm font-semibold text-[#19d2ed] hover:brightness-110 transition"
+           >
+             {COPY.readyToGoLive.editLink}
+           </button>
+         </div>
+         <div className="flex items-center gap-3 rounded-[14px] border border-[rgba(245,19,140,0.45)] bg-[rgba(245,19,140,0.10)] px-4 py-[14px]">
+           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-[rgba(245,19,140,0.22)]">
+             <CrownMark width={22} color="#f5138c" />
+           </span>
+           <div className="min-w-0 flex-1">
+             <p className="text-[15px] font-bold text-white">
+               {playAlong ? COPY.runMode.hostPlayLabel : COPY.runMode.hostOnlyLabel}
+             </p>
+             <p className="text-[13px] text-[#9aa3b2]">
+               {playAlong ? COPY.readyToGoLive.hostPlayDescWeb : COPY.readyToGoLive.hostOnlyDesc}
+             </p>
+           </div>
+           <button
+             type="button"
+             onClick={() => setRunModeChosen(false)}
+             className="text-sm font-semibold text-[#19d2ed] hover:brightness-110 transition"
+           >
+             {COPY.readyToGoLive.changeLink}
+           </button>
+         </div>
+       </div>
+       <div className="mt-7 flex gap-[14px]">
+        <button
+          type="button"
+          className="flex-1 rounded-[14px] border-[1.5px] border-[#2b3446] py-[14px] text-[15px] font-bold text-white transition hover:border-[#445067]"
+          onClick={() => onCreated(created)}
+        >
+          {COPY.readyToGoLive.reviewBtn}
+        </button>
+        <button
+          type="button"
+          className="flex flex-1 items-center justify-center gap-2 rounded-[14px] bg-[#f5138c] py-[14px] text-[15px] font-bold text-white transition hover:bg-[#ff2a9c] disabled:opacity-60"
+          disabled={updateGame.isPending}
+          onClick={() => updateGame.mutate(
+            { gameId: created.id, data: { status: "active", hostPlaysAlong: playAlong } },
+            { onSuccess: () => { queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() }); onGoLive?.(created); } }
+          )}
+        >
+          {updateGame.isPending
+            ? <><Loader2 className="h-4 w-4 animate-spin" />Going live…</>
+            : <><Play className="h-4 w-4 fill-current" />{COPY.readyToGoLive.goLiveBtn}</>}
+        </button>
+       </div>
+      </div>
+     </motion.div>
+    );
+}
+
 if (created) {
  return (
      <motion.div
@@ -1646,72 +1705,6 @@ if (created) {
        <Loader2 className="mx-auto h-14 w-14 text-primary animate-spin" />
        <h3 className="text-2xl font-bold tracking-tight">{workingLabel}</h3>
       <p className="text-muted-foreground text-sm">This may take a fewseconds…</p>
-      </>
-     ) : importedCount !== null ? (
-      <>
-       <CheckCircle2 className="mx-auto h-14 w-14 text-secondary" />
-       <h3 className="text-2xl font-bold tracking-tight">Ready to Go!</h3>
-       <p className="text-muted-foreground">
-        <span className="font-semibold text-foreground">{created.topic}</span>{" "}
-        — <span className="font-semibold text-secondary">{importedCount} questions</span>{" "}
-         {importSource === "gemini" ? "generated by Gemini AI" : "imported from Open Trivia Database"}.
-       </p>
-       <div className="flex flex-col items-center gap-2 py-1">
-         <p className="text-[10px] font-bold tracking-[.15em] text-muted-foreground">PLAYER JOIN CODE</p>
-         <div className="flex items-center gap-2">
-           <input
-             type="text"
-             value={codeInput}
-             onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
-             onKeyDown={(e) => { if (e.key === 'Enter') saveCode(); }}
-             placeholder="e.g. SPORTS"
-             maxLength={20}
-             className="font-mono text-xl font-extrabold tracking-[.2em] text-secondary bg-secondary/10 border border-secondary/30 rounded-xl px-4 py-2 w-44 text-center focus:outline-none focus:border-secondary/60 placeholder:text-muted-foreground/40 placeholder:text-sm placeholder:tracking-normal placeholder:font-normal"
-             aria-label="Player join code"
-           />
-           <Button
-             size="sm"
-             variant="outline"
-             onClick={saveCode}
-             disabled={codeSaving || !codeInput.trim() || codeInput.trim().toUpperCase() === (created.accessCode ?? "")}
-           >
-             {codeSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
-           </Button>
-           <button
-             onClick={async () => {
-               try {
-                 await navigator.clipboard.writeText(codeInput || created.accessCode || "");
-                 setCodeCopied(true);
-                 setTimeout(() => setCodeCopied(false), 1500);
-               } catch { /* ignore */ }
-             }}
-             className="p-2 rounded-lg border border-border hover:bg-muted/50 transition"
-             aria-label="Copy join code"
-           >
-             {codeCopied ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4 text-muted-foreground" />}
-           </button>
-         </div>
-         <p className="text-[11px] text-muted-foreground">
-           {codeCopied ? "Copied!" : "Choose a code your players will remember, then save it"}
-         </p>
-       </div>
-       <div className="flex justify-center gap-3 pt-2">
-        <Button variant="outline" className="font-bold" onClick={() => onCreated(created)}>
-           <ListChecks className="mr-2 h-4 w-4" /> Review Questions
-        </Button>
-        <Button
-          className="font-bold"
-          disabled={updateGame.isPending}
-          onClick={() => updateGame.mutate(
-            { gameId: created.id, data: { status: "active", hostPlaysAlong: playAlong } },
-            { onSuccess: () => { queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() }); onGoLive?.(created); } }
-          )}
-        >
-          {updateGame.isPending
-            ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Going live…</>
-            : <>▶ Go Live</>}
-        </Button>
-       </div>
       </>
      ) : importError ? (
       <>
@@ -3039,6 +3032,9 @@ function AdminGate() {
 // NEW DESIGN COMPONENTS
 // -----------------------------------------------------------------
 
+/** localStorage key prefix for the one-time "Host & play" live-screen banner (per game). */
+const LIVE_BANNER_DISMISSED_KEY = "qt.liveBannerDismissed";
+
 const AVATAR_COLORS: [string, string][] = [
   ["#ff0080", "#ffffff"], ["#00ddff", "#062430"], ["#ffe500", "#3a2f00"],
   ["#35d07f", "#08130c"], ["#a78bfa", "#1a0f3d"], ["#ff8a4c", "#2b1200"],
@@ -3052,6 +3048,19 @@ function LiveGameView({
   endGame: (id: number) => void;
 }) {
   const queryClient = useQueryClient();
+
+  // ── First-run reassurance banner (Host & play only, persisted per game) ──
+  const liveBannerKey = activeGame ? `${LIVE_BANNER_DISMISSED_KEY}.${activeGame.id}` : null;
+  const [liveBannerDismissedKeys, setLiveBannerDismissedKeys] = useState<Record<string, true>>({});
+  const liveBannerDismissed =
+    !liveBannerKey ||
+    liveBannerDismissedKeys[liveBannerKey] === true ||
+    (() => { try { return localStorage.getItem(liveBannerKey) === "1"; } catch { return true; } })();
+  const dismissLiveBanner = () => {
+    if (!liveBannerKey) return;
+    setLiveBannerDismissedKeys((prev) => ({ ...prev, [liveBannerKey]: true }));
+    try { localStorage.setItem(liveBannerKey, "1"); } catch { /* ignore */ }
+  };
 
   // ── Player removal (kick) state ───────────────────────────────────────────
   const [kickTarget, setKickTarget] = useState<{ userId: number; userName: string } | null>(null);
@@ -3301,6 +3310,27 @@ function LiveGameView({
           </button>
         </div>
       </div>
+
+      {/* ── First-run reassurance banner (Host & play only) ── */}
+      {activeGame.hostPlaysAlong && !liveBannerDismissed && (
+        <div
+          className="flex items-center gap-3 rounded-[14px] border border-[rgba(245,19,140,0.4)] px-4 py-[15px]"
+          style={{ background: "linear-gradient(90deg, rgba(245,19,140,0.16), rgba(25,210,237,0.10))" }}
+        >
+          <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-[rgba(245,19,140,0.25)]">
+            <Info className="h-4 w-4 text-[#f5138c]" />
+          </span>
+          <p className="flex-1 text-[15px] font-semibold text-white">{COPY.liveBanner.text}</p>
+          <button
+            type="button"
+            onClick={dismissLiveBanner}
+            aria-label="Dismiss"
+            className="text-[19px] leading-none text-[#8b93a4] hover:text-white transition"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-col lg:flex-row gap-4 items-start">
         {/* ── LEFT: question card + transport ── */}

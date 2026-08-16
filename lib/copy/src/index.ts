@@ -198,17 +198,60 @@ export const COPY = {
     /** Screen title. */
     title:        'Choose your join code',
     /** Subtitle beneath the title. */
-    subtitle:     'This is the code players type to join. Keep the one we picked, or make your own.',
+    subtitle:     "Players type this code to join your game. Pick something they'll remember.",
     /** Label above the code input. */
-    inputLabel:   'Join code',
+    inputLabel:   'Player join code',
     /** Helper text beneath the input. */
-    helper:       '6–12 letters and numbers.',
+    helper:       '6–12 letters or numbers. No spaces.',
     /** Continue button. */
     continueBtn:  'Continue',
     /** Field-level error for a code that fails the 6–12 A–Z 0–9 format. */
     invalidError: 'Use 6–12 letters and numbers only.',
     /** Field-level error when another game already uses the code (409 code_taken). */
     takenError:   "That code's taken — try another.",
+  },
+
+  /**
+   * "Ready to go live" confirmation — the final screen before a host starts
+   * the game, on BOTH web and mobile. Replaces the old "Ready to Go!" success
+   * screen. Title and button labels are identical on both platforms; only the
+   * host-and-play mode description differs (web mentions the standings).
+   */
+  readyToGoLive: {
+    /** Screen title — identical on web and mobile. */
+    title:            'Ready to go live',
+    /**
+     * Dynamic subtitle: `{category} — {n} questions imported from {source}.`
+     * `source` is a display name, e.g. "Gemini AI" or "Open Trivia Database".
+     */
+    subtitle:         (category: string, count: number, source: string) =>
+                        `${category} — ${count} question${count === 1 ? '' : 's'} imported from ${source}.`,
+    /** Label above the join-code value in the summary row. */
+    joinLabel:        'Players join with',
+    /** Link that returns to the Choose-join-code step. */
+    editLink:         'Edit',
+    /** Link that returns to the run-mode choice step. */
+    changeLink:       'Change',
+    /** Host & play mode description — WEB wording. */
+    hostPlayDescWeb:  "You'll answer from your own screen and appear in the standings.",
+    /** Host & play mode description — MOBILE wording. */
+    hostPlayDescMobile: "You'll answer from your own screen.",
+    /** Host-only mode description — both platforms. */
+    hostOnlyDesc:     "You won't appear in the standings.",
+    /** Secondary button — opens the question list. */
+    reviewBtn:        'Review questions',
+    /** Primary button — starts the game. Identical on both platforms. */
+    goLiveBtn:        'Go Live',
+  },
+
+  /**
+   * First-run reassurance banner on the live control screen — shown only when
+   * the host chose "Host & play", dismissible, and persisted per host so it
+   * never reappears once dismissed. Both platforms read this key.
+   */
+  liveBanner: {
+    /** Banner text. */
+    text: "Your questions appear right here once you're live.",
   },
 
   /**

@@ -1,7 +1,6 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { COPY } from '@workspace/copy';
-import { useColors } from '@/hooks/useColors';
+import { CrownMark } from '@/components/CrownMark';
 
 export type RunMode = 'hostOnly' | 'hostPlay';
 
@@ -13,91 +12,123 @@ type Props = {
   onContinue: () => void;
 };
 
-const OPTIONS: Array<{ mode: RunMode; label: string; desc: string; icon: 'ribbon' | 'people' }> = [
-  { mode: 'hostOnly', label: COPY.runMode.hostOnlyLabel, desc: COPY.runMode.hostOnlyDesc, icon: 'ribbon' },
-  { mode: 'hostPlay', label: COPY.runMode.hostPlayLabel, desc: COPY.runMode.hostPlayDesc, icon: 'people' },
+const OPTIONS: Array<{ mode: RunMode; label: string; desc: string }> = [
+  { mode: 'hostOnly', label: COPY.runMode.hostOnlyLabel, desc: COPY.runMode.hostOnlyDesc },
+  { mode: 'hostPlay', label: COPY.runMode.hostPlayLabel, desc: COPY.runMode.hostPlayDesc },
 ];
 
 /**
  * Run-mode choice screen — shown immediately after a host creates a game,
- * before the setup success screen. The choice feeds the same
- * host-plays-along flag the old "Play along" checkbox set.
+ * before the join-code step. Design-handoff "1c" treatment: stacked
+ * radio-list rows with a full-width Continue button.
  */
 export function RunModeScreen({ value, onSelect, onContinue }: Props) {
-  const colors = useColors();
-
   return (
     <View style={s.container}>
-      <Text style={[s.title, { color: colors.foreground }]}>{COPY.runMode.title}</Text>
-      <Text style={[s.subtitle, { color: colors.mutedForeground }]}>{COPY.runMode.subtitle}</Text>
+      <View style={{ gap: 6 }}>
+        <Text style={s.title}>{COPY.runMode.title}</Text>
+        <Text style={s.subtitle}>{COPY.runMode.subtitle}</Text>
+      </View>
 
-      {OPTIONS.map(({ mode, label, desc, icon }) => {
-        const selected = value === mode;
-        return (
-          <Pressable
-            key={mode}
-            onPress={() => onSelect(mode)}
-            style={[
-              s.option,
-              {
-                borderColor: selected ? colors.primary : colors.border,
-                backgroundColor: selected ? colors.primary + '14' : colors.card,
-              },
-            ]}
-          >
-            <Ionicons
-              name={icon}
-              size={24}
-              color={selected ? colors.primary : colors.mutedForeground}
-            />
-            <View style={{ flex: 1, gap: 3 }}>
-              <Text style={[s.optionLabel, { color: colors.foreground }]}>{label}</Text>
-              <Text style={[s.optionDesc, { color: colors.mutedForeground }]}>{desc}</Text>
-            </View>
-            <Ionicons
-              name={selected ? 'checkmark-circle' : 'ellipse-outline'}
-              size={22}
-              color={selected ? colors.primary : colors.border}
-            />
-          </Pressable>
-        );
-      })}
+      <View style={s.list}>
+        {OPTIONS.map(({ mode, label, desc }) => {
+          const selected = value === mode;
+          return (
+            <Pressable
+              key={mode}
+              onPress={() => onSelect(mode)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected }}
+              style={[
+                s.row,
+                selected
+                  ? {
+                      backgroundColor: 'rgba(245,19,140,0.10)',
+                      borderColor: '#f5138c',
+                      shadowColor: '#f5138c',
+                      shadowOffset: { width: 0, height: 0 },
+                      shadowOpacity: 0.35,
+                      shadowRadius: 5,
+                      elevation: 4,
+                    }
+                  : { backgroundColor: '#12151f', borderColor: '#232a38' },
+              ]}
+            >
+              <View
+                style={[
+                  s.iconTile,
+                  { backgroundColor: selected ? 'rgba(245,19,140,0.22)' : 'rgba(25,210,237,0.12)' },
+                ]}
+              >
+                <CrownMark size={24} color={selected ? '#f5138c' : '#19d2ed'} />
+              </View>
+              <View style={{ flex: 1, gap: 3 }}>
+                <Text style={s.rowLabel}>{label}</Text>
+                <Text style={s.rowDesc}>{desc}</Text>
+              </View>
+              <View style={[s.radioRing, selected ? s.radioRingSelected : null]}>
+                {selected && <View style={s.radioDot} />}
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
 
       <Pressable
-        style={[s.continueBtn, { backgroundColor: colors.primary, opacity: value === null ? 0.4 : 1 }]}
+        style={[s.continueBtn, { opacity: value === null ? 0.4 : 1 }]}
         onPress={onContinue}
         disabled={value === null}
       >
         <Text style={s.continueText}>{COPY.runMode.continueBtn}</Text>
-        <Ionicons name="arrow-forward" size={16} color="#fff" />
       </Pressable>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  container: { gap: 12 },
-  title: { fontSize: 20, fontFamily: 'Manrope_800ExtraBold', textAlign: 'center', marginTop: 4 },
-  subtitle: { fontSize: 13, textAlign: 'center', lineHeight: 18, marginBottom: 6 },
-  option: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderWidth: 2,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  optionLabel: { fontSize: 15, fontFamily: 'Manrope_700Bold' },
-  optionDesc: { fontSize: 13, lineHeight: 18 },
-  continueBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderRadius: 14,
-    paddingVertical: 14,
+  container: { gap: 20 },
+  title: {
+    fontSize: 21,
+    fontFamily: 'Manrope_700Bold',
+    color: '#ffffff',
     marginTop: 4,
   },
-  continueText: { color: '#fff', fontSize: 15, fontFamily: 'Manrope_700Bold' },
+  subtitle: { fontSize: 13, lineHeight: 18, color: '#8b93a4' },
+  list: { gap: 14 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 13,
+    borderWidth: 1.5,
+    borderRadius: 18,
+    padding: 16,
+  },
+  iconTile: {
+    width: 44,
+    height: 44,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowLabel: { fontSize: 16, fontFamily: 'Manrope_700Bold', color: '#ffffff' },
+  rowDesc: { fontSize: 12.5, lineHeight: 17.5, color: '#8b93a4' },
+  radioRing: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#39414f',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioRingSelected: { borderColor: '#f5138c', backgroundColor: '#f5138c' },
+  radioDot: { width: 9, height: 9, borderRadius: 4.5, backgroundColor: '#ffffff' },
+  continueBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f5138c',
+    borderRadius: 16,
+    padding: 16,
+  },
+  continueText: { color: '#fff', fontSize: 17, fontFamily: 'Manrope_700Bold' },
 });

@@ -6,14 +6,19 @@
 export function CrownMark({
   width = 26,
   gemHoles = false,
+  color,
   className,
   style,
 }: {
   width?: number | string;
   gemHoles?: boolean;
+  /** Monochrome tint (design-handoff cyan/magenta tiles); omit for brand colors. */
+  color?: string;
   className?: string;
   style?: React.CSSProperties;
 }) {
+  const crown = color ?? "#ff0080";
+  const gems = color ?? "#ffe500";
   return (
     <svg
       viewBox="0 0 100 84"
@@ -21,11 +26,11 @@ export function CrownMark({
       style={{ width, height: "auto", ...style }}
       aria-hidden="true"
     >
-      <path d="M8,66 L8,26 L30,46 L50,14 L70,46 L92,26 L92,66 Z" fill="#ff0080" />
-      <rect x="8" y="64" width="84" height="14" rx="4" fill="#ff0080" />
-      <circle cx="8" cy="24" r="6" fill="#ffe500" />
-      <circle cx="50" cy="12" r="7.5" fill="#ffe500" />
-      <circle cx="92" cy="24" r="6" fill="#ffe500" />
+      <path d="M8,66 L8,26 L30,46 L50,14 L70,46 L92,26 L92,66 Z" fill={crown} />
+      <rect x="8" y="64" width="84" height="14" rx="4" fill={crown} />
+      <circle cx="8" cy="24" r="6" fill={gems} />
+      <circle cx="50" cy="12" r="7.5" fill={gems} />
+      <circle cx="92" cy="24" r="6" fill={gems} />
       {gemHoles && (
         <>
           <circle cx="30" cy="71" r="3.6" fill="#0d0f15" opacity=".4" />

@@ -35,6 +35,7 @@ import {
   type TallyStore,
 } from '@workspace/live-tally';
 import { useColors } from '@/hooks/useColors';
+import { LiveBanner } from '@/components/admin/LiveBanner';
 import { useAdminGameSocket } from '@/hooks/useSocket';
 import { API_BASE_URL } from '@/lib/apiBase';
 
@@ -439,6 +440,9 @@ export function LiveTab({ bottomPadding }: Props) {
           </Text>
         </View>
       </View>
+
+      {/* ── First-run reassurance banner (Host & play only) ── */}
+      {game?.hostPlaysAlong ? <LiveBanner gameId={game.id} /> : null}
 
       {/* ── Question card ── */}
       <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>

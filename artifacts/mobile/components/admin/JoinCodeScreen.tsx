@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { COPY } from '@workspace/copy';
 import { useColors } from '@/hooks/useColors';
 
@@ -20,8 +19,8 @@ type Props = {
 
 /**
  * Join-code choice step — shown after the run-mode screen and before the
- * setup success screen. Saves via the existing PATCH /games/:id (handled by
- * the parent); unchanged codes just continue.
+ * "Ready to go live" confirmation. Saves via the existing PATCH /games/:id
+ * (handled by the parent); unchanged codes just continue.
  */
 export function JoinCodeScreen({ initialCode, saving, error, onSubmit }: Props) {
   const colors = useColors();
@@ -42,18 +41,17 @@ export function JoinCodeScreen({ initialCode, saving, error, onSubmit }: Props) 
 
   return (
     <View style={s.container}>
-      <Text style={[s.title, { color: colors.foreground }]}>{COPY.joinCode.title}</Text>
-      <Text style={[s.subtitle, { color: colors.mutedForeground }]}>{COPY.joinCode.subtitle}</Text>
+      <Text style={s.title}>{COPY.joinCode.title}</Text>
+      <Text style={s.subtitle}>{COPY.joinCode.subtitle}</Text>
 
-      <Text style={[s.inputLabel, { color: colors.mutedForeground }]}>
-        {COPY.joinCode.inputLabel.toUpperCase()}
-      </Text>
+      <Text style={s.inputLabel}>{COPY.joinCode.inputLabel.toUpperCase()}</Text>
       <TextInput
-        style={[s.input, {
-          backgroundColor: colors.card,
-          color: colors.secondary,
-          borderColor: fieldError ? colors.destructive : colors.border,
-        }]}
+        style={[
+          s.input,
+          fieldError
+            ? { borderColor: colors.destructive }
+            : { borderColor: '#f5138c' },
+        ]}
         value={code}
         onChangeText={(t) => {
           setCode(t.toUpperCase());
@@ -64,18 +62,16 @@ export function JoinCodeScreen({ initialCode, saving, error, onSubmit }: Props) 
         autoCapitalize="characters"
         autoCorrect={false}
       />
-      <Text style={[s.helper, { color: fieldError ? colors.destructive : colors.mutedForeground }]}>
+      <Text style={[s.helper, fieldError ? { color: colors.destructive } : null]}>
         {fieldError ?? COPY.joinCode.helper}
       </Text>
 
       <Pressable
-        style={[s.continueBtn, { backgroundColor: colors.primary, opacity: saving ? 0.6 : 1 }]}
+        style={[s.continueBtn, { opacity: saving ? 0.6 : 1 }]}
         onPress={handleContinue}
         disabled={saving}
       >
-        {saving
-          ? <ActivityIndicator color="#fff" />
-          : <Ionicons name="arrow-forward" size={16} color="#fff" />}
+        {saving && <ActivityIndicator color="#fff" />}
         <Text style={s.continueText}>{COPY.joinCode.continueBtn}</Text>
       </Pressable>
     </View>
@@ -84,29 +80,35 @@ export function JoinCodeScreen({ initialCode, saving, error, onSubmit }: Props) 
 
 const s = StyleSheet.create({
   container: { gap: 10 },
-  title: { fontSize: 20, fontFamily: 'Manrope_800ExtraBold', textAlign: 'center', marginTop: 4 },
-  subtitle: { fontSize: 13, textAlign: 'center', lineHeight: 18, marginBottom: 6 },
-  inputLabel: { fontSize: 11, fontFamily: 'Manrope_700Bold', letterSpacing: 1.5, textAlign: 'center' },
+  title: { fontSize: 22, fontFamily: 'Manrope_700Bold', color: '#ffffff', marginTop: 4 },
+  subtitle: { fontSize: 13.5, lineHeight: 19, color: '#8b93a4', marginBottom: 8 },
+  inputLabel: {
+    fontSize: 11,
+    fontFamily: 'Manrope_700Bold',
+    letterSpacing: 1.3,
+    color: '#6b7387',
+  },
   input: {
-    borderWidth: 2,
+    backgroundColor: '#0f1420',
+    borderWidth: 1.5,
     borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 20,
+    padding: 16,
+    fontSize: 22,
     fontFamily: 'Manrope_800ExtraBold',
-    letterSpacing: 4,
-    textAlign: 'center',
+    letterSpacing: 3,
+    color: '#ffffff',
     textTransform: 'uppercase',
   },
-  helper: { fontSize: 12, textAlign: 'center', lineHeight: 17 },
+  helper: { fontSize: 12, lineHeight: 17, color: '#6b7387' },
   continueBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    borderRadius: 14,
-    paddingVertical: 14,
+    backgroundColor: '#f5138c',
+    borderRadius: 16,
+    padding: 16,
     marginTop: 6,
   },
-  continueText: { color: '#fff', fontSize: 15, fontFamily: 'Manrope_700Bold' },
+  continueText: { color: '#fff', fontSize: 17, fontFamily: 'Manrope_700Bold' },
 });

@@ -31,11 +31,11 @@ import {
   useUpdateQuestion,
 } from '@workspace/api-client-react';
 import type { Game, Question, EnhanceQuestionResult, RegenerateQuestionPreview } from '@workspace/api-client-react';
-import * as Clipboard from 'expo-clipboard';
 import { useColors } from '@/hooks/useColors';
 import { RunModeScreen, type RunMode } from '@/components/admin/RunModeScreen';
 import { JoinCodeScreen } from '@/components/admin/JoinCodeScreen';
 import { COPY } from '@workspace/copy';
+import { CrownMark } from '@/components/CrownMark';
 import { API_BASE_URL } from '@/lib/apiBase';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -229,8 +229,6 @@ export function BuildTab({ bottomPadding }: Props) {
   const [catOpen, setCatOpen] = useState(false);
   const [setupError, setSetupError] = useState('');
   const [setupResult, setSetupResult] = useState<SetupResult | null>(null);
-  const [codeInput, setCodeInput] = useState('');
-  const [codeCopied, setCodeCopied] = useState(false);
   const [playAlong, setPlayAlong] = useState(false);
   const [runMode, setRunMode] = useState<RunMode | null>(null);
   const [runModeChosen, setRunModeChosen] = useState(false);
@@ -325,33 +323,6 @@ export function BuildTab({ bottomPadding }: Props) {
     }
   };
 
-  const saveCode = async () => {
-    if (!setupResult || updateGame.isPending) return;
-    const code = codeInput.trim().toUpperCase();
-    if (!code || code === setupResult.game.accessCode) return;
-    setSetupError('');
-    try {
-      const updated = await updateGame.mutateAsync({
-        gameId: setupResult.game.id,
-        data: { accessCode: code },
-      });
-      setSetupResult({ ...setupResult, game: { ...setupResult.game, accessCode: updated.accessCode ?? code } });
-      setCodeInput(updated.accessCode ?? code);
-      qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
-    } catch (err) {
-      setSetupError(extractApiError(err, 'Could not update the join code — please retry'));
-    }
-  };
-
-  const copyCode = async () => {
-    // Copy what the host sees in the field (matches web behavior).
-    const code = codeInput.trim().toUpperCase() || setupResult?.game.accessCode;
-    if (!code) return;
-    await Clipboard.setStringAsync(code);
-    setCodeCopied(true);
-    setTimeout(() => setCodeCopied(false), 2000);
-  };
-
   const handleJoinCodeSubmit = async (code: string) => {
     if (!setupResult) return;
     setJoinCodeError(null);
@@ -365,7 +336,6 @@ export function BuildTab({ bottomPadding }: Props) {
         data: { accessCode: code },
       });
       setSetupResult({ ...setupResult, game: { ...setupResult.game, accessCode: updated.accessCode ?? code } });
-      setCodeInput(updated.accessCode ?? code);
       qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
       setJoinCodeChosen(true);
     } catch (err) {
@@ -390,13 +360,11 @@ export function BuildTab({ bottomPadding }: Props) {
 
   const resetSetup = () => {
     setSetupResult(null);
-    setCodeInput('');
     setPlayAlong(false);
     setRunMode(null);
     setRunModeChosen(false);
     setJoinCodeChosen(false);
     setJoinCodeError(null);
-    setCodeCopied(false);
     setTopic('');
     setBrief('');
     setSetupError('');
@@ -425,7 +393,6 @@ export function BuildTab({ bottomPadding }: Props) {
       invalidate(game.id);
       setWorkingGameId(game.id);
       setSetupResult({ type: 'ai', imported: result.imported, game });
-      setCodeInput(game.accessCode ?? '');
       setPlayAlong(false);
       // If the content filter removed some questions, tell the host.
       if (result.contentFilteredCount && result.contentFilteredCount > 0 && result.contentFilteredMessage) {
@@ -455,7 +422,6 @@ export function BuildTab({ bottomPadding }: Props) {
       invalidate(game.id);
       setWorkingGameId(game.id);
       setSetupResult({ type: 'opentdb', imported: result.imported, game });
-      setCodeInput(game.accessCode ?? '');
       setPlayAlong(false);
     } catch (err) {
       setSetupError(extractApiError(err, 'Could not import questions — please retry'));
@@ -707,93 +673,65 @@ export function BuildTab({ bottomPadding }: Props) {
                 onSubmit={handleJoinCodeSubmit}
               />
             ) : setupResult ? (
-              /* ── Success state ── */
+              /* ── "Ready to go live" confirmation ── */
               <View style={s.successContainer}>
-                <View style={[s.successCard, { backgroundColor: colors.secondary + '12', borderColor: colors.secondary + '40' }]}>
-                  <Ionicons name="checkmark-circle" size={24} color={colors.secondary} />
-                  <View style={{ flex: 1, gap: 3 }}>
-                    {setupResult.type === 'ai' ? (
-                      <>
-                        <Text style={[s.successTitle, { color: colors.foreground }]}>
-                          {setupResult.imported} question{setupResult.imported === 1 ? '' : 's'} generated
-                        </Text>
-                        <Text style={[s.successSub, { color: colors.mutedForeground }]}>
-                          Marked as AI-generated — review before going live.
-                        </Text>
-                      </>
-                    ) : (
-                      <>
-                        <Text style={[s.successTitle, { color: colors.foreground }]}>
-                          {setupResult.imported} question{setupResult.imported === 1 ? '' : 's'} imported
-                        </Text>
-                        <Text style={[s.successSub, { color: colors.mutedForeground }]}>
-                          From Open Trivia Database — community-verified.
-                        </Text>
-                      </>
-                    )}
+                <View style={s.rtglCheckCircle}>
+                  <Ionicons name="checkmark" size={30} color="#19d2ed" />
+                </View>
+                <Text style={s.rtglTitle}>{COPY.readyToGoLive.title}</Text>
+                <Text style={s.rtglSubtitle}>
+                  {COPY.readyToGoLive.subtitle(
+                    setupResult.game.topic,
+                    setupResult.imported,
+                    setupResult.type === 'ai' ? 'Gemini AI' : 'Open Trivia Database',
+                  )}
+                </Text>
+
+                {/* Join-code summary row */}
+                <View style={s.rtglCodeRow}>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={s.rtglRowLabel}>{COPY.readyToGoLive.joinLabel.toUpperCase()}</Text>
+                    <Text style={s.rtglCodeValue}>{setupResult.game.accessCode}</Text>
                   </View>
+                  <Pressable onPress={() => setJoinCodeChosen(false)} hitSlop={8}>
+                    <Text style={s.rtglLink}>{COPY.readyToGoLive.editLink}</Text>
+                  </Pressable>
                 </View>
 
-                {/* ── Player join code (editable, matches web) ── */}
-                <View style={{ gap: 6 }}>
-                  <Text style={[s.fieldLabel, { color: colors.mutedForeground, marginTop: 0 }]}>
-                    PLAYER JOIN CODE
-                  </Text>
-                  <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                    <TextInput
-                      style={[s.textInput, {
-                        flex: 1, backgroundColor: colors.card, color: colors.foreground,
-                        borderColor: colors.border, textTransform: 'uppercase',
-                      }]}
-                      value={codeInput}
-                      onChangeText={(t) => setCodeInput(t.toUpperCase())}
-                      onSubmitEditing={saveCode}
-                      placeholder="e.g. SPORTS"
-                      placeholderTextColor={colors.mutedForeground}
-                      maxLength={12}
-                      autoCapitalize="characters"
-                    />
-                    <Pressable
-                      style={[s.smallBtn, {
-                        backgroundColor: colors.primary,
-                        opacity: (updateGame.isPending || !codeInput.trim() || codeInput.trim().toUpperCase() === (setupResult?.game.accessCode ?? '')) ? 0.4 : 1,
-                      }]}
-                      onPress={saveCode}
-                      disabled={updateGame.isPending || !codeInput.trim() || codeInput.trim().toUpperCase() === (setupResult?.game.accessCode ?? '')}
-                    >
-                      <Text style={s.primaryBtnText}>Save</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[s.smallBtn, { backgroundColor: colors.muted }]}
-                      onPress={copyCode}
-                    >
-                      <Ionicons
-                        name={codeCopied ? 'checkmark' : 'copy-outline'}
-                        size={18}
-                        color={codeCopied ? colors.secondary : colors.foreground}
-                      />
-                    </Pressable>
+                {/* Mode summary row */}
+                <View style={s.rtglModeRow}>
+                  <View style={s.rtglModeTile}>
+                    <CrownMark size={22} color="#f5138c" />
                   </View>
-                  <Text style={[s.helperText, { color: colors.mutedForeground, marginTop: 0 }]}>
-                    Choose a code your players will remember, then save it
-                  </Text>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={s.rtglModeTitle}>
+                      {playAlong ? COPY.runMode.hostPlayLabel : COPY.runMode.hostOnlyLabel}
+                    </Text>
+                    <Text style={s.rtglModeDesc}>
+                      {playAlong ? COPY.readyToGoLive.hostPlayDescMobile : COPY.readyToGoLive.hostOnlyDesc}
+                    </Text>
+                  </View>
+                  <Pressable onPress={() => setRunModeChosen(false)} hitSlop={8}>
+                    <Text style={s.rtglLink}>{COPY.readyToGoLive.changeLink}</Text>
+                  </Pressable>
                 </View>
 
                 <Pressable
-                  style={[s.primaryBtn, { backgroundColor: colors.muted }]}
+                  style={s.rtglOutlineBtn}
                   onPress={() => setStep('questions')}
                 >
-                  <Text style={[s.primaryBtnText, { color: colors.foreground }]}>Review questions</Text>
-                  <Ionicons name="arrow-forward" size={16} color={colors.foreground} />
+                  <Text style={s.rtglOutlineBtnText}>{COPY.readyToGoLive.reviewBtn}</Text>
                 </Pressable>
 
                 <Pressable
-                  style={[s.primaryBtn, { backgroundColor: colors.primary, opacity: updateGame.isPending ? 0.6 : 1 }]}
+                  style={[s.rtglGoLiveBtn, { opacity: updateGame.isPending ? 0.6 : 1 }]}
                   onPress={goLive}
                   disabled={updateGame.isPending}
                 >
                   <Ionicons name="play" size={16} color="#fff" />
-                  <Text style={s.primaryBtnText}>{updateGame.isPending ? 'Going live…' : 'Go Live'}</Text>
+                  <Text style={s.rtglGoLiveText}>
+                    {updateGame.isPending ? 'Going live…' : COPY.readyToGoLive.goLiveBtn}
+                  </Text>
                 </Pressable>
 
                 {!!setupError && (
@@ -1573,6 +1511,50 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     },
     successTitle: { fontSize: 15, fontFamily: 'Manrope_700Bold' },
     successSub: { fontSize: 12.5, lineHeight: 17 },
+    // "Ready to go live" confirmation
+    rtglCheckCircle: {
+      width: 62, height: 62, borderRadius: 31, borderWidth: 3, borderColor: '#19d2ed',
+      alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginTop: 4,
+    },
+    rtglTitle: {
+      fontSize: 24, fontFamily: 'Manrope_800ExtraBold', color: '#ffffff', textAlign: 'center',
+    },
+    rtglSubtitle: {
+      fontSize: 13.5, lineHeight: 19, color: '#8b93a4', textAlign: 'center', marginBottom: 6,
+    },
+    rtglCodeRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: '#0f1420', borderWidth: 1, borderColor: '#1e2431',
+      borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14,
+    },
+    rtglRowLabel: {
+      fontSize: 11, fontFamily: 'Manrope_700Bold', letterSpacing: 1.3, color: '#6b7387',
+    },
+    rtglCodeValue: {
+      fontSize: 20, fontFamily: 'Manrope_800ExtraBold', letterSpacing: 2.4, color: '#ffde17',
+    },
+    rtglLink: { fontSize: 14, fontFamily: 'Manrope_600SemiBold', color: '#19d2ed' },
+    rtglModeRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: 'rgba(245,19,140,0.10)', borderWidth: 1, borderColor: 'rgba(245,19,140,0.45)',
+      borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14,
+    },
+    rtglModeTile: {
+      width: 40, height: 40, borderRadius: 11, backgroundColor: 'rgba(245,19,140,0.22)',
+      alignItems: 'center', justifyContent: 'center',
+    },
+    rtglModeTitle: { fontSize: 15, fontFamily: 'Manrope_700Bold', color: '#ffffff' },
+    rtglModeDesc: { fontSize: 13, lineHeight: 18, color: '#9aa3b2' },
+    rtglOutlineBtn: {
+      alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#2b3446',
+      borderRadius: 16, padding: 15, marginTop: 6,
+    },
+    rtglOutlineBtnText: { fontSize: 15, fontFamily: 'Manrope_700Bold', color: '#ffffff' },
+    rtglGoLiveBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+      backgroundColor: '#f5138c', borderRadius: 16, padding: 16,
+    },
+    rtglGoLiveText: { color: '#fff', fontSize: 17, fontFamily: 'Manrope_700Bold' },
     // Review summary card
     summaryCard: {
       borderWidth: 1, borderRadius: 14, padding: 16, gap: 10,
