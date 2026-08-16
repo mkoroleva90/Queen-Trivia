@@ -822,8 +822,8 @@ export function BuildTab({ bottomPadding }: Props) {
                 <Text style={[s.fieldLabel, { color: '#ffe500', fontSize: 15, fontFamily: 'Manrope_700Bold' }]}>Difficulty</Text>
                 <DifficultyChips value={difficulty} onChange={setDifficulty} colors={colors} />
 
-                <Text style={[s.fieldLabel, { color: '#ffe500', fontSize: 15, fontFamily: 'Manrope_700Bold' }]}>
-                  Questions to {source === 'ai' ? 'generate' : 'import'}
+                <Text style={[s.fieldLabel, { color: '#ffe500', fontSize: 15, fontFamily: 'Manrope_700Bold', marginTop: 6 }]}>
+                  Number of questions
                 </Text>
                 <View style={sh.diffRow}>
                   {([5, 10, 15, 20] as const)
