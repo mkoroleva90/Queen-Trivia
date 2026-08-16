@@ -865,7 +865,7 @@ export function BuildTab({ bottomPadding }: Props) {
                   ) : source === 'ai' ? (
                     <View style={s.btnRow}>
                       <Ionicons name="sparkles" size={16} color="#fff" />
-                      <Text style={s.primaryBtnText}>Create &amp; generate with Gemini</Text>
+                      <Text style={s.primaryBtnText}>Create Game</Text>
                     </View>
                   ) : (
                     <View style={s.btnRow}>
