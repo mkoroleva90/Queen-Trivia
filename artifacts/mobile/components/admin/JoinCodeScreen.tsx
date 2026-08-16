@@ -4,7 +4,7 @@ import { COPY } from '@workspace/copy';
 import { useColors } from '@/hooks/useColors';
 
 /** Matches the server's CUSTOM_ACCESS_CODE_PATTERN (after uppercasing). */
-const JOIN_CODE_PATTERN = /^[A-Z0-9]{6,12}$/;
+const JOIN_CODE_PATTERN = /^[A-Z0-9]{4,12}$/;
 
 type Props = {
   /** The game's current (auto-assigned) join code — always pre-filled. */

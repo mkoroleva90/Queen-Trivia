@@ -88,7 +88,7 @@ function randomAccessCode(): string {
 // Host-chosen custom join codes: 6–12 characters, letters and digits only
 // (case-insensitive input; uppercased before storing). Applies only to newly
 // entered codes — existing games are never re-validated.
-const CUSTOM_ACCESS_CODE_PATTERN = /^[A-Za-z0-9]{6,12}$/;
+const CUSTOM_ACCESS_CODE_PATTERN = /^[A-Za-z0-9]{4,12}$/;
 const INVALID_ACCESS_CODE_MESSAGE =
  "Join code must be 6\u201312 characters using only letters A\u2013Z and numbers 0\u20139, with no spaces.";
 

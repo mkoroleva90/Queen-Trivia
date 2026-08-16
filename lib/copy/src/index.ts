@@ -202,11 +202,11 @@ export const COPY = {
     /** Label above the code input. */
     inputLabel:   'Player join code',
     /** Helper text beneath the input. */
-    helper:       '6–12 letters or numbers. No spaces.',
+    helper:       '4–12 letters or numbers. No spaces.',
     /** Continue button. */
     continueBtn:  'Continue',
     /** Field-level error for a code that fails the 6–12 A–Z 0–9 format. */
-    invalidError: 'Use 6–12 letters and numbers only.',
+    invalidError: 'Use 4–12 letters and numbers only.',
     /** Field-level error when another game already uses the code (409 code_taken). */
     takenError:   "That code's taken — try another.",
   },
