@@ -1864,7 +1864,7 @@ return (
           ) : isCustom ? (
               <><Lightbulb className="mr-2 h-4 w-4" /> Create & Generate with Gemini</>
           ):(
-              <><Database className="mr-2 h-4 w-4" /> Create & import from Open Trivia Database</>
+              <><Database className="mr-2 h-4 w-4" /> Save Game</>
           )}
          </Button>
          </form>

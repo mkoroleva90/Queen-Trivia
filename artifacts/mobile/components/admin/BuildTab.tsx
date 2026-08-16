@@ -908,7 +908,7 @@ export function BuildTab({ bottomPadding }: Props) {
                   ) : (
                     <View style={s.btnRow}>
                       <Ionicons name="cloud-download-outline" size={16} color="#fff" />
-                      <Text style={s.primaryBtnText}>Create &amp; import from Open Trivia Database</Text>
+                      <Text style={s.primaryBtnText}>Save Game</Text>
                     </View>
                   )}
                 </Pressable>
