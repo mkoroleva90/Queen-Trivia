@@ -215,6 +215,7 @@ export function BuildTab({ bottomPadding }: Props) {
   const [codeInput, setCodeInput] = useState('');
   const [codeCopied, setCodeCopied] = useState(false);
   const [playAlong, setPlayAlong] = useState(false);
+  const [customCode, setCustomCode] = useState('');
 
   // ── Questions state (for adding more after initial import)
   const [aiOpen, setAiOpen] = useState(false);
@@ -355,6 +356,7 @@ export function BuildTab({ bottomPadding }: Props) {
     setSetupError('');
     setSetupAmount(10);
     setSetupCategory(9);
+    setCustomCode('');
   };
 
   // ── Handlers ──────────────────────────────────────────────────────────────
@@ -363,8 +365,10 @@ export function BuildTab({ bottomPadding }: Props) {
     if (!topic.trim()) { setSetupError('Enter a topic'); return; }
     setSetupError('');
     try {
+      const codeValAI = customCode.trim().toUpperCase();
       const game = await createGame.mutateAsync({
-        data: { topic: topic.trim(), difficulty, createdByAdmin: true, brief: brief.trim() || null },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        data: { topic: topic.trim(), difficulty, createdByAdmin: true, brief: brief.trim() || null, ...(codeValAI ? { accessCode: codeValAI } : {}) } as any,
       });
       const result = await generateGemini.mutateAsync({
         gameId: game.id,
@@ -398,8 +402,10 @@ export function BuildTab({ bottomPadding }: Props) {
     setSetupError('');
     try {
       const catName = selectedCategory?.name ?? 'General Knowledge';
+      const codeValTdb = customCode.trim().toUpperCase();
       const game = await createGame.mutateAsync({
-        data: { topic: catName, difficulty, createdByAdmin: true },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        data: { topic: catName, difficulty, createdByAdmin: true, ...(codeValTdb ? { accessCode: codeValTdb } : {}) } as any,
       });
       const result = await importOpenTdb.mutateAsync({
         gameId: game.id,
@@ -896,6 +902,27 @@ export function BuildTab({ bottomPadding }: Props) {
                     </View>
                   </View>
                 )}
+
+                {/* ── Custom join code (optional) ── */}
+                <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>
+                  Custom join code{' '}
+                  <Text style={[s.fieldLabelOpt, { color: colors.mutedForeground }]}>(optional)</Text>
+                </Text>
+                <TextInput
+                  style={[s.textInput, {
+                    backgroundColor: colors.card, color: colors.foreground,
+                    borderColor: colors.border, textTransform: 'uppercase',
+                  }]}
+                  value={customCode}
+                  onChangeText={(t) => { setCustomCode(t.toUpperCase()); setSetupError(''); }}
+                  placeholder="e.g. SPORTS"
+                  placeholderTextColor={colors.mutedForeground}
+                  maxLength={12}
+                  autoCapitalize="characters"
+                />
+                <Text style={[s.helperText, { color: colors.mutedForeground }]}>
+                  6–12 letters and numbers only. Leave blank for a random code.
+                </Text>
 
                 {!!setupError && (
                   <Text style={[s.errorText, { color: colors.destructive }]}>{setupError}</Text>

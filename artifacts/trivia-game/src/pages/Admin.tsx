@@ -1363,6 +1363,8 @@ const [playAlong, setPlayAlong] = useState(false);
 const [codeCopied, setCodeCopied] = useState(false);
 const [codeInput, setCodeInput] = useState("");
 const [codeSaving, setCodeSaving] = useState(false);
+const [customCode, setCustomCode] = useState("");
+const [codeError, setCodeError] = useState<string | null>(null);
 
 const [upgradeLimitMsg, setUpgradeLimitMsg] = useState<string | null>(null);
 const { toast } = useToast();
@@ -1409,15 +1411,26 @@ const handleSubmit = async (e: React.FormEvent) => {
   try {
       setWorkingLabel("Creating game…");
       setWorking(true);
+      setCodeError(null);
+      const codeVal = customCode.trim().toUpperCase();
       game = await createGame.mutateAsync({
-       data: { topic: topicName, difficulty, createdByAdmin: true, brief: brief.trim() || null },
+       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       data: { topic: topicName, difficulty, createdByAdmin: true, brief: brief.trim() || null, ...(codeVal ? { accessCode: codeVal } : {}) } as any,
       });
       queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
   } catch (err: unknown) {
     const limitMsg = extractFreeTierLimitMsg(err);
     if (limitMsg) { setUpgradeLimitMsg(limitMsg); setWorking(false); return; }
+    const errData = err && typeof err === "object" && "data" in err ? (err as { data: unknown }).data : null;
+    const errCode = errData && typeof errData === "object" && "code" in errData ? String((errData as { code: unknown }).code) : null;
+    const errMsg = errData && typeof errData === "object" && "error" in errData ? String((errData as { error: unknown }).error) : null;
     const status = err && typeof err === "object" && "status" in err ? (err as { status: number}).status : 0;
+    if (errCode === "invalid_access_code" || errCode === "content_filtered" || status === 409) {
+      setCodeError(errMsg ?? "Invalid join code");
+      setWorking(false);
+      return;
+    }
       toast({
        variant: "destructive",
        title: status === 403 ? "Session expired" : "Failed to create game",
@@ -1545,6 +1558,8 @@ const handleReset = () => {
  setImportError(null);
  setImportSource(null);
  setCustomTopic("");
+ setCustomCode("");
+ setCodeError(null);
 };
 
 const saveCode = () => {
@@ -1805,6 +1820,29 @@ return (
      </CardContent>
     </Card>
    )}
+
+   {/* Custom join code (optional) */}
+   <div className="space-y-2">
+    <Label htmlFor="customCode">
+     Custom join code{" "}
+     <span className="text-muted-foreground font-normal">(optional)</span>
+    </Label>
+    <Input
+     id="customCode"
+     value={customCode}
+     onChange={(e) => { setCustomCode(e.target.value.toUpperCase()); setCodeError(null); }}
+     placeholder="e.g. SPORTS — leave blank for a random code"
+     maxLength={12}
+     className="h-12 text-base font-mono tracking-widest uppercase"
+    />
+    {codeError ? (
+     <p className="text-xs text-destructive">{codeError}</p>
+    ) : (
+     <p className="text-xs text-muted-foreground">
+      6–12 letters and numbers only. Blank = random code assigned for you.
+     </p>
+    )}
+   </div>
 
 
          <Button
