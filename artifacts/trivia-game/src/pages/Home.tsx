@@ -88,7 +88,6 @@ export default function Home() {
         .qt-back{background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:4px;color:#8893a8;padding:0;font-size:14px;transition:color .15s}
         .qt-back:hover{color:#eef2f8}
       `}</style>
-
       {/* Ambient glow blobs */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div style={{ position: "absolute", top: 80, left: -60, width: 220, height: 220, borderRadius: "50%", background: "#ff0080", opacity: 0.08 }} />
@@ -101,7 +100,6 @@ export default function Home() {
         <div style={{ position: "absolute", top: "30%", right: "24%", width: 4, height: 4, borderRadius: "50%", background: "#ff0080", animation: "qt-twinkle 2.6s infinite .5s" }} />
         <div style={{ position: "absolute", bottom: "24%", left: "32%", width: 4, height: 4, borderRadius: "50%", background: "#ffe500", animation: "qt-twinkle 3.4s infinite .8s" }} />
       </div>
-
       {/* Progress dots */}
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 6, paddingTop: 20, paddingBottom: 4, position: "relative", zIndex: 1 }}>
         {([0, 1, 2] as const).map((s) => (
@@ -117,7 +115,6 @@ export default function Home() {
           />
         ))}
       </div>
-
       {/* Step content */}
       <div
         key={step}
@@ -200,7 +197,7 @@ export default function Home() {
             <button
               type="button"
               onClick={() => setLocation("/admin-login")}
-              className="qt-tbtn w-full font-extrabold"
+              className="qt-tbtn w-full font-extrabold bg-ring rounded-tl-[10px] rounded-tr-[10px] rounded-br-[10px] rounded-bl-[10px] pt-[10px] pb-[10px]"
               style={{
                 fontSize: 16,
                 color: "#041016",
@@ -211,9 +208,7 @@ export default function Home() {
                 boxShadow: "0 12px 30px -10px rgba(255,229,0,.5)",
                 cursor: "pointer",
               }}
-            >
-              Host a Game
-            </button>
+            >HOST A GAME</button>
           </div>
         )}
 
@@ -350,7 +345,6 @@ export default function Home() {
           </form>
         )}
       </div>
-
       <Footer />
     </div>
   );
