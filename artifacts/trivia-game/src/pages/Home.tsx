@@ -197,12 +197,23 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="font-medium" style={{ fontSize: 13, color: "#66728a" }}>
-              {COPY.join.hostingTonight}{" "}
-              <Link href="/admin-login" className="qt-tbtn font-bold" style={{ color: "#ffe500" }}>
-                {COPY.join.adminLink}
-              </Link>
-            </div>
+            <button
+              type="button"
+              onClick={() => setLocation("/admin-login")}
+              className="qt-tbtn w-full font-extrabold"
+              style={{
+                fontSize: 16,
+                color: "#041016",
+                background: "#ffe500",
+                border: "none",
+                borderRadius: 13,
+                padding: 15,
+                boxShadow: "0 12px 30px -10px rgba(255,229,0,.5)",
+                cursor: "pointer",
+              }}
+            >
+              Host a Game
+            </button>
           </div>
         )}
 
