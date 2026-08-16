@@ -197,7 +197,7 @@ export default function Home() {
             <button
               type="button"
               onClick={() => setLocation("/admin-login")}
-              className="qt-tbtn w-full font-extrabold bg-ring rounded-tl-[10px] rounded-tr-[10px] rounded-br-[10px] rounded-bl-[10px] pt-[10px] pb-[10px]"
+              className="qt-tbtn w-full font-extrabold rounded-tl-[10px] rounded-tr-[10px] rounded-br-[10px] rounded-bl-[10px] pt-[10px] pb-[10px] bg-[#ff0080]"
               style={{
                 fontSize: 16,
                 color: "#041016",
