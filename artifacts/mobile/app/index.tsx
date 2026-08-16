@@ -198,7 +198,7 @@ export default function WelcomeScreen() {
                   {COPY.join.letsPlay}
                 </CTAButton>
                 <CTAButton bg={colors.primary} color={colors.primaryForeground} onPress={() => router.push('/admin-login')}>
-                  Host a Game
+                  HOST A GAME
                 </CTAButton>
               </View>
             </View>
