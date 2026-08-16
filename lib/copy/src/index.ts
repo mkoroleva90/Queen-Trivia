@@ -682,7 +682,7 @@ export const COPY = {
    */
   hostLogin: {
     /** Main heading on the web host-login page. */
-    heading:                  'HOST ACCESS',
+    heading:                  'HOST LOGIN',
     /** Card heading inside the login form (web). */
     cardHeading:              'Sign In',
     /** Helper text beneath the heading (web). */
