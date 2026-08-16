@@ -679,13 +679,6 @@ export function BuildTab({ bottomPadding }: Props) {
                   <Ionicons name="checkmark" size={30} color="#19d2ed" />
                 </View>
                 <Text style={s.rtglTitle}>{COPY.readyToGoLive.title}</Text>
-                <Text style={s.rtglSubtitle}>
-                  {COPY.readyToGoLive.subtitle(
-                    setupResult.game.topic,
-                    setupResult.imported,
-                    setupResult.type === 'ai' ? 'Gemini AI' : 'Open Trivia Database',
-                  )}
-                </Text>
 
                 {/* Join-code summary row */}
                 <View style={s.rtglCodeRow}>
