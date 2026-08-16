@@ -14,6 +14,7 @@ type Props = {
 
 const OPTIONS: Array<{ mode: RunMode; label: string; desc: string }> = [
   { mode: 'hostOnly', label: COPY.runMode.hostOnlyLabel, desc: COPY.runMode.hostOnlyDesc },
+  { mode: 'hostPlay', label: COPY.runMode.hostPlayLabel, desc: COPY.runMode.hostPlayDesc },
 ];
 
 /**
