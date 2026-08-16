@@ -12,6 +12,7 @@ import {
   type TallyStore,
 } from "@workspace/live-tally";
 import { COPY } from "@workspace/copy";
+import { RunModeScreen, type RunMode } from "@/components/RunModeScreen";
 import { cn } from "@/lib/utils";
 import {
  DndContext,
@@ -1360,6 +1361,8 @@ const [retryCountdown, setRetryCountdown] = useState(0);
 const [dailyQuotaExhausted, setDailyQuotaExhausted] = useState(false);
 const [brief, setBrief] = useState("");
 const [playAlong, setPlayAlong] = useState(false);
+const [runMode, setRunMode] = useState<RunMode | null>(null);
+const [runModeChosen, setRunModeChosen] = useState(false);
 const [codeCopied, setCodeCopied] = useState(false);
 const [codeInput, setCodeInput] = useState("");
 const [codeSaving, setCodeSaving] = useState(false);
@@ -1586,6 +1589,9 @@ const handleReset = () => {
  setCustomCode("");
  setCodeError(null);
  setCodeAvailStatus('idle');
+ setPlayAlong(false);
+ setRunMode(null);
+ setRunModeChosen(false);
 };
 
 const saveCode = () => {
@@ -1604,6 +1610,19 @@ const saveCode = () => {
  );
 };
 
+
+if (created && importedCount !== null && !working && !runModeChosen) {
+ return (
+     <RunModeScreen
+       value={runMode}
+       onSelect={setRunMode}
+       onContinue={() => {
+         setPlayAlong(runMode === "hostPlay");
+         setRunModeChosen(true);
+       }}
+     />
+ );
+}
 
 if (created) {
  return (
@@ -1670,20 +1689,6 @@ if (created) {
            {codeCopied ? "Copied!" : "Choose a code your players will remember, then save it"}
          </p>
        </div>
-       <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-border bg-muted/30 px-4 py-3 hover:bg-muted/50 transition text-left mx-auto max-w-sm">
-         <input
-           type="checkbox"
-           checked={playAlong}
-           onChange={(e) => setPlayAlong(e.target.checked)}
-           className="mt-0.5 h-4 w-4 shrink-0 rounded accent-primary cursor-pointer"
-         />
-         <span>
-           <span className="block text-sm font-semibold">{COPY.hostPlayAlong.playAlongLabel}</span>
-           <span className="block text-xs text-muted-foreground mt-0.5">
-             {COPY.hostPlayAlong.playAlongDesc}
-           </span>
-         </span>
-       </label>
        <div className="flex justify-center gap-3 pt-2">
         <Button variant="outline" className="font-bold" onClick={() => onCreated(created)}>
            <ListChecks className="mr-2 h-4 w-4" /> Review Questions

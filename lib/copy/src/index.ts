@@ -164,6 +164,30 @@ export const COPY = {
   },
 
   /**
+   * Run-mode choice screen — shown immediately after a host creates a game,
+   * before the "Ready to Go!" success screen, on BOTH web and mobile.
+   * Replaces the old "Play along" checkbox on that screen; the chosen mode
+   * feeds the same host-plays-along flag the checkbox used to set.
+   * Wording must be identical on both platforms — always read these keys.
+   */
+  runMode: {
+    /** Screen title. */
+    title:        'How do you want to run this game?',
+    /** Subtitle beneath the title. */
+    subtitle:     "Pick a mode, then continue. You can't change this once the game is live.",
+    /** Label of the host-only option. */
+    hostOnlyLabel: 'Host only',
+    /** Description of the host-only option. */
+    hostOnlyDesc:  'You run the game. Players answer on their phones.',
+    /** Label of the host-and-play option. */
+    hostPlayLabel: 'Host & play',
+    /** Description of the host-and-play option. */
+    hostPlayDesc:  "You run the game AND answer along from your own screen. You'll appear in the standings with your players.",
+    /** Continue button — disabled until an option is selected. */
+    continueBtn:   'Continue',
+  },
+
+  /**
    * Player gameplay strings — shown to players while they answer questions.
    * Both platforms must use these keys so wording stays in sync.
    *

@@ -1,0 +1,42 @@
+In the Queen Trivia host flow I'm adding a new screen and retiring the old
+"Play along" checkbox. Make only the changes I describe and nothing else.
+
+Add a "run mode" choice screen shown immediately after a host creates a game,
+before the existing "Ready to Go!" success screen, on BOTH web and mobile.
+
+The screen:
+- Title: How do you want to run this game?
+- Subtitle: Pick a mode, then continue. You can't change this once the game is
+  live.
+- Two selectable options, with NO option selected by default:
+  - Host only — You run the game. Players answer on their phones.
+  - Host & play — You run the game AND answer along from your own screen.
+    You'll appear in the standings with your players.
+- A "Continue" button that stays disabled until the host selects one option.
+
+Behavior:
+- "Host & play" means the host plays along; "Host only" means they don't. This
+  choice must set the SAME existing host-plays-along value that the old "Play
+  along" checkbox set — reuse that existing state/flag, do not create a new one.
+- Remove the old "Play along" checkbox from the go-live / success screen, since
+  this new screen now makes that choice.
+- On Continue, proceed to the existing "Ready to Go!" success screen exactly as
+  the flow does today.
+
+Look & wording:
+- Match the app's existing brand styling, colors, and playful tone. On web, show
+  the two options as side-by-side cards; on mobile, as a stacked list. Highlight
+  the selected option in the brand magenta/pink with a check indicator.
+- Use IDENTICAL wording on web and mobile. Put all the user-facing text above
+  into the shared COPY module so both platforms read the same strings.
+
+Constraints (follow all):
+- Build the new screen as its own component file on each platform and render it
+  from the existing flow — do NOT add this large UI directly inside Admin.tsx.
+- Do NOT change any other screen, and do NOT alter how the game is created or how
+  it goes live, beyond removing that one checkbox and feeding it the new choice.
+- Do NOT use drizzle push. Do NOT change the database or any server code — this
+  is UI only.
+- Do NOT rename internal variables or functions.
+- Do NOT edit any auto-generated (Orval) files.
+- Do NOT make any changes beyond what I described above.

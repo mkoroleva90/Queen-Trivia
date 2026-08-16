@@ -30,3 +30,19 @@ CAPACITOR_SERVER_URL = "https://mktrivia.com"
 ENFORCE_FREE_TIER_LIMITS = "true"
 FREE_TIER_AI_ACTIONS_PER_MONTH = "150"
 FREE_TIER_GAMES_PER_MONTH = "20"
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 8081
+externalPort = 8081
+
+[[ports]]
+localPort = 18115
+externalPort = 3000
+
+[[ports]]
+localPort = 23114
+externalPort = 80

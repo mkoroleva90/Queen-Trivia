@@ -33,6 +33,7 @@ import {
 import type { Game, Question, EnhanceQuestionResult, RegenerateQuestionPreview } from '@workspace/api-client-react';
 import * as Clipboard from 'expo-clipboard';
 import { useColors } from '@/hooks/useColors';
+import { RunModeScreen, type RunMode } from '@/components/admin/RunModeScreen';
 import { COPY } from '@workspace/copy';
 import { API_BASE_URL } from '@/lib/apiBase';
 
@@ -216,6 +217,8 @@ export function BuildTab({ bottomPadding }: Props) {
   const [codeInput, setCodeInput] = useState('');
   const [codeCopied, setCodeCopied] = useState(false);
   const [playAlong, setPlayAlong] = useState(false);
+  const [runMode, setRunMode] = useState<RunMode | null>(null);
+  const [runModeChosen, setRunModeChosen] = useState(false);
   const [customCode, setCustomCode] = useState('');
   const [codeAvailStatus, setCodeAvailStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
 
@@ -375,6 +378,8 @@ export function BuildTab({ bottomPadding }: Props) {
     setSetupResult(null);
     setCodeInput('');
     setPlayAlong(false);
+    setRunMode(null);
+    setRunModeChosen(false);
     setCodeCopied(false);
     setTopic('');
     setBrief('');
@@ -675,7 +680,17 @@ export function BuildTab({ bottomPadding }: Props) {
         {/* ── SETUP ── */}
         {step === 'setup' && (
           <View style={s.section}>
-            {setupResult ? (
+            {setupResult && !runModeChosen ? (
+              /* ── Run-mode choice (shown before the success screen) ── */
+              <RunModeScreen
+                value={runMode}
+                onSelect={setRunMode}
+                onContinue={() => {
+                  setPlayAlong(runMode === 'hostPlay');
+                  setRunModeChosen(true);
+                }}
+              />
+            ) : setupResult ? (
               /* ── Success state ── */
               <View style={s.successContainer}>
                 <View style={[s.successCard, { backgroundColor: colors.secondary + '12', borderColor: colors.secondary + '40' }]}>
@@ -747,26 +762,6 @@ export function BuildTab({ bottomPadding }: Props) {
                     Choose a code your players will remember, then save it
                   </Text>
                 </View>
-
-                {/* ── Play along ── */}
-                <Pressable
-                  style={[s.playAlongCard, { borderColor: colors.border, backgroundColor: colors.card }]}
-                  onPress={() => setPlayAlong((p) => !p)}
-                >
-                  <Ionicons
-                    name={playAlong ? 'checkbox' : 'square-outline'}
-                    size={22}
-                    color={playAlong ? colors.primary : colors.mutedForeground}
-                  />
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <Text style={[s.successTitle, { color: colors.foreground }]}>
-                      {COPY.hostPlayAlong.playAlongLabel}
-                    </Text>
-                    <Text style={[s.successSub, { color: colors.mutedForeground }]}>
-                      {COPY.hostPlayAlong.playAlongDesc}
-                    </Text>
-                  </View>
-                </Pressable>
 
                 <Pressable
                   style={[s.primaryBtn, { backgroundColor: colors.muted }]}
@@ -1638,10 +1633,6 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     emptyTitle: { fontSize: 16, fontFamily: 'Manrope_700Bold' },
     emptySub: { fontSize: 13, lineHeight: 19, textAlign: 'center' },
     smallBtn: { borderRadius: 10, paddingHorizontal: 18, paddingVertical: 10, marginTop: 4 },
-    playAlongCard: {
-      flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-      borderWidth: 1, borderRadius: 12, padding: 14,
-    },
     smallBtnText: { color: '#fff', fontSize: 14, fontFamily: 'Manrope_700Bold' },
     // Action cards
     actionCards: { gap: 10, marginTop: 4 },
