@@ -168,6 +168,31 @@ router.post("/games", requireAdmin, async (req, res): Promise<void> => {
 });
 
 
+// ─── Code-availability check (no auth required) ──────────────────────────────
+// Returns { available: boolean } — true when the code is not in use by any game.
+// The caller is responsible for validating format before submitting; this route
+// only checks uniqueness so a debounced UI check can inform the host early.
+router.get("/games/code-available", async (req, res): Promise<void> => {
+ const rawCode = req.query['code'];
+ if (typeof rawCode !== "string" || !rawCode.trim()) {
+  res.status(400).json({ error: "code query parameter is required" });
+  return;
+ }
+ const code = rawCode.trim().toUpperCase();
+ if (!CUSTOM_ACCESS_CODE_PATTERN.test(rawCode.trim())) {
+  // Format is invalid — can never be stored, so mark as unavailable
+  res.json({ available: false, reason: "format" });
+  return;
+ }
+ const [existing] = await db
+  .select({ id: gamesTable.id })
+  .from(gamesTable)
+  .where(eq(gamesTable.accessCode, code))
+  .limit(1);
+ res.json({ available: !existing });
+});
+
+
 router.get("/games/:gameId", requireAuth, async (req, res): Promise<void> => {
  const params = GetGameParams.safeParse(req.params);
 if (!params.success) {

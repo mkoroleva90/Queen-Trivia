@@ -34,6 +34,7 @@ import type { Game, Question, EnhanceQuestionResult, RegenerateQuestionPreview }
 import * as Clipboard from 'expo-clipboard';
 import { useColors } from '@/hooks/useColors';
 import { COPY } from '@workspace/copy';
+import { API_BASE_URL } from '@/lib/apiBase';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -216,6 +217,7 @@ export function BuildTab({ bottomPadding }: Props) {
   const [codeCopied, setCodeCopied] = useState(false);
   const [playAlong, setPlayAlong] = useState(false);
   const [customCode, setCustomCode] = useState('');
+  const [codeAvailStatus, setCodeAvailStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
 
   // ── Questions state (for adding more after initial import)
   const [aiOpen, setAiOpen] = useState(false);
@@ -297,6 +299,29 @@ export function BuildTab({ bottomPadding }: Props) {
 
   const selectedCategory = OPENTDB_CATEGORIES.find((c) => c.id === setupCategory);
 
+  // Debounced code-availability check (~400 ms after the host stops typing)
+  useEffect(() => {
+    const val = customCode.trim().toUpperCase();
+    if (!val || !/^[A-Za-z0-9]{6,12}$/.test(val)) {
+      setCodeAvailStatus('idle');
+      return;
+    }
+    setCodeAvailStatus('checking');
+    const timer = setTimeout(async () => {
+      try {
+        const r = await fetch(
+          `${API_BASE_URL}/api/games/code-available?code=${encodeURIComponent(val)}`,
+        );
+        if (!r.ok) { setCodeAvailStatus('idle'); return; }
+        const data = await r.json() as { available: boolean };
+        setCodeAvailStatus(data.available ? 'available' : 'taken');
+      } catch {
+        setCodeAvailStatus('idle');
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [customCode]);
+
   const invalidate = (gameId?: number | null) => {
     qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
     if (gameId != null) {
@@ -357,12 +382,14 @@ export function BuildTab({ bottomPadding }: Props) {
     setSetupAmount(10);
     setSetupCategory(9);
     setCustomCode('');
+    setCodeAvailStatus('idle');
   };
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleCreateAI = async () => {
     if (!topic.trim()) { setSetupError('Enter a topic'); return; }
+    if (codeAvailStatus === 'taken') { setSetupError('That code is already in use — try a different one'); return; }
     setSetupError('');
     try {
       const codeValAI = customCode.trim().toUpperCase();
@@ -399,6 +426,7 @@ export function BuildTab({ bottomPadding }: Props) {
   };
 
   const handleCreateOpenTdb = async () => {
+    if (codeAvailStatus === 'taken') { setSetupError('That code is already in use — try a different one'); return; }
     setSetupError('');
     try {
       const catName = selectedCategory?.name ?? 'General Knowledge';
@@ -911,21 +939,60 @@ export function BuildTab({ bottomPadding }: Props) {
                   Custom join code{' '}
                   <Text style={[s.fieldLabelOpt, { color: colors.mutedForeground }]}>(optional)</Text>
                 </Text>
-                <TextInput
-                  style={[s.textInput, {
-                    backgroundColor: colors.card, color: colors.foreground,
-                    borderColor: colors.border, textTransform: 'uppercase',
-                  }]}
-                  value={customCode}
-                  onChangeText={(t) => { setCustomCode(t.toUpperCase()); setSetupError(''); }}
-                  placeholder="e.g. SPORTS"
-                  placeholderTextColor={colors.mutedForeground}
-                  maxLength={12}
-                  autoCapitalize="characters"
-                />
-                <Text style={[s.helperText, { color: colors.mutedForeground }]}>
-                  6–12 letters and numbers only. Leave blank for a random code.
-                </Text>
+                <View style={{ position: 'relative' }}>
+                  <TextInput
+                    style={[s.textInput, {
+                      backgroundColor: colors.card, color: colors.foreground,
+                      borderColor: codeAvailStatus === 'taken'
+                        ? colors.destructive
+                        : codeAvailStatus === 'available'
+                          ? colors.secondary
+                          : colors.border,
+                      textTransform: 'uppercase',
+                      paddingRight: codeAvailStatus !== 'idle' ? 40 : undefined,
+                    }]}
+                    value={customCode}
+                    onChangeText={(t) => { setCustomCode(t.toUpperCase()); setSetupError(''); }}
+                    placeholder="e.g. SPORTS"
+                    placeholderTextColor={colors.mutedForeground}
+                    maxLength={12}
+                    autoCapitalize="characters"
+                  />
+                  {codeAvailStatus === 'checking' && (
+                    <View style={{ position: 'absolute', right: 12, top: 0, bottom: 0, justifyContent: 'center' }}>
+                      <ActivityIndicator size="small" color={colors.mutedForeground} />
+                    </View>
+                  )}
+                  {codeAvailStatus === 'available' && (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={18}
+                      color={colors.secondary}
+                      style={{ position: 'absolute', right: 12, top: 12 }}
+                    />
+                  )}
+                  {codeAvailStatus === 'taken' && (
+                    <Ionicons
+                      name="close-circle"
+                      size={18}
+                      color={colors.destructive}
+                      style={{ position: 'absolute', right: 12, top: 12 }}
+                    />
+                  )}
+                </View>
+                {codeAvailStatus === 'taken' ? (
+                  <Text style={[s.helperText, { color: colors.destructive }]}>
+                    That code is already in use — try a different one
+                  </Text>
+                ) : codeAvailStatus === 'available' ? (
+                  <Text style={[s.helperText, { color: colors.secondary }]}>
+                    Code is available!
+                  </Text>
+                ) : (
+                  <Text style={[s.helperText, { color: colors.mutedForeground }]}>
+                    6–12 letters and numbers only. Leave blank for a random code.
+                  </Text>
+                )}
 
                 {!!setupError && (
                   <Text style={[s.errorText, { color: colors.destructive }]}>{setupError}</Text>
@@ -934,10 +1001,10 @@ export function BuildTab({ bottomPadding }: Props) {
                 <Pressable
                   style={[s.primaryBtn, {
                     backgroundColor: source === 'ai' ? AI_COLOR : colors.primary,
-                    opacity: setupWorking ? 0.75 : 1,
+                    opacity: setupWorking || codeAvailStatus === 'taken' || codeAvailStatus === 'checking' ? 0.75 : 1,
                   }]}
                   onPress={source === 'ai' ? handleCreateAI : handleCreateOpenTdb}
-                  disabled={setupWorking}
+                  disabled={setupWorking || codeAvailStatus === 'taken' || codeAvailStatus === 'checking'}
                 >
                   {setupWorking ? (
                     <View style={s.btnRow}>
@@ -1260,7 +1327,6 @@ export function BuildTab({ bottomPadding }: Props) {
                     placeholder="Extra guidance for the AI"
                     placeholderTextColor={colors.mutedForeground}
                   />
-
 
 
                   {!!aiError && <Text style={[sh.errorText, { color: colors.destructive }]}>{aiError}</Text>}

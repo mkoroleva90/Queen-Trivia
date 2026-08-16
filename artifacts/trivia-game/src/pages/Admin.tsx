@@ -1365,6 +1365,7 @@ const [codeInput, setCodeInput] = useState("");
 const [codeSaving, setCodeSaving] = useState(false);
 const [customCode, setCustomCode] = useState("");
 const [codeError, setCodeError] = useState<string | null>(null);
+const [codeAvailStatus, setCodeAvailStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
 
 const [upgradeLimitMsg, setUpgradeLimitMsg] = useState<string | null>(null);
 const { toast } = useToast();
@@ -1385,6 +1386,30 @@ useEffect(() => {
  if (created?.accessCode) setCodeInput(created.accessCode);
 }, [created?.accessCode]);
 
+// Debounced code-availability check (~400 ms after the host stops typing)
+useEffect(() => {
+ const val = customCode.trim().toUpperCase();
+ if (!val || !/^[A-Za-z0-9]{6,12}$/.test(val)) {
+  setCodeAvailStatus('idle');
+  return;
+ }
+ setCodeAvailStatus('checking');
+ const timer = setTimeout(async () => {
+  try {
+   const r = await fetch(
+    `/api/games/code-available?code=${encodeURIComponent(val)}`,
+    { credentials: 'include' },
+   );
+   if (!r.ok) { setCodeAvailStatus('idle'); return; }
+   const data = await r.json() as { available: boolean };
+   setCodeAvailStatus(data.available ? 'available' : 'taken');
+  } catch {
+   setCodeAvailStatus('idle');
+  }
+ }, 400);
+ return () => clearTimeout(timer);
+}, [customCode]);
+
 
 const parseGeminiRateError = (err: unknown): { isDaily: boolean; isPerMinute: boolean; countdown: number } => {
  const status = err && typeof err === "object" && "status" in err ? (err as { status: number }).status : 0;
@@ -1401,7 +1426,7 @@ const parseGeminiRateError = (err: unknown): { isDaily: boolean; isPerMinute: bo
 const isCustom = categoryId === "custom";
 const selectedCategory = OPENTDB_CATEGORIES.find((c) => String(c.id) === categoryId);
 const topicName = isCustom ? customTopic.trim() : (selectedCategory?.name ?? "");
-const canSubmit = topicName.length > 0 && !createGame.isPending && !working;
+const canSubmit = topicName.length > 0 && !createGame.isPending && !working && codeAvailStatus !== 'taken';
 const handleSubmit = async (e: React.FormEvent) => {
  e.preventDefault();
  if (!canSubmit) return;
@@ -1560,6 +1585,7 @@ const handleReset = () => {
  setCustomTopic("");
  setCustomCode("");
  setCodeError(null);
+ setCodeAvailStatus('idle');
 };
 
 const saveCode = () => {
@@ -1827,16 +1853,31 @@ return (
      Custom join code{" "}
      <span className="text-muted-foreground font-normal">(optional)</span>
     </Label>
-    <Input
-     id="customCode"
-     value={customCode}
-     onChange={(e) => { setCustomCode(e.target.value.toUpperCase()); setCodeError(null); }}
-     placeholder="e.g. SPORTS — leave blank for a random code"
-     maxLength={12}
-     className="h-12 text-base font-mono tracking-widest uppercase"
-    />
+    <div className="relative">
+     <Input
+      id="customCode"
+      value={customCode}
+      onChange={(e) => { setCustomCode(e.target.value.toUpperCase()); setCodeError(null); }}
+      placeholder="e.g. SPORTS — leave blank for a random code"
+      maxLength={12}
+      className="h-12 text-base font-mono tracking-widest uppercase pr-10"
+     />
+     {codeAvailStatus === 'checking' && (
+      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground pointer-events-none" />
+     )}
+     {codeAvailStatus === 'available' && (
+      <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary pointer-events-none" />
+     )}
+     {codeAvailStatus === 'taken' && (
+      <X className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-destructive pointer-events-none" />
+     )}
+    </div>
     {codeError ? (
      <p className="text-xs text-destructive">{codeError}</p>
+    ) : codeAvailStatus === 'taken' ? (
+     <p className="text-xs text-destructive">That code is already in use — try a different one</p>
+    ) : codeAvailStatus === 'available' ? (
+     <p className="text-xs text-secondary">Code is available!</p>
     ) : (
      <p className="text-xs text-muted-foreground">
       6–12 letters and numbers only. Blank = random code assigned for you.
