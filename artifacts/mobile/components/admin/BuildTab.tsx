@@ -786,12 +786,6 @@ export function BuildTab({ bottomPadding }: Props) {
                     </>
                   )}
                 </View>
-                <Text style={[s.helperText, { color: colors.mutedForeground }]}>
-                  {source === 'ai'
-                    ? 'Gemini AI generates questions on the topic you enter below.'
-                    : 'Questions are pulled from Open Trivia Database.'}
-                </Text>
-
                 {/* ── Custom topic fields ── */}
                 {source === 'ai' && (
                   <>
