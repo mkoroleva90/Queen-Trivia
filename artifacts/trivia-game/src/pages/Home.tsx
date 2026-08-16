@@ -192,23 +192,23 @@ export default function Home() {
               >
                 {COPY.join.letsPlay}
               </button>
-            </div>
 
-            <button
-              type="button"
-              onClick={() => setLocation("/admin-login")}
-              className="qt-tbtn w-full font-extrabold rounded-tl-[10px] rounded-tr-[10px] rounded-br-[10px] rounded-bl-[10px] pt-[10px] pb-[10px] bg-[#ff0080]"
-              style={{
-                fontSize: 16,
-                color: "#041016",
-                background: "#ffe500",
-                border: "none",
-                borderRadius: 13,
-                padding: 15,
-                boxShadow: "0 12px 30px -10px rgba(255,229,0,.5)",
-                cursor: "pointer",
-              }}
-            >HOST A GAME</button>
+              <button
+                type="button"
+                onClick={() => setLocation("/admin-login")}
+                className="qt-tbtn w-full font-extrabold bg-ring rounded-tl-[10px] rounded-tr-[10px] rounded-br-[10px] rounded-bl-[10px] pt-[10px] pb-[10px]"
+                style={{
+                  fontSize: 16,
+                  color: "#041016",
+                  background: "#ffe500",
+                  border: "none",
+                  borderRadius: 13,
+                  padding: 15,
+                  boxShadow: "0 12px 30px -10px rgba(255,229,0,.5)",
+                  cursor: "pointer",
+                }}
+              >HOST A GAME</button>
+            </div>
           </div>
         )}
 
