@@ -40,7 +40,7 @@ import { API_BASE_URL } from '@/lib/apiBase';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-type Step = 'setup' | 'questions' | 'review';
+type Step = 'setup' | 'review';
 type Difficulty = 'easy' | 'medium' | 'hard';
 type Source = 'ai' | 'opentdb';
 
@@ -50,7 +50,6 @@ type SetupResult =
 
 const STEPS: { id: Step; label: string }[] = [
   { id: 'setup', label: 'Setup' },
-  { id: 'questions', label: 'Questions' },
   { id: 'review', label: 'Review' },
 ];
 
@@ -711,7 +710,7 @@ export function BuildTab({ bottomPadding }: Props) {
 
                 <Pressable
                   style={s.rtglOutlineBtn}
-                  onPress={() => setStep('questions')}
+                  onPress={() => setStep('review')}
                 >
                   <Text style={s.rtglOutlineBtnText}>{COPY.readyToGoLive.reviewBtn}</Text>
                 </Pressable>
@@ -905,97 +904,6 @@ export function BuildTab({ bottomPadding }: Props) {
           </View>
         )}
 
-        {/* ── QUESTIONS ── */}
-        {step === 'questions' && (
-          <View style={s.section}>
-            <Text style={[s.heading, { color: colors.foreground }]}>Add questions</Text>
-            {editableGames.length === 0 ? (
-              <View style={[s.emptyCard, { borderColor: colors.border }]}>
-                <Ionicons name="game-controller-outline" size={36} color={colors.mutedForeground} />
-                <Text style={[s.emptyTitle, { color: colors.foreground }]}>No editable games</Text>
-                <Text style={[s.emptySub, { color: colors.mutedForeground }]}>
-                  Create a game in the Setup step first. Completed games are locked.
-                </Text>
-                <Pressable style={[s.smallBtn, { backgroundColor: colors.primary }]} onPress={() => setStep('setup')}>
-                  <Text style={s.smallBtnText}>Go to Setup</Text>
-                </Pressable>
-              </View>
-            ) : (
-              <>
-                <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Select game</Text>
-                <GamePicker
-                  games={editableGames}
-                  selectedId={workingGameId}
-                  onSelect={setWorkingGameId}
-                  colors={colors}
-                />
-
-                {selectedGame && (
-                  <View style={s.actionCards}>
-                    {/* AI generation */}
-                    <Pressable
-                      style={[s.actionCard, { borderColor: AI_COLOR + '44', backgroundColor: AI_COLOR + '12' }]}
-                      onPress={() => { setAiResult(null); setAiError(''); setAiOpen(true); }}
-                    >
-                      <Ionicons name="sparkles" size={22} color={AI_COLOR} />
-                      <View style={s.actionCardText}>
-                        <Text style={[s.actionCardTitle, { color: colors.foreground }]}>Generate with AI</Text>
-                        <Text style={[s.actionCardSub, { color: colors.mutedForeground }]}>
-                          Gemini writes fact-checked questions on "{selectedGame.topic}"
-                        </Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
-                    </Pressable>
-
-                    {/* OpenTDB import */}
-                    <Pressable
-                      style={[s.actionCard, { borderColor: colors.primary + '44', backgroundColor: colors.primary + '12' }]}
-                      onPress={() => { setTdbResult(null); setTdbError(''); setTdbOpen(true); }}
-                    >
-                      <Ionicons name="cloud-download-outline" size={22} color={colors.primary} />
-                      <View style={s.actionCardText}>
-                        <Text style={[s.actionCardTitle, { color: colors.foreground }]}>Import from Open Trivia Database</Text>
-                        <Text style={[s.actionCardSub, { color: colors.mutedForeground }]}>
-                          Pull community-verified questions by category
-                        </Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
-                    </Pressable>
-
-                    {/* Manual entry */}
-                    <Pressable
-                      style={[s.actionCard, { borderColor: colors.border, backgroundColor: colors.card }]}
-                      onPress={() => router.push(`/admin/${selectedGame.id}`)}
-                    >
-                      <Ionicons name="create-outline" size={22} color={colors.foreground} />
-                      <View style={s.actionCardText}>
-                        <Text style={[s.actionCardTitle, { color: colors.foreground }]}>Add manually</Text>
-                        <Text style={[s.actionCardSub, { color: colors.mutedForeground }]}>
-                          Write your own — all 10 question types supported
-                        </Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
-                    </Pressable>
-                  </View>
-                )}
-
-                {selectedGame && (
-                  <View style={[s.countRow, { borderColor: colors.border }]}>
-                    <Ionicons name="help-circle-outline" size={16} color={colors.mutedForeground} />
-                    <Text style={[s.countRowText, { color: colors.mutedForeground }]}>
-                      {questions.length} {questions.length === 1 ? 'question' : 'questions'} so far
-                    </Text>
-                    <View style={{ flex: 1 }} />
-                    <Pressable onPress={() => setStep('review')} hitSlop={8}>
-                      <Text style={[s.linkText, { color: colors.primary }]}>Review →</Text>
-                    </Pressable>
-                  </View>
-                )}
-              </>
-            )}
-          </View>
-        )}
-
         {/* ── REVIEW ── */}
         {step === 'review' && (
           <View style={s.section}>
@@ -1061,9 +969,9 @@ export function BuildTab({ bottomPadding }: Props) {
                   <View style={[s.emptyCard, { borderColor: colors.border }]}>
                     <Ionicons name="help-circle-outline" size={32} color={colors.mutedForeground} />
                     <Text style={[s.emptySub, { color: colors.mutedForeground }]}>
-                      No questions yet — add some in the Questions step.
+                      No questions yet — add some from the game detail screen.
                     </Text>
-                    <Pressable style={[s.smallBtn, { backgroundColor: colors.primary }]} onPress={() => setStep('questions')}>
+                    <Pressable style={[s.smallBtn, { backgroundColor: colors.primary }]} onPress={() => router.push(`/admin/${selectedGame.id}`)}>
                       <Text style={s.smallBtnText}>Add questions</Text>
                     </Pressable>
                   </View>
