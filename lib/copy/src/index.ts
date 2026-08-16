@@ -364,6 +364,12 @@ export const COPY = {
     gameTopic:
       "This game title can't be used. Please choose a different title.",
     /**
+     * Shown when a host's custom player join code is blocked on game create
+     * or update. Displayed wherever the host edits the code.
+     */
+    accessCode:
+      "This join code can't be used. Please choose a different code.",
+    /**
      * Shown when a player's free-text answer is blocked on submission.
      * Displayed as a destructive toast on web and an Alert on mobile.
      */

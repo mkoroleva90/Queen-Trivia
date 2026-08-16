@@ -85,6 +85,13 @@ function randomAccessCode(): string {
  return generateTriviaCode(10);
 }
 
+// Host-chosen custom join codes: 6–12 characters, letters and digits only
+// (case-insensitive input; uppercased before storing). Applies only to newly
+// entered codes — existing games are never re-validated.
+const CUSTOM_ACCESS_CODE_PATTERN = /^[A-Za-z0-9]{6,12}$/;
+const INVALID_ACCESS_CODE_MESSAGE =
+ "Join code must be 6\u201312 characters using only letters A\u2013Z and numbers 0\u20139, with no spaces.";
+
 router.post("/games", requireAdmin, async (req, res): Promise<void> => {
  const parsed = CreateGameBody.safeParse(req.body);
  if (!parsed.success) {
@@ -106,7 +113,30 @@ router.post("/games", requireAdmin, async (req, res): Promise<void> => {
      return;
  }
 
- // Retry on the (rare) unique-constraint collision
+ // Optional host-chosen join code. Not yet part of the generated CreateGameBody
+ // contract (zod strips unknown keys), so read it straight from the request body.
+ // Empty/absent → keep the existing random generation unchanged.
+ const rawAccessCode = (req.body as { accessCode?: unknown } | undefined)?.accessCode;
+ let customAccessCode: string | undefined;
+ if (rawAccessCode !== undefined && rawAccessCode !== null && rawAccessCode !== "") {
+  // Validate the raw value (no trimming) so create matches PATCH, whose
+  // generated body schema rejects surrounding whitespace outright.
+  if (typeof rawAccessCode !== "string" || !CUSTOM_ACCESS_CODE_PATTERN.test(rawAccessCode)) {
+   res.status(400).json({ error: INVALID_ACCESS_CODE_MESSAGE, code: "invalid_access_code" });
+   return;
+  }
+  const candidate = rawAccessCode.toUpperCase();
+  // Content filter: block slurs/hate speech (incl. leet-speak) in custom codes.
+  if (containsBannedContent(candidate)) {
+   logFlaggedContent('game_access_code_create');
+   res.status(422).json({ error: COPY.contentFilter.accessCode, code: "content_filtered" });
+   return;
+  }
+  customAccessCode = candidate;
+ }
+
+ // Retry on the (rare) unique-constraint collision — random codes only; a
+ // host-chosen code that collides is a real conflict reported as 409 below.
  let game;
  for (let attempt = 0; attempt < 5; attempt++) {
   try {
@@ -116,14 +146,19 @@ router.post("/games", requireAdmin, async (req, res): Promise<void> => {
      topic: parsed.data.topic.trim(),
      difficulty: parsed.data.difficulty,
      createdByAdmin: parsed.data.createdByAdmin ?? true,
-     accessCode: randomAccessCode(),
+     accessCode: customAccessCode ?? randomAccessCode(),
      brief: parsed.data.brief ?? null,
      ownerAdminId: req.session.adminAccountId ?? null,
     })
     .returning();
    break;
   } catch (err) {
-   const code = (err as { code?: string }).code;
+   const code = (err as { code?: string }).code
+    ?? ((err as { cause?: { code?: string } }).cause?.code);
+   if (code === "23505" && customAccessCode !== undefined) {
+    res.status(409).json({ error: "That room code is already in use by another game" });
+    return;
+   }
    if (code !== "23505" || attempt === 4) throw err;
   }
  }
@@ -189,6 +224,22 @@ router.patch("/games/:gameId", requireAdmin, async (req, res): Promise<void> => 
  if (parsed.data.topic !== undefined && containsBannedContent(parsed.data.topic)) {
      logFlaggedContent('game_topic_update');
      res.status(422).json({ error: COPY.contentFilter.gameTopic, code: "content_filtered" });
+     return;
+ }
+
+ // Newly entered custom room codes must match the shared rule: 6–12 chars,
+ // A–Z / 0–9 only (the generated body schema allows 4+, so enforce here too).
+ if (parsed.data.accessCode !== undefined
+     && !CUSTOM_ACCESS_CODE_PATTERN.test(parsed.data.accessCode.trim())) {
+     res.status(400).json({ error: INVALID_ACCESS_CODE_MESSAGE, code: "invalid_access_code" });
+     return;
+ }
+
+ // Content filter: block slurs/hate speech (incl. leet-speak) in custom codes.
+ if (parsed.data.accessCode !== undefined
+     && containsBannedContent(parsed.data.accessCode.trim().toUpperCase())) {
+     logFlaggedContent('game_access_code_update');
+     res.status(422).json({ error: COPY.contentFilter.accessCode, code: "content_filtered" });
      return;
  }
 
