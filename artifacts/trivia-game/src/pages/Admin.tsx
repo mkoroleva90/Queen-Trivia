@@ -1565,7 +1565,7 @@ const handleReset = () => {
  setJoinCodeError(null);
 };
 
-if (created && importedCount !== null && !working && !runModeChosen) {
+if (!runModeChosen) {
  return (
      <RunModeScreen
        value={runMode}

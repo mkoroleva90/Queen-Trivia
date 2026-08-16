@@ -653,7 +653,7 @@ export function BuildTab({ bottomPadding }: Props) {
         {/* ── SETUP ── */}
         {step === 'setup' && (
           <View style={s.section}>
-            {setupResult && !runModeChosen ? (
+            {!runModeChosen ? (
               /* ── Run-mode choice (shown before the success screen) ── */
               <RunModeScreen
                 value={runMode}
