@@ -1676,7 +1676,10 @@ if (created && importedCount !== null && !working) {
           disabled={updateGame.isPending}
           onClick={() => updateGame.mutate(
             { gameId: created.id, data: { status: "active", hostPlaysAlong: playAlong } },
-            { onSuccess: () => { queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() }); onGoLive?.(created); } }
+            {
+              onSuccess: () => { queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() }); onGoLive?.(created); },
+              onError: () => toast({ variant: "destructive", title: "Couldn't go live — please try again." }),
+            }
           )}
         >
           {updateGame.isPending
