@@ -200,11 +200,11 @@ export default function Home() {
                 style={{
                   fontSize: 16,
                   color: "#041016",
-                  background: "#ffe500",
+                  background: "#ff0080",
                   border: "none",
                   borderRadius: 13,
                   padding: 15,
-                  boxShadow: "0 12px 30px -10px rgba(255,229,0,.5)",
+                  boxShadow: "0 12px 30px -10px rgba(255,0,128,.5)",
                   cursor: "pointer",
                 }}
               >HOST A GAME</button>
