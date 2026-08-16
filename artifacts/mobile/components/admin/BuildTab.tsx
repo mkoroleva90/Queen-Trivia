@@ -695,9 +695,12 @@ export function BuildTab({ bottomPadding }: Props) {
                       autoCapitalize="characters"
                     />
                     <Pressable
-                      style={[s.smallBtn, { backgroundColor: colors.primary, opacity: updateGame.isPending ? 0.6 : 1 }]}
+                      style={[s.smallBtn, {
+                        backgroundColor: colors.primary,
+                        opacity: (updateGame.isPending || !codeInput.trim() || codeInput.trim().toUpperCase() === (setupResult?.game.accessCode ?? '')) ? 0.4 : 1,
+                      }]}
                       onPress={saveCode}
-                      disabled={updateGame.isPending}
+                      disabled={updateGame.isPending || !codeInput.trim() || codeInput.trim().toUpperCase() === (setupResult?.game.accessCode ?? '')}
                     >
                       <Text style={s.primaryBtnText}>Save</Text>
                     </Pressable>
