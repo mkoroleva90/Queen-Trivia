@@ -1590,8 +1590,6 @@ export default function GameDetailScreen() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
-  const [editingRoomCode, setEditingRoomCode] = useState(false);
-  const [roomCode, setRoomCode] = useState('');
   const [editingTopic, setEditingTopic] = useState(false);
   const [topicInput, setTopicInput] = useState('');
   const [topicError, setTopicError] = useState('');
@@ -1715,17 +1713,6 @@ export default function GameDetailScreen() {
       setEditingTopic(false);
     } catch {
       setTopicError('Failed to save — try again');
-    }
-  };
-
-  const handleSaveRoomCode = async () => {
-    if (!roomCode.trim()) return;
-    try {
-      await updateGame.mutateAsync({ gameId, data: { accessCode: roomCode.trim().toUpperCase() } });
-      qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
-      setEditingRoomCode(false);
-    } catch {
-      // silently ignore
     }
   };
 
@@ -1898,38 +1885,7 @@ export default function GameDetailScreen() {
         )}
       </View>
 
-      {/* Room code row */}
       <View style={[s.roomRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Ionicons name="key-outline" size={16} color={colors.mutedForeground} />
-        {editingRoomCode ? (
-          <>
-            <TextInput
-              style={[s.roomInput, { color: colors.foreground, borderColor: colors.primary }]}
-              value={roomCode}
-              onChangeText={setRoomCode}
-              autoCapitalize="characters"
-              autoFocus
-              placeholder="NEW CODE"
-              placeholderTextColor={colors.mutedForeground}
-              returnKeyType="done"
-              onSubmitEditing={handleSaveRoomCode}
-            />
-            <Pressable onPress={handleSaveRoomCode}>
-              <Ionicons name="checkmark-circle" size={22} color={colors.secondary} />
-            </Pressable>
-            <Pressable onPress={() => setEditingRoomCode(false)}>
-              <Ionicons name="close-circle" size={22} color={colors.mutedForeground} />
-            </Pressable>
-          </>
-        ) : (
-          <>
-            <Text style={[s.roomCode, { color: colors.accent }]}>{game?.accessCode ?? '——'}</Text>
-            <Pressable onPress={() => { setRoomCode(game?.accessCode ?? ''); setEditingRoomCode(true); }} hitSlop={8}>
-              <Ionicons name="pencil" size={16} color={colors.mutedForeground} />
-            </Pressable>
-          </>
-        )}
-
         <View style={s.statusActions}>
           {game?.status === 'waiting' && (
             <Pressable style={[s.actionChip, { backgroundColor: colors.secondary + '22' }]} onPress={() => handleStatusChange('active')}>
@@ -2134,8 +2090,6 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     liveBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
     liveBtnText: { fontSize: 13, fontFamily: 'Manrope_700Bold' },
     roomRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 8, borderRadius: 14, borderWidth: 1, padding: 12 },
-    roomCode: { flex: 1, fontSize: 15, fontFamily: 'Manrope_700Bold', letterSpacing: 3 },
-    roomInput: { flex: 1, fontSize: 15, fontFamily: 'Manrope_700Bold', letterSpacing: 3, borderBottomWidth: 1, paddingVertical: 2 },
     playAlongRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 },
     statusActions: { flexDirection: 'row', gap: 6 },
     actionChip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
