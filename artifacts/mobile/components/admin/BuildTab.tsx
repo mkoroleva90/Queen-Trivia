@@ -731,11 +731,6 @@ export function BuildTab({ bottomPadding }: Props) {
                   <Text style={[s.helperText, { color: colors.destructive }]}>{setupError}</Text>
                 )}
 
-                <Pressable style={s.secondaryLink} onPress={resetSetup}>
-                  <Text style={[s.secondaryLinkText, { color: colors.mutedForeground }]}>
-                    Create another game
-                  </Text>
-                </Pressable>
               </View>
             ) : (
               /* ── Setup form ── */
