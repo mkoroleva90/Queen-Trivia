@@ -197,21 +197,10 @@ export default function WelcomeScreen() {
                 <CTAButton bg={colors.accent} color={colors.accentForeground} onPress={() => animateStep(1)}>
                   {COPY.join.letsPlay}
                 </CTAButton>
+                <CTAButton bg={colors.primary} color={colors.primaryForeground} onPress={() => router.push('/admin-login')}>
+                  Host a Game
+                </CTAButton>
               </View>
-
-              {/* Admin / host access */}
-              <Pressable
-                onPress={() => router.push('/admin-login')}
-                hitSlop={12}
-                style={{ alignSelf: 'center', paddingVertical: 4 }}
-              >
-                <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>
-                  {COPY.join.hostingTonight}{' '}
-                  <Text style={{ color: colors.primary, fontFamily: 'Manrope_600SemiBold' }}>
-                    {COPY.join.adminLink}
-                  </Text>
-                </Text>
-              </Pressable>
             </View>
           )}
 
