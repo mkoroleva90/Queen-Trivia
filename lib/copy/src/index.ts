@@ -188,6 +188,30 @@ export const COPY = {
   },
 
   /**
+   * Join-code choice step — shown after the run-mode screen and before the
+   * "Ready to Go!" success screen, on BOTH web and mobile. Pre-filled with the
+   * game's auto-assigned code; saved via the existing PATCH /games/:id.
+   * Blocked-content errors reuse COPY.contentFilter.accessCode.
+   * Wording must be identical on both platforms — always read these keys.
+   */
+  joinCode: {
+    /** Screen title. */
+    title:        'Choose your join code',
+    /** Subtitle beneath the title. */
+    subtitle:     'This is the code players type to join. Keep the one we picked, or make your own.',
+    /** Label above the code input. */
+    inputLabel:   'Join code',
+    /** Helper text beneath the input. */
+    helper:       '6–12 letters and numbers.',
+    /** Continue button. */
+    continueBtn:  'Continue',
+    /** Field-level error for a code that fails the 6–12 A–Z 0–9 format. */
+    invalidError: 'Use 6–12 letters and numbers only.',
+    /** Field-level error when another game already uses the code (409 code_taken). */
+    takenError:   "That code's taken — try another.",
+  },
+
+  /**
    * Player gameplay strings — shown to players while they answer questions.
    * Both platforms must use these keys so wording stays in sync.
    *

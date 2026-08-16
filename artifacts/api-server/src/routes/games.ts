@@ -156,7 +156,7 @@ router.post("/games", requireAdmin, async (req, res): Promise<void> => {
    const code = (err as { code?: string }).code
     ?? ((err as { cause?: { code?: string } }).cause?.code);
    if (code === "23505" && customAccessCode !== undefined) {
-    res.status(409).json({ error: "That room code is already in use by another game" });
+    res.status(409).json({ code: "code_taken", error: "That room code is already in use by another game" });
     return;
    }
    if (code !== "23505" || attempt === 4) throw err;
@@ -286,7 +286,7 @@ router.patch("/games/:gameId", requireAdmin, async (req, res): Promise<void> => 
   const pgCode = (err as { code?: string }).code
       ?? ((err as { cause?: { code?: string } }).cause?.code);
   if (pgCode === "23505") {
-      res.status(409).json({ error: "That room code is already in use by another game" });
+      res.status(409).json({ code: "code_taken", error: "That room code is already in use by another game" });
       return;
   }
   throw err;
