@@ -135,6 +135,17 @@ export const COPY = {
   admin: {
     /** Label for the filter tab that shows all games regardless of status. */
     filterAll: 'All',
+    /**
+     * Rename-quiz flow — host-facing errors and success messages.
+     * Used in web GamesView (Admin.tsx) and mobile GamesTab.tsx.
+     * Both platforms must use these keys so wording stays in sync.
+     */
+    renameEmpty:    'Name cannot be empty',
+    renameFailed:   'Failed to rename quiz',
+    /** Dynamic toast shown when a join code is saved successfully. */
+    codeUpdated:    (code: string) => `Room code updated to ${code}`,
+    /** Toast shown when the clipboard write fails. */
+    copyCodeFailed: "Couldn't copy code",
   },
 
   /**

@@ -2108,7 +2108,7 @@ const handleRunRegen = async () => {
      const limitMsg = extractFreeTierLimitMsg(err);
      if (limitMsg) { setUpgradeLimitMsg(limitMsg); setRegenLoading(false); return; }
      const msg = err instanceof Error ? err.message : "Generation failed. Please try again.";
-  setRegenError(msg.includes("Too many requests") ? "Rate limited — please wait amoment and try again." : msg);
+  setRegenError(msg.includes("Too many requests") ? "Rate limited — please wait a moment and try again." : msg);
  } finally {
      setRegenLoading(false);
  }
@@ -2162,7 +2162,7 @@ const handleRunEnhance = async (q: Question) => {
      const limitMsg = extractFreeTierLimitMsg(err);
      if (limitMsg) { setUpgradeLimitMsg(limitMsg); setEnhLoading(false); return; }
      const msg = err instanceof Error ? err.message : "Enhancement failed. Please try again.";
-  setEnhError(msg.includes("Too many requests") ? "Rate limited — please wait amoment and try again." : msg);
+  setEnhError(msg.includes("Too many requests") ? "Rate limited — please wait a moment and try again." : msg);
  } finally {
      setEnhLoading(false);
  }
@@ -3701,7 +3701,7 @@ function GamesView({
   const saveName = (game: Game) => {
     const name = nameDraft.trim();
     if (!name) {
-      setNameError("Name cannot be empty");
+      setNameError(COPY.admin.renameEmpty);
       return;
     }
     if (name === game.topic) { setEditingNameId(null); return; }
@@ -3714,7 +3714,7 @@ function GamesView({
           toast({ title: `Quiz renamed to "${name}"` });
         },
         onError: (err: any) => {
-          const msg = err?.response?.data?.error ?? "Failed to rename quiz";
+          const msg = err?.response?.data?.error ?? COPY.admin.renameFailed;
           toast({ variant: "destructive", title: msg });
         },
       }
@@ -3735,7 +3735,7 @@ function GamesView({
           setEditingCodeId(null);
           setCodeError(null);
           invalidate();
-          toast({ title: `Room code updated to ${code}` });
+          toast({ title: COPY.admin.codeUpdated(code) });
         },
         onError: (err: any) => {
           const errCode = err?.response?.data?.code ?? err?.data?.code;
@@ -3755,7 +3755,7 @@ function GamesView({
       setCopiedCodeId(game.id);
       setTimeout(() => setCopiedCodeId((id) => (id === game.id ? null : id)), 1500);
     } catch {
-      toast({ variant: "destructive", title: "Couldn't copy code" });
+      toast({ variant: "destructive", title: COPY.admin.copyCodeFailed });
     }
   };
 

@@ -18,6 +18,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
+import { COPY } from '@workspace/copy';
 import { API_BASE_URL } from '@/lib/apiBase';
 
 export default function AdminRegisterScreen() {
@@ -170,11 +171,11 @@ export default function AdminRegisterScreen() {
             <Text style={[s.legalText, { color: colors.mutedForeground }]}>
               By creating an account you agree to our{' '}
               <Text style={{ color: colors.primary }} onPress={() => router.push('/terms')}>
-                Terms of Service
+                {COPY.footer.termsOfService}
               </Text>
               {' '}and{' '}
               <Text style={{ color: colors.primary }} onPress={() => router.push('/privacy')}>
-                Privacy Policy
+                {COPY.footer.privacyPolicy}
               </Text>
               .
             </Text>

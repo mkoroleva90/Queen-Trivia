@@ -12,6 +12,7 @@ const REVIEWER_EMAIL = "reviewer@queen-trivia.com";
 const REVIEWER_DISPLAY_NAME = "App Store Reviewer";
 const DEMO_GAME_TOPIC = "Queen Trivia Demo";
 const DEMO_ACCESS_CODE = "QTDEMO";
+const DEMO_ACCESS_CODE_FALLBACK = "QTDEMO2";
 
 // Distinct from the bootstrapAccessCodes lock (727_461_001).
 const SEED_LOCK_KEY = 727_461_002;
@@ -61,14 +62,74 @@ const SAMPLE_QUESTIONS: Array<{
 ];
 
 /**
+ * Insert the demo game + questions for `ownerAdminId` inside transaction `tx`.
+ * Picks DEMO_ACCESS_CODE if available, falls back to DEMO_ACCESS_CODE_FALLBACK.
+ */
+async function insertDemoGame(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  ownerAdminId: number,
+): Promise<void> {
+  // Check whether the preferred access code is already taken.
+  const [takenCode] = await tx
+    .select({ id: gamesTable.id })
+    .from(gamesTable)
+    .where(eq(gamesTable.accessCode, DEMO_ACCESS_CODE))
+    .limit(1);
+
+  const accessCode = takenCode ? DEMO_ACCESS_CODE_FALLBACK : DEMO_ACCESS_CODE;
+  if (takenCode) {
+    logger.info(
+      { preferred: DEMO_ACCESS_CODE, using: accessCode },
+      "QTDEMO is already taken — using fallback access code.",
+    );
+  }
+
+  const [game] = await tx
+    .insert(gamesTable)
+    .values({
+      topic: DEMO_GAME_TOPIC,
+      difficulty: "easy",
+      questionCount: SAMPLE_QUESTIONS.length,
+      status: "waiting",
+      accessCode,
+      createdByAdmin: true,
+      ownerAdminId,
+    })
+    .returning({ id: gamesTable.id });
+
+  await tx.insert(questionsTable).values(
+    SAMPLE_QUESTIONS.map((q) => ({
+      gameId: game!.id,
+      questionText: q.questionText,
+      questionType: "multiple_choice" as const,
+      correctAnswer: q.correctAnswer,
+      options: { choices: q.choices } as Record<string, unknown>,
+      points: 10,
+      orderIndex: q.orderIndex,
+    })),
+  );
+
+  logger.info(
+    {
+      ownerAdminId,
+      gameId: game!.id,
+      accessCode,
+      questions: SAMPLE_QUESTIONS.length,
+    },
+    "Reviewer demo game seeded.",
+  );
+}
+
+/**
  * Idempotent startup seed for the App Store reviewer demo account.
  *
  * Behaviour:
  *  - If REVIEWER_ACCOUNT_PASSWORD is not set, logs and returns immediately.
- *  - If the reviewer account already exists, returns immediately (no-op).
- *  - Otherwise creates the account (pre-verified, no email gate), one sample
- *    game, and six questions — all inside a serialised transaction so
- *    concurrent cold-start replicas cannot double-create.
+ *  - If the reviewer account already exists AND its demo game exists → no-op.
+ *  - If the reviewer account already exists but its demo game is missing →
+ *    creates the demo game for the existing account (self-healing).
+ *  - Otherwise creates the account (pre-verified, no email gate), demo game,
+ *    and questions — all inside a serialised transaction.
  *
  * Safe to run on every server startup.
  */
@@ -83,8 +144,7 @@ export async function seedReviewerAccount(): Promise<void> {
 
   try {
     await db.transaction(async (tx) => {
-      // Serialise concurrent startups (e.g. rolling deploy with multiple
-      // instances) so exactly one creates the account.
+      // Serialise concurrent startups so exactly one instance seeds.
       await tx.execute(sql`SELECT pg_advisory_xact_lock(${SEED_LOCK_KEY})`);
 
       const [existing] = await tx
@@ -94,61 +154,48 @@ export async function seedReviewerAccount(): Promise<void> {
         .limit(1);
 
       if (existing) {
+        // Account exists — check whether the demo game is also present.
+        const [existingGame] = await tx
+          .select({ id: gamesTable.id })
+          .from(gamesTable)
+          .where(eq(gamesTable.ownerAdminId, existing.id))
+          .limit(1);
+
+        if (existingGame) {
+          logger.info(
+            { email: REVIEWER_EMAIL },
+            "Reviewer account and demo game already exist — seed skipped.",
+          );
+          return;
+        }
+
+        // Account exists but game was deleted — recreate just the game.
         logger.info(
           { email: REVIEWER_EMAIL },
-          "Reviewer account already exists — seed skipped.",
+          "Reviewer account exists but demo game is missing — recreating game.",
         );
+        await insertDemoGame(tx, existing.id);
         return;
       }
 
-      // Create pre-verified account — emailVerified: true bypasses the
-      // email-verification gate in the login route so the reviewer can log
-      // in immediately with just email + password.
+      // Fresh install: create account + game together.
       const passwordHash = await bcrypt.hash(password, 12);
       const [account] = await tx
         .insert(adminAccountsTable)
         .values({
           email: REVIEWER_EMAIL,
           passwordHash,
+          // emailVerified: true bypasses the email-verification gate in the
+          // login route so the reviewer can log in with just email + password.
           emailVerified: true,
           displayName: REVIEWER_DISPLAY_NAME,
         })
         .returning({ id: adminAccountsTable.id });
 
-      // Create the sample game.
-      const [game] = await tx
-        .insert(gamesTable)
-        .values({
-          topic: DEMO_GAME_TOPIC,
-          difficulty: "easy",
-          questionCount: SAMPLE_QUESTIONS.length,
-          status: "waiting",
-          accessCode: DEMO_ACCESS_CODE,
-          createdByAdmin: true,
-          ownerAdminId: account!.id,
-        })
-        .returning({ id: gamesTable.id });
-
-      // Insert all questions in one batch.
-      await tx.insert(questionsTable).values(
-        SAMPLE_QUESTIONS.map((q) => ({
-          gameId: game!.id,
-          questionText: q.questionText,
-          questionType: "multiple_choice" as const,
-          correctAnswer: q.correctAnswer,
-          options: { choices: q.choices } as Record<string, unknown>,
-          points: 10,
-          orderIndex: q.orderIndex,
-        })),
-      );
+      await insertDemoGame(tx, account!.id);
 
       logger.info(
-        {
-          email: REVIEWER_EMAIL,
-          gameId: game!.id,
-          accessCode: DEMO_ACCESS_CODE,
-          questions: SAMPLE_QUESTIONS.length,
-        },
+        { email: REVIEWER_EMAIL },
         "Reviewer account seeded successfully.",
       );
     });

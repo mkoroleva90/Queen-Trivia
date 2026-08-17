@@ -130,7 +130,7 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
   const handleRename = async (gameId: number) => {
     const trimmed = renameText.trim();
     if (!trimmed) {
-      setRenameError('Name cannot be empty');
+      setRenameError(COPY.admin.renameEmpty);
       return;
     }
     setRenameSaving(true);
@@ -146,7 +146,7 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
       qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
       cancelRename();
     } catch {
-      setRenameError('Failed to save. Try again.');
+      setRenameError(COPY.admin.renameFailed);
     } finally {
       setRenameSaving(false);
     }

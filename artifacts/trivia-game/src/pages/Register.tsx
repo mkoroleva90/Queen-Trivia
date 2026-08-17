@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Mail, Lock, ArrowLeft, CheckCircle } from "lucide-react";
+import { COPY } from "@workspace/copy";
 
 export default function Register() {
   const [email, setEmail] = useState("");
@@ -164,11 +165,11 @@ export default function Register() {
             <p className="text-center text-xs text-[#9aa6bc] leading-relaxed">
               By creating an account you agree to our{" "}
               <Link href="/terms" className="text-[#ff2d8e] hover:underline">
-                Terms of Service
+                {COPY.footer.termsOfService}
               </Link>{" "}
               and{" "}
               <Link href="/privacy" className="text-[#ff2d8e] hover:underline">
-                Privacy Policy
+                {COPY.footer.privacyPolicy}
               </Link>
               .
             </p>
