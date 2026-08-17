@@ -15,6 +15,7 @@ import ownerRouter from "./owner.ts";
 import reportsRouter from "./reports.ts";
 import kickRouter from "./kick.ts";
 import ssoAuthRouter from "./ssoAuth.ts";
+import accountRouter from "./account.ts";
 
 const router: IRouter = Router();
 router.use(healthRouter);
@@ -33,5 +34,6 @@ router.use(statsRouter);
 router.use(ownerRouter);
 router.use(reportsRouter);
 router.use(kickRouter);
+router.use(accountRouter);
 
 export default router;

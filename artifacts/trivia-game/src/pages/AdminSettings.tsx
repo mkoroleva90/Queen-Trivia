@@ -303,6 +303,8 @@ function LegalCard() {
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
+import { DisplayNameCard } from "@/components/DisplayNameCard";
+
 export default function AdminSettings() {
   return (
     <div className="max-w-lg space-y-4">
@@ -312,6 +314,7 @@ export default function AdminSettings() {
           Manage your password and account.
         </p>
       </div>
+      <DisplayNameCard />
       <ChangePasswordCard />
       <DangerZoneCard />
       <LegalCard />

@@ -13,3 +13,4 @@
 - [Access code security model](access-code-security.md) — trivia 4–6 chars / case-insensitive; admin 12–64 chars / bcrypt hashed / never returned to client; bootstrap auto-migrates plain text.
 - [Content filter](content-filter.md) — naughty-words list, collapse-3+-to-2 normalization (not to-1 or Niger false-positives), 4 server enforcement points, client surfacing pattern.
 - [Player removal (kick)](player-removal.md) — lib/db dist must be rebuilt (npx tsc) after new schema tables; userId-based block; player:kicked socket to game room; active-games-only guard.
+- [API server zod import](api-server-zod.md) — api-server has no direct zod dependency; use plain typeof guards for inline validation, or @workspace/api-zod for generated schemas. `zod/v4` import causes build failure.

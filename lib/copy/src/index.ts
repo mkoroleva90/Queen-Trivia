@@ -825,6 +825,49 @@ export const COPY = {
   },
 
   /**
+   * Host leaderboard name — suffix appended to the resolved name, and the
+   * generic fallback used when no name can be derived. The API server reads
+   * these at name-generation time; both clients read them if they ever need
+   * to display or regenerate the label. Keep them here so the wording is
+   * identical everywhere.
+   */
+  hostName: {
+    /** Appended after the resolved name (note the leading space). e.g. "Alice (Host)" */
+    suffix:  ' (Host)',
+    /** Used when no usable name can be derived. Suffix is NOT appended. */
+    generic: 'Host',
+  },
+
+  /**
+   * Account screen — display name management card.
+   * Shown on both the web Account screen (trivia-game) and the mobile
+   * Account tab (mobile/components/admin/RoomsTab.tsx).
+   * Both platforms must use these keys so wording is identical.
+   */
+  account: {
+    displayName: {
+      /** Card / section heading. */
+      sectionTitle:  'Display name',
+      /** One-line description beneath the heading. */
+      description:   'This is the name players see next to your score on the leaderboard.',
+      /** Input placeholder when no display name has been set yet. */
+      placeholder:   'Enter your display name',
+      /** Save button label. */
+      saveBtn:       'Save display name',
+      /** Inline success message shown after a successful save. */
+      saved:         'Display name saved.',
+      /** Validation error: value is empty after trimming. */
+      errorEmpty:    'Display name cannot be empty.',
+      /** Validation error: value exceeds the maximum length. */
+      errorTooLong:  'Display name must be 64 characters or fewer.',
+      /** Validation error: content filter blocked the value. */
+      errorBlocked:  'That display name is not allowed. Please choose a different one.',
+      /** Generic failure (network error or unexpected server response). */
+      errorFailed:   'Failed to save display name — please retry.',
+    },
+  },
+
+  /**
    * Question editor field labels — host-facing, shown in the create/edit
    * question form and the AI generation panel. Both platforms must use
    * these keys so labels stay in sync.

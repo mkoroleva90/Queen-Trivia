@@ -32,6 +32,68 @@ import { containsBannedContent, logFlaggedContent } from "../lib/contentFilter.t
 import { COPY } from "@workspace/copy";
 
 
+// ── Host name resolution ──────────────────────────────────────────────────────
+
+/** Apple private-relay domains — addresses from these must never be used as a name source. */
+const APPLE_RELAY_DOMAINS = new Set(["privaterelay.appleid.com"]);
+
+/**
+ * Returns true when a local-part looks like a random opaque token rather than
+ * a human-chosen username: all alphanumeric (no dots / hyphens / underscores),
+ * contains at least two digit characters, and is at least 8 characters long.
+ */
+function isTokenLike(localPart: string): boolean {
+    return (
+        /^[A-Za-z0-9]+$/.test(localPart) &&
+        (localPart.match(/\d/g) ?? []).length >= 2 &&
+        localPart.length >= 8
+    );
+}
+
+/**
+ * Resolve a leaderboard name for a host who is playing along.
+ *
+ * Priority order:
+ *   1. Stored displayName — if non-empty after trimming.
+ *   2. Email local-part — only when the address is a real address (not an
+ *      Apple private-relay address) and the local-part does not look like a
+ *      random token.
+ *   3. Generic host label — when nothing usable could be derived.
+ *
+ * The " (Host)" suffix (from COPY) is appended for cases 1 and 2 so players
+ * can tell who is running the game. It is NOT appended for case 3 to avoid
+ * the redundant "Host (Host)" label.
+ */
+function resolveHostName(displayName: string | null, email: string | null): string {
+    const suffix  = COPY.hostName.suffix;
+    const generic = COPY.hostName.generic;
+
+    // Priority 1: stored display name
+    const trimmedDisplay = displayName?.trim() ?? "";
+    if (trimmedDisplay) return `${trimmedDisplay}${suffix}`;
+
+    // Priority 2: email local-part, if the address is usable
+    if (email) {
+        const atIdx    = email.indexOf("@");
+        const domain   = atIdx >= 0 ? email.slice(atIdx + 1).toLowerCase() : "";
+        const localPart = atIdx >= 0 ? email.slice(0, atIdx) : "";
+        if (
+            domain &&
+            !APPLE_RELAY_DOMAINS.has(domain) &&
+            localPart &&
+            !isTokenLike(localPart)
+        ) {
+            const titled = localPart.charAt(0).toUpperCase() + localPart.slice(1);
+            return `${titled}${suffix}`;
+        }
+    }
+
+    // Priority 3: generic label — no suffix
+    return generic;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const router: IRouter = Router();
 
 
@@ -302,12 +364,10 @@ router.patch("/games/:gameId", requireAdmin, async (req, res): Promise<void> => 
  // the admin and register them as a game participant.
  if (game.status === "active" && game.hostPlaysAlong && !game.hostUserId && req.session.adminAccountId) {
      const [admin] = await db
-         .select({ email: adminAccountsTable.email })
+         .select({ email: adminAccountsTable.email, displayName: adminAccountsTable.displayName })
          .from(adminAccountsTable)
          .where(eq(adminAccountsTable.id, req.session.adminAccountId));
-     const localPart = (admin?.email ?? "host").split("@")[0] ?? "host";
-     const hostName =
-         localPart.charAt(0).toUpperCase() + localPart.slice(1) + " (Host)";
+     const hostName = resolveHostName(admin?.displayName ?? null, admin?.email ?? null);
      const [hostUser] = await db
          .insert(usersTable)
          .values({ name: hostName })

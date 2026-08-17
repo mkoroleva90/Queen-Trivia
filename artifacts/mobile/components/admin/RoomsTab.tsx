@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -18,6 +18,7 @@ import * as SecureStore from 'expo-secure-store';
 import { ADMIN_TOKEN_KEY, useAdminAuth } from '@/context/AdminAuthContext';
 import { API_BASE_URL } from '@/lib/apiBase';
 import { useColors } from '@/hooks/useColors';
+import { COPY } from '@workspace/copy';
 
 const PRIVACY_URL = 'https://queen-trivia.com/privacy';
 const TERMS_URL   = 'https://queen-trivia.com/terms';
@@ -46,6 +47,14 @@ export function RoomsTab({ bottomPadding }: Props) {
   const router = useRouter();
   const { logoutAdmin } = useAdminAuth();
 
+  // Display name state
+  const [displayName, setDisplayName]         = useState('');
+  const [displayNameInput, setDisplayNameInput] = useState('');
+  const [dnLoading, setDnLoading]             = useState(true);
+  const [dnSaving, setDnSaving]               = useState(false);
+  const [dnError, setDnError]                 = useState('');
+  const [dnSuccess, setDnSuccess]             = useState('');
+
   const [deleting, setDeleting] = useState(false);
   const [globalError, setGlobalError] = useState('');
 
@@ -61,6 +70,55 @@ export function RoomsTab({ bottomPadding }: Props) {
   const [pwSuccess, setPwSuccess] = useState('');
 
   const baseUrl = API_BASE_URL;
+
+  const dn = COPY.account.displayName;
+
+  // Fetch current display name on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const r    = await adminFetch(`${baseUrl}/api/account/display-name`);
+        const data = (await r.json()) as { displayName: string | null };
+        const name = data.displayName ?? '';
+        setDisplayName(name);
+        setDisplayNameInput(name);
+      } catch {
+        // non-fatal — leave input empty
+      } finally {
+        setDnLoading(false);
+      }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSaveDisplayName = async () => {
+    setDnError('');
+    setDnSuccess('');
+    setDnSaving(true);
+    try {
+      const r    = await adminFetch(`${baseUrl}/api/account/display-name`, {
+        method: 'PATCH',
+        body:   JSON.stringify({ displayName: displayNameInput }),
+      });
+      const json = await r.json().catch(() => ({})) as { ok?: boolean; error?: string; message?: string; displayName?: string };
+      if (!r.ok) {
+        const msg =
+          json.error === 'too_long'          ? dn.errorTooLong  :
+          json.error === 'content_filtered'  ? dn.errorBlocked  :
+          json.error === 'empty'             ? dn.errorEmpty     :
+          dn.errorFailed;
+        setDnError(msg);
+        return;
+      }
+      const saved = json.displayName ?? displayNameInput.trim();
+      setDisplayName(saved);
+      setDisplayNameInput(saved);
+      setDnSuccess(dn.saved);
+    } catch {
+      setDnError(dn.errorFailed);
+    } finally {
+      setDnSaving(false);
+    }
+  };
 
   const handleChangePassword = async () => {
     setPwError('');
@@ -135,6 +193,64 @@ export function RoomsTab({ bottomPadding }: Props) {
         contentContainerStyle={[s.body, { paddingBottom: bottomPadding + 24 }]}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Display name card */}
+        <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={s.sectionHeader}>
+            <Ionicons name="person-outline" size={18} color={colors.primary} />
+            <Text style={[s.sectionTitle, { color: colors.foreground }]}>{dn.sectionTitle}</Text>
+          </View>
+          <Text style={[s.sectionDesc, { color: colors.mutedForeground }]}>{dn.description}</Text>
+
+          <View style={s.fieldGroup}>
+            {dnLoading ? (
+              <ActivityIndicator color={colors.primary} style={{ alignSelf: 'flex-start' }} />
+            ) : (
+              <TextInput
+                style={[s.input, {
+                  backgroundColor: colors.background,
+                  color: colors.foreground,
+                  borderColor: dnError ? colors.destructive : colors.border,
+                }]}
+                value={displayNameInput}
+                onChangeText={(v) => { setDisplayNameInput(v); setDnError(''); setDnSuccess(''); }}
+                placeholder={dn.placeholder}
+                placeholderTextColor={colors.mutedForeground}
+                autoCapitalize="words"
+                autoCorrect={false}
+                maxLength={64}
+              />
+            )}
+            {!!dnError && (
+              <Text style={[s.fieldError, { color: colors.destructive }]}>{dnError}</Text>
+            )}
+          </View>
+
+          {!!dnSuccess && (
+            <View style={[s.msgRow, { backgroundColor: colors.secondary + '15', borderColor: colors.secondary + '30' }]}>
+              <Ionicons name="checkmark-circle" size={16} color={colors.secondary} />
+              <Text style={[s.msgText, { color: colors.secondary }]}>{dnSuccess}</Text>
+            </View>
+          )}
+
+          <Pressable
+            style={[s.saveBtn, {
+              backgroundColor: colors.primary,
+              opacity: (dnSaving || dnLoading || displayNameInput.trim() === displayName) ? 0.45 : 1,
+            }]}
+            onPress={handleSaveDisplayName}
+            disabled={dnSaving || dnLoading || displayNameInput.trim() === displayName}
+          >
+            {dnSaving ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="person-outline" size={18} color="#fff" />
+                <Text style={s.saveBtnText}>{dn.saveBtn}</Text>
+              </>
+            )}
+          </Pressable>
+        </View>
+
         {/* Change password card */}
         <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={s.sectionHeader}>
