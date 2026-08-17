@@ -67,17 +67,10 @@ export const COPY = {
   /** Access code terminology — always use the full term. */
   accessCode: {
     trivia: 'Trivia access code',
-    admin:  'Admin access code',
     /** Card / section heading */
     sectionTitle: 'Access codes',
-    /** Description shown under the section heading */
-    description:
-      'Players use the trivia access code to join games. ' +
-      'Both codes must be at least 8 characters and must differ from each other.',
     /** Validation errors */
     validationTrivia: 'Trivia access code must be at least 8 characters',
-    validationAdmin:  'Admin access code must be at least 8 characters',
-    validationSame:   'Trivia access code and admin access code must be different',
   },
 
   /** Question-source labels. */

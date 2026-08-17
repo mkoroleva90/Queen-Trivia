@@ -17,7 +17,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
-  Key,
   Lock,
   AlertTriangle,
   FileText,
@@ -29,48 +28,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 
-// ── Validation helpers (mirror of server rules in accessCodeValidation.ts) ────
-
-const ADMIN_COMMON = new Set([
-  "password", "passw0rd", "letmein", "welcome", "monkey", "dragon", "master",
-  "iloveyou", "sunshine", "princess", "football", "shadow", "superman", "batman",
-  "qwerty", "qwerty123", "abc123", "abcdef", "trustno1", "access", "admin", "changeme",
-]);
-const KBD_ROWS = [
-  "qwertyuiop", "asdfghjkl", "zxcvbnm", "1234567890",
-  "poiuytrewq", "lkjhgfdsa", "mnbvcxz", "0987654321",
-];
-
-function adminCodeError(code: string): string | null {
-  if (code.length < 12) return "Admin access code must be at least 12 characters.";
-  if (code.length > 64) return "Admin access code must be at most 64 characters.";
-  const s = code.toLowerCase().replace(/\s+/g, "");
-  if (ADMIN_COMMON.has(s)) return "Admin access code is too common. Choose a less predictable passphrase.";
-  for (let i = 0; i <= s.length - 4; i++) {
-    let asc = true, dsc = true;
-    for (let j = 1; j < 4; j++) {
-      const d = s.charCodeAt(i + j) - s.charCodeAt(i + j - 1);
-      if (d !== 1) asc = false;
-      if (d !== -1) dsc = false;
-    }
-    if (asc || dsc) return 'Admin access code contains a sequential run (e.g. "abcd" or "1234"). Choose something less predictable.';
-  }
-  for (let i = 0; i <= s.length - 3; i++) {
-    if (s[i] === s[i + 1] && s[i] === s[i + 2])
-      return 'Admin access code contains repeated characters (e.g. "aaa"). Choose something less predictable.';
-  }
-  for (const row of KBD_ROWS) {
-    for (let i = 0; i <= s.length - 4; i++) {
-      if (row.includes(s.slice(i, i + 4)))
-        return 'Admin access code follows a keyboard pattern (e.g. "qwerty"). Choose something less predictable.';
-    }
-  }
-  return null;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
-
-type SettingsData = { adminCodeIsSet: boolean };
 
 function apiFetch(path: string, options?: RequestInit) {
   return fetch(path, {
@@ -125,121 +83,6 @@ function PwField({
         {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
       </button>
     </div>
-  );
-}
-
-// ── Card: Admin access code ───────────────────────────────────────────────────
-
-function AdminCodeCard() {
-  const [adminCodeIsSet, setAdminCodeIsSet] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [adminCode, setAdminCode] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-
-  const adminErr = adminCode.trim() ? adminCodeError(adminCode) : null;
-  const unchanged = adminCode.trim() === "";
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await apiFetch("/api/settings");
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const data = (await r.json()) as SettingsData;
-        setAdminCodeIsSet(data.adminCodeIsSet);
-      } catch {
-        setError("Could not load settings. Check your connection and try again.");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
-  const handleSave = async () => {
-    if (unchanged || !!adminErr) return;
-    setError("");
-    setSuccess("");
-    setSaving(true);
-    try {
-      const r = await apiFetch("/api/settings", {
-        method: "PATCH",
-        body: JSON.stringify({ adminAccessCode: adminCode }),
-      });
-      const json = await r.json().catch(() => ({})) as { adminCodeIsSet?: boolean; error?: string };
-      if (!r.ok) {
-        setError(json.error ?? `HTTP ${r.status}`);
-        return;
-      }
-      if (json.adminCodeIsSet) setAdminCodeIsSet(true);
-      setAdminCode("");
-      setSuccess("Settings saved successfully.");
-    } catch {
-      setError("Connection error — please retry.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Card className="border-primary/20 bg-card/50">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Key className="h-4 w-4 text-primary" />
-          {COPY.accessCode.admin}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {loading ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading…
-          </div>
-        ) : (
-          <>
-            <p className="text-sm text-muted-foreground">
-              The admin access code is stored encrypted and never shown — enter a new value to change it.
-            </p>
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                {COPY.accessCode.admin}
-              </label>
-              <p className="text-xs text-muted-foreground">
-                {adminCodeIsSet
-                  ? "A code is set. Leave blank to keep it, or enter a new passphrase (12–64 chars) to replace it."
-                  : "No code set. Enter a passphrase (12–64 characters). Spaces are allowed."}
-              </p>
-              <div className="relative">
-                <Input
-                  type="password"
-                  value={adminCode}
-                  onChange={(e) => { setAdminCode(e.target.value); setError(""); setSuccess(""); }}
-                  placeholder={adminCodeIsSet ? "Leave blank to keep existing code" : "Enter new admin access code"}
-                  autoComplete="new-password"
-                  className={`h-11 bg-background border-primary/30 focus-visible:ring-primary ${adminErr ? "border-destructive focus-visible:ring-destructive" : ""}`}
-                />
-              </div>
-              {adminErr && <InlineMsg kind="error" text={adminErr} />}
-            </div>
-
-            {error && <InlineMsg kind="error" text={error} />}
-            {success && <InlineMsg kind="success" text={success} />}
-
-            <Button
-              onClick={handleSave}
-              disabled={saving || !!adminErr || unchanged}
-              className="w-full h-11"
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {COPY.btn.saveChanges}
-            </Button>
-            {unchanged && !adminErr && (
-              <p className="text-center text-xs text-muted-foreground">Enter a new passphrase to update.</p>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
   );
 }
 
@@ -466,10 +309,9 @@ export default function AdminSettings() {
       <div className="mb-6">
         <h2 className="text-xl font-bold text-foreground">{COPY.nav.rooms}</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Manage your access code, password, and account.
+          Manage your password and account.
         </p>
       </div>
-      <AdminCodeCard />
       <ChangePasswordCard />
       <DangerZoneCard />
       <LegalCard />

@@ -3,7 +3,6 @@ import { createServer } from "node:http";
 import app from "./app.ts";
 import { initSocket } from "./lib/socket.ts";
 import { logger } from "./lib/logger.ts";
-import { bootstrapAccessCodes } from "./lib/bootstrapAccessCodes.ts";
 import { seedReviewerAccount } from "./lib/seedReviewerAccount.ts";
 
 // ── Startup guard: SESSION_SECRET must be set to a non-default value ─────────
@@ -49,10 +48,7 @@ httpServer.on("error", (err) => {
 });
 
 
-// Seed/rotate access codes BEFORE accepting any traffic, so there is no
-// window where publicly documented default codes can authenticate.
 async function start(): Promise<void> {
-	await bootstrapAccessCodes();
 	await seedReviewerAccount();
 	httpServer.listen(port, () => {
 		logger.info({ port }, "Server listening");
@@ -60,7 +56,7 @@ async function start(): Promise<void> {
 }
 
 start().catch((err) => {
-	logger.error({ err }, "Failed to bootstrap access codes");
+	logger.error({ err }, "Failed to start server");
 	process.exit(1);
 });
 
