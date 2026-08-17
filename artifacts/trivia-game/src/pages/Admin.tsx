@@ -73,6 +73,7 @@ import type {
 } from "@workspace/api-client-react";
 import { useAuth } from "../lib/auth";
 import { CrownMark } from "@/components/Brand";
+import { Footer } from "@/components/Footer";
 import { useGameSocket } from "../hooks/useGameSocket";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -4542,6 +4543,7 @@ function NewAdminDashboard() {
             </motion.div>
           </AnimatePresence>
         </div>
+        <Footer />
       </main>
 
       {/* ── Mobile: sticky bottom tab bar ── */}

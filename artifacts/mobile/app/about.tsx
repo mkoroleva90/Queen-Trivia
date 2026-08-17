@@ -123,6 +123,13 @@ export default function AboutScreen() {
             accentColor={colors.primary}
             onPress={() => router.push('/privacy')}
           />
+          <LinkRow
+            icon="document-text-outline"
+            label={COPY.footer.termsOfService}
+            sublabel="Our rules and your rights"
+            accentColor={colors.accent}
+            onPress={() => router.push('/terms')}
+          />
           <SupportRow
             icon="chatbubble-ellipses-outline"
             label={COPY.footer.support}
