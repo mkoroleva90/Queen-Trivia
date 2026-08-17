@@ -864,6 +864,8 @@ export const COPY = {
       errorBlocked:  'That display name is not allowed. Please choose a different one.',
       /** Generic failure (network error or unexpected server response). */
       errorFailed:   'Failed to save display name — please retry.',
+      /** Label prefix for the live leaderboard-name preview shown beneath the field. */
+      previewLabel:  'Players will see:',
     },
   },
 

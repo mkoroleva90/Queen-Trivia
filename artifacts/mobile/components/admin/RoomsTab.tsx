@@ -225,6 +225,16 @@ export function RoomsTab({ bottomPadding }: Props) {
             )}
           </View>
 
+          {/* Live leaderboard name preview */}
+          <Text style={[s.sectionDesc, { color: colors.mutedForeground, marginTop: 2, marginBottom: 4 }]}>
+            {dn.previewLabel + ' '}
+            <Text style={{ color: colors.foreground, fontWeight: '600' }}>
+              {displayNameInput.trim()
+                ? `${displayNameInput.trim()}${COPY.hostName.suffix}`
+                : COPY.hostName.generic}
+            </Text>
+          </Text>
+
           {!!dnSuccess && (
             <View style={[s.msgRow, { backgroundColor: colors.secondary + '15', borderColor: colors.secondary + '30' }]}>
               <Ionicons name="checkmark-circle" size={16} color={colors.secondary} />

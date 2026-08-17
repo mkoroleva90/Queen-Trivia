@@ -118,6 +118,15 @@ export function DisplayNameCard() {
             />
           )}
 
+          <p className="text-xs text-muted-foreground">
+            {dn.previewLabel}{" "}
+            <span className="font-medium text-foreground">
+              {value.trim()
+                ? `${value.trim()}${COPY.hostName.suffix}`
+                : COPY.hostName.generic}
+            </span>
+          </p>
+
           {error   && <InlineMsg kind="error"   text={error}   />}
           {success && <InlineMsg kind="success"  text={success} />}
 

@@ -38,26 +38,13 @@ import { COPY } from "@workspace/copy";
 const APPLE_RELAY_DOMAINS = new Set(["privaterelay.appleid.com"]);
 
 /**
- * Returns true when a local-part looks like a random opaque token rather than
- * a human-chosen username: all alphanumeric (no dots / hyphens / underscores),
- * contains at least two digit characters, and is at least 8 characters long.
- */
-function isTokenLike(localPart: string): boolean {
-    return (
-        /^[A-Za-z0-9]+$/.test(localPart) &&
-        (localPart.match(/\d/g) ?? []).length >= 2 &&
-        localPart.length >= 8
-    );
-}
-
-/**
  * Resolve a leaderboard name for a host who is playing along.
  *
  * Priority order:
  *   1. Stored displayName — if non-empty after trimming.
- *   2. Email local-part — only when the address is a real address (not an
- *      Apple private-relay address) and the local-part does not look like a
- *      random token.
+ *   2. Email local-part, title-cased — as long as the address is not an
+ *      Apple private-relay address. No additional heuristics are applied;
+ *      the domain check is the reliable signal.
  *   3. Generic host label — when nothing usable could be derived.
  *
  * The " (Host)" suffix (from COPY) is appended for cases 1 and 2 so players
@@ -80,8 +67,7 @@ function resolveHostName(displayName: string | null, email: string | null): stri
         if (
             domain &&
             !APPLE_RELAY_DOMAINS.has(domain) &&
-            localPart &&
-            !isTokenLike(localPart)
+            localPart
         ) {
             const titled = localPart.charAt(0).toUpperCase() + localPart.slice(1);
             return `${titled}${suffix}`;
