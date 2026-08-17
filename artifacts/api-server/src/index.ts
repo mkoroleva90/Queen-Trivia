@@ -4,6 +4,7 @@ import app from "./app.ts";
 import { initSocket } from "./lib/socket.ts";
 import { logger } from "./lib/logger.ts";
 import { bootstrapAccessCodes } from "./lib/bootstrapAccessCodes.ts";
+import { seedReviewerAccount } from "./lib/seedReviewerAccount.ts";
 
 // ── Startup guard: SESSION_SECRET must be set to a non-default value ─────────
 // Checked here (at boot) so the process dies before accepting any traffic,
@@ -52,6 +53,7 @@ httpServer.on("error", (err) => {
 // window where publicly documented default codes can authenticate.
 async function start(): Promise<void> {
 	await bootstrapAccessCodes();
+	await seedReviewerAccount();
 	httpServer.listen(port, () => {
 		logger.info({ port }, "Server listening");
 	});
