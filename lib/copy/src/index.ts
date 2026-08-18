@@ -147,24 +147,18 @@ export const COPY = {
    * own game.  Both platforms must use these keys so wording stays in sync.
    */
   hostPlayAlong: {
-    /** Inline button that opens the skip-confirmation dialog. */
-    skipBtn:          'Skip this question',
-    /** Title line of the skip-confirmation dialog. */
-    skipDialogTitle:  'Skip this question?',
-    /** Body paragraph of the skip-confirmation dialog. */
-    skipDialogBody:   "You haven't answered this question yet. If you continue, it will be counted as not answered and scored as 0 points.",
-    /** "Cancel" action in the skip dialog — keeps the host on the question. */
-    skipDialogGoBack: 'Go back',
-    /** "Confirm skip" action in the skip dialog. */
-    skipDialogSkip:   'Skip anyway',
-    /** Label shown above multiple-choice options before the host has answered. */
-    yourAnswerPrompt: 'YOUR ANSWER — select a choice below',
-    /** Short badge shown when the host hasn't yet answered the current question. */
-    unansweredBadge:  "You haven't answered this question yet",
+    /** Button that defers the current question to the end of the queue (no answer recorded). */
+    skipBtn:            'Skip for now',
+    /** CTA shown after answering when there are more questions to go. */
+    nextQuestionBtn:    'Next question →',
+    /** CTA shown after answering the last question. */
+    seeResultsBtn:      'See results →',
+    /** Shown when the host has answered every question. */
+    allAnsweredMsg:     "You've answered every question! End the game when your players are done.",
     /** Heading of the play-along toggle shown on every go-live screen (web and mobile). */
-    playAlongLabel:   'Play along',
+    playAlongLabel:     'Play along',
     /** Description beneath the play-along toggle heading. */
-    playAlongDesc:    "Answer questions from this screen — you'll appear in the standings alongside your players",
+    playAlongDesc:      "Answer questions from this screen — you'll appear in the standings alongside your players",
   },
 
   /**

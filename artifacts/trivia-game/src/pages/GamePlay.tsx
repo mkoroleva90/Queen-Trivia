@@ -87,13 +87,13 @@ type QuestionStats = {
 };
 
 // Inline answer-reveal result passed to question components
-type FeedbackResult = {
+export type FeedbackResult = {
   isCorrect: boolean;
   lockedAnswer: string;
   correctAnswer?: string; // slider only
 };
 
-const CHOICE_LABELS = ["A", "B", "C", "D", "E", "F"];
+export const CHOICE_LABELS = ["A", "B", "C", "D", "E", "F"];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -128,7 +128,7 @@ function formatCorrectAnswer(type: string, answer: string, opts?: Record<string,
 }
 
 // ─── Shared styled button ─────────────────────────────────────────────────────
-function ActionBtn({
+export function ActionBtn({
   onClick, disabled = false, pending = false, pendingLabel, bg, color, children,
 }: {
   onClick?: () => void;
@@ -163,7 +163,7 @@ function ActionBtn({
 }
 
 // ─── Multiple-choice question ─────────────────────────────────────────────────
-function MultipleChoiceQuestion({
+export function MultipleChoiceQuestion({
   question, onSubmit, disabled, feedbackResult,
 }: {
   question: Question;
@@ -260,7 +260,7 @@ function MultipleChoiceQuestion({
 }
 
 // ─── Multi-select question ────────────────────────────────────────────────────
-function MultiSelectQuestion({
+export function MultiSelectQuestion({
   question, onSubmit, disabled, feedbackResult,
 }: {
   question: Question;
@@ -439,7 +439,7 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-function OrderingQuestion({
+export function OrderingQuestion({
   question, onSubmit, disabled, feedbackResult,
 }: {
   question: Question;
@@ -528,7 +528,7 @@ function normalize_item(s: string) {
 }
 
 // ─── True/false question ──────────────────────────────────────────────────────
-function TrueFalseQuestion({
+export function TrueFalseQuestion({
   question, onSubmit, disabled, feedbackResult,
 }: {
   question: Question;
@@ -622,7 +622,7 @@ function TrueFalseQuestion({
 }
 
 // ─── Write-in question (unchanged logic, refreshed style) ─────────────────────
-function WriteInQuestion({
+export function WriteInQuestion({
   question, onSubmit, disabled,
 }: {
   question: Question;
@@ -663,7 +663,7 @@ function WriteInQuestion({
 }
 
 // ─── Image question (unchanged logic, refreshed style) ────────────────────────
-function ImageQuestion({
+export function ImageQuestion({
   question, onSubmit, disabled,
 }: {
   question: Question;
@@ -716,7 +716,7 @@ function ImageQuestion({
 }
 
 // ─── Image hotspot question (tap the correct spot) ────────────────────────────
-function ImageHotspotQuestion({
+export function ImageHotspotQuestion({
   question, onSubmit, disabled, feedbackResult,
 }: {
   question: Question;
@@ -832,7 +832,7 @@ function ImageHotspotQuestion({
 }
 
 // ─── Short response question (AI-graded free text) ────────────────────────────
-function ShortResponseQuestion({
+export function ShortResponseQuestion({
   question, onSubmit, disabled, options,
 }: {
   question: Question;
@@ -894,7 +894,7 @@ function ShortResponseQuestion({
 }
 
 // ─── Slider question (numeric estimation) ─────────────────────────────────────
-function SliderQuestion({
+export function SliderQuestion({
   question, onSubmit, disabled, feedbackResult,
 }: {
   question: Question;
@@ -1037,7 +1037,7 @@ function SliderQuestion({
 }
 
 // ─── Matching board (unchanged logic, refreshed style) ────────────────────────
-function MatchingBoard({
+export function MatchingBoard({
   question, onSubmit, disabled,
 }: {
   question: Question;

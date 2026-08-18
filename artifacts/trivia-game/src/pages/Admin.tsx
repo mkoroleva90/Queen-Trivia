@@ -75,6 +75,7 @@ import { useAuth } from "../lib/auth";
 import { CrownMark } from "@/components/Brand";
 import { Footer } from "@/components/Footer";
 import { useGameSocket } from "../hooks/useGameSocket";
+import { HostPlayAlongCard, type HostAnswerResult } from "@/components/game/HostPlayAlongCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -3068,13 +3069,15 @@ function LiveGameView({
 
   // Play-along: track answers the host has submitted for the current game.
   const [hostAnswers, setHostAnswers] = useState<Record<number, string>>({});
-  const [hostAnswerInput, setHostAnswerInput] = useState('');
   const [submittingHostAnswer, setSubmittingHostAnswer] = useState(false);
-  const [skipConfirmForQ, setSkipConfirmForQ] = useState<{ id: number; direction: 'prev' | 'next' } | null>(null);
+  // Ids of questions the host has deferred (local only — no server POST).
+  const [hostSkippedIds, setHostSkippedIds] = useState<Set<number>>(new Set());
 
-  const submitHostAnswer = async (questionId: number, answer: string) => {
-    if (!activeGame || submittingHostAnswer || hostAnswers[questionId] !== undefined) return;
-    if (!answer.trim()) return;
+  // Calls the host-answer API and returns the result. Does NOT update hostAnswers
+  // on success — that is done by HostPlayAlongCard's onNext callback so the
+  // feedback card stays visible until the host acknowledges it.
+  const submitHostAnswer = async (questionId: number, answer: string): Promise<HostAnswerResult | null> => {
+    if (!activeGame || submittingHostAnswer) return null;
     setSubmittingHostAnswer(true);
     try {
       const res = await fetch(`/api/games/${activeGame.id}/host-answer`, {
@@ -3084,46 +3087,29 @@ function LiveGameView({
         body: JSON.stringify({ questionId, userAnswer: answer }),
       });
       if (res.ok) {
-        setHostAnswers((prev) => ({ ...prev, [questionId]: answer }));
-        setHostAnswerInput('');
+        const data = await res.json().catch(() => ({})) as { isCorrect?: boolean; pointsEarned?: number; totalScore?: number; feedback?: string };
+        // hostAnswers NOT updated here — done by onNext in HostPlayAlongCard.
+        return {
+          isCorrect: data.isCorrect ?? false,
+          pointsEarned: data.pointsEarned ?? 0,
+          totalScore: data.totalScore ?? 0,
+          feedback: data.feedback,
+        };
       } else if (res.status === 409) {
-        // Answer already exists in DB (e.g. from a previous session).
-        // Seed local state so the UI shows the answered state immediately.
-        const body = await res.json().catch(() => ({}));
+        // Already answered in a previous session — adopt existing answer and advance.
+        const body = await res.json().catch(() => ({})) as { existingAnswer?: string };
         if (body.existingAnswer !== undefined) {
-          setHostAnswers((prev) => ({ ...prev, [questionId]: body.existingAnswer }));
-          setHostAnswerInput('');
+          setHostAnswers((prev) => ({ ...prev, [questionId]: body.existingAnswer! }));
         }
+        return null;
       }
+      return null;
     } catch {
-      // non-critical
+      return null;
     } finally {
       setSubmittingHostAnswer(false);
     }
   };
-
-  // Record an explicit skip (empty answer = 0 pts) then navigate.
-  const submitSkipAndNavigate = async (questionId: number, direction: 'prev' | 'next') => {
-    setSkipConfirmForQ(null);
-    if (activeGame) {
-      try {
-        const res = await fetch(`/api/games/${activeGame.id}/host-answer`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ questionId, userAnswer: '' }),
-        });
-        if (res.ok) setHostAnswers((prev) => ({ ...prev, [questionId]: '' }));
-      } catch { /* non-critical */ }
-    }
-    if (direction === 'next') setQIndex((i) => Math.min(questions.length - 1, i + 1));
-    else setQIndex((i) => Math.max(0, i - 1));
-  };
-
-  // Reset host answer input when the host moves to a different question.
-  useEffect(() => {
-    setHostAnswerInput('');
-  }, [qIndex]);
 
   // Reset live telemetry whenever a different game goes live.
   useEffect(() => {
@@ -3132,14 +3118,21 @@ function LiveGameView({
     setAnsweredBy({});
     setCorrectCount({});
     setHostAnswers({});
-    setHostAnswerInput('');
+    setHostSkippedIds(new Set());
   }, [activeGame?.id]);
   const currentQ = questions[Math.min(qIndex, Math.max(questions.length - 1, 0))];
 
-  // Suppress correct-answer reveals until the host has submitted their own answer (play-along mode).
-  // hostPlayingAndUnanswered gates every isCorrect-derived style on the current question.
-  const hostAnsweredCurrent = currentQ !== undefined && hostAnswers[currentQ.id] !== undefined;
-  const hostPlayingAndUnanswered = !!(activeGame?.hostPlaysAlong && currentQ && !hostAnsweredCurrent);
+  // Playing-host navigation: "next unanswered, non-deferred" — mirrors player screen logic.
+  const unansweredForHost = questions.filter((q) => hostAnswers[q.id] === undefined);
+  const currentPlayingQ = activeGame?.hostPlaysAlong
+    ? (unansweredForHost.find((q) => !hostSkippedIds.has(q.id)) ?? unansweredForHost[0])
+    : undefined;
+  const hostCanSkip = unansweredForHost.length > 1;
+  // Question shown in the card header (playing host sees their unanswered q; monitor sees qIndex q).
+  const displayQ = (activeGame?.hostPlaysAlong && currentPlayingQ) ? currentPlayingQ : currentQ;
+  const displayQNum = activeGame?.hostPlaysAlong
+    ? (currentPlayingQ ? questions.findIndex((q) => q.id === currentPlayingQ.id) + 1 : 0)
+    : (questions.length ? qIndex + 1 : 0);
 
   const { data: parts = [], refetch: refetchParts } = useListGameParticipants(activeGame?.id ?? 0, {
     query: {
@@ -3328,16 +3321,16 @@ function LiveGameView({
           <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl px-5 py-5 sm:px-6">
             <div className="flex items-center gap-2.5 flex-wrap">
               <span className="text-[10px] font-bold tracking-[.22em] text-[#66728a]">
-                QUESTION {questions.length ? qIndex + 1 : 0} / {questions.length || "?"}
+                QUESTION {displayQNum} / {questions.length || "?"}
               </span>
-              {currentQ?.questionType && (
+              {displayQ?.questionType && (
                 <span className="px-2 py-[3px] rounded-md bg-[#00ddff]/10 border border-[#00ddff]/25 text-[9px] font-bold tracking-[.1em] text-[#5be9ff] uppercase">
-                  {currentQ.questionType}
+                  {displayQ.questionType}
                 </span>
               )}
-              {currentQ?.points != null && (
+              {displayQ?.points != null && (
                 <span className="px-2 py-[3px] rounded-md bg-[#ffe500]/10 border border-[#ffe500]/25 text-[9px] font-bold tracking-[.1em] text-[#ffe500]">
-                  {currentQ.points} PTS
+                  {displayQ.points} PTS
                 </span>
               )}
               <div
@@ -3352,176 +3345,74 @@ function LiveGameView({
             </div>
 
             <h2 className="text-xl sm:text-2xl font-extrabold text-[#eef2f8] leading-snug my-5 tracking-tight">
-              {currentQ?.questionText || "Waiting for game to start…"}
+              {displayQ?.questionText || "Waiting for game to start…"}
             </h2>
 
-            {/* YOUR ANSWER label — only when host is playing along and hasn't answered an MC question yet */}
-            {hostPlayingAndUnanswered && !!((currentQ?.options as any)?.choices?.length) && (
-              <p className="text-[10px] font-bold tracking-[.15em] text-[#66728a] mb-1.5">{COPY.hostPlayAlong.yourAnswerPrompt}</p>
-            )}
-            <div className="space-y-2.5">
-              {(currentQ?.options as any)?.choices?.map((c: string, i: number) => {
-                // Suppress correct-answer highlight until host has answered (play-along).
-                // When hostPlayingAndUnanswered is true, isCorrect is forced false so no
-                // green row, badge, tally bar, count, or ✓ can leak the answer.
-                const isCorrect = !hostPlayingAndUnanswered && currentQ.correctAnswer === c;
-                // We only know correct-vs-wrong from the socket, not which wrong
-                // option was picked — so only the correct row shows a live tally.
-                const tallyPct = isCorrect && parts.length > 0 ? Math.round((qCorrect / parts.length) * 100) : 0;
-                const hostPicked = activeGame.hostPlaysAlong && currentQ && hostAnswers[currentQ.id] === c;
-                const hostAnswered = activeGame.hostPlaysAlong && currentQ && hostAnswers[currentQ.id] !== undefined;
-                const canPick = activeGame.hostPlaysAlong && currentQ && !hostAnswered && !submittingHostAnswer;
-                return (
-                  <div
-                    key={i}
-                    role={canPick ? "button" : undefined}
-                    tabIndex={canPick ? 0 : undefined}
-                    onClick={canPick ? () => submitHostAnswer(currentQ.id, c) : undefined}
-                    onKeyDown={canPick ? (e) => { if (e.key === 'Enter' || e.key === ' ') submitHostAnswer(currentQ.id, c); } : undefined}
-                    className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition ${
-                      isCorrect ? "border-[#35d07f]/50 bg-[#35d07f]/10" :
-                      hostPicked ? "border-[#ff0080]/50 bg-[#ff0080]/10" :
-                      "border-[#1b2740] bg-white/[.03]"
-                    } ${canPick ? "cursor-pointer hover:brightness-125 hover:border-[#00ddff]/40" : ""}`}
-                  >
-                    <span
-                      className={`w-[27px] h-[27px] shrink-0 rounded-full flex items-center justify-center text-xs font-extrabold ${
-                        isCorrect ? "bg-[#35d07f] text-[#08130c]" :
-                        hostPicked ? "bg-[#ff0080] text-white" :
-                        "border-[1.5px] border-[#3a4a63] text-[#9aa6bc]"
+            {/* ── Monitoring choices — visible only when host is not playing along ── */}
+            {!activeGame.hostPlaysAlong && (
+              <div className="space-y-2.5">
+                {(currentQ?.options as any)?.choices?.map((c: string, i: number) => {
+                  const isCorrect = currentQ.correctAnswer === c;
+                  const tallyPct = isCorrect && parts.length > 0 ? Math.round((qCorrect / parts.length) * 100) : 0;
+                  return (
+                    <div
+                      key={i}
+                      className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${
+                        isCorrect ? "border-[#35d07f]/50 bg-[#35d07f]/10" : "border-[#1b2740] bg-white/[.03]"
                       }`}
                     >
-                      {String.fromCharCode(65 + i)}
-                    </span>
-                    <span className={`flex-1 text-[15px] ${isCorrect ? "font-bold text-[#eef2f8]" : hostPicked ? "font-bold text-[#eef2f8]" : "font-semibold text-[#c9d1e0]"}`}>
-                      {c}
-                    </span>
-                    {hostPicked && !isCorrect && (
-                      <span className="text-[11px] font-bold text-[#ff5aa8]">Your pick</span>
-                    )}
-                    {isCorrect && (
-                      <>
-                        <div className="hidden sm:block w-20 h-1.5 rounded-full bg-white/10 overflow-hidden">
-                          <div className="h-full rounded-full bg-[#35d07f]" style={{ width: `${tallyPct}%` }} />
-                        </div>
-                        <span className="font-mono text-[13px] font-extrabold text-[#35d07f] tabular-nums">{qCorrect}</span>
-                        <span className="text-[#35d07f]">✓</span>
-                      </>
-                    )}
-                  </div>
-                );
-              })}
-
-              {/* Skip button — shown below MC choices when host is playing along and hasn't answered yet */}
-              {hostPlayingAndUnanswered && !!((currentQ?.options as any)?.choices?.length) && (
-                <button
-                  onClick={() => setSkipConfirmForQ({ id: currentQ!.id, direction: 'next' })}
-                  className="w-full text-center text-xs font-semibold text-[#66728a] hover:text-[#9aa6bc] pt-1 pb-0.5 transition"
-                >
-                  {COPY.hostPlayAlong.skipBtn}
-                </button>
-              )}
-
-              {/* Play-along answer section for non-MC question types */}
-              {activeGame.hostPlaysAlong && currentQ && (() => {
-                const hasChoices = !!((currentQ.options as any)?.choices?.length);
-                if (hasChoices) return null;
-                const hostAnswered = hostAnswers[currentQ.id] !== undefined;
-                if (hostAnswered) {
-                  const ans = hostAnswers[currentQ.id];
-                  if (ans === '') {
-                    return (
-                      <div className="mt-3 pt-3 border-t border-[#1b2740] flex items-center gap-2">
-                        <span className="text-[11px] font-bold tracking-wide text-[#66728a]">— Not answered · 0 pts</span>
-                      </div>
-                    );
-                  }
-                  return (
-                    <div className="mt-3 pt-3 border-t border-[#1b2740] flex items-center gap-2">
-                      <span className="text-[11px] font-bold tracking-wide text-[#35d07f]">✓ YOUR ANSWER</span>
-                      <span className="text-sm text-[#eef2f8]">{ans}</span>
+                      <span
+                        className={`w-[27px] h-[27px] shrink-0 rounded-full flex items-center justify-center text-xs font-extrabold ${
+                          isCorrect ? "bg-[#35d07f] text-[#08130c]" : "border-[1.5px] border-[#3a4a63] text-[#9aa6bc]"
+                        }`}
+                      >
+                        {String.fromCharCode(65 + i)}
+                      </span>
+                      <span className={`flex-1 text-[15px] ${isCorrect ? "font-bold text-[#eef2f8]" : "font-semibold text-[#c9d1e0]"}`}>
+                        {c}
+                      </span>
+                      {isCorrect && (
+                        <>
+                          <div className="hidden sm:block w-20 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                            <div className="h-full rounded-full bg-[#35d07f]" style={{ width: `${tallyPct}%` }} />
+                          </div>
+                          <span className="font-mono text-[13px] font-extrabold text-[#35d07f] tabular-nums">{qCorrect}</span>
+                          <span className="text-[#35d07f]">✓</span>
+                        </>
+                      )}
                     </div>
                   );
-                }
-                // True / False shortcut buttons
-                if (currentQ.questionType === 'true_false') {
-                  return (
-                    <div className="mt-3 pt-3 border-t border-[#1b2740]">
-                      <p className="text-[10px] font-bold tracking-[.15em] text-[#66728a] mb-2">YOUR ANSWER</p>
-                      <div className="flex gap-2">
-                        {['True', 'False'].map((opt) => (
-                          <button
-                            key={opt}
-                            disabled={submittingHostAnswer}
-                            onClick={() => submitHostAnswer(currentQ.id, opt.toLowerCase())}
-                            className="flex-1 py-2.5 rounded-xl border border-[#1b2740] text-sm font-semibold text-[#9aa6bc] hover:border-[#00ddff]/50 hover:bg-[#00ddff]/10 hover:text-[#eef2f8] disabled:opacity-40 transition"
-                          >
-                            {opt}
-                          </button>
-                        ))}
-                      </div>
-                      <button
-                        onClick={() => setSkipConfirmForQ({ id: currentQ.id, direction: 'next' })}
-                        className="mt-2 w-full text-center text-xs font-semibold text-[#66728a] hover:text-[#9aa6bc] py-1 transition"
-                      >
-                        {COPY.hostPlayAlong.skipBtn}
-                      </button>
-                    </div>
-                  );
-                }
-                // Write-in / short response
-                return (
-                  <div className="mt-3 pt-3 border-t border-[#1b2740]">
-                    <p className="text-[10px] font-bold tracking-[.15em] text-[#66728a] mb-2">YOUR ANSWER</p>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={hostAnswerInput}
-                        onChange={(e) => setHostAnswerInput(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') submitHostAnswer(currentQ.id, hostAnswerInput); }}
-                        placeholder="Type your answer…"
-                        disabled={submittingHostAnswer}
-                        className="flex-1 bg-[#0a1628] border border-[#1b2740] rounded-xl px-3 py-2 text-sm text-[#eef2f8] placeholder:text-[#3a4a63] focus:outline-none focus:border-[#00ddff]/50 disabled:opacity-40"
-                      />
-                      <button
-                        onClick={() => submitHostAnswer(currentQ.id, hostAnswerInput)}
-                        disabled={!hostAnswerInput.trim() || submittingHostAnswer}
-                        className="px-4 py-2 rounded-xl bg-[#00ddff]/15 border border-[#00ddff]/30 text-[#5be9ff] text-sm font-semibold disabled:opacity-40 hover:brightness-110 transition"
-                      >
-                        Submit
-                      </button>
-                    </div>
-                    <button
-                      onClick={() => setSkipConfirmForQ({ id: currentQ.id, direction: 'next' })}
-                      className="mt-2 w-full text-center text-xs font-semibold text-[#66728a] hover:text-[#9aa6bc] py-1 transition"
-                    >
-                      {COPY.hostPlayAlong.skipBtn}
-                    </button>
-                  </div>
-                );
-              })()}
+                })}
+              </div>
+            )}
 
-              {/* Unanswered reminder — visible when host plays along but hasn't answered yet */}
-              {activeGame.hostPlaysAlong && currentQ && hostAnswers[currentQ.id] === undefined && (
-                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[#ffe500]/80 pt-1">
-                  <span>⚠</span>
-                  <span>{COPY.hostPlayAlong.unansweredBadge}</span>
-                </div>
-              )}
-            </div>
+            {/* ── Playing-host answer card ── */}
+            {activeGame.hostPlaysAlong && (
+              currentPlayingQ ? (
+                <HostPlayAlongCard
+                  key={currentPlayingQ.id}
+                  question={currentPlayingQ}
+                  onSubmit={submitHostAnswer}
+                  submitting={submittingHostAnswer}
+                  hasMore={unansweredForHost.length > 1}
+                  onNext={(questionId, answer) => {
+                    setHostAnswers((prev) => ({ ...prev, [questionId]: answer }));
+                  }}
+                  canSkip={hostCanSkip}
+                  onSkip={() => setHostSkippedIds((prev) => new Set([...prev, currentPlayingQ.id]))}
+                />
+              ) : (
+                <p className="text-sm text-[#9aa6bc] pt-4 text-center">{COPY.hostPlayAlong.allAnsweredMsg}</p>
+              )
+            )}
           </div>
 
-          {/* transport bar */}
+          {/* transport bar — hidden when host is playing along */}
+          {!activeGame.hostPlaysAlong && (
           <div className="flex flex-wrap items-center gap-2 bg-[#0f1724] border border-[#1b2740] rounded-2xl px-3.5 py-3">
             <button
               disabled={qIndex === 0}
-              onClick={() => {
-                if (activeGame?.hostPlaysAlong && currentQ && hostAnswers[currentQ.id] === undefined) {
-                  setSkipConfirmForQ({ id: currentQ.id, direction: 'prev' });
-                } else {
-                  setQIndex((i) => Math.max(0, i - 1));
-                }
-              }}
+              onClick={() => setQIndex((i) => Math.max(0, i - 1))}
               className="text-xs font-bold text-[#9aa6bc] bg-white/[.04] border border-[#1b2740] rounded-[10px] px-3.5 py-2.5 disabled:opacity-40 hover:brightness-110 transition"
             >
               ‹ Prev
@@ -3538,52 +3429,17 @@ function LiveGameView({
             </button>
             <button
               disabled={qIndex >= questions.length - 1}
-              onClick={() => {
-                if (activeGame?.hostPlaysAlong && currentQ && hostAnswers[currentQ.id] === undefined) {
-                  setSkipConfirmForQ({ id: currentQ.id, direction: 'next' });
-                } else {
-                  setQIndex((i) => Math.min(questions.length - 1, i + 1));
-                }
-              }}
+              onClick={() => setQIndex((i) => Math.min(questions.length - 1, i + 1))}
               className="ml-auto text-[13px] font-extrabold text-[#08130c] bg-[#ff0080] rounded-[10px] px-5 py-3 shadow-[0_8px_22px_-6px_rgba(255,0,128,.6)] disabled:opacity-40 hover:brightness-110 transition"
             >
               Next question ›
             </button>
           </div>
+          )}
         </div>
 
-        {/* Skip-question confirmation overlay */}
-        {skipConfirmForQ && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/60" onClick={() => setSkipConfirmForQ(null)} />
-            <div className="relative bg-[#0f1724] border border-[#1b2740] rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-[#ffe500] text-lg">⚠</span>
-                <span className="font-extrabold text-[#eef2f8] text-base">{COPY.hostPlayAlong.skipDialogTitle}</span>
-              </div>
-              <p className="text-sm text-[#9aa6bc] leading-relaxed mb-5">
-                {COPY.hostPlayAlong.skipDialogBody}
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setSkipConfirmForQ(null)}
-                  className="flex-1 py-2.5 rounded-xl border border-[#1b2740] text-sm font-semibold text-[#9aa6bc] hover:brightness-110 transition"
-                >
-                  {COPY.hostPlayAlong.skipDialogGoBack}
-                </button>
-                <button
-                  onClick={() => submitSkipAndNavigate(skipConfirmForQ.id, skipConfirmForQ.direction)}
-                  className="flex-1 py-2.5 rounded-xl bg-[#ffe500]/20 border border-[#ffe500]/40 text-sm font-bold text-[#ffe500] hover:brightness-110 transition"
-                >
-                  {COPY.hostPlayAlong.skipDialogSkip}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── RIGHT: answered + standings ── */}
-        <div className="w-full lg:w-[300px] shrink-0 space-y-4">
+        {/* ── RIGHT: answered + standings — hidden when host is playing along ── */}
+        {!activeGame.hostPlaysAlong && <div className="w-full lg:w-[300px] shrink-0 space-y-4">
           <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl p-4">
             <div className="flex items-baseline justify-between mb-3">
               <span className="text-[10px] font-bold tracking-[.16em] text-[#66728a]">ANSWERED</span>
@@ -3658,7 +3514,7 @@ function LiveGameView({
               })}
             </div>
           </div>
-        </div>
+        </div>}
       </div>
     </div>
   );
@@ -4551,7 +4407,6 @@ function NewAdminDashboard() {
            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         {navItems.map(item => {
           const isActive = section === item.id;
-          const isLiveTab = item.id === "live";
           return (
             <button
               key={item.id}
@@ -4559,10 +4414,6 @@ function NewAdminDashboard() {
               className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 transition-colors relative"
               style={{ minWidth: 0 }}
             >
-              {/* Live tab gets a pink glow dot when game is active */}
-              {isLiveTab && activeGame && !isActive && (
-                <span className="absolute top-2 right-[calc(50%-10px)] w-1.5 h-1.5 rounded-full bg-[#ff0080] animate-pulse" />
-              )}
               <item.icon
                 className={`h-5 w-5 shrink-0 transition-colors ${isActive ? 'text-[#ff0080]' : 'text-[#66728a]'}`}
               />

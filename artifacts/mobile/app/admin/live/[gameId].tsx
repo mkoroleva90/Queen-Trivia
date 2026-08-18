@@ -30,6 +30,17 @@ import { LiveBanner } from '@/components/admin/LiveBanner';
 import { useAdminGameSocket } from '@/hooks/useSocket';
 import { API_BASE_URL } from '@/lib/apiBase';
 import { COPY } from '@workspace/copy';
+import {
+  MultipleChoiceQ,
+  MultiSelectQ,
+  TrueFalseQ,
+  WriteInQ,
+  OrderingQ,
+  SliderQ,
+  ImageRecognitionQ,
+  ImageHotspotQ,
+  MatchingQ,
+} from '../../game/[id]';
 
 type AnswerCounts = Record<number, number>; // questionId → total submitted
 
@@ -71,11 +82,13 @@ export default function AdminLiveScreen() {
   const [endGameError, setEndGameError] = useState<string | null>(null);
 
   // ── Host play-along state ──
-  const [qIndex, setQIndex] = useState(0);
   const [hostAnswers, setHostAnswers] = useState<Record<number, string>>({});
-  const [textAnswer, setTextAnswer] = useState('');
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
   const [answerError, setAnswerError] = useState('');
+  const [hostSkippedIds, setHostSkippedIds] = useState<Set<number>>(new Set());
+  const [hostFeedback, setHostFeedback] = useState<{ isCorrect: boolean; pointsEarned: number; totalScore: number; feedback?: string } | null>(null);
+  // Answer submitted to API but not yet acknowledged by host via "Next" press.
+  const [pendingAnswer, setPendingAnswer] = useState<string | null>(null);
 
   const { data: games, isLoading: gamesLoading, isError: gamesError } = useListGames();
   const game = games?.find((g) => g.id === gameId);
@@ -184,14 +197,16 @@ export default function AdminLiveScreen() {
 
   // ── Host play-along ──
   const playAlong = !!game?.hostPlaysAlong;
-  const currentQ = sortedQs.length > 0 ? sortedQs[Math.min(qIndex, sortedQs.length - 1)] : undefined;
-  const currentAnswered = currentQ ? currentQ.id in hostAnswers : false;
+  const unansweredForHost = sortedQs.filter((q) => hostAnswers[q.id] === undefined);
+  const currentPlayingQ = playAlong
+    ? (unansweredForHost.find((q) => !hostSkippedIds.has(q.id)) ?? unansweredForHost[0])
+    : undefined;
+  const hostCanSkip = unansweredForHost.length > 1;
 
-  /** Submits the host's answer. Returns true when the question is now answered
-   *  (successful submit or confirmed already-answered 409), false otherwise. */
-  const submitHostAnswer = async (answer: string): Promise<boolean> => {
-    if (!currentQ || submittingAnswer) return false;
-    if (currentAnswered) return true;
+  /** Submits the host's answer. On success, sets feedback state; feedback
+   *  stays visible until host presses "Next" (advanceToNext). */
+  const submitHostAnswer = async (questionId: number, answer: string): Promise<void> => {
+    if (!currentPlayingQ || submittingAnswer) return;
     setSubmittingAnswer(true);
     setAnswerError('');
     try {
@@ -202,57 +217,71 @@ export default function AdminLiveScreen() {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ questionId: currentQ.id, userAnswer: answer }),
+        body: JSON.stringify({ questionId, userAnswer: answer }),
       });
       if (r.status === 409) {
-        // Already answered (e.g. from another device) — adopt the persisted answer.
-        const body = await r.json().catch(() => null);
-        setHostAnswers((prev) => ({ ...prev, [currentQ.id]: body?.existingAnswer ?? '' }));
-        setTextAnswer('');
-        return true;
+        // Already answered — adopt existing answer and advance without feedback.
+        const body = await r.json().catch(() => null) as { existingAnswer?: string } | null;
+        setHostAnswers((prev) => ({ ...prev, [questionId]: body?.existingAnswer ?? '' }));
+        return;
       }
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      setHostAnswers((prev) => ({ ...prev, [currentQ.id]: answer }));
-      setTextAnswer('');
+      const data = await r.json().catch(() => ({})) as { isCorrect?: boolean; pointsEarned?: number; totalScore?: number; feedback?: string };
+      // Don't update hostAnswers yet — done by advanceToNext so feedback stays visible.
+      setPendingAnswer(answer);
+      setHostFeedback({
+        isCorrect: data.isCorrect ?? false,
+        pointsEarned: data.pointsEarned ?? 0,
+        totalScore: data.totalScore ?? 0,
+        feedback: data.feedback,
+      });
       void refetchParticipants();
-      return true;
     } catch {
       setAnswerError('Could not submit your answer — please retry');
-      return false;
     } finally {
       setSubmittingAnswer(false);
     }
   };
 
-  const skipCurrent = (direction: 1 | -1) => {
-    if (!currentQ || submittingAnswer) return;
-    Alert.alert(
-      COPY.hostPlayAlong.skipDialogTitle,
-      COPY.hostPlayAlong.skipDialogBody,
-      [
-        { text: COPY.hostPlayAlong.skipDialogGoBack, style: 'cancel' },
-        {
-          text: COPY.hostPlayAlong.skipDialogSkip,
-          style: 'destructive',
-          onPress: async () => {
-            // Only navigate once the skip is actually recorded.
-            const ok = await submitHostAnswer('');
-            if (ok) setQIndex((i) => Math.max(0, Math.min(sortedQs.length - 1, i + direction)));
-          },
-        },
-      ],
-    );
+  /** Called when the host presses "Next question" or "See results" after seeing feedback. */
+  const advanceToNext = () => {
+    if (currentPlayingQ && pendingAnswer !== null) {
+      setHostAnswers((prev) => ({ ...prev, [currentPlayingQ.id]: pendingAnswer }));
+    }
+    setPendingAnswer(null);
+    setHostFeedback(null);
   };
 
-  const goToQuestion = (direction: 1 | -1) => {
-    if (!currentQ || submittingAnswer) return;
-    const next = qIndex + direction;
-    if (next < 0 || next > sortedQs.length - 1) return;
-    if (playAlong && !currentAnswered) {
-      skipCurrent(direction);
-    } else {
-      setQIndex(next);
-      setTextAnswer('');
+  /** Renders the appropriate player question component for the playing host. */
+  const renderHostQuestion = (q: Question) => {
+    const lockedAnswer = pendingAnswer ?? (hostAnswers[q.id] ?? null);
+    const isLocked = lockedAnswer !== null;
+    // Pass feedback to components that use it for correct/wrong coloring.
+    const feedbackForComp = hostFeedback && isLocked ? {
+      isCorrect: hostFeedback.isCorrect,
+      pointsEarned: hostFeedback.pointsEarned,
+      totalScore: hostFeedback.totalScore,
+      timeTaken: '—',
+      feedback: hostFeedback.feedback,
+    } : null;
+    const props = {
+      question: q,
+      disabled: submittingAnswer || isLocked,
+      lockedAnswer,
+      onSubmit: (answer: string) => { void submitHostAnswer(q.id, answer); },
+    };
+    switch (q.questionType) {
+      case 'multiple_choice': return <MultipleChoiceQ {...props} feedback={feedbackForComp} />;
+      case 'multi_select':    return <MultiSelectQ {...props} />;
+      case 'true_false':      return <TrueFalseQ onSubmit={props.onSubmit} disabled={props.disabled} lockedAnswer={props.lockedAnswer} />;
+      case 'write_in':        return <WriteInQ onSubmit={props.onSubmit} disabled={props.disabled} lockedAnswer={props.lockedAnswer} />;
+      case 'short_response':  return <WriteInQ onSubmit={props.onSubmit} disabled={props.disabled} lockedAnswer={props.lockedAnswer} multiline />;
+      case 'ordering':        return <OrderingQ key={q.id} {...props} />;
+      case 'slider':          return <SliderQ key={q.id} {...props} />;
+      case 'image_recognition': return <ImageRecognitionQ {...props} />;
+      case 'image_hotspot':   return <ImageHotspotQ key={q.id} {...props} />;
+      case 'matching':        return <MatchingQ key={q.id} {...props} />;
+      default:                return null;
     }
   };
 
@@ -349,151 +378,105 @@ export default function AdminLiveScreen() {
         {/* ── First-run reassurance banner (Host & play only) ── */}
         {playAlong && <LiveBanner gameId={gameId} />}
         {/* ── Host play-along question card ── */}
-        {playAlong && currentQ && (
+        {playAlong && (
           <>
-            <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>
-              QUESTION {qIndex + 1}/{sortedQs.length}
-            </Text>
-            <View style={[s.qCard, { backgroundColor: colors.card, borderColor: colors.primary + '66' }]}>
-              <Text style={[s.playMeta, { color: colors.mutedForeground }]}>
-                {currentQ.questionType.replace(/_/g, ' ')} · {currentQ.points} pts
-              </Text>
-              <Text style={[s.playQText, { color: colors.foreground }]}>{currentQ.questionText}</Text>
-
-              {currentAnswered ? (
-                <Text style={[s.qAnswered, { color: colors.secondary }]}>
-                  {hostAnswers[currentQ.id]
-                    ? `YOUR ANSWER — ${hostAnswers[currentQ.id]}`
-                    : 'Not answered · 0 pts'}
+            {currentPlayingQ ? (
+              <>
+                <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>
+                  YOUR QUESTION — {sortedQs.findIndex((q) => q.id === currentPlayingQ.id) + 1}/{sortedQs.length}
                 </Text>
-              ) : (
-                <>
-                  <Text style={[s.playMeta, { color: colors.accent }]}>
-                    {COPY.hostPlayAlong.yourAnswerPrompt}
+                <View style={[s.qCard, { backgroundColor: colors.card, borderColor: colors.primary + '66' }]}>
+                  <Text style={[s.playMeta, { color: colors.mutedForeground }]}>
+                    {currentPlayingQ.questionType.replace(/_/g, ' ')} · {currentPlayingQ.points} pts
                   </Text>
+                  <Text style={[s.playQText, { color: colors.foreground }]}>{currentPlayingQ.questionText}</Text>
 
-                  {currentQ.questionType === 'multiple_choice' && (
-                    ((currentQ.options as { choices?: string[] } | null)?.choices ?? []).map((choice) => (
+                  {renderHostQuestion(currentPlayingQ)}
+
+                  {/* Feedback block — visible after submission, until host presses Next */}
+                  {hostFeedback && (
+                    <View style={[s.feedbackBlock, { backgroundColor: hostFeedback.isCorrect ? '#00ddff18' : '#ff008018', borderColor: hostFeedback.isCorrect ? '#00ddff55' : '#ff008055' }]}>
+                      <Text style={[s.feedbackTitle, { color: hostFeedback.isCorrect ? '#00ddff' : '#ff5aa8' }]}>
+                        {hostFeedback.isCorrect ? COPY.gameplay.feedbackCorrect : COPY.gameplay.feedbackWrong}
+                      </Text>
+                      <Text style={[s.feedbackPts, { color: colors.mutedForeground }]}>
+                        +{hostFeedback.pointsEarned} pts · total {hostFeedback.totalScore}
+                      </Text>
+                      {!!hostFeedback.feedback && (
+                        <Text style={[s.feedbackText, { color: colors.mutedForeground }]}>{hostFeedback.feedback}</Text>
+                      )}
                       <Pressable
-                        key={choice}
-                        style={[s.choiceBtn, { borderColor: colors.border, backgroundColor: colors.background }]}
-                        disabled={submittingAnswer}
-                        onPress={() => submitHostAnswer(choice)}
+                        style={[s.choiceBtn, { borderColor: hostFeedback.isCorrect ? '#00ddff' : colors.border, backgroundColor: hostFeedback.isCorrect ? '#00ddff22' : colors.card, marginTop: 4 }]}
+                        onPress={advanceToNext}
                       >
-                        <Text style={[s.choiceText, { color: colors.foreground }]}>{choice}</Text>
-                      </Pressable>
-                    ))
-                  )}
-
-                  {currentQ.questionType === 'true_false' && (
-                    <View style={{ flexDirection: 'row', gap: 10 }}>
-                      {['True', 'False'].map((v) => (
-                        <Pressable
-                          key={v}
-                          style={[s.choiceBtn, { flex: 1, borderColor: colors.border, backgroundColor: colors.background }]}
-                          disabled={submittingAnswer}
-                          onPress={() => submitHostAnswer(v)}
-                        >
-                          <Text style={[s.choiceText, { color: colors.foreground, textAlign: 'center' }]}>{v}</Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  )}
-
-                  {(currentQ.questionType === 'write_in' || currentQ.questionType === 'short_response') && (
-                    <View style={{ gap: 8 }}>
-                      <TextInput
-                        style={[s.answerInput, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.background }]}
-                        value={textAnswer}
-                        onChangeText={setTextAnswer}
-                        placeholder="Type your answer…"
-                        placeholderTextColor={colors.mutedForeground}
-                        onSubmitEditing={() => textAnswer.trim() && submitHostAnswer(textAnswer.trim())}
-                      />
-                      <Pressable
-                        style={[s.choiceBtn, { borderColor: colors.primary, backgroundColor: colors.primary, opacity: submittingAnswer || !textAnswer.trim() ? 0.6 : 1 }]}
-                        disabled={submittingAnswer || !textAnswer.trim()}
-                        onPress={() => submitHostAnswer(textAnswer.trim())}
-                      >
-                        <Text style={[s.choiceText, { color: '#fff', textAlign: 'center' }]}>Submit</Text>
+                        <Text style={[s.choiceText, { color: hostFeedback.isCorrect ? '#00ddff' : colors.foreground, textAlign: 'center' }]}>
+                          {unansweredForHost.length > 1 ? COPY.hostPlayAlong.nextQuestionBtn : COPY.hostPlayAlong.seeResultsBtn}
+                        </Text>
                       </Pressable>
                     </View>
                   )}
 
-                  {!['multiple_choice', 'true_false', 'write_in', 'short_response'].includes(currentQ.questionType) && (
-                    <Text style={[s.qText, { color: colors.mutedForeground }]}>
-                      This question type can't be answered from the host screen — skip it to keep playing.
-                    </Text>
+                  {!!answerError && (
+                    <Text style={[s.qText, { color: colors.destructive }]}>{answerError}</Text>
                   )}
 
-                  <Pressable onPress={() => skipCurrent(1)} disabled={submittingAnswer}>
-                    <Text style={[s.playMeta, { color: colors.mutedForeground, textAlign: 'center', paddingVertical: 4 }]}>
-                      {COPY.hostPlayAlong.skipBtn}
-                    </Text>
-                  </Pressable>
-                </>
-              )}
-
-              {!!answerError && (
-                <Text style={[s.qText, { color: colors.destructive }]}>{answerError}</Text>
-              )}
-
-              {/* Prev / Next */}
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <Pressable
-                  style={[s.navBtn, { borderColor: colors.border, opacity: qIndex === 0 ? 0.4 : 1 }]}
-                  disabled={qIndex === 0}
-                  onPress={() => goToQuestion(-1)}
-                >
-                  <Ionicons name="chevron-back" size={16} color={colors.foreground} />
-                  <Text style={[s.choiceText, { color: colors.foreground }]}>Prev</Text>
-                </Pressable>
-                <Pressable
-                  style={[s.navBtn, { borderColor: colors.border, opacity: qIndex >= sortedQs.length - 1 ? 0.4 : 1 }]}
-                  disabled={qIndex >= sortedQs.length - 1}
-                  onPress={() => goToQuestion(1)}
-                >
-                  <Text style={[s.choiceText, { color: colors.foreground }]}>Next</Text>
-                  <Ionicons name="chevron-forward" size={16} color={colors.foreground} />
-                </Pressable>
+                  {!hostFeedback && hostCanSkip && (
+                    <Pressable onPress={() => setHostSkippedIds((prev) => new Set([...prev, currentPlayingQ.id]))}>
+                      <Text style={[s.playMeta, { color: colors.mutedForeground, textAlign: 'center', paddingVertical: 4 }]}>
+                        {COPY.hostPlayAlong.skipBtn}
+                      </Text>
+                    </Pressable>
+                  )}
+                </View>
+              </>
+            ) : (
+              <View style={[s.qCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[s.playQText, { color: colors.secondary }]}>
+                  {COPY.hostPlayAlong.allAnsweredMsg}
+                </Text>
               </View>
-            </View>
+            )}
           </>
         )}
 
-        <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>ANSWER PROGRESS</Text>
-        {sortedQs.length === 0 ? (
-          <Text style={[s.emptyText, { color: colors.mutedForeground }]}>No questions in this game.</Text>
-        ) : (
-          sortedQs.map((q, idx) => {
-            const total = answerCounts[q.id] ?? 0;
-            const correct = correctCounts[q.id] ?? 0;
-            const pct = totalPlayers > 0 ? total / totalPlayers : 0;
-            return (
-              <View key={q.id} style={[s.qCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <View style={s.qTop}>
-                  <Text style={[s.qNum, { color: colors.mutedForeground }]}>Q{idx + 1}</Text>
-                  <Text style={[s.qAnswered, { color: colors.foreground }]}>
-                    {total}/{totalPlayers} answered
-                  </Text>
-                  {total > 0 && (
-                    <Text style={[s.qCorrect, { color: colors.secondary }]}>
-                      {correct} correct
+        {/* ANSWER PROGRESS — hidden when host is playing along */}
+        {!playAlong && (
+          <>
+            <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>ANSWER PROGRESS</Text>
+            {sortedQs.length === 0 ? (
+              <Text style={[s.emptyText, { color: colors.mutedForeground }]}>No questions in this game.</Text>
+            ) : (
+              sortedQs.map((q, idx) => {
+                const total = answerCounts[q.id] ?? 0;
+                const correct = correctCounts[q.id] ?? 0;
+                const pct = totalPlayers > 0 ? total / totalPlayers : 0;
+                return (
+                  <View key={q.id} style={[s.qCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <View style={s.qTop}>
+                      <Text style={[s.qNum, { color: colors.mutedForeground }]}>Q{idx + 1}</Text>
+                      <Text style={[s.qAnswered, { color: colors.foreground }]}>
+                        {total}/{totalPlayers} answered
+                      </Text>
+                      {total > 0 && (
+                        <Text style={[s.qCorrect, { color: colors.secondary }]}>
+                          {correct} correct
+                        </Text>
+                      )}
+                    </View>
+                    <Text style={[s.qText, { color: colors.foreground }]} numberOfLines={2}>
+                      {q.questionText}
                     </Text>
-                  )}
-                </View>
-                <Text style={[s.qText, { color: colors.foreground }]} numberOfLines={2}>
-                  {q.questionText}
-                </Text>
-                {/* Progress bar */}
-                <View style={[s.progressBg, { backgroundColor: colors.border }]}>
-                  <View
-                    style={[s.progressFill, { backgroundColor: colors.secondary, width: `${Math.round(pct * 100)}%` }]}
-                  />
-                </View>
-              </View>
-            );
-          })
+                    {/* Progress bar */}
+                    <View style={[s.progressBg, { backgroundColor: colors.border }]}>
+                      <View
+                        style={[s.progressFill, { backgroundColor: colors.secondary, width: `${Math.round(pct * 100)}%` }]}
+                      />
+                    </View>
+                  </View>
+                );
+              })
+            )}
+          </>
         )}
 
         {/* Players */}
@@ -576,7 +559,7 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     choiceBtn: { borderWidth: 1, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14 },
     choiceText: { fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
     answerInput: { borderWidth: 1, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14, fontSize: 14 },
-    navBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderWidth: 1, borderRadius: 12, paddingVertical: 10 },
+    navBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderWidth: 1, borderRadius: 12, paddingVertical: 10 }, // kept for future use
     progressBg: { height: 4, borderRadius: 2, overflow: 'hidden' },
     progressFill: { height: 4, borderRadius: 2 },
     playerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1 },
@@ -590,4 +573,8 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     errorSub: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
     errorBackBtn: { marginTop: 8, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 14 },
     errorBackBtnText: { color: '#fff', fontSize: 15, fontFamily: 'Manrope_700Bold' },
+    feedbackBlock: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 8, marginTop: 4 },
+    feedbackTitle: { fontSize: 15, fontFamily: 'Manrope_800ExtraBold' },
+    feedbackPts: { fontSize: 13, fontFamily: 'Manrope_600SemiBold' },
+    feedbackText: { fontSize: 13, lineHeight: 18 },
   });

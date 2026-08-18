@@ -50,6 +50,9 @@ type Feedback = {
   feedback?: string;
 };
 
+/** Minimal feedback shape shared with the host live screen (no timeTaken). */
+export type PlayerFeedback = Pick<Feedback, 'isCorrect' | 'pointsEarned' | 'totalScore' | 'feedback'>;
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function shuffle<T>(arr: T[]): T[] {
@@ -65,7 +68,7 @@ const CHOICE_LABELS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
 // ─── Multiple Choice ──────────────────────────────────────────────────────────
 
-function MultipleChoiceQ({
+export function MultipleChoiceQ({
   question, onSubmit, disabled, lockedAnswer, feedback,
 }: { question: Question; onSubmit: (a: string) => void; disabled: boolean; lockedAnswer: string | null; feedback: Feedback | null }) {
   const colors = useColors();
@@ -124,7 +127,7 @@ function MultipleChoiceQ({
 
 // ─── Multi-Select ─────────────────────────────────────────────────────────────
 
-function MultiSelectQ({
+export function MultiSelectQ({
   question, onSubmit, disabled, lockedAnswer,
 }: { question: Question; onSubmit: (a: string) => void; disabled: boolean; lockedAnswer: string | null }) {
   const colors = useColors();
@@ -179,7 +182,7 @@ function MultiSelectQ({
 
 // ─── True/False ───────────────────────────────────────────────────────────────
 
-function TrueFalseQ({
+export function TrueFalseQ({
   onSubmit, disabled, lockedAnswer,
 }: { onSubmit: (a: string) => void; disabled: boolean; lockedAnswer: string | null }) {
   const colors = useColors();
@@ -216,7 +219,7 @@ function TrueFalseQ({
 
 // ─── Write-In / Short Response ────────────────────────────────────────────────
 
-function WriteInQ({
+export function WriteInQ({
   onSubmit, disabled, lockedAnswer, multiline = false,
 }: { onSubmit: (a: string) => void; disabled: boolean; lockedAnswer: string | null; multiline?: boolean }) {
   const colors = useColors();
@@ -256,7 +259,7 @@ function WriteInQ({
 
 // ─── Ordering ─────────────────────────────────────────────────────────────────
 
-function OrderingQ({
+export function OrderingQ({
   question, onSubmit, disabled, lockedAnswer,
 }: { question: Question; onSubmit: (a: string) => void; disabled: boolean; lockedAnswer: string | null }) {
   const colors = useColors();
@@ -322,7 +325,7 @@ function OrderingQ({
 
 // ─── Slider ───────────────────────────────────────────────────────────────────
 
-function SliderQ({
+export function SliderQ({
   question, onSubmit, disabled, lockedAnswer,
 }: { question: Question; onSubmit: (a: string) => void; disabled: boolean; lockedAnswer: string | null }) {
   const colors = useColors();
@@ -383,7 +386,7 @@ function SliderQ({
 
 // ─── Image Recognition (text answer) ─────────────────────────────────────────
 
-function ImageRecognitionQ({
+export function ImageRecognitionQ({
   question, onSubmit, disabled, lockedAnswer,
 }: { question: Question; onSubmit: (a: string) => void; disabled: boolean; lockedAnswer: string | null }) {
   const colors = useColors();
@@ -433,7 +436,7 @@ function ImageRecognitionQ({
 
 // ─── Image Hotspot ────────────────────────────────────────────────────────────
 
-function ImageHotspotQ({
+export function ImageHotspotQ({
   question, onSubmit, disabled, lockedAnswer,
 }: { question: Question; onSubmit: (a: string) => void; disabled: boolean; lockedAnswer: string | null }) {
   const colors = useColors();
@@ -496,7 +499,7 @@ function ImageHotspotQ({
 
 // ─── Matching ────────────────────────────────────────────────────────────────
 
-function MatchingQ({
+export function MatchingQ({
   question, onSubmit, disabled, lockedAnswer,
 }: { question: Question; onSubmit: (a: string) => void; disabled: boolean; lockedAnswer: string | null }) {
   const colors = useColors();
