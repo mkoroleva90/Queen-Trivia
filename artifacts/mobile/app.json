@@ -60,11 +60,18 @@
           "iosUrlScheme": "com.googleusercontent.apps.1055345874809-q83hnfpk2dm6a5ecgs8n0f5v45hppmlj"
         }
       ],
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      "expo-updates"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "updates": {
+      "url": "https://u.expo.dev/c0e8c7d6-4cf3-4241-9284-2005ad2bd8ee"
+    },
+    "runtimeVersion": {
+      "policy": "fingerprint"
     },
     "extra": {
       "eas": {

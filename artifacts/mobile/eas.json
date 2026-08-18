@@ -7,12 +7,14 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "channel": "development",
       "env": {
         "EXPO_PUBLIC_DOMAIN": "queen-trivia.com"
       }
     },
     "preview": {
       "distribution": "internal",
+      "channel": "preview",
       "env": {
         "EXPO_PUBLIC_DOMAIN": "queen-trivia.com",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1055345874809-vc3qjq2fpcdib78ddbdl5sjt6mphgvbj.apps.googleusercontent.com",
@@ -22,6 +24,7 @@
     "production": {
       "autoIncrement": true,
       "distribution": "store",
+      "channel": "production",
       "env": {
         "EXPO_PUBLIC_DOMAIN": "queen-trivia.com",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1055345874809-vc3qjq2fpcdib78ddbdl5sjt6mphgvbj.apps.googleusercontent.com",
