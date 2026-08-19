@@ -272,6 +272,8 @@ export const COPY = {
     hintArrangeOrder: 'Drag to put in the correct order',
     /** Shown above image-recognition text input. */
     hintTypeBelow:   'Type your answer below',
+    /** Shown beneath an image when its Commons licence requires attribution. */
+    imageCredit:     'Image credit: {credit} · {license}',
     /** Shown inside the image-hotspot tappable area before the player taps. */
     hintTapImage:    'Tap to mark your answer',
     /**

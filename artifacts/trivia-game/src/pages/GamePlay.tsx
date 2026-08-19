@@ -127,6 +127,16 @@ function formatCorrectAnswer(type: string, answer: string, opts?: Record<string,
   return answer;
 }
 
+function getImageAttribution(options: unknown): { creditLine: string; licenseName: string } | null {
+  if (!options || typeof options !== "object") return null;
+  const attribution = (options as { imageAttribution?: unknown }).imageAttribution;
+  if (!attribution || typeof attribution !== "object") return null;
+  const { creditLine, licenseName } = attribution as { creditLine?: unknown; licenseName?: unknown };
+  return typeof creditLine === "string" && typeof licenseName === "string" && creditLine && licenseName
+    ? { creditLine, licenseName }
+    : null;
+}
+
 // ─── Shared styled button ─────────────────────────────────────────────────────
 export function ActionBtn({
   onClick, disabled = false, pending = false, pendingLabel, bg, color, children,
@@ -671,6 +681,7 @@ export function ImageQuestion({
   disabled: boolean;
 }) {
   const [val, setVal] = useState("");
+  const imageAttribution = getImageAttribution(question.options);
   useEffect(() => { setVal(""); }, [question.id]);
   return (
     <div className="flex flex-col gap-4">
@@ -682,6 +693,13 @@ export function ImageQuestion({
         >
           <img src={question.imageUrl} alt="Identify this"
             className="w-full max-h-80 object-contain" />
+          {imageAttribution && (
+            <p className="px-3 pb-2 pt-1 text-[11px] leading-snug text-muted-foreground">
+              {COPY.gameplay.imageCredit
+                .replace("{credit}", imageAttribution.creditLine)
+                .replace("{license}", imageAttribution.licenseName)}
+            </p>
+          )}
         </motion.div>
       )}
       <form className="flex flex-col gap-3"

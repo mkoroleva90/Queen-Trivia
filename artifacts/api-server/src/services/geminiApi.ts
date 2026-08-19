@@ -1,5 +1,6 @@
 
 import { logger } from "../lib/logger.ts";
+import { lookupWikimediaImage } from "./wikimediaCommons.ts";
 
 
 const GEMINI_MODELS = [
@@ -261,9 +262,13 @@ export interface GeminiQuestion {
     options:
      | { choices: string[] }
      | { pairs: { left: string; right: string }[] }
-     | { alternateAnswers: string[] }
+     | {
+         alternateAnswers: string[];
+         imageAttribution?: { creditLine: string; licenseName: string };
+       }
      | null;
     imageUrl: string | null;
+    imageSubject?: string | null;
     factCheckUrl: string | null; // First grounding source URL when grounding was active
     points: number;
     orderIndex: number;
@@ -298,6 +303,7 @@ interface RawGeminiQuestion {
     left_items?: unknown;
     right_items?: unknown;
     correct_pairs?: unknown;
+    image_subject?: unknown;
     image_url?: unknown;
     points?: unknown;
     source?: unknown;
@@ -373,7 +379,7 @@ const matchingSpec = matchCount > 0
   ? `- ${matchCount} questions with "question_type": "matching"         (4 related pairs toconnect; points: 20)\n`
  : "";
 const imageSpec = imgCount > 0
- ? `- ${imgCount} questions with "question_type": "image_recognition" (real WikimediaCommons image URL; points: 15)\n`
+ ? `- ${imgCount} questions with "question_type": "image_recognition" (specific visual Wikimedia Commons search subject; points: 15)\n`
  : "";
 
 
@@ -411,8 +417,8 @@ ${matchCount > 0 ? `
 matching (exactly 4 pairs; right_items are the left_items' matches in scrambled order):
  { "question_type": "matching", "question_text": "Match each country to its capital:","left_items": ["France", "Japan", "Brazil", "Egypt"], "right_items": ["Tokyo", "Paris", "Cairo","Brasilia"], "correct_pairs": [{"left": "France", "right": "Paris"}, {"left": "Japan", "right":"Tokyo"}, {"left": "Brazil", "right": "Brasilia"}, {"left": "Egypt", "right": "Cairo"}], "points": 20,"source": "World Atlas" }
 ` : ""}${imgCount > 0 ? `
-image_recognition (ONLY real, well-known Wikimedia Commons URLs of famous subjects— the URL must actually exist; if you cannot recall a real URL exactly, use a differentfamous subject you are sure about):
- { "question_type": "image_recognition", "question_text": "Name this famous landmark:","image_url":"https://upload.wikimedia.org/wikipedia/commons/a/a8/Tour_Eiffel_Wikimedia_Commons.jpg", "correct_answer": "Eiffel Tower", "acceptable_answers": ["Eiffel Tower", "The EiffelTower", "Tour Eiffel"], "points": 15, "source": "Wikimedia Commons" }
+image_recognition (provide a short, concrete "image_subject" for the picture to look up — a visually recognisable landmark, animal, artwork, historical figure, or object. Do NOT provide an image URL, file name, or abstract concept):
+ { "question_type": "image_recognition", "question_text": "Name this famous landmark:", "image_subject": "Eiffel Tower in Paris", "correct_answer": "Eiffel Tower", "acceptable_answers": ["Eiffel Tower", "The Eiffel Tower", "Tour Eiffel"], "points": 15, "source": "Wikimedia Commons" }
 ` : ""}
 Return ONLY a valid JSON array with no other text, no markdown, no code fences.
 
@@ -541,16 +547,17 @@ results.push({
  factCheckUrl: groundingUrls[0] ?? null,
 });
 } else if (questionType === "image_recognition") {
-const imageUrl = normalizeWikimediaUrl(
- typeof item.image_url === "string" ? item.image_url.trim() : "",
-);
-if (!imageUrl) continue;
+const imageSubject = typeof item.image_subject === "string"
+ ? item.image_subject.trim().slice(0, 160)
+ : "";
+if (!imageSubject || /^https?:\/\//i.test(imageSubject)) continue;
 results.push({
  questionText,
  questionType: "image_recognition",
  correctAnswer,
  options: buildAlternates(item.acceptable_answers, correctAnswer),
- imageUrl,
+ imageUrl: null,
+ imageSubject,
  points: 15,
  orderIndex: i,
  source: sourceCitation,
@@ -614,9 +621,44 @@ export async function filterValidImageQuestions(
 ): Promise<GeminiQuestion[]> {
     const checks = await Promise.all(
      questions.map(async (q) => {
-         if (q.questionType !== "image_recognition" || !q.imageUrl) return q;
+         if (q.questionType !== "image_recognition") return q;
+         let resolvedQuestion = q;
+         if (!resolvedQuestion.imageUrl) {
+             if (!resolvedQuestion.imageSubject) {
+                 logger.warn("Dropping image question: missing Wikimedia search subject");
+                 return null;
+             }
+             const image = await lookupWikimediaImage(resolvedQuestion.imageSubject);
+             if (!image) {
+                 logger.warn(
+                     { imageSubject: resolvedQuestion.imageSubject },
+                     "No safe Wikimedia image found for image question — topping up with non-image questions",
+                 );
+                 return null;
+             }
+             logger.info(
+                 {
+                     imageSubject: resolvedQuestion.imageSubject,
+                     imageUrl: image.thumbnailUrl,
+                     licenseName: image.licenseName,
+                     creditLine: image.attribution?.creditLine ?? null,
+                 },
+                 "Resolved safe Wikimedia image for image question",
+             );
+             const alternates =
+                 (resolvedQuestion.options as { alternateAnswers?: string[] } | null)?.alternateAnswers ?? [];
+             resolvedQuestion = {
+                 ...resolvedQuestion,
+                 imageUrl: image.thumbnailUrl,
+                 options: image.attribution
+                     ? { alternateAnswers: alternates, imageAttribution: image.attribution }
+                     : { alternateAnswers: alternates },
+             };
+         }
+         const resolvedImageUrl = resolvedQuestion.imageUrl;
+         if (!resolvedImageUrl) return null;
          try {
-             const resp = await fetch(q.imageUrl, {
+             const resp = await fetch(resolvedImageUrl, {
               method: "GET",
               headers: {
                "User-Agent": "TriviaNightApp/1.0 (question image validation)",
@@ -625,11 +667,11 @@ export async function filterValidImageQuestions(
               signal: AbortSignal.timeout(5000),
              });
              const contentType = resp.headers.get("content-type") ?? "";
-             if (resp.ok && contentType.startsWith("image/")) return q;
-   logger.warn({ imageUrl: q.imageUrl, status: resp.status }, "Dropping image question:URL not a valid image");
+             if (resp.ok && contentType.startsWith("image/")) return resolvedQuestion;
+   logger.warn({ imageUrl: resolvedImageUrl, status: resp.status }, "Dropping image question:URL not a valid image");
              return null;
          } catch {
-             logger.warn({ imageUrl: q.imageUrl }, "Dropping image question: URL unreachable");
+             logger.warn({ imageUrl: resolvedImageUrl }, "Dropping image question: URL unreachable");
              return null;
          }
      }),
@@ -847,15 +889,14 @@ for (const model of GEMINI_MODELS) {
          const filtered = await filterValidImageQuestions(rawQuestions);
 
          // Separate survivors so we can cap image count to the normal quota.
-         const imgSurvivors = filtered
-             .filter((q) => q.questionType === "image_recognition")
-             .slice(0, normalCounts.imgCount);
+         const resolvedImages = filtered.filter((q) => q.questionType === "image_recognition");
+         const imgSurvivors = resolvedImages.slice(0, normalCounts.imgCount);
          const nonImgSurvivors = filtered.filter((q) => q.questionType !== "image_recognition");
          const nonImgNeeded = targetAmount - imgSurvivors.length;
          let finalQuestions = reindex([...imgSurvivors, ...nonImgSurvivors.slice(0, nonImgNeeded)]);
 
          const imgRequested = rawQuestions.filter((q) => q.questionType === "image_recognition").length;
-         const imageFailures = imgRequested - imgSurvivors.length;
+         const imageFailures = imgRequested - resolvedImages.length;
          if (imageFailures > 0) {
              logger.warn(
                  { imgRequested, survived: imgSurvivors.length },

@@ -66,6 +66,16 @@ function shuffle<T>(arr: T[]): T[] {
 
 const CHOICE_LABELS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
+function getImageAttribution(options: unknown): { creditLine: string; licenseName: string } | null {
+  if (!options || typeof options !== 'object') return null;
+  const attribution = (options as { imageAttribution?: unknown }).imageAttribution;
+  if (!attribution || typeof attribution !== 'object') return null;
+  const { creditLine, licenseName } = attribution as { creditLine?: unknown; licenseName?: unknown };
+  return typeof creditLine === 'string' && typeof licenseName === 'string' && creditLine && licenseName
+    ? { creditLine, licenseName }
+    : null;
+}
+
 // ─── Multiple Choice ──────────────────────────────────────────────────────────
 
 export function MultipleChoiceQ({
@@ -392,15 +402,25 @@ export function ImageRecognitionQ({
   const colors = useColors();
   const [answer, setAnswer] = useState(lockedAnswer ?? '');
   const answered = !!lockedAnswer;
+  const imageAttribution = getImageAttribution(question.options);
 
   return (
     <View style={styles.writeInContainer}>
       {question.imageUrl ? (
-        <Image
-          source={{ uri: question.imageUrl }}
-          style={{ width: '100%', height: 180, borderRadius: 14 }}
-          resizeMode="cover"
-        />
+        <View style={{ width: '100%', overflow: 'hidden', borderRadius: 14 }}>
+          <Image
+            source={{ uri: question.imageUrl }}
+            style={{ width: '100%', height: 180 }}
+            resizeMode="cover"
+          />
+          {imageAttribution && (
+            <Text style={{ color: colors.mutedForeground, fontSize: 11, lineHeight: 15, paddingHorizontal: 10, paddingVertical: 6 }}>
+              {COPY.gameplay.imageCredit
+                .replace('{credit}', imageAttribution.creditLine)
+                .replace('{license}', imageAttribution.licenseName)}
+            </Text>
+          )}
+        </View>
       ) : (
         <View style={{ width: '100%', height: 120, borderRadius: 14, backgroundColor: colors.muted, alignItems: 'center', justifyContent: 'center' }}>
           <Ionicons name="image-outline" size={36} color={colors.mutedForeground} />
