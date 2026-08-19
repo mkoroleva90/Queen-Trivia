@@ -1,5 +1,10 @@
 
 import { logger } from "../lib/logger.ts";
+import {
+    anyContainsBannedContent,
+    extractOptionTexts,
+    logFlaggedContent,
+} from "../lib/contentFilter.ts";
 import { lookupWikimediaImage } from "./wikimediaCommons.ts";
 
 
@@ -310,13 +315,25 @@ interface RawGeminiQuestion {
 }
 
 
-const VALID_TYPES = new Set([
+const TARGET_TYPE_MIX: Readonly<Record<GeminiQuestionType, number>> = Object.freeze({
+    multiple_choice: 3,
+    true_false: 2,
+    write_in: 2,
+    matching: 1,
+    image_recognition: 2,
+});
+
+const TYPE_TIE_BREAK_ORDER: readonly GeminiQuestionType[] = [
     "multiple_choice",
     "true_false",
     "write_in",
-    "matching",
     "image_recognition",
-]);
+    "matching",
+];
+
+const VALID_TYPES = new Set<GeminiQuestionType>(
+    Object.keys(TARGET_TYPE_MIX) as GeminiQuestionType[],
+);
 
 
 // ─── Type-count helpers ────────────────────────────────────────────────────────
@@ -329,25 +346,108 @@ interface TypeCounts {
     imgCount: number;
 }
 
+const TYPE_COUNT_FIELDS: Readonly<Record<GeminiQuestionType, keyof TypeCounts>> = {
+    multiple_choice: "mcCount",
+    true_false: "tfCount",
+    write_in: "wiCount",
+    matching: "matchCount",
+    image_recognition: "imgCount",
+};
+
+function emptyTypeCounts(): TypeCounts {
+    return { mcCount: 0, tfCount: 0, wiCount: 0, matchCount: 0, imgCount: 0 };
+}
+
+function sumTypeCounts(counts: TypeCounts): number {
+    return counts.mcCount + counts.tfCount + counts.wiCount + counts.matchCount + counts.imgCount;
+}
+
+function typeCountsForLog(counts: TypeCounts): Record<GeminiQuestionType, number> {
+    return {
+        multiple_choice: counts.mcCount,
+        true_false: counts.tfCount,
+        write_in: counts.wiCount,
+        matching: counts.matchCount,
+        image_recognition: counts.imgCount,
+    };
+}
+
+function countQuestionTypes(questions: GeminiQuestion[]): TypeCounts {
+    const counts = emptyTypeCounts();
+    for (const question of questions) {
+        counts[TYPE_COUNT_FIELDS[question.questionType]]++;
+    }
+    return counts;
+}
+
+function missingTypeCounts(targets: TypeCounts, delivered: TypeCounts): TypeCounts {
+    return {
+        mcCount: Math.max(0, targets.mcCount - delivered.mcCount),
+        tfCount: Math.max(0, targets.tfCount - delivered.tfCount),
+        wiCount: Math.max(0, targets.wiCount - delivered.wiCount),
+        matchCount: Math.max(0, targets.matchCount - delivered.matchCount),
+        imgCount: Math.max(0, targets.imgCount - delivered.imgCount),
+    };
+}
+
+export function canUseSurplusFallback(missingCounts: TypeCounts): boolean {
+    return missingCounts.imgCount > 0
+        && missingCounts.mcCount === 0
+        && missingCounts.tfCount === 0
+        && missingCounts.wiCount === 0
+        && missingCounts.matchCount === 0;
+}
+
+export function evaluateQuestionMixOutcome(
+    targetCounts: TypeCounts,
+    selectedCounts: TypeCounts,
+    surplusCounts: TypeCounts,
+): {
+    missingCounts: TypeCounts;
+    fallbackSlots: number;
+    fallbackAllowed: boolean;
+    canReturnSuccess: boolean;
+} {
+    const missingCounts = missingTypeCounts(targetCounts, selectedCounts);
+    const fallbackSlots = sumTypeCounts(missingCounts);
+    const fallbackAllowed = fallbackSlots > 0 && canUseSurplusFallback(missingCounts);
+    return {
+        missingCounts,
+        fallbackSlots,
+        fallbackAllowed,
+        canReturnSuccess: fallbackSlots === 0
+            || (fallbackAllowed && sumTypeCounts(surplusCounts) >= fallbackSlots),
+    };
+}
+
+function isGeminiQuestionType(value: string | null): value is GeminiQuestionType {
+    return value !== null && VALID_TYPES.has(value as GeminiQuestionType);
+}
+
 /**
  * Compute the standard question-type breakdown for a given total.
- * Target distribution: ~40% MC, 20% TF, 20% write-in, 10% matching, 10% image.
- * Types are allocated in priority order so the counts always sum exactly to `total`.
+ * Uses largest-remainder rounding against TARGET_TYPE_MIX, with deterministic
+ * remainder ties resolved in TYPE_TIE_BREAK_ORDER.
  */
-function computeTypeCounts(total: number): TypeCounts {
-    let remaining = total;
-    const take = (target: number, enabled = true): number => {
-        if (!enabled || remaining <= 0) return 0;
-        const n = Math.min(remaining, Math.max(1, Math.round(total * target)));
-        remaining -= n;
-        return n;
-    };
-    const matchCount = take(0.1, total >= 6);
-    const imgCount   = take(0.1, total >= 6);
-    const tfCount    = take(0.2, total >= 2);
-    const wiCount    = take(0.2, total >= 3);
-    const mcCount    = remaining;
-    return { mcCount, tfCount, wiCount, matchCount, imgCount };
+export function computeTypeCounts(total: number): TypeCounts {
+    const requestedTotal = Math.max(0, Math.floor(total));
+    const mixTotal = Object.values(TARGET_TYPE_MIX).reduce((sum, weight) => sum + weight, 0);
+    const counts = emptyTypeCounts();
+    const rankedRemainders = TYPE_TIE_BREAK_ORDER.map((questionType, tieIndex) => {
+        const exactCount = requestedTotal * TARGET_TYPE_MIX[questionType] / mixTotal;
+        const baseCount = Math.floor(exactCount);
+        counts[TYPE_COUNT_FIELDS[questionType]] = baseCount;
+        return { questionType, remainder: exactCount - baseCount, tieIndex };
+    }).sort((a, b) => b.remainder - a.remainder || a.tieIndex - b.tieIndex);
+
+    let remaining = requestedTotal - sumTypeCounts(counts);
+    for (const { questionType } of rankedRemainders) {
+        if (remaining <= 0) break;
+        counts[TYPE_COUNT_FIELDS[questionType]]++;
+        remaining--;
+    }
+
+    return counts;
 }
 
 // ─── Prompt builder ────────────────────────────────────────────────────────────
@@ -441,14 +541,22 @@ function parseQuestions(raw: unknown, opts: GeminiGenerateOptions, groundingUrls
      if (!item || typeof item !== "object") continue;
 
 
- const questionType = typeof item.question_type === "string" ? item.question_type.trim() :null;
+ const rawQuestionType = item.question_type;
+ const questionType = typeof rawQuestionType === "string" ? rawQuestionType.trim() : null;
  const questionText = typeof item.question_text === "string" ? item.question_text.trim() :null;
   const correctAnswer = typeof item.correct_answer === "string" ?item.correct_answer.trim() : null;
      const sourceCitation =
       typeof item.source === "string" && item.source.trim()
        ? item.source.trim()
        : `AI Generated: ${opts.topic}`;
-if (!questionType || !VALID_TYPES.has(questionType) || !questionText) continue;
+ if (!isGeminiQuestionType(questionType)) {
+     logger.warn(
+         { rawQuestionType: rawQuestionType ?? null },
+         "Dropping Gemini question with unrecognised question type",
+     );
+     continue;
+ }
+ if (!questionText) continue;
 
 
 // Matching questions carry their answer in correct_pairs, not correct_answer
@@ -684,20 +792,39 @@ function reindex(questions: GeminiQuestion[]): GeminiQuestion[] {
     return questions.map((q, i) => ({ ...q, orderIndex: i }));
 }
 
+function filterGeneratedContent(questions: GeminiQuestion[]): GeminiQuestion[] {
+    return questions.filter((question) => {
+        const allText: Array<string | null | undefined> = [
+            question.questionText,
+            question.correctAnswer,
+            ...extractOptionTexts(question.options as unknown),
+        ];
+        if (!anyContainsBannedContent(allText)) return true;
+        logFlaggedContent("ai_generated_question");
+        return false;
+    });
+}
+
+interface ValidatedQuestionBatch {
+    questions: GeminiQuestion[];
+    discarded: number;
+}
+
 /**
- * Request `amount` additional non-image questions from Gemini to fill a shortfall
- * left after image-URL filtering. Redirects the image-recognition quota to MC so
- * no image questions are included and the call cannot fail the same way.
+ * Request a targeted question top-up from Gemini. The function name is retained
+ * for compatibility, but requestedCounts now allows exact missing-type requests,
+ * including image recognition.
  */
 async function topUpWithNonImageQuestions(
     apiKey: string,
     originalOpts: GeminiGenerateOptions,
     amount: number,
     existingTexts: string[],
-): Promise<GeminiQuestion[] | null> {
-    // Force imgCount = 0 by folding its share into mcCount.
+    requestedCounts?: TypeCounts,
+    skipFactCheck = true,
+): Promise<ValidatedQuestionBatch | null> {
     const baseCounts = computeTypeCounts(amount);
-    const topUpCounts: TypeCounts = {
+    const topUpCounts: TypeCounts = requestedCounts ?? {
         ...baseCounts,
         mcCount: baseCounts.mcCount + baseCounts.imgCount,
         imgCount: 0,
@@ -718,8 +845,12 @@ async function topUpWithNonImageQuestions(
         try {
             const parsed = JSON.parse(extractJson(raw.text));
             const questions = parseQuestions(parsed, topUpOpts, raw.groundingUrls);
-            // Belt-and-suspenders: drop any image question Gemini may have included anyway.
-            return questions.filter((q) => q.questionType !== "image_recognition").slice(0, amount);
+            const parsedCount = Array.isArray(parsed) ? parsed.length : 0;
+            const validated = await validateGeneratedQuestions(apiKey, questions, skipFactCheck);
+            return {
+                questions: validated.questions,
+                discarded: Math.max(0, parsedCount - questions.length) + validated.discarded,
+            };
         } catch {
             logger.warn({ model }, "Top-up Gemini response failed to parse");
             continue;
@@ -801,6 +932,153 @@ ${numbered}`;
     return results;
 }
 
+async function validateGeneratedQuestions(
+    apiKey: string,
+    questions: GeminiQuestion[],
+    skipFactCheck: boolean,
+): Promise<ValidatedQuestionBatch> {
+    const contentFiltered = filterGeneratedContent(questions);
+    const imageValidated = await filterValidImageQuestions(contentFiltered);
+    let discarded = questions.length - imageValidated.length;
+    if (skipFactCheck) return { questions: imageValidated, discarded };
+
+    const verifiedQuestions: GeminiQuestion[] = [];
+    const VERIFY_BATCH_SIZE = 5;
+    for (let bi = 0; bi < imageValidated.length; bi += VERIFY_BATCH_SIZE) {
+        const batch = imageValidated.slice(bi, Math.min(bi + VERIFY_BATCH_SIZE, imageValidated.length));
+        const vResults = await verifyQuestionBatch(apiKey, batch);
+        for (let j = 0; j < batch.length; j++) {
+            const vr = vResults[j];
+            const q = batch[j]!;
+            if (!vr || vr.verdict === "verified") {
+                verifiedQuestions.push({ ...q, factCheckUrl: vr?.sourceUrl ?? q.factCheckUrl });
+            } else {
+                discarded++;
+                logger.info(
+                    { q: q.questionText.slice(0, 80), verdict: vr.verdict, reason: vr.reason },
+                    "Question discarded by verification",
+                );
+            }
+        }
+    }
+    return { questions: verifiedQuestions, discarded };
+}
+
+interface EnforcedQuestionMix {
+    questions: GeminiQuestion[];
+    discarded: number;
+    topUpRoundsUsed: number;
+    deviationReason: string | null;
+}
+
+async function enforceQuestionTypeMix(
+    apiKey: string,
+    opts: GeminiGenerateOptions,
+    targetCounts: TypeCounts,
+    initialQuestions: GeminiQuestion[],
+    skipFactCheck: boolean,
+): Promise<EnforcedQuestionMix> {
+    const selected: GeminiQuestion[] = [];
+    const selectedCounts = emptyTypeCounts();
+    const surplusByType: Record<GeminiQuestionType, GeminiQuestion[]> = {
+        multiple_choice: [],
+        true_false: [],
+        write_in: [],
+        matching: [],
+        image_recognition: [],
+    };
+    const existingTexts: string[] = [];
+
+    const addQuestions = (questions: GeminiQuestion[]): void => {
+        for (const question of questions) {
+            existingTexts.push(question.questionText);
+            const field = TYPE_COUNT_FIELDS[question.questionType];
+            if (selectedCounts[field] < targetCounts[field]) {
+                selected.push(question);
+                selectedCounts[field]++;
+            } else {
+                surplusByType[question.questionType].push(question);
+            }
+        }
+    };
+
+    addQuestions(initialQuestions);
+
+    const MAX_TOPUP = 2;
+    let topUpRoundsUsed = 0;
+    let discarded = 0;
+    for (let attempt = 0; attempt < MAX_TOPUP; attempt++) {
+        const missingCounts = missingTypeCounts(targetCounts, selectedCounts);
+        const shortfall = sumTypeCounts(missingCounts);
+        if (shortfall === 0) break;
+
+        topUpRoundsUsed++;
+        logger.warn(
+            {
+                attempt: attempt + 1,
+                missingTypes: typeCountsForLog(missingCounts),
+                shortfall,
+            },
+            "Requesting targeted AI question type top-up",
+        );
+        const topUp = await topUpWithNonImageQuestions(
+            apiKey,
+            opts,
+            shortfall,
+            existingTexts,
+            missingCounts,
+            skipFactCheck,
+        );
+        if (!topUp) continue;
+        discarded += topUp.discarded;
+        addQuestions(topUp.questions);
+    }
+
+    const surplusCounts = countQuestionTypes(TYPE_TIE_BREAK_ORDER.flatMap(
+        (questionType) => surplusByType[questionType],
+    ));
+    const outcome = evaluateQuestionMixOutcome(targetCounts, selectedCounts, surplusCounts);
+    const missingBeforeFallback = outcome.missingCounts;
+    let fallbackSlots = outcome.fallbackSlots;
+    const fallbackUsed = outcome.fallbackAllowed;
+    if (fallbackUsed) {
+        logger.warn(
+            {
+                missingTypes: typeCountsForLog(missingBeforeFallback),
+                fallbackSlots,
+            },
+            "AI question type shortfall remains after top-ups — filling from valid surplus",
+        );
+        for (const questionType of TYPE_TIE_BREAK_ORDER) {
+            while (fallbackSlots > 0 && surplusByType[questionType].length > 0) {
+                selected.push(surplusByType[questionType].shift()!);
+                fallbackSlots--;
+            }
+            if (fallbackSlots === 0) break;
+        }
+    } else if (fallbackSlots > 0) {
+        logger.error(
+            {
+                missingTypes: typeCountsForLog(missingBeforeFallback),
+                fallbackSlots,
+            },
+            "Required non-image question type shortfall remains after top-ups — failing generation",
+        );
+    }
+
+    const questions = reindex(selected.slice(0, opts.amount));
+    const deviationReason = fallbackSlots > 0 && !fallbackUsed
+        ? "required_non_image_type_shortfall_after_topups"
+        : fallbackUsed
+        ? fallbackSlots === 0
+            ? "image_type_shortfall_after_topups_filled_from_surplus"
+            : "insufficient_valid_questions_after_topups"
+        : topUpRoundsUsed > 0
+            ? "targeted_topups_restored_target_mix"
+            : null;
+    return { questions, discarded, topUpRoundsUsed, deviationReason };
+}
+
 export async function generateGeminiQuestions(
 opts: GeminiGenerateOptions,
 ): Promise<GeminiGenerateResult> {
@@ -811,26 +1089,20 @@ if (!apiKey) {
 
 
 const targetAmount = opts.amount;
-// Generate 2x if fact-checking so we have surplus to absorb discards (cap at 40).
-// Over-generate image candidates to hedge against Wikimedia URL failures.
-// For the skipFactCheck path, request IMG_EXTRA extra image slots beyond the normal
-// quota so we have a buffer to absorb dead URLs while keeping the non-image count fixed.
-const IMG_EXTRA = 3;
 const normalCounts = computeTypeCounts(targetAmount);
 const skipFactCheck = opts.skipFactCheck ?? false;
-const overrideCounts: TypeCounts | undefined =
-    (skipFactCheck && normalCounts.imgCount > 0)
-        ? { ...normalCounts, imgCount: normalCounts.imgCount + IMG_EXTRA }
-        : undefined;
-const inflatedTotal = overrideCounts
-    ? overrideCounts.mcCount + overrideCounts.tfCount + overrideCounts.wiCount
-      + overrideCounts.matchCount + overrideCounts.imgCount
-    : targetAmount;
-
-// Generate 2x if fact-checking (surplus absorbs verification discards, cap at 40).
-const generateAmount = skipFactCheck ? inflatedTotal : Math.min(targetAmount * 2, 40);
-const promptOpts = { ...opts, amount: generateAmount };
-const prompt = buildBulkPrompt(promptOpts, skipFactCheck ? overrideCounts : undefined);
+// Generate 2x so every type has a validated surplus available for enforcement
+// and fallback. Image candidates stay at the exact target so Commons validation
+// is not flooded; missing images are retried through targeted top-up rounds.
+// The API currently caps bulk requests at 20, so generateAmount remains <= 40.
+const generateAmount = Math.min(targetAmount * 2, 40);
+const overrideCounts: TypeCounts = {
+    ...computeTypeCounts(generateAmount),
+    imgCount: normalCounts.imgCount,
+};
+const inflatedTotal = sumTypeCounts(overrideCounts);
+const promptOpts = { ...opts, amount: inflatedTotal };
+const prompt = buildBulkPrompt(promptOpts, overrideCounts);
 let lastError: GeminiGenerateError = { code: "api_error", message: "Not attempted" };
 
 
@@ -883,82 +1155,39 @@ for (const model of GEMINI_MODELS) {
              error: { code: "parse_error", message: "No valid questions in Gemini response. Please try again." },
          };
      }
-     if (skipFactCheck) {
-         // ── Over-generate / filter / top-up flow ──────────────────────────────
-         // Filter image questions whose Wikimedia URLs don't actually resolve.
-         const filtered = await filterValidImageQuestions(rawQuestions);
-
-         // Separate survivors so we can cap image count to the normal quota.
-         const resolvedImages = filtered.filter((q) => q.questionType === "image_recognition");
-         const imgSurvivors = resolvedImages.slice(0, normalCounts.imgCount);
-         const nonImgSurvivors = filtered.filter((q) => q.questionType !== "image_recognition");
-         const nonImgNeeded = targetAmount - imgSurvivors.length;
-         let finalQuestions = reindex([...imgSurvivors, ...nonImgSurvivors.slice(0, nonImgNeeded)]);
-
-         const imgRequested = rawQuestions.filter((q) => q.questionType === "image_recognition").length;
-         const imageFailures = imgRequested - resolvedImages.length;
-         if (imageFailures > 0) {
-             logger.warn(
-                 { imgRequested, survived: imgSurvivors.length },
-                 "Image URL validation dropped candidates — topping up with non-image questions",
-             );
-         }
-
-         // Top-up with non-image-only questions if we still have a shortfall (max 2 rounds).
-         const MAX_TOPUP = 2;
-         for (let attempt = 0; attempt < MAX_TOPUP && finalQuestions.length < targetAmount; attempt++) {
-             const shortfall = targetAmount - finalQuestions.length;
-             logger.warn({ shortfall, attempt: attempt + 1 }, "Requesting non-image top-up");
-             const topUp = await topUpWithNonImageQuestions(
-                 apiKey,
-                 opts,
-                 shortfall,
-                 finalQuestions.map((q) => q.questionText),
-             );
-             if (topUp && topUp.length > 0) {
-                 finalQuestions = reindex([...finalQuestions, ...topUp.slice(0, shortfall)]);
-             } else {
-                 break; // top-up call itself failed — stop trying
-             }
-         }
-
-         if (finalQuestions.length < targetAmount) {
-             logger.warn(
-                 { requested: targetAmount, delivered: finalQuestions.length },
-                 "Could not reach requested question count after top-up — saving what is available",
-             );
-         }
-
-         logger.info(
-             { requested: targetAmount, generated: rawQuestions.length, imageFailures, delivered: finalQuestions.length },
-             "Bulk generation complete (skipFactCheck)",
-         );
-         return { ok: true, questions: finalQuestions, discarded: imageFailures };
-     }
-     // Verification pass — batches of 5, stop once we have targetAmount verified questions
-     const verifiedQuestions: GeminiQuestion[] = [];
-     let discarded = 0;
-     const VERIFY_BATCH_SIZE = 5;
-     for (let bi = 0; bi < rawQuestions.length && verifiedQuestions.length < targetAmount; bi += VERIFY_BATCH_SIZE) {
-         const batch = rawQuestions.slice(bi, Math.min(bi + VERIFY_BATCH_SIZE, rawQuestions.length));
-         const vResults = await verifyQuestionBatch(apiKey, batch);
-         for (let j = 0; j < batch.length; j++) {
-             if (verifiedQuestions.length >= targetAmount) break;
-             const vr = vResults[j];
-             const q = batch[j]!;
-             if (!vr || vr.verdict === "verified") {
-                 verifiedQuestions.push({ ...q, factCheckUrl: vr?.sourceUrl ?? q.factCheckUrl });
-             } else {
-                 discarded++;
-                 logger.info(
-                     { q: q.questionText.slice(0, 80), verdict: vr.verdict, reason: vr.reason },
-                     "Question discarded by verification",
-                 );
-             }
-         }
-     }
-     logger.info({ generated: rawQuestions.length, saved: verifiedQuestions.length, discarded }, "Generation + verification complete");
-     return { ok: true, questions: verifiedQuestions, discarded };
+      const parsedCount = Array.isArray(parsed) ? parsed.length : 0;
+      const validated = await validateGeneratedQuestions(apiKey, rawQuestions, skipFactCheck);
+      const enforced = await enforceQuestionTypeMix(
+          apiKey,
+          opts,
+          normalCounts,
+          validated.questions,
+          skipFactCheck,
+      );
+      const discarded = Math.max(0, parsedCount - rawQuestions.length)
+          + validated.discarded
+          + enforced.discarded;
+      const deliveredCounts = countQuestionTypes(enforced.questions);
+      logger.info(
+          {
+              requestedTotal: targetAmount,
+              computedTargets: typeCountsForLog(normalCounts),
+              deliveredCounts: typeCountsForLog(deliveredCounts),
+              topUpRoundsUsed: enforced.topUpRoundsUsed,
+              deviationReason: enforced.deviationReason,
+          },
+          "AI question mix enforcement summary",
+      );
+      if (enforced.questions.length !== targetAmount) {
+          return {
+              ok: false,
+              error: {
+                  code: "parse_error",
+                  message: "Gemini could not produce enough valid questions. Please try again.",
+              },
+          };
+      }
+      return { ok: true, questions: enforced.questions, discarded };
  }
 
 
