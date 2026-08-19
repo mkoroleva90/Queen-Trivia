@@ -4,6 +4,7 @@ const WIKIMEDIA_USER_AGENT =
 const SEARCH_RESULT_LIMIT = 8;
 const LOOKUP_TIMEOUT_MS = 5000;
 const THUMBNAIL_WIDTH = 1000;
+const CREDIT_LINE_MAX_LENGTH = 200;
 
 export interface WikimediaImageAttribution {
     creditLine: string;
@@ -52,9 +53,27 @@ function plainText(value: unknown): string {
     return value
         .replace(/<[^>]*>/g, " ")
         .replace(/&nbsp;/gi, " ")
-        .replace(/&amp;/gi, "&")
-        .replace(/&#39;|&apos;/gi, "'")
-        .replace(/&quot;/gi, "\"")
+        .replace(/&(#x[0-9a-f]+|#\d+|amp|apos|quot|lt|gt);/gi, (match: string, entity: string) => {
+            const normalized = entity.toLocaleLowerCase();
+            if (normalized === "amp") return "&";
+            if (normalized === "apos" || normalized === "#39" || normalized === "#x27") return "'";
+            if (normalized === "quot" || normalized === "#34" || normalized === "#x22") return "\"";
+            if (normalized === "lt") return "<";
+            if (normalized === "gt") return ">";
+            if (normalized.startsWith("#x")) {
+                const codePoint = Number.parseInt(normalized.slice(2), 16);
+                return Number.isInteger(codePoint) && codePoint <= 0x10ffff
+                    ? String.fromCodePoint(codePoint)
+                    : match;
+            }
+            if (normalized.startsWith("#")) {
+                const codePoint = Number.parseInt(normalized.slice(1), 10);
+                return Number.isInteger(codePoint) && codePoint <= 0x10ffff
+                    ? String.fromCodePoint(codePoint)
+                    : match;
+            }
+            return match;
+        })
         .replace(/\s+/g, " ")
         .trim();
 }
@@ -71,7 +90,8 @@ function isUnsafeImageCandidate(page: CommonsPage, imageInfo: CommonsImageInfo):
     const searchableText = `${title} ${description} ${categories}`.toLocaleLowerCase();
     return UNSAFE_IMAGE_TERMS.some((term) => {
         const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        return new RegExp(`(^|[^a-z])${escapedTerm}($|[^a-z])`, "i").test(searchableText);
+        const phrase = escapedTerm.replace(/\s+/g, "\\s+");
+        return new RegExp(`\\b${phrase}\\b`, "i").test(searchableText);
     });
 }
 
@@ -97,8 +117,23 @@ function getLicenseName(metadata: Record<string, CommonsMetadataValue> | undefin
 }
 
 function getCreditLine(metadata: Record<string, CommonsMetadataValue> | undefined): string {
-    const creditLine = metadataValue(metadata, "Credit") || metadataValue(metadata, "Artist");
-    return /^(unknown|unknown author|n\/a)$/i.test(creditLine) ? "" : creditLine;
+    const creditLine = metadataValue(metadata, "Artist") || metadataValue(metadata, "Credit");
+    const normalized = creditLine
+        .trim()
+        .toLocaleLowerCase()
+        .replace(/[^\p{L}\p{N}]+/gu, " ")
+        .trim();
+    const placeholders = new Set([
+        "own work",
+        "self",
+        "own",
+        "unknown",
+        "unknown author",
+        "n a",
+        "none",
+    ]);
+    if (!normalized || placeholders.has(normalized) || /^[\p{P}\p{S}]+$/u.test(creditLine.trim())) return "";
+    return creditLine.slice(0, CREDIT_LINE_MAX_LENGTH);
 }
 
 /**
@@ -142,7 +177,9 @@ export async function lookupWikimediaImage(searchSubject: string): Promise<Wikim
         const mime = typeof imageInfo.mime === "string" ? imageInfo.mime.toLocaleLowerCase() : "";
         if (mime !== "image/jpeg" && mime !== "image/png") continue;
 
-        const thumbnailUrl = typeof imageInfo.thumburl === "string" ? imageInfo.thumburl : "";
+        const thumbnailUrl = typeof imageInfo.thumburl === "string"
+            ? imageInfo.thumburl.split(/[?#]/, 1)[0] ?? ""
+            : "";
         if (!thumbnailUrl) continue;
 
         const licenseName = getLicenseName(imageInfo.extmetadata);
