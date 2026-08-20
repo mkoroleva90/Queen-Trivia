@@ -20,6 +20,7 @@ import {
   sendPasswordResetEmail,
   sendPasswordResetCodeEmail,
 } from "../lib/email.ts";
+import { logger } from "../lib/logger.ts";
 
 const router: IRouter = Router();
 
@@ -61,6 +62,7 @@ router.post(
 
     const { email, password } = parsed.data;
     const normalised = email.toLowerCase().trim();
+    const genericOk = { ok: true, message: "Check your email for a verification link." };
 
     // Check for existing account — always respond generically to avoid enumeration
     const [existing] = await db
@@ -71,7 +73,7 @@ router.post(
 
     if (existing) {
       // Same response as success to avoid account enumeration
-      res.json({ ok: true, message: "Check your email for a verification link." });
+      res.json(genericOk);
       return;
     }
 
@@ -94,13 +96,12 @@ router.post(
     try {
       await sendVerificationEmail(normalised, verifyUrl);
     } catch (err) {
-      // Log config errors server-side; never expose token or address in response
-      console.error((err as Error).message);
-      res.status(503).json({ error: "Email service unavailable. Check server configuration." });
-      return;
+      // Do not reveal delivery failures; that would make registration an
+      // account-enumeration oracle when the mail service is unavailable.
+      logger.error({ err }, "Verification email delivery failed");
     }
 
-    res.json({ ok: true, message: "Check your email for a verification link." });
+    res.json(genericOk);
   }
 );
 
@@ -256,9 +257,8 @@ router.post(
     try {
       await sendPasswordResetEmail(normalised, resetUrl);
     } catch (err) {
-      console.error((err as Error).message);
-      res.status(503).json({ error: "Email service unavailable. Check server configuration." });
-      return;
+      // Keep this indistinguishable from the no-account response.
+      logger.error({ err }, "Password reset email delivery failed");
     }
 
     res.json(genericOk);
@@ -366,9 +366,8 @@ router.post(
     try {
       await sendPasswordResetCodeEmail(normalised, code);
     } catch (err) {
-      console.error((err as Error).message);
-      res.status(503).json({ error: "Email service unavailable. Check server configuration." });
-      return;
+      // Keep this indistinguishable from the no-account response.
+      logger.error({ err }, "Password reset code email delivery failed");
     }
 
     res.json(genericOk);
