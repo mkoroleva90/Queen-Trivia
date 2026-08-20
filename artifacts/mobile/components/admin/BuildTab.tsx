@@ -41,6 +41,7 @@ import { API_BASE_URL } from '@/lib/apiBase';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 type Step = 'setup' | 'review';
+type BuildStage = 'runMode' | 'form' | 'joinCode';
 type Difficulty = 'easy' | 'medium' | 'hard';
 type Source = 'ai' | 'opentdb';
 
@@ -207,15 +208,18 @@ function GamePicker({ games, selectedId, onSelect, colors }: {
 
 type Props = {
   bottomPadding: number;
+  /** Leaves the build flow and returns the host to their games. */
+  onExitBuild: () => void;
 };
 
-export function BuildTab({ bottomPadding }: Props) {
+export function BuildTab({ bottomPadding, onExitBuild }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const qc = useQueryClient();
 
   const [step, setStep] = useState<Step>('setup');
+  const [buildStage, setBuildStage] = useState<BuildStage>('runMode');
   const [workingGameId, setWorkingGameId] = useState<number | null>(null);
 
   // ── Setup state
@@ -232,8 +236,6 @@ export function BuildTab({ bottomPadding }: Props) {
   const [setupResult, setSetupResult] = useState<SetupResult | null>(null);
   const [playAlong, setPlayAlong] = useState(false);
   const [runMode, setRunMode] = useState<RunMode | null>(null);
-  const [runModeChosen, setRunModeChosen] = useState(false);
-  const [joinCodeChosen, setJoinCodeChosen] = useState(false);
   const [joinCodeError, setJoinCodeError] = useState<string | null>(null);
   const [showQuestionReview, setShowQuestionReview] = useState(false);
 
@@ -329,7 +331,6 @@ export function BuildTab({ bottomPadding }: Props) {
     if (!setupResult) return;
     setJoinCodeError(null);
     if (code === (setupResult.game.accessCode ?? '')) {
-      setJoinCodeChosen(true);
       setShowQuestionReview(false);
       setStep('review');
       return;
@@ -341,7 +342,6 @@ export function BuildTab({ bottomPadding }: Props) {
       });
       setSetupResult({ ...setupResult, game: { ...setupResult.game, accessCode: updated.accessCode ?? code } });
       qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
-      setJoinCodeChosen(true);
       setShowQuestionReview(false);
       setStep('review');
     } catch (err) {
@@ -368,8 +368,7 @@ export function BuildTab({ bottomPadding }: Props) {
     setSetupResult(null);
     setPlayAlong(false);
     setRunMode(null);
-    setRunModeChosen(false);
-    setJoinCodeChosen(false);
+    setBuildStage('runMode');
     setJoinCodeError(null);
     setShowQuestionReview(false);
     setCatOpen(false);
@@ -653,7 +652,7 @@ export function BuildTab({ bottomPadding }: Props) {
           </View>
           <Pressable
             onPress={() => {
-              setJoinCodeChosen(false);
+              setBuildStage('joinCode');
               setShowQuestionReview(false);
               setStep('setup');
             }}
@@ -680,7 +679,7 @@ export function BuildTab({ bottomPadding }: Props) {
           </View>
           <Pressable
             onPress={() => {
-              setRunModeChosen(false);
+              setBuildStage('runMode');
               setShowQuestionReview(false);
               setStep('setup');
             }}
@@ -746,31 +745,43 @@ export function BuildTab({ bottomPadding }: Props) {
         {/* ── SETUP ── */}
         {step === 'setup' && (
           <View style={s.section}>
-            {!runModeChosen ? (
+            {buildStage === 'runMode' ? (
               /* ── Run-mode choice (shown before the success screen) ── */
               <RunModeScreen
                 value={runMode}
                 onSelect={setRunMode}
+                onBack={onExitBuild}
                 onContinue={() => {
                   setPlayAlong(runMode === 'hostPlay');
-                  setRunModeChosen(true);
+                  setBuildStage(setupResult ? 'joinCode' : 'form');
                   if (setupResult) {
                     setShowQuestionReview(false);
                     setStep('review');
                   }
                 }}
               />
-            ) : setupResult && !joinCodeChosen ? (
+            ) : buildStage === 'joinCode' && setupResult ? (
               /* ── Join-code choice (after run mode, before the success screen) ── */
               <JoinCodeScreen
                 initialCode={setupResult.game.accessCode ?? ''}
                 saving={updateGame.isPending}
                 error={joinCodeError}
+                onBack={() => setBuildStage('runMode')}
                 onSubmit={handleJoinCodeSubmit}
               />
             ) : (
               /* ── Setup form ── */
               <>
+                <Pressable
+                  style={s.buildBackBtn}
+                  onPress={() => setBuildStage('runMode')}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel="Back to game mode"
+                >
+                  <Ionicons name="arrow-back" size={18} color="#c5ccda" />
+                  <Text style={s.buildBackText}>Back</Text>
+                </Pressable>
                 <View style={s.setupCard}>
                   <Text style={s.setupTitle}>Create a new game</Text>
 
@@ -951,9 +962,40 @@ export function BuildTab({ bottomPadding }: Props) {
         {step === 'review' && (
           <View style={s.section}>
             {setupResult && !showQuestionReview ? (
-              renderReadyToGoLive()
+              <>
+                <Pressable
+                  style={s.buildBackBtn}
+                  onPress={() => {
+                    setBuildStage('joinCode');
+                    setStep('setup');
+                  }}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel="Back to join code"
+                >
+                  <Ionicons name="arrow-back" size={18} color="#c5ccda" />
+                  <Text style={s.buildBackText}>Back</Text>
+                </Pressable>
+                {renderReadyToGoLive()}
+              </>
             ) : (
               <>
+            <Pressable
+              style={s.buildBackBtn}
+              onPress={() => {
+                if (setupResult) {
+                  setShowQuestionReview(false);
+                } else {
+                  setStep('setup');
+                }
+              }}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={setupResult ? 'Back to ready screen' : 'Back to setup'}
+            >
+              <Ionicons name="arrow-back" size={18} color="#c5ccda" />
+              <Text style={s.buildBackText}>Back</Text>
+            </Pressable>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 0 }}>
               <Text style={[s.heading, { color: colors.foreground, marginBottom: 0 }]}>Review questions</Text>
               {selectedGame && questions.filter((q) => q.aiGenerated).length > 0 && (
@@ -1416,6 +1458,14 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     segmentText: { fontSize: 14, fontFamily: 'Manrope_700Bold' },
     body: { padding: 16 },
     section: { gap: 12 },
+    buildBackBtn: {
+      alignSelf: 'flex-start',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingVertical: 4,
+    },
+    buildBackText: { color: '#c5ccda', fontSize: 14, fontFamily: 'Manrope_700Bold' },
     heading: { fontSize: 20, fontFamily: 'Manrope_800ExtraBold' },
     setupCard: {
       width: '100%',

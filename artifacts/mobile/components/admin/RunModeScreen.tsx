@@ -1,4 +1,5 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { COPY } from '@workspace/copy';
 import { CrownMark } from '@/components/CrownMark';
 
@@ -8,6 +9,8 @@ type Props = {
   /** Currently selected mode, or null when nothing is selected yet. */
   value: RunMode | null;
   onSelect: (mode: RunMode) => void;
+  /** Leaves the Build a Game flow and returns to the games list. */
+  onBack: () => void;
   /** Called when the host confirms their choice. */
   onContinue: () => void;
 };
@@ -22,9 +25,20 @@ const OPTIONS: Array<{ mode: RunMode; label: string; desc: string }> = [
  * before the join-code step. Design-handoff "1c" treatment: stacked
  * radio-list rows with a full-width Continue button.
  */
-export function RunModeScreen({ value, onSelect, onContinue }: Props) {
+export function RunModeScreen({ value, onSelect, onBack, onContinue }: Props) {
   return (
     <View style={s.container}>
+      <Pressable
+        style={s.backBtn}
+        onPress={onBack}
+        hitSlop={10}
+        accessibilityRole="button"
+        accessibilityLabel="Back to games"
+      >
+        <Ionicons name="arrow-back" size={18} color="#c5ccda" />
+        <Text style={s.backText}>Back</Text>
+      </Pressable>
+
       <View style={{ gap: 6 }}>
         <Text style={s.title}>{COPY.runMode.title}</Text>
         <Text style={s.subtitle}>{COPY.runMode.subtitle}</Text>
@@ -87,6 +101,14 @@ export function RunModeScreen({ value, onSelect, onContinue }: Props) {
 
 const s = StyleSheet.create({
   container: { gap: 20 },
+  backBtn: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 4,
+  },
+  backText: { color: '#c5ccda', fontSize: 14, fontFamily: 'Manrope_700Bold' },
   title: {
     fontSize: 21,
     fontFamily: 'Manrope_700Bold',

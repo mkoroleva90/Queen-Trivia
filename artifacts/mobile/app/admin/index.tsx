@@ -30,6 +30,7 @@ export default function AdminHomeScreen() {
 
   // Navigate to the Build tab so the admin lands directly on the Setup step.
   const handleGoToBuild = useCallback(() => setActiveTab('build'), []);
+  const handleExitBuild = useCallback(() => setActiveTab('games'), []);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -37,7 +38,7 @@ export default function AdminHomeScreen() {
 
       <View style={styles.content}>
         {activeTab === 'games'   && <GamesTab   bottomPadding={bottomPadding} onGoToBuild={handleGoToBuild} />}
-        {activeTab === 'build'   && <BuildTab    bottomPadding={bottomPadding} />}
+        {activeTab === 'build'   && <BuildTab    bottomPadding={bottomPadding} onExitBuild={handleExitBuild} />}
         {activeTab === 'results' && <ResultsTab  bottomPadding={bottomPadding} />}
         {activeTab === 'rooms'   && <RoomsTab    bottomPadding={bottomPadding} />}
       </View>

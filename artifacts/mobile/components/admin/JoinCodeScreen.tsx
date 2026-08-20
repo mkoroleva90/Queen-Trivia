@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { COPY } from '@workspace/copy';
 import { useColors } from '@/hooks/useColors';
 
@@ -13,6 +14,8 @@ type Props = {
   saving: boolean;
   /** Server-side field error mapped by the parent (taken / blocked / invalid). */
   error: string | null;
+  /** Returns to the previous game-build choice without losing the draft. */
+  onBack: () => void;
   /** Called with the validated, uppercased code when the host continues. */
   onSubmit: (code: string) => void;
 };
@@ -22,7 +25,7 @@ type Props = {
  * "Ready to go live" confirmation. Saves via the existing PATCH /games/:id
  * (handled by the parent); unchanged codes just continue.
  */
-export function JoinCodeScreen({ initialCode, saving, error, onSubmit }: Props) {
+export function JoinCodeScreen({ initialCode, saving, error, onBack, onSubmit }: Props) {
   const colors = useColors();
   const [code, setCode] = useState(initialCode);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -41,6 +44,18 @@ export function JoinCodeScreen({ initialCode, saving, error, onSubmit }: Props) 
 
   return (
     <View style={s.container}>
+      <Pressable
+        style={s.backBtn}
+        onPress={onBack}
+        disabled={saving}
+        hitSlop={10}
+        accessibilityRole="button"
+        accessibilityLabel="Back"
+      >
+        <Ionicons name="arrow-back" size={18} color="#c5ccda" />
+        <Text style={s.backText}>Back</Text>
+      </Pressable>
+
       <Text style={s.title}>{COPY.joinCode.title}</Text>
       <Text style={s.subtitle}>{COPY.joinCode.subtitle}</Text>
 
@@ -80,6 +95,14 @@ export function JoinCodeScreen({ initialCode, saving, error, onSubmit }: Props) 
 
 const s = StyleSheet.create({
   container: { gap: 10 },
+  backBtn: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 4,
+  },
+  backText: { color: '#c5ccda', fontSize: 14, fontFamily: 'Manrope_700Bold' },
   title: { fontSize: 22, fontFamily: 'Manrope_700Bold', color: '#ffffff', marginTop: 4 },
   subtitle: { fontSize: 13.5, lineHeight: 19, color: '#8b93a4', marginBottom: 8 },
   inputLabel: {
