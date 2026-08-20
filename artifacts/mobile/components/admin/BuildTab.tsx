@@ -233,6 +233,7 @@ export function BuildTab({ bottomPadding }: Props) {
   const [runModeChosen, setRunModeChosen] = useState(false);
   const [joinCodeChosen, setJoinCodeChosen] = useState(false);
   const [joinCodeError, setJoinCodeError] = useState<string | null>(null);
+  const [showQuestionReview, setShowQuestionReview] = useState(false);
 
   // ── Questions state (for adding more after initial import)
   const [aiOpen, setAiOpen] = useState(false);
@@ -327,6 +328,8 @@ export function BuildTab({ bottomPadding }: Props) {
     setJoinCodeError(null);
     if (code === (setupResult.game.accessCode ?? '')) {
       setJoinCodeChosen(true);
+      setShowQuestionReview(false);
+      setStep('review');
       return;
     }
     try {
@@ -337,6 +340,8 @@ export function BuildTab({ bottomPadding }: Props) {
       setSetupResult({ ...setupResult, game: { ...setupResult.game, accessCode: updated.accessCode ?? code } });
       qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
       setJoinCodeChosen(true);
+      setShowQuestionReview(false);
+      setStep('review');
     } catch (err) {
       setJoinCodeError(mapJoinCodeError(err));
     }
@@ -364,6 +369,7 @@ export function BuildTab({ bottomPadding }: Props) {
     setRunModeChosen(false);
     setJoinCodeChosen(false);
     setJoinCodeError(null);
+    setShowQuestionReview(false);
     setTopic('');
     setBrief('');
     setSetupError('');
@@ -392,6 +398,7 @@ export function BuildTab({ bottomPadding }: Props) {
       invalidate(game.id);
       setWorkingGameId(game.id);
       setSetupResult({ type: 'ai', imported: result.imported, game });
+      setShowQuestionReview(false);
       // If the content filter removed some questions, tell the host.
       if (result.contentFilteredCount && result.contentFilteredCount > 0 && result.contentFilteredMessage) {
         setSetupError(result.contentFilteredMessage);
@@ -420,6 +427,7 @@ export function BuildTab({ bottomPadding }: Props) {
       invalidate(game.id);
       setWorkingGameId(game.id);
       setSetupResult({ type: 'opentdb', imported: result.imported, game });
+      setShowQuestionReview(false);
     } catch (err) {
       setSetupError(extractApiError(err, 'Could not import questions — please retry'));
     }
@@ -622,6 +630,88 @@ export function BuildTab({ bottomPadding }: Props) {
   if (manualQCount > 0) sourceParts.push('Manual');
   const sourceLabel = sourceParts.join(' · ') || '—';
 
+  const renderReadyToGoLive = () => {
+    if (!setupResult) return null;
+
+    return (
+      <View style={s.successContainer}>
+        <View style={s.rtglCheckCircle}>
+          <Ionicons name="checkmark" size={30} color="#19d2ed" />
+        </View>
+        <Text style={s.rtglTitle}>{COPY.readyToGoLive.title}</Text>
+
+        {/* Join-code summary row */}
+        <View style={s.rtglCodeRow}>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={s.rtglRowLabel}>{COPY.readyToGoLive.joinLabel.toUpperCase()}</Text>
+            <Text style={s.rtglCodeValue}>{setupResult.game.accessCode}</Text>
+          </View>
+          <Pressable
+            onPress={() => {
+              setJoinCodeChosen(false);
+              setShowQuestionReview(false);
+              setStep('setup');
+            }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={COPY.readyToGoLive.editLink}
+          >
+            <Ionicons name="pencil-outline" size={19} color="#19d2ed" />
+          </Pressable>
+        </View>
+
+        {/* Mode summary row */}
+        <View style={s.rtglModeRow}>
+          <View style={s.rtglModeTile}>
+            <CrownMark size={22} color="#f5138c" />
+          </View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={s.rtglModeTitle}>
+              {playAlong ? COPY.runMode.hostPlayLabel : COPY.runMode.hostOnlyLabel}
+            </Text>
+            <Text style={s.rtglModeDesc}>
+              {playAlong ? COPY.readyToGoLive.hostPlayDescMobile : COPY.readyToGoLive.hostOnlyDesc}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => {
+              setRunModeChosen(false);
+              setShowQuestionReview(false);
+              setStep('setup');
+            }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={COPY.readyToGoLive.changeLink}
+          >
+            <Ionicons name="pencil-outline" size={19} color="#19d2ed" />
+          </Pressable>
+        </View>
+
+        <Pressable
+          style={s.rtglOutlineBtn}
+          onPress={() => setShowQuestionReview(true)}
+        >
+          <Text style={s.rtglOutlineBtnText}>{COPY.readyToGoLive.reviewBtn}</Text>
+        </Pressable>
+
+        <Pressable
+          style={[s.rtglGoLiveBtn, { opacity: updateGame.isPending ? 0.6 : 1 }]}
+          onPress={goLive}
+          disabled={updateGame.isPending}
+        >
+          <Ionicons name="play" size={16} color="#fff" />
+          <Text style={s.rtglGoLiveText}>
+            {updateGame.isPending ? 'Going live…' : COPY.readyToGoLive.goLiveBtn}
+          </Text>
+        </Pressable>
+
+        {!!setupError && (
+          <Text style={[s.helperText, { color: colors.destructive }]}>{setupError}</Text>
+        )}
+      </View>
+    );
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -659,6 +749,10 @@ export function BuildTab({ bottomPadding }: Props) {
                 onContinue={() => {
                   setPlayAlong(runMode === 'hostPlay');
                   setRunModeChosen(true);
+                  if (setupResult) {
+                    setShowQuestionReview(false);
+                    setStep('review');
+                  }
                 }}
               />
             ) : setupResult && !joinCodeChosen ? (
@@ -669,66 +763,6 @@ export function BuildTab({ bottomPadding }: Props) {
                 error={joinCodeError}
                 onSubmit={handleJoinCodeSubmit}
               />
-            ) : setupResult ? (
-              /* ── "Ready to go live" confirmation ── */
-              <View style={s.successContainer}>
-                <View style={s.rtglCheckCircle}>
-                  <Ionicons name="checkmark" size={30} color="#19d2ed" />
-                </View>
-                <Text style={s.rtglTitle}>{COPY.readyToGoLive.title}</Text>
-
-                {/* Join-code summary row */}
-                <View style={s.rtglCodeRow}>
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <Text style={s.rtglRowLabel}>{COPY.readyToGoLive.joinLabel.toUpperCase()}</Text>
-                    <Text style={s.rtglCodeValue}>{setupResult.game.accessCode}</Text>
-                  </View>
-                  <Pressable onPress={() => setJoinCodeChosen(false)} hitSlop={8}>
-                    <Text style={s.rtglLink}>{COPY.readyToGoLive.editLink}</Text>
-                  </Pressable>
-                </View>
-
-                {/* Mode summary row */}
-                <View style={s.rtglModeRow}>
-                  <View style={s.rtglModeTile}>
-                    <CrownMark size={22} color="#f5138c" />
-                  </View>
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <Text style={s.rtglModeTitle}>
-                      {playAlong ? COPY.runMode.hostPlayLabel : COPY.runMode.hostOnlyLabel}
-                    </Text>
-                    <Text style={s.rtglModeDesc}>
-                      {playAlong ? COPY.readyToGoLive.hostPlayDescMobile : COPY.readyToGoLive.hostOnlyDesc}
-                    </Text>
-                  </View>
-                  <Pressable onPress={() => setRunModeChosen(false)} hitSlop={8}>
-                    <Text style={s.rtglLink}>{COPY.readyToGoLive.changeLink}</Text>
-                  </Pressable>
-                </View>
-
-                <Pressable
-                  style={s.rtglOutlineBtn}
-                  onPress={() => setStep('review')}
-                >
-                  <Text style={s.rtglOutlineBtnText}>{COPY.readyToGoLive.reviewBtn}</Text>
-                </Pressable>
-
-                <Pressable
-                  style={[s.rtglGoLiveBtn, { opacity: updateGame.isPending ? 0.6 : 1 }]}
-                  onPress={goLive}
-                  disabled={updateGame.isPending}
-                >
-                  <Ionicons name="play" size={16} color="#fff" />
-                  <Text style={s.rtglGoLiveText}>
-                    {updateGame.isPending ? 'Going live…' : COPY.readyToGoLive.goLiveBtn}
-                  </Text>
-                </Pressable>
-
-                {!!setupError && (
-                  <Text style={[s.helperText, { color: colors.destructive }]}>{setupError}</Text>
-                )}
-
-              </View>
             ) : (
               /* ── Setup form ── */
               <>
@@ -880,6 +914,10 @@ export function BuildTab({ bottomPadding }: Props) {
         {/* ── REVIEW ── */}
         {step === 'review' && (
           <View style={s.section}>
+            {setupResult && !showQuestionReview ? (
+              renderReadyToGoLive()
+            ) : (
+              <>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 0 }}>
               <Text style={[s.heading, { color: colors.foreground, marginBottom: 0 }]}>Review questions</Text>
               {selectedGame && questions.filter((q) => q.aiGenerated).length > 0 && (
@@ -1035,6 +1073,8 @@ export function BuildTab({ bottomPadding }: Props) {
                     </View>
                   )
                 )}
+              </>
+            )}
               </>
             )}
           </View>
@@ -1402,7 +1442,6 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     rtglCodeValue: {
       fontSize: 20, fontFamily: 'Manrope_800ExtraBold', letterSpacing: 2.4, color: '#ffde17',
     },
-    rtglLink: { fontSize: 14, fontFamily: 'Manrope_600SemiBold', color: '#19d2ed' },
     rtglModeRow: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
       backgroundColor: 'rgba(245,19,140,0.10)', borderWidth: 1, borderColor: 'rgba(245,19,140,0.45)',
