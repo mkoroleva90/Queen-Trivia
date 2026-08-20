@@ -226,6 +226,8 @@ export function BuildTab({ bottomPadding }: Props) {
   const [setupAmount, setSetupAmount] = useState(10);
   const [setupCategory, setSetupCategory] = useState<number>(9);
   const [catOpen, setCatOpen] = useState(false);
+  const [difficultyOpen, setDifficultyOpen] = useState(false);
+  const [amountOpen, setAmountOpen] = useState(false);
   const [setupError, setSetupError] = useState('');
   const [setupResult, setSetupResult] = useState<SetupResult | null>(null);
   const [playAlong, setPlayAlong] = useState(false);
@@ -370,6 +372,9 @@ export function BuildTab({ bottomPadding }: Props) {
     setJoinCodeChosen(false);
     setJoinCodeError(null);
     setShowQuestionReview(false);
+    setCatOpen(false);
+    setDifficultyOpen(false);
+    setAmountOpen(false);
     setTopic('');
     setBrief('');
     setSetupError('');
@@ -766,146 +771,177 @@ export function BuildTab({ bottomPadding }: Props) {
             ) : (
               /* ── Setup form ── */
               <>
-                <Text style={[s.heading, { color: colors.foreground }]}>Create a new game</Text>
+                <View style={s.setupCard}>
+                  <Text style={s.setupTitle}>Create a new game</Text>
 
-                {/* ── Category (matches web: Custom topic + Open Trivia categories) ── */}
-                <Text style={[s.fieldLabel, { color: '#ffe500', fontSize: 15, fontFamily: 'Manrope_700Bold' }]}>Category</Text>
-                <View style={[s.catList, { borderColor: colors.border, backgroundColor: colors.card }]}>
-                  <Pressable
-                    style={s.catRow}
-                    onPress={() => setCatOpen((o) => !o)}
-                  >
-                    <Text style={[s.catText, { color: source === 'ai' ? AI_COLOR : colors.primary }]}>
-                      {source === 'ai'
-                        ? 'Custom topic — Gemini AI generates questions'
-                        : selectedCategory?.name ?? 'Select a category'}
-                    </Text>
-                    <Ionicons name={catOpen ? 'chevron-up' : 'chevron-down'} size={16} color={colors.mutedForeground} />
-                  </Pressable>
-                  {catOpen && (
+                  <Text style={s.setupLabel}>Category</Text>
+                  <View style={s.setupSelectGroup}>
+                    <Pressable
+                      style={s.setupSelect}
+                      onPress={() => {
+                        setCatOpen((o) => !o);
+                        setDifficultyOpen(false);
+                        setAmountOpen(false);
+                      }}
+                    >
+                      <Text style={s.setupSelectText} numberOfLines={1}>
+                        {source === 'ai'
+                          ? 'Custom topic — Gemini AI generates questions'
+                          : selectedCategory?.name ?? 'Select a category'}
+                      </Text>
+                      <Ionicons name={catOpen ? 'chevron-up' : 'chevron-down'} size={22} color="#8b93a4" />
+                    </Pressable>
+                    {catOpen && (
+                      <View style={s.setupOptions}>
+                        <Pressable
+                          style={[s.setupOption, source === 'ai' && s.setupOptionActive]}
+                          onPress={() => {
+                            setSource('ai');
+                            // AI offers 5/10/15 only — clamp a leftover OpenTDB 20 selection.
+                            if (setupAmount > 15) setSetupAmount(15);
+                            setCatOpen(false);
+                          }}
+                        >
+                          <Text style={s.setupOptionText}>Custom topic — Gemini AI generates questions</Text>
+                          {source === 'ai' && <Ionicons name="checkmark" size={18} color="#f5138c" />}
+                        </Pressable>
+                        {OPENTDB_CATEGORIES.map((c) => {
+                          const active = source === 'opentdb' && c.id === setupCategory;
+                          return (
+                            <Pressable
+                              key={c.id}
+                              style={[s.setupOption, active && s.setupOptionActive]}
+                              onPress={() => {
+                                setSource('opentdb');
+                                setSetupCategory(c.id);
+                                setCatOpen(false);
+                              }}
+                            >
+                              <Text style={s.setupOptionText}>{c.name}</Text>
+                              {active && <Ionicons name="checkmark" size={18} color="#f5138c" />}
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    )}
+                  </View>
+                  <Text style={s.setupHint}>
+                    {source === 'ai'
+                      ? 'Questions are generated by Gemini AI.'
+                      : 'Questions are pulled from Open Trivia Database.'}
+                  </Text>
+
+                  {/* ── Custom topic fields ── */}
+                  {source === 'ai' && (
                     <>
-                      <View style={{ height: 1, backgroundColor: colors.border }} />
-                      <Pressable
-                        style={[s.catRow, source === 'ai' && { backgroundColor: AI_COLOR + '18' }]}
-                        onPress={() => {
-                          setSource('ai');
-                          // AI offers 5/10/15 only — clamp a leftover OpenTDB 20 selection.
-                          if (setupAmount > 15) setSetupAmount(15);
-                          setCatOpen(false);
-                        }}
-                      >
-                        <Text style={[s.catText, { color: source === 'ai' ? AI_COLOR : colors.foreground }]}>
-                          Custom topic — Gemini AI generates questions
-                        </Text>
-                        {source === 'ai' && <Ionicons name="checkmark" size={16} color={AI_COLOR} />}
-                      </Pressable>
-                      <View style={{ height: 1, backgroundColor: colors.border }} />
-                      {OPENTDB_CATEGORIES.map((c) => {
-                        const active = source === 'opentdb' && c.id === setupCategory;
-                        return (
-                          <Pressable
-                            key={c.id}
-                            style={[s.catRow, active && { backgroundColor: colors.primary + '18' }]}
-                            onPress={() => { setSource('opentdb'); setSetupCategory(c.id); setCatOpen(false); }}
-                          >
-                            <Text style={[s.catText, { color: active ? colors.primary : colors.foreground }]}>
-                              {c.name}
-                            </Text>
-                            {active && <Ionicons name="checkmark" size={16} color={colors.primary} />}
-                          </Pressable>
-                        );
-                      })}
+                      <Text style={s.setupLabel}>Topic</Text>
+                      <TextInput
+                        style={[s.setupInput, { borderColor: setupError ? colors.destructive : colors.border }]}
+                        value={topic}
+                        onChangeText={(t) => { setTopic(t); setSetupError(''); }}
+                        placeholder="e.g. Harry Potter, The Office, 80s Music, Local History…"
+                        placeholderTextColor={colors.mutedForeground}
+                      />
+
+                      <Text style={s.setupLabel}>
+                        Brief <Text style={s.fieldLabelOpt}>(optional)</Text>
+                      </Text>
+                      <TextInput
+                        style={[s.setupInput, s.setupTextArea, { borderColor: colors.border }]}
+                        value={brief}
+                        onChangeText={setBrief}
+                        placeholder="e.g. Focus on the 1990s. Players are experts — skip the obvious. No chart position questions."
+                        placeholderTextColor={colors.mutedForeground}
+                        multiline
+                        maxLength={2000}
+                      />
                     </>
                   )}
-                </View>
-                {/* ── Custom topic fields ── */}
-                {source === 'ai' && (
-                  <>
-                    <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Topic</Text>
-                    <TextInput
-                      style={[s.textInput, {
-                        backgroundColor: colors.card, color: colors.foreground,
-                        borderColor: setupError ? colors.destructive : colors.border,
-                      }]}
-                      value={topic}
-                      onChangeText={(t) => { setTopic(t); setSetupError(''); }}
-                      placeholder="e.g. Harry Potter, The Office, 80s Music, Local History…"
-                      placeholderTextColor={colors.mutedForeground}
-                    />
 
-                    <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>
-                      Brief <Text style={[s.fieldLabelOpt, { color: colors.mutedForeground }]}>(optional)</Text>
-                    </Text>
-                    <TextInput
-                      style={[s.textInput, s.textArea, {
-                        backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border,
-                      }]}
-                      value={brief}
-                      onChangeText={setBrief}
-                      placeholder="e.g. Focus on the 1990s. Players are experts — skip the obvious. No chart position questions."
-                      placeholderTextColor={colors.mutedForeground}
-                      multiline
-                      maxLength={2000}
-                    />
-                  </>
-                )}
-
-                {/* ── Shared: Difficulty + Amount ── */}
-                <Text style={[s.fieldLabel, { color: '#ffe500', fontSize: 15, fontFamily: 'Manrope_700Bold' }]}>Difficulty</Text>
-                <DifficultyChips value={difficulty} onChange={setDifficulty} colors={colors} />
-
-                <Text style={[s.fieldLabel, { color: '#ffe500', fontSize: 15, fontFamily: 'Manrope_700Bold', marginTop: 6 }]}>
-                  Number of questions
-                </Text>
-                <View style={sh.diffRow}>
-                  {([5, 10, 15, 20] as const)
-                    .filter((n) => source !== 'ai' || n !== 20)
-                    .map((n) => (
+                  <View style={s.setupSplitRow}>
+                    <View style={s.setupHalfField}>
+                      <Text style={s.setupLabel}>Difficulty</Text>
                       <Pressable
-                        key={n}
-                        style={[sh.diffChip, {
-                          borderColor: setupAmount === n ? colors.primary : colors.border,
-                          backgroundColor: setupAmount === n ? colors.primary + '22' : 'transparent',
-                        }]}
-                        onPress={() => setSetupAmount(n)}
+                        style={s.setupSelect}
+                        onPress={() => {
+                          setDifficultyOpen((o) => !o);
+                          setCatOpen(false);
+                          setAmountOpen(false);
+                        }}
                       >
-                        <Text style={[sh.diffChipText, { color: setupAmount === n ? colors.primary : colors.mutedForeground }]}>
-                          {n} questions
-                        </Text>
+                        <Text style={s.setupSelectText} numberOfLines={1}>{DIFF_LABELS[difficulty]}</Text>
+                        <Ionicons name={difficultyOpen ? 'chevron-up' : 'chevron-down'} size={22} color="#8b93a4" />
                       </Pressable>
-                    ))}
-                </View>
-
-
-                {!!setupError && (
-                  <Text style={[s.errorText, { color: colors.destructive }]}>{setupError}</Text>
-                )}
-
-                <Pressable
-                  style={[s.primaryBtn, {
-                    backgroundColor: source === 'ai' ? AI_COLOR : colors.primary,
-                    opacity: setupWorking ? 0.75 : 1,
-                  }]}
-                  onPress={source === 'ai' ? handleCreateAI : handleCreateOpenTdb}
-                  disabled={setupWorking}
-                >
-                  {setupWorking ? (
-                    <View style={s.btnRow}>
-                      <ActivityIndicator color="#fff" />
-                      <Text style={s.primaryBtnText}>{setupWorkingLabel}</Text>
+                      {difficultyOpen && (
+                        <View style={s.setupOptions}>
+                          {(['easy', 'medium', 'hard'] as Difficulty[]).map((d) => (
+                            <Pressable
+                              key={d}
+                              style={[s.setupOption, difficulty === d && s.setupOptionActive]}
+                              onPress={() => { setDifficulty(d); setDifficultyOpen(false); }}
+                            >
+                              <Text style={s.setupOptionText}>{DIFF_LABELS[d]}</Text>
+                              {difficulty === d && <Ionicons name="checkmark" size={18} color="#f5138c" />}
+                            </Pressable>
+                          ))}
+                        </View>
+                      )}
                     </View>
-                  ) : source === 'ai' ? (
-                    <View style={s.btnRow}>
-                      <Ionicons name="sparkles" size={16} color="#fff" />
-                      <Text style={s.primaryBtnText}>Create Game</Text>
+
+                    <View style={s.setupHalfField}>
+                      <Text style={s.setupLabel}>Questions to Import</Text>
+                      <Pressable
+                        style={s.setupSelect}
+                        onPress={() => {
+                          setAmountOpen((o) => !o);
+                          setCatOpen(false);
+                          setDifficultyOpen(false);
+                        }}
+                      >
+                        <Text style={s.setupSelectText} numberOfLines={1}>{setupAmount} questions</Text>
+                        <Ionicons name={amountOpen ? 'chevron-up' : 'chevron-down'} size={22} color="#8b93a4" />
+                      </Pressable>
+                      {amountOpen && (
+                        <View style={s.setupOptions}>
+                          {([5, 10, 15, 20] as const)
+                            .filter((n) => source !== 'ai' || n !== 20)
+                            .map((n) => (
+                              <Pressable
+                                key={n}
+                                style={[s.setupOption, setupAmount === n && s.setupOptionActive]}
+                                onPress={() => { setSetupAmount(n); setAmountOpen(false); }}
+                              >
+                                <Text style={s.setupOptionText}>{n} questions</Text>
+                                {setupAmount === n && <Ionicons name="checkmark" size={18} color="#f5138c" />}
+                              </Pressable>
+                            ))}
+                        </View>
+                      )}
                     </View>
-                  ) : (
-                    <View style={s.btnRow}>
-                      <Ionicons name="cloud-download-outline" size={16} color="#fff" />
-                      <Text style={s.primaryBtnText}>Save Game</Text>
-                    </View>
+                  </View>
+
+                  {!!setupError && (
+                    <Text style={[s.errorText, { color: colors.destructive }]}>{setupError}</Text>
                   )}
-                </Pressable>
+
+                  <Pressable
+                    style={[s.setupSaveBtn, { opacity: setupWorking ? 0.75 : 1 }]}
+                    onPress={source === 'ai' ? handleCreateAI : handleCreateOpenTdb}
+                    disabled={setupWorking}
+                  >
+                    {setupWorking ? (
+                      <View style={s.btnRow}>
+                        <ActivityIndicator color="#fff" />
+                        <Text style={s.primaryBtnText}>{setupWorkingLabel}</Text>
+                      </View>
+                    ) : (
+                      <View style={s.btnRow}>
+                        <Ionicons name={source === 'ai' ? 'sparkles' : 'cloud-download-outline'} size={19} color="#fff" />
+                        <Text style={s.setupSaveBtnText}>{source === 'ai' ? 'Create Game' : 'Save Game'}</Text>
+                      </View>
+                    )}
+                  </Pressable>
+                </View>
               </>
             )}
           </View>
@@ -1381,6 +1417,102 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     body: { padding: 16 },
     section: { gap: 12 },
     heading: { fontSize: 20, fontFamily: 'Manrope_800ExtraBold' },
+    setupCard: {
+      width: '100%',
+      backgroundColor: '#0d1523',
+      borderWidth: 1,
+      borderColor: '#25324d',
+      borderRadius: 26,
+      padding: 24,
+      gap: 14,
+    },
+    setupTitle: {
+      color: '#f8f9ff',
+      fontSize: 28,
+      lineHeight: 34,
+      fontFamily: 'Manrope_800ExtraBold',
+      marginBottom: 14,
+    },
+    setupLabel: {
+      color: '#f4f6ff',
+      fontSize: 16,
+      lineHeight: 22,
+      fontFamily: 'Manrope_600SemiBold',
+    },
+    setupSelectGroup: { gap: 8 },
+    setupSelect: {
+      minHeight: 62,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 10,
+      backgroundColor: '#0d1523',
+      borderWidth: 1,
+      borderColor: '#202d49',
+      borderRadius: 14,
+      paddingHorizontal: 16,
+      paddingVertical: 13,
+    },
+    setupSelectText: {
+      flex: 1,
+      color: '#f4f6ff',
+      fontSize: 17,
+      fontFamily: 'Manrope_500Medium',
+    },
+    setupHint: {
+      color: '#9da6bc',
+      fontSize: 14,
+      lineHeight: 20,
+      marginBottom: 16,
+    },
+    setupInput: {
+      minHeight: 58,
+      color: '#f4f6ff',
+      backgroundColor: '#0d1523',
+      borderWidth: 1,
+      borderRadius: 14,
+      paddingHorizontal: 16,
+      paddingVertical: 13,
+      fontSize: 16,
+    },
+    setupTextArea: { minHeight: 104, textAlignVertical: 'top' },
+    setupSplitRow: { flexDirection: 'row', gap: 14 },
+    setupHalfField: { flex: 1, gap: 8 },
+    setupOptions: {
+      backgroundColor: '#0b121f',
+      borderWidth: 1,
+      borderColor: '#25324d',
+      borderRadius: 14,
+      overflow: 'hidden',
+    },
+    setupOption: {
+      minHeight: 48,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+    },
+    setupOptionActive: { backgroundColor: 'rgba(245,19,140,0.13)' },
+    setupOptionText: {
+      flex: 1,
+      color: '#e8ebf4',
+      fontSize: 14,
+      fontFamily: 'Manrope_500Medium',
+    },
+    setupSaveBtn: {
+      minHeight: 62,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#f5138c',
+      borderRadius: 14,
+      marginTop: 18,
+      paddingHorizontal: 18,
+      paddingVertical: 16,
+    },
+    setupSaveBtnText: { color: '#fff', fontSize: 20, fontFamily: 'Manrope_700Bold' },
     helperText: { fontSize: 11.5, lineHeight: 16, marginTop: -6 },
     fieldLabel: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', marginTop: 6 },
     fieldLabelOpt: { fontSize: 12, fontFamily: 'Manrope_400Regular' },
