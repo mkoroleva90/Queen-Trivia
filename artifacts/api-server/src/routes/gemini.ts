@@ -155,6 +155,16 @@ router.post(
             res.status(422).json({ error: COPY.aiGenerate.contentFilteredAll, code: "content_filtered_all" });
             return;
         }
+        if (questions.length !== body.data.amount) {
+            // The generation service guarantees an exact requested count. Keep
+            // that guarantee intact if this final defense-in-depth filter ever
+            // catches a question that was not caught inside the service.
+            res.status(422).json({
+                error: "Gemini could not produce the requested number of safe questions. Please try again.",
+                code: "content_filtered_partial",
+            });
+            return;
+        }
 
         const existing = await db
             .select({ orderIndex: questionsTable.orderIndex })

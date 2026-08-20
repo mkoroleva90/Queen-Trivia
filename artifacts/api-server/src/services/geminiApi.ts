@@ -255,9 +255,13 @@ function extractJson(text: string): string {
 export type GeminiQuestionType =
     | "multiple_choice"
     | "true_false"
+    | "image_recognition"
     | "write_in"
     | "matching"
-    | "image_recognition";
+    | "ordering"
+    | "multi_select"
+    | "slider"
+    | "short_response";
 
 
 export interface GeminiQuestion {
@@ -267,6 +271,9 @@ export interface GeminiQuestion {
     options:
      | { choices: string[] }
      | { pairs: { left: string; right: string }[] }
+     | { items: string[] }
+     | { min: number; max: number; step: number; unit: string; tolerance: number }
+     | { rubric: string; maxWords?: number }
      | {
          alternateAnswers: string[];
          imageAttribution?: { creditLine: string; licenseName: string };
@@ -312,27 +319,58 @@ interface RawGeminiQuestion {
     image_url?: unknown;
     points?: unknown;
     source?: unknown;
+    items?: unknown;
+    correct_options?: unknown;
+    min?: unknown;
+    max?: unknown;
+    step?: unknown;
+    unit?: unknown;
+    tolerance?: unknown;
+    rubric?: unknown;
+    max_words?: unknown;
 }
 
-
-const TARGET_TYPE_MIX: Readonly<Record<GeminiQuestionType, number>> = Object.freeze({
+const CORE_TYPE_WEIGHTS: Readonly<Record<GeminiQuestionType, number>> = Object.freeze({
     multiple_choice: 3,
     true_false: 2,
-    write_in: 2,
-    matching: 1,
     image_recognition: 2,
+    write_in: 0,
+    matching: 0,
+    ordering: 0,
+    multi_select: 0,
+    slider: 0,
+    short_response: 0,
 });
+
+const CORE_TYPES: readonly GeminiQuestionType[] = [
+    "multiple_choice",
+    "true_false",
+    "image_recognition",
+];
+
+const VARIETY_TYPES: readonly GeminiQuestionType[] = [
+    "write_in",
+    "matching",
+    "ordering",
+    "multi_select",
+    "slider",
+    "short_response",
+];
 
 const TYPE_TIE_BREAK_ORDER: readonly GeminiQuestionType[] = [
     "multiple_choice",
     "true_false",
-    "write_in",
     "image_recognition",
+    "write_in",
     "matching",
+    "ordering",
+    "multi_select",
+    "slider",
+    "short_response",
 ];
 
 const VALID_TYPES = new Set<GeminiQuestionType>(
-    Object.keys(TARGET_TYPE_MIX) as GeminiQuestionType[],
+    TYPE_TIE_BREAK_ORDER,
 );
 
 
@@ -344,6 +382,10 @@ interface TypeCounts {
     wiCount: number;
     matchCount: number;
     imgCount: number;
+    orderingCount: number;
+    multiSelectCount: number;
+    sliderCount: number;
+    shortResponseCount: number;
 }
 
 const TYPE_COUNT_FIELDS: Readonly<Record<GeminiQuestionType, keyof TypeCounts>> = {
@@ -352,14 +394,28 @@ const TYPE_COUNT_FIELDS: Readonly<Record<GeminiQuestionType, keyof TypeCounts>> 
     write_in: "wiCount",
     matching: "matchCount",
     image_recognition: "imgCount",
+    ordering: "orderingCount",
+    multi_select: "multiSelectCount",
+    slider: "sliderCount",
+    short_response: "shortResponseCount",
 };
 
 function emptyTypeCounts(): TypeCounts {
-    return { mcCount: 0, tfCount: 0, wiCount: 0, matchCount: 0, imgCount: 0 };
+    return {
+        mcCount: 0,
+        tfCount: 0,
+        wiCount: 0,
+        matchCount: 0,
+        imgCount: 0,
+        orderingCount: 0,
+        multiSelectCount: 0,
+        sliderCount: 0,
+        shortResponseCount: 0,
+    };
 }
 
 function sumTypeCounts(counts: TypeCounts): number {
-    return counts.mcCount + counts.tfCount + counts.wiCount + counts.matchCount + counts.imgCount;
+    return Object.values(counts).reduce((sum, count) => sum + count, 0);
 }
 
 function typeCountsForLog(counts: TypeCounts): Record<GeminiQuestionType, number> {
@@ -369,6 +425,10 @@ function typeCountsForLog(counts: TypeCounts): Record<GeminiQuestionType, number
         write_in: counts.wiCount,
         matching: counts.matchCount,
         image_recognition: counts.imgCount,
+        ordering: counts.orderingCount,
+        multi_select: counts.multiSelectCount,
+        slider: counts.sliderCount,
+        short_response: counts.shortResponseCount,
     };
 }
 
@@ -387,15 +447,19 @@ function missingTypeCounts(targets: TypeCounts, delivered: TypeCounts): TypeCoun
         wiCount: Math.max(0, targets.wiCount - delivered.wiCount),
         matchCount: Math.max(0, targets.matchCount - delivered.matchCount),
         imgCount: Math.max(0, targets.imgCount - delivered.imgCount),
+        orderingCount: Math.max(0, targets.orderingCount - delivered.orderingCount),
+        multiSelectCount: Math.max(0, targets.multiSelectCount - delivered.multiSelectCount),
+        sliderCount: Math.max(0, targets.sliderCount - delivered.sliderCount),
+        shortResponseCount: Math.max(0, targets.shortResponseCount - delivered.shortResponseCount),
     };
 }
 
 export function canUseSurplusFallback(missingCounts: TypeCounts): boolean {
-    return missingCounts.imgCount > 0
-        && missingCounts.mcCount === 0
-        && missingCounts.tfCount === 0
-        && missingCounts.wiCount === 0
-        && missingCounts.matchCount === 0;
+    // Multiple-choice and true/false make up the non-negotiable core. Image
+    // recognition and variety slots may be replaced only after their targeted
+    // retries are exhausted, keeping generation resilient to image lookup and
+    // occasional malformed specialist responses.
+    return missingCounts.mcCount === 0 && missingCounts.tfCount === 0;
 }
 
 export function evaluateQuestionMixOutcome(
@@ -425,28 +489,40 @@ function isGeminiQuestionType(value: string | null): value is GeminiQuestionType
 }
 
 /**
- * Compute the standard question-type breakdown for a given total.
- * Uses largest-remainder rounding against TARGET_TYPE_MIX, with deterministic
- * remainder ties resolved in TYPE_TIE_BREAK_ORDER.
+ * Compute the question-type breakdown for a given total.
+ *
+ * Multiple choice, true/false, and image recognition form a fixed seven-in-ten
+ * core (3:2:2). The remaining slots are selected from a shuffled variety pool,
+ * with one of each variety type used before any type is repeated. This keeps
+ * the essential gameplay types present while making separate draws different.
  */
 export function computeTypeCounts(total: number): TypeCounts {
     const requestedTotal = Math.max(0, Math.floor(total));
-    const mixTotal = Object.values(TARGET_TYPE_MIX).reduce((sum, weight) => sum + weight, 0);
     const counts = emptyTypeCounts();
-    const rankedRemainders = TYPE_TIE_BREAK_ORDER.map((questionType, tieIndex) => {
-        const exactCount = requestedTotal * TARGET_TYPE_MIX[questionType] / mixTotal;
+    const coreSlots = Math.min(requestedTotal, Math.round(requestedTotal * 0.7));
+    const coreWeightTotal = CORE_TYPES.reduce((sum, questionType) => sum + CORE_TYPE_WEIGHTS[questionType], 0);
+    const rankedRemainders = CORE_TYPES.map((questionType, tieIndex) => {
+        const exactCount = coreSlots * CORE_TYPE_WEIGHTS[questionType] / coreWeightTotal;
         const baseCount = Math.floor(exactCount);
         counts[TYPE_COUNT_FIELDS[questionType]] = baseCount;
         return { questionType, remainder: exactCount - baseCount, tieIndex };
     }).sort((a, b) => b.remainder - a.remainder || a.tieIndex - b.tieIndex);
 
-    let remaining = requestedTotal - sumTypeCounts(counts);
+    let remaining = coreSlots - sumTypeCounts(counts);
     for (const { questionType } of rankedRemainders) {
         if (remaining <= 0) break;
         counts[TYPE_COUNT_FIELDS[questionType]]++;
         remaining--;
     }
 
+    let varietySlots = requestedTotal - coreSlots;
+    while (varietySlots > 0) {
+        for (const questionType of shuffleArray([...VARIETY_TYPES])) {
+            if (varietySlots <= 0) break;
+            counts[TYPE_COUNT_FIELDS[questionType]]++;
+            varietySlots--;
+        }
+    }
     return counts;
 }
 
@@ -467,10 +543,14 @@ function buildBulkPrompt(opts: GeminiGenerateOptions, overrideCounts?: TypeCount
         : "";
 
     // Use provided counts or compute the standard breakdown.
-    const { mcCount, tfCount, wiCount, matchCount, imgCount } =
+    const {
+        mcCount, tfCount, wiCount, matchCount, imgCount,
+        orderingCount, multiSelectCount, sliderCount, shortResponseCount,
+    } =
         overrideCounts ?? computeTypeCounts(opts.amount);
     // The prompt total may differ from opts.amount when over-generating image candidates.
-    const promptTotal = mcCount + tfCount + wiCount + matchCount + imgCount;
+    const promptTotal = mcCount + tfCount + wiCount + matchCount + imgCount
+        + orderingCount + multiSelectCount + sliderCount + shortResponseCount;
 
 const mcPoints = opts.difficulty === "easy" ? 5 : opts.difficulty === "hard" ? 15 : 10;
 
@@ -480,6 +560,18 @@ const matchingSpec = matchCount > 0
  : "";
 const imageSpec = imgCount > 0
  ? `- ${imgCount} questions with "question_type": "image_recognition" (specific visual Wikimedia Commons search subject; points: 15)\n`
+ : "";
+const orderingSpec = orderingCount > 0
+  ? `- ${orderingCount} questions with "question_type": "ordering"         (put 4-5 factual events/items in their correct order; points: 15)\n`
+ : "";
+const multiSelectSpec = multiSelectCount > 0
+  ? `- ${multiSelectCount} questions with "question_type": "multi_select" (4-5 choices with 2-3 correct answers; points: 10)\n`
+ : "";
+const sliderSpec = sliderCount > 0
+  ? `- ${sliderCount} questions with "question_type": "slider"           (numeric estimation with a sensible range and tolerance; points: 10)\n`
+ : "";
+const shortResponseSpec = shortResponseCount > 0
+  ? `- ${shortResponseCount} questions with "question_type": "short_response" (brief, rubric-graded factual response; points: 10)\n`
  : "";
 
 
@@ -501,7 +593,7 @@ YOU MUST produce EXACTLY this breakdown — no deviations:
 - ${mcCount} questions with "question_type": "multiple_choice" (4 options; shuffle socorrect answer is NOT always first; points: ${mcPoints})
 - ${tfCount} questions with "question_type": "true_false" (options must be["true","false"]; correct_answer must be "true" or "false"; points: 5)
 - ${wiCount} questions with "question_type": "write_in"       (short factual answer — name,date, or place; points: 15)
-${matchingSpec}${imageSpec}
+${matchingSpec}${imageSpec}${orderingSpec}${multiSelectSpec}${sliderSpec}${shortResponseSpec}
 QUESTION TYPE FORMATS (use these exact JSON structures):
 multiple_choice:
  { "question_type": "multiple_choice", "question_text": "The question?", "correct_answer":"Correct Answer", "options": ["Wrong 1", "Correct Answer", "Wrong 2", "Wrong 3"], "points":${mcPoints}, "source": "Wikipedia: Article Name" }
@@ -519,6 +611,18 @@ matching (exactly 4 pairs; right_items are the left_items' matches in scrambled 
 ` : ""}${imgCount > 0 ? `
 image_recognition (provide a short, concrete "image_subject" for the picture to look up — a visually recognisable landmark, animal, artwork, historical figure, or object. Do NOT provide an image URL, file name, or abstract concept):
  { "question_type": "image_recognition", "question_text": "Name this famous landmark:", "image_subject": "Eiffel Tower in Paris", "correct_answer": "Eiffel Tower", "acceptable_answers": ["Eiffel Tower", "The Eiffel Tower", "Tour Eiffel"], "points": 15, "source": "Wikimedia Commons" }
+` : ""}${orderingCount > 0 ? `
+ordering (items MUST be listed from first to last in the correct order; do not use duplicate or ambiguous labels):
+  { "question_type": "ordering", "question_text": "Put these Apollo missions in launch order:", "items": ["Apollo 7", "Apollo 8", "Apollo 9", "Apollo 10"], "correct_answer": "Apollo 7|Apollo 8|Apollo 9|Apollo 10", "points": 15, "source": "NASA Apollo mission archive" }
+` : ""}${multiSelectCount > 0 ? `
+multi_select (provide 4-5 choices and exactly 2-3 correct options; correct_options MUST match choice text exactly):
+  { "question_type": "multi_select", "question_text": "Which of these are Nobel Prize categories?", "options": ["Physics", "Chemistry", "Astronomy", "Geology", "Peace"], "correct_options": ["Physics", "Chemistry", "Peace"], "correct_answer": "Physics|Chemistry|Peace", "points": 10, "source": "Nobel Prize official website" }
+` : ""}${sliderCount > 0 ? `
+slider (correct_answer, min, max, step, and tolerance MUST be numbers; min < correct_answer < max; use a short unit such as "km" or "%" or an empty string):
+  { "question_type": "slider", "question_text": "About how many kilometres long is the Nile River?", "correct_answer": "6650", "min": 4000, "max": 9000, "step": 50, "unit": "km", "tolerance": 250, "points": 10, "source": "Encyclopaedia Britannica: Nile River" }
+` : ""}${shortResponseCount > 0 ? `
+short_response (answer in a few words or a sentence; rubric states the essential facts for AI grading; max_words must be 8-40):
+  { "question_type": "short_response", "question_text": "Why does the Moon show nearly the same face to Earth?", "correct_answer": "It is tidally locked, rotating once in the same time it orbits Earth.", "rubric": "Award full credit when the answer identifies tidal locking or synchronous rotation and explains that the Moon's rotation period matches its orbit around Earth.", "max_words": 30, "points": 10, "source": "NASA Solar System Exploration" }
 ` : ""}
 Return ONLY a valid JSON array with no other text, no markdown, no code fences.
 
@@ -529,7 +633,7 @@ Total questions required: ${promptTotal}`;
 }
 
 
-function parseQuestions(raw: unknown, opts: GeminiGenerateOptions, groundingUrls: string[] = []): GeminiQuestion[] {
+export function parseQuestions(raw: unknown, opts: GeminiGenerateOptions, groundingUrls: string[] = []): GeminiQuestion[] {
     if (!Array.isArray(raw)) return [];
 
 
@@ -583,6 +687,48 @@ if (questionType === "matching") {
     });
     continue;
 }
+
+if (questionType === "ordering") {
+    const items = parseExactTextArray(item.items, 4, 5);
+    if (!items) continue;
+    results.push({
+        questionText,
+        questionType: "ordering",
+        // The client renders options.items in its correct order and sends the
+        // player's ordering as pipe-delimited text; the grader compares positions.
+        correctAnswer: items.join("|"),
+        options: { items },
+        imageUrl: null,
+        points: 15,
+        orderIndex: i,
+        source: sourceCitation,
+        aiGenerated: true,
+        verifiedByAdmin: false,
+        factCheckUrl: groundingUrls[0] ?? null,
+    });
+    continue;
+}
+
+if (questionType === "multi_select") {
+    const choices = parseExactTextArray(item.options, 4, 5);
+    const selected = parseExactTextArray(item.correct_options, 2, 3);
+    if (!choices || !selected || selected.some((choice) => !choices.includes(choice))) continue;
+    results.push({
+        questionText,
+        questionType: "multi_select",
+        correctAnswer: selected.join("|"),
+        options: { choices: shuffleArray(choices) },
+        imageUrl: null,
+        points: 10,
+        orderIndex: i,
+        source: sourceCitation,
+        aiGenerated: true,
+        verifiedByAdmin: false,
+        factCheckUrl: groundingUrls[0] ?? null,
+    });
+    continue;
+}
+
 if (!correctAnswer) continue;
 
 
@@ -654,6 +800,51 @@ results.push({
  verifiedByAdmin: false,
  factCheckUrl: groundingUrls[0] ?? null,
 });
+} else if (questionType === "slider") {
+ const min = finiteNumber(item.min);
+ const max = finiteNumber(item.max);
+ const step = finiteNumber(item.step);
+ const tolerance = finiteNumber(item.tolerance);
+ const correctValue = finiteNumber(correctAnswer);
+ if (
+     min === null || max === null || step === null || tolerance === null || correctValue === null
+     || min >= max || step <= 0 || tolerance < 0 || correctValue <= min || correctValue >= max
+ ) continue;
+ const unit = typeof item.unit === "string" ? item.unit.trim().slice(0, 24) : "";
+ results.push({
+  questionText,
+  questionType: "slider",
+  correctAnswer: String(correctValue),
+  options: { min, max, step, unit, tolerance },
+  imageUrl: null,
+  points: 10,
+  orderIndex: i,
+  source: sourceCitation,
+  aiGenerated: true,
+  verifiedByAdmin: false,
+  factCheckUrl: groundingUrls[0] ?? null,
+ });
+} else if (questionType === "short_response") {
+ const rubric = typeof item.rubric === "string" ? item.rubric.trim().slice(0, 1_000) : "";
+ const parsedMaxWords = finiteNumber(item.max_words);
+ const maxWords = parsedMaxWords !== null && Number.isInteger(parsedMaxWords)
+     && parsedMaxWords >= 8 && parsedMaxWords <= 40
+     ? parsedMaxWords
+     : undefined;
+ if (!rubric) continue;
+ results.push({
+  questionText,
+  questionType: "short_response",
+  correctAnswer,
+  options: maxWords === undefined ? { rubric } : { rubric, maxWords },
+  imageUrl: null,
+  points: 10,
+  orderIndex: i,
+  source: sourceCitation,
+  aiGenerated: true,
+  verifiedByAdmin: false,
+  factCheckUrl: groundingUrls[0] ?? null,
+ });
 } else if (questionType === "image_recognition") {
 const imageSubject = typeof item.image_subject === "string"
  ? item.image_subject.trim().slice(0, 160)
@@ -705,6 +896,23 @@ function parseMatchingPairs(
         if (left && right) pairs.push({ left, right });
     }
     return pairs.length > 0 ? pairs.slice(0, 5) : null;
+}
+
+function parseExactTextArray(raw: unknown, minItems: number, maxItems: number): string[] | null {
+    if (!Array.isArray(raw) || raw.length < minItems || raw.length > maxItems) return null;
+    const items = raw.map((value) => typeof value === "string" ? value.trim() : "");
+    if (items.some((value) => !value)) return null;
+    const normalized = items.map((value) => value.toLocaleLowerCase());
+    return new Set(normalized).size === items.length ? items : null;
+}
+
+function finiteNumber(raw: unknown): number | null {
+    if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+    if (typeof raw === "string" && raw.trim() !== "") {
+        const parsed = Number(raw);
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
 }
 
 
@@ -986,6 +1194,10 @@ async function enforceQuestionTypeMix(
         write_in: [],
         matching: [],
         image_recognition: [],
+        ordering: [],
+        multi_select: [],
+        slider: [],
+        short_response: [],
     };
     const existingTexts: string[] = [];
 
@@ -1041,37 +1253,79 @@ async function enforceQuestionTypeMix(
     const missingBeforeFallback = outcome.missingCounts;
     let fallbackSlots = outcome.fallbackSlots;
     const fallbackUsed = outcome.fallbackAllowed;
+    const fallbackReasons: string[] = [];
+    const takeSurplus = (slots: number, allowedTypes: readonly GeminiQuestionType[]): number => {
+        let remaining = slots;
+        for (const questionType of allowedTypes) {
+            while (remaining > 0 && surplusByType[questionType].length > 0) {
+                selected.push(surplusByType[questionType].shift()!);
+                remaining--;
+            }
+            if (remaining === 0) break;
+        }
+        return remaining;
+    };
+
     if (fallbackUsed) {
+        const varietySlots = VARIETY_TYPES.reduce(
+            (sum, questionType) => sum + missingBeforeFallback[TYPE_COUNT_FIELDS[questionType]],
+            0,
+        );
+        if (varietySlots > 0) {
+            const afterVarietySurplus = takeSurplus(varietySlots, VARIETY_TYPES);
+            if (afterVarietySurplus < varietySlots) {
+                fallbackReasons.push("variety_type_shortfall_filled_from_variety_surplus");
+            }
+            const afterMcFallback = takeSurplus(afterVarietySurplus, ["multiple_choice"]);
+            if (afterMcFallback < afterVarietySurplus) {
+                fallbackReasons.push("variety_type_shortfall_filled_from_multiple_choice_surplus");
+            }
+            fallbackSlots -= varietySlots - afterMcFallback;
+        }
+
+        if (missingBeforeFallback.imgCount > 0) {
+            const imageRemaining = takeSurplus(
+                missingBeforeFallback.imgCount,
+                ["multiple_choice", ...VARIETY_TYPES, "true_false", "image_recognition"],
+            );
+            if (imageRemaining < missingBeforeFallback.imgCount) {
+                fallbackReasons.push("image_type_shortfall_filled_from_surplus");
+            }
+            fallbackSlots -= missingBeforeFallback.imgCount - imageRemaining;
+        }
+
+        if (fallbackSlots > 0) {
+            // A last generic pass only runs for non-core shortfalls. It is
+            // deliberately after the variety and MC paths so logs explain why
+            // an exact requested type was substituted.
+            const remaining = takeSurplus(fallbackSlots, TYPE_TIE_BREAK_ORDER);
+            if (remaining < fallbackSlots) fallbackReasons.push("remaining_non_core_shortfall_filled_from_surplus");
+            fallbackSlots = remaining;
+        }
         logger.warn(
             {
                 missingTypes: typeCountsForLog(missingBeforeFallback),
                 fallbackSlots,
+                fallbackReasons,
             },
-            "AI question type shortfall remains after top-ups — filling from valid surplus",
+            "AI question type shortfall remains after top-ups — applying allowed fallback",
         );
-        for (const questionType of TYPE_TIE_BREAK_ORDER) {
-            while (fallbackSlots > 0 && surplusByType[questionType].length > 0) {
-                selected.push(surplusByType[questionType].shift()!);
-                fallbackSlots--;
-            }
-            if (fallbackSlots === 0) break;
-        }
     } else if (fallbackSlots > 0) {
         logger.error(
             {
                 missingTypes: typeCountsForLog(missingBeforeFallback),
                 fallbackSlots,
             },
-            "Required non-image question type shortfall remains after top-ups — failing generation",
+            "Required multiple-choice or true/false core shortfall remains after top-ups — failing generation",
         );
     }
 
     const questions = reindex(selected.slice(0, opts.amount));
     const deviationReason = fallbackSlots > 0 && !fallbackUsed
-        ? "required_non_image_type_shortfall_after_topups"
+        ? "required_core_type_shortfall_after_topups"
         : fallbackUsed
         ? fallbackSlots === 0
-            ? "image_type_shortfall_after_topups_filled_from_surplus"
+            ? fallbackReasons.join(",") || "non_core_type_shortfall_after_topups_filled_from_surplus"
             : "insufficient_valid_questions_after_topups"
         : topUpRoundsUsed > 0
             ? "targeted_topups_restored_target_mix"
@@ -1091,14 +1345,19 @@ if (!apiKey) {
 const targetAmount = opts.amount;
 const normalCounts = computeTypeCounts(targetAmount);
 const skipFactCheck = opts.skipFactCheck ?? false;
-// Generate 2x so every type has a validated surplus available for enforcement
-// and fallback. Image candidates stay at the exact target so Commons validation
-// is not flooded; missing images are retried through targeted top-up rounds.
-// The API currently caps bulk requests at 20, so generateAmount remains <= 40.
-const generateAmount = Math.min(targetAmount * 2, 40);
+// Generate a second candidate for every non-image target. The image target stays
+// exact so Commons validation is not flooded; image misses receive two targeted
+// retries and then follow the explicit image fallback path.
 const overrideCounts: TypeCounts = {
-    ...computeTypeCounts(generateAmount),
+    mcCount: normalCounts.mcCount * 2,
+    tfCount: normalCounts.tfCount * 2,
+    wiCount: normalCounts.wiCount * 2,
+    matchCount: normalCounts.matchCount * 2,
     imgCount: normalCounts.imgCount,
+    orderingCount: normalCounts.orderingCount * 2,
+    multiSelectCount: normalCounts.multiSelectCount * 2,
+    sliderCount: normalCounts.sliderCount * 2,
+    shortResponseCount: normalCounts.shortResponseCount * 2,
 };
 const inflatedTotal = sumTypeCounts(overrideCounts);
 const promptOpts = { ...opts, amount: inflatedTotal };
