@@ -34,30 +34,30 @@ function varietyTotal(counts: ReturnType<typeof computeTypeCounts>): number {
         + counts.shortResponseCount;
 }
 
-test("computeTypeCounts reserves a 3:2:2 core and fills the remainder from variety", () => {
+test("computeTypeCounts reserves a half-rounded-up 2:1:2 core and fills the remainder from variety", () => {
     const five = computeTypeCounts(5);
-    assert.equal(five.mcCount, 2);
+    assert.equal(five.mcCount, 1);
     assert.equal(five.tfCount, 1);
     assert.equal(five.imgCount, 1);
-    assert.equal(varietyTotal(five), 1);
+    assert.equal(varietyTotal(five), 2);
 
     const ten = computeTypeCounts(10);
-    assert.equal(ten.mcCount, 3);
-    assert.equal(ten.tfCount, 2);
+    assert.equal(ten.mcCount, 2);
+    assert.equal(ten.tfCount, 1);
     assert.equal(ten.imgCount, 2);
-    assert.equal(varietyTotal(ten), 3);
+    assert.equal(varietyTotal(ten), 5);
 
     const fifteen = computeTypeCounts(15);
-    assert.equal(fifteen.mcCount, 5);
-    assert.equal(fifteen.tfCount, 3);
+    assert.equal(fifteen.mcCount, 3);
+    assert.equal(fifteen.tfCount, 2);
     assert.equal(fifteen.imgCount, 3);
-    assert.equal(varietyTotal(fifteen), 4);
+    assert.equal(varietyTotal(fifteen), 7);
 
     const twenty = computeTypeCounts(20);
-    assert.equal(twenty.mcCount, 6);
-    assert.equal(twenty.tfCount, 4);
+    assert.equal(twenty.mcCount, 4);
+    assert.equal(twenty.tfCount, 2);
     assert.equal(twenty.imgCount, 4);
-    assert.equal(varietyTotal(twenty), 6);
+    assert.equal(varietyTotal(twenty), 10);
 });
 
 test("computeTypeCounts always sums exactly to the requested total", () => {
@@ -66,14 +66,32 @@ test("computeTypeCounts always sums exactly to the requested total", () => {
     }
 });
 
-test("a full variety pool uses every specialist type before repeating one", () => {
+test("variety draws use every specialist type before repeats and cap each at two", () => {
     const counts = computeTypeCounts(20);
-    assert.equal(counts.wiCount, 1);
-    assert.equal(counts.matchCount, 1);
-    assert.equal(counts.orderingCount, 1);
-    assert.equal(counts.multiSelectCount, 1);
-    assert.equal(counts.sliderCount, 1);
-    assert.equal(counts.shortResponseCount, 1);
+    for (const count of [
+        counts.wiCount,
+        counts.matchCount,
+        counts.orderingCount,
+        counts.multiSelectCount,
+        counts.sliderCount,
+        counts.shortResponseCount,
+    ]) {
+        assert.ok(count >= 1);
+        assert.ok(count <= 2);
+    }
+
+    const thirty = computeTypeCounts(30);
+    assert.equal(thirty.mcCount, 9);
+    for (const count of [
+        thirty.wiCount,
+        thirty.matchCount,
+        thirty.orderingCount,
+        thirty.multiSelectCount,
+        thirty.sliderCount,
+        thirty.shortResponseCount,
+    ]) {
+        assert.equal(count, 2);
+    }
 });
 
 test("surplus fallback never masks missing multiple-choice or true/false core slots", () => {

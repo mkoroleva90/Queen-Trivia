@@ -331,8 +331,8 @@ interface RawGeminiQuestion {
 }
 
 const CORE_TYPE_WEIGHTS: Readonly<Record<GeminiQuestionType, number>> = Object.freeze({
-    multiple_choice: 3,
-    true_false: 2,
+    multiple_choice: 2,
+    true_false: 1,
     image_recognition: 2,
     write_in: 0,
     matching: 0,
@@ -488,18 +488,25 @@ function isGeminiQuestionType(value: string | null): value is GeminiQuestionType
     return value !== null && VALID_TYPES.has(value as GeminiQuestionType);
 }
 
+function logValidationDrop(questionType: string | null, reason: string): void {
+    logger.warn(
+        { questionType, reason },
+        "Dropping Gemini question after type validation",
+    );
+}
+
 /**
  * Compute the question-type breakdown for a given total.
  *
- * Multiple choice, true/false, and image recognition form a fixed seven-in-ten
- * core (3:2:2). The remaining slots are selected from a shuffled variety pool,
- * with one of each variety type used before any type is repeated. This keeps
- * the essential gameplay types present while making separate draws different.
+ * Multiple choice, true/false, and image recognition form a fixed half-rounded-up
+ * core (2:1:2). The remaining slots are selected from a shuffled variety pool,
+ * with one of each variety type used before any type is repeated and no variety
+ * type used more than twice. Any remaining slots overflow to multiple choice.
  */
 export function computeTypeCounts(total: number): TypeCounts {
     const requestedTotal = Math.max(0, Math.floor(total));
     const counts = emptyTypeCounts();
-    const coreSlots = Math.min(requestedTotal, Math.round(requestedTotal * 0.7));
+    const coreSlots = Math.min(requestedTotal, Math.ceil(requestedTotal / 2));
     const coreWeightTotal = CORE_TYPES.reduce((sum, questionType) => sum + CORE_TYPE_WEIGHTS[questionType], 0);
     const rankedRemainders = CORE_TYPES.map((questionType, tieIndex) => {
         const exactCount = coreSlots * CORE_TYPE_WEIGHTS[questionType] / coreWeightTotal;
@@ -517,7 +524,13 @@ export function computeTypeCounts(total: number): TypeCounts {
 
     let varietySlots = requestedTotal - coreSlots;
     while (varietySlots > 0) {
-        for (const questionType of shuffleArray([...VARIETY_TYPES])) {
+        const availableVarietyTypes = shuffleArray([...VARIETY_TYPES])
+            .filter((questionType) => counts[TYPE_COUNT_FIELDS[questionType]] < 2);
+        if (availableVarietyTypes.length === 0) {
+            counts.mcCount += varietySlots;
+            break;
+        }
+        for (const questionType of availableVarietyTypes) {
             if (varietySlots <= 0) break;
             counts[TYPE_COUNT_FIELDS[questionType]]++;
             varietySlots--;
@@ -660,13 +673,19 @@ export function parseQuestions(raw: unknown, opts: GeminiGenerateOptions, ground
      );
      continue;
  }
- if (!questionText) continue;
+  if (!questionText) {
+      logValidationDrop(questionType, "missing_question_text");
+      continue;
+  }
 
 
 // Matching questions carry their answer in correct_pairs, not correct_answer
 if (questionType === "matching") {
     const pairs = parseMatchingPairs(item);
-    if (!pairs || pairs.length < 2) continue;
+    if (!pairs || pairs.length < 2) {
+        logValidationDrop(questionType, "missing_or_invalid_matching_pairs");
+        continue;
+    }
     // correctAnswer format used by the grader: "left:right|..." sorted alphabetically by left
     const answerString = [...pairs]
      .sort((a, b) => a.left.localeCompare(b.left))
@@ -690,7 +709,10 @@ if (questionType === "matching") {
 
 if (questionType === "ordering") {
     const items = parseExactTextArray(item.items, 4, 5);
-    if (!items) continue;
+    if (!items) {
+        logValidationDrop(questionType, "items_must_be_4_to_5_unique_nonempty_strings");
+        continue;
+    }
     results.push({
         questionText,
         questionType: "ordering",
@@ -712,7 +734,18 @@ if (questionType === "ordering") {
 if (questionType === "multi_select") {
     const choices = parseExactTextArray(item.options, 4, 5);
     const selected = parseExactTextArray(item.correct_options, 2, 3);
-    if (!choices || !selected || selected.some((choice) => !choices.includes(choice))) continue;
+    if (!choices) {
+        logValidationDrop(questionType, "choices_must_be_4_to_5_unique_nonempty_strings");
+        continue;
+    }
+    if (!selected) {
+        logValidationDrop(questionType, "correct_options_must_contain_2_to_3_unique_nonempty_strings");
+        continue;
+    }
+    if (selected.some((choice) => !choices.includes(choice))) {
+        logValidationDrop(questionType, "correct_options_must_match_choices");
+        continue;
+    }
     results.push({
         questionText,
         questionType: "multi_select",
@@ -729,12 +762,18 @@ if (questionType === "multi_select") {
     continue;
 }
 
-if (!correctAnswer) continue;
+if (!correctAnswer) {
+    logValidationDrop(questionType, "missing_correct_answer");
+    continue;
+}
 
 
 if (questionType === "multiple_choice") {
 const rawOpts = Array.isArray(item.options) ? (item.options as unknown[]) : null;
-if (!rawOpts || rawOpts.length < 2) continue;
+if (!rawOpts || rawOpts.length < 2) {
+    logValidationDrop(questionType, "missing_or_insufficient_choices");
+    continue;
+}
 
 
 const choices = rawOpts
@@ -809,7 +848,10 @@ results.push({
  if (
      min === null || max === null || step === null || tolerance === null || correctValue === null
      || min >= max || step <= 0 || tolerance < 0 || correctValue <= min || correctValue >= max
- ) continue;
+  ) {
+      logValidationDrop(questionType, "invalid_numeric_range_or_answer");
+      continue;
+  }
  const unit = typeof item.unit === "string" ? item.unit.trim().slice(0, 24) : "";
  results.push({
   questionText,
@@ -831,7 +873,10 @@ results.push({
      && parsedMaxWords >= 8 && parsedMaxWords <= 40
      ? parsedMaxWords
      : undefined;
- if (!rubric) continue;
+  if (!rubric) {
+      logValidationDrop(questionType, "missing_rubric");
+      continue;
+  }
  results.push({
   questionText,
   questionType: "short_response",
@@ -849,7 +894,10 @@ results.push({
 const imageSubject = typeof item.image_subject === "string"
  ? item.image_subject.trim().slice(0, 160)
  : "";
-if (!imageSubject || /^https?:\/\//i.test(imageSubject)) continue;
+if (!imageSubject || /^https?:\/\//i.test(imageSubject)) {
+    logValidationDrop(questionType, "missing_or_invalid_image_subject");
+    continue;
+}
 results.push({
  questionText,
  questionType: "image_recognition",
