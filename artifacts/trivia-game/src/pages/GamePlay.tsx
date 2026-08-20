@@ -1304,10 +1304,10 @@ export default function GamePlay() {
   const [kicked, setKicked] = useState(false);
 
   useGameSocket(gameId || null, {
-    onAnswerSubmitted: ({ playerName, isCorrect }) => {
+    onAnswerSubmitted: ({ playerName }) => {
       queryClient.invalidateQueries({ queryKey: getListGameParticipantsQueryKey(gameId) });
       toast({
-        title: isCorrect ? `🎉 ${playerName} got it right!` : `⚡ ${playerName} just answered`,
+        title: `⚡ ${playerName} just answered`,
         duration: 2500,
       });
     },

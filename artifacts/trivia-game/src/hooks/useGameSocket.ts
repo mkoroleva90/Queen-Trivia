@@ -43,6 +43,11 @@ export function useGameSocket(
          gameId: number;
          questionId: number;
          playerName: string;
+     }) => void;
+     onAnswerGraded?: (p: {
+         gameId: number;
+         questionId: number;
+         playerName: string;
          isCorrect: boolean;
      }) => void;
      onGameEnded?: (p: { gameId: number }) => void;
@@ -64,9 +69,16 @@ export function useGameSocket(
          gameId: number;
          questionId: number;
          playerName: string;
-         isCorrect: boolean;
      }) {
          cbRef.current.onAnswerSubmitted?.(p);
+     }
+     function onAnswerGraded(p: {
+         gameId: number;
+         questionId: number;
+         playerName: string;
+         isCorrect: boolean;
+     }) {
+         cbRef.current.onAnswerGraded?.(p);
      }
 
 
@@ -79,12 +91,14 @@ export function useGameSocket(
      }
 
      socket.on("answer:submitted", onAnswerSubmitted);
+     socket.on("answer:graded", onAnswerGraded);
      socket.on("game:ended", onGameEnded);
      socket.on("player:kicked", onPlayerKicked);
 
 
      return () => {
          socket.off("answer:submitted", onAnswerSubmitted);
+          socket.off("answer:graded", onAnswerGraded);
          socket.off("game:ended", onGameEnded);
          socket.off("player:kicked", onPlayerKicked);
          socket.disconnect();

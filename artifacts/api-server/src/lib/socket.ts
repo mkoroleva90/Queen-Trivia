@@ -4,7 +4,7 @@ import type { Server as HTTPServer } from "node:http";
 import type { Request, Response } from "express";
 import type { NextFunction } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, gameParticipantsTable } from "@workspace/db";
+import { db, gameParticipantsTable, gamesTable } from "@workspace/db";
 import { logger } from "./logger.ts";
 import { sessionMiddleware } from "./session.ts";
 import { corsOrigin, isOriginAllowed } from "./cors.ts";
@@ -89,8 +89,37 @@ io.on("connection", (socket) => {
       logger.debug({ socketId: socket.id }, "Unauthenticated game:join rejected");
      return;
  }
+  if (!Number.isSafeInteger(gameId) || gameId < 1) {
+      logger.debug({ socketId: socket.id, gameId }, "Invalid game:join rejected");
+      return;
+  }
  if (req.session.isAdmin) {
+      const adminAccountId = req.session.adminAccountId;
+      if (adminAccountId != null) {
+          db.select({ id: gamesTable.id })
+              .from(gamesTable)
+              .where(
+                  and(
+                      eq(gamesTable.id, gameId),
+                      eq(gamesTable.ownerAdminId, adminAccountId),
+                  ),
+              )
+              .then(([game]) => {
+                  if (!game) {
+                      logger.debug({ socketId: socket.id, gameId, adminAccountId }, "game:join rejected: not game owner");
+                      return;
+                  }
+                  void socket.join(`game:${gameId}`);
+                  void socket.join(`game:host:${gameId}`);
+              })
+              .catch((err) => {
+                  logger.error({ err, socketId: socket.id, gameId, adminAccountId }, "game:join ownership check failed");
+              });
+          return;
+      }
+      // Legacy code-based admins remain super-admins for backwards compatibility.
      void socket.join(`game:${gameId}`);
+      void socket.join(`game:host:${gameId}`);
      return;
  }
  // Non-admin: verify the caller is a participant of this game

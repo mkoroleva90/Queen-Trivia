@@ -3183,7 +3183,7 @@ function LiveGameView({
   }, [seedStats, activeGame]);
 
   useGameSocket(activeGame?.id ?? null, {
-    onAnswerSubmitted: (p) => {
+    onAnswerGraded: (p) => {
       // Synchronous, name-deduped store update: buffers while awaiting the
       // seed, otherwise applies against the merged baseline. Duplicate events
       // can never double-count, even before a render commits.

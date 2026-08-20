@@ -342,8 +342,13 @@ db.select({ name: usersTable.name })
        gameId: question.gameId,
        questionId: question.id,
        playerName: u.name,
-       isCorrect,
       });
+       safeEmit(`game:host:${question.gameId}`, "answer:graded", {
+        gameId: question.gameId,
+        questionId: question.id,
+        playerName: u.name,
+        isCorrect,
+       });
   })
   .catch(() => { /* non-critical */ });
 });
@@ -636,6 +641,11 @@ router.post(
             .then(([u]) => {
                 if (!u) return;
                 safeEmit(`game:${question.gameId}`, "answer:submitted", {
+                    gameId: question.gameId,
+                    questionId: question.id,
+                    playerName: u.name,
+                });
+                safeEmit(`game:host:${question.gameId}`, "answer:graded", {
                     gameId: question.gameId,
                     questionId: question.id,
                     playerName: u.name,

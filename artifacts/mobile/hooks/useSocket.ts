@@ -129,7 +129,6 @@ export function useGameSocket(
       gameId: number;
       questionId: number;
       playerName: string;
-      isCorrect: boolean;
     }) => void;
     onGameEnded?: (p: { gameId: number }) => void;
     onPlayerKicked?: (p: { gameId: number; userId: number }) => void;
@@ -151,7 +150,6 @@ export function useGameSocket(
       gameId: number;
       questionId: number;
       playerName: string;
-      isCorrect: boolean;
     }) {
       cbRef.current.onAnswerSubmitted?.(p);
     }
@@ -203,7 +201,7 @@ export function useGameSocket(
 export function useAdminGameSocket(
   gameId: number | null,
   callbacks: {
-    onAnswerSubmitted?: (p: {
+    onAnswerGraded?: (p: {
       gameId: number;
       questionId: number;
       playerName: string;
@@ -233,13 +231,13 @@ export function useAdminGameSocket(
       cbRef.current.onDisconnect?.();
     }
 
-    function onAnswerSubmitted(p: {
+    function onAnswerGraded(p: {
       gameId: number;
       questionId: number;
       playerName: string;
       isCorrect: boolean;
     }) {
-      cbRef.current.onAnswerSubmitted?.(p);
+      cbRef.current.onAnswerGraded?.(p);
     }
 
     function onGameEnded(p: { gameId: number }) {
@@ -248,7 +246,7 @@ export function useAdminGameSocket(
 
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
-    socket.on('answer:submitted', onAnswerSubmitted);
+    socket.on('answer:graded', onAnswerGraded);
     socket.on('game:ended', onGameEnded);
 
     if (socket.connected) {
@@ -260,7 +258,7 @@ export function useAdminGameSocket(
     return () => {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
-      socket.off('answer:submitted', onAnswerSubmitted);
+      socket.off('answer:graded', onAnswerGraded);
       socket.off('game:ended', onGameEnded);
       socket.disconnect();
     };

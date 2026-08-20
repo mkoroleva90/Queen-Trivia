@@ -25,6 +25,12 @@ export type ServerToClientEvents = {
     gameId: number;
     questionId: number;
     playerName: string;
+  }) => void;
+  /** Emitted only to the game host's private room after grading an answer. */
+  "answer:graded": (payload: {
+    gameId: number;
+    questionId: number;
+    playerName: string;
     isCorrect: boolean;
   }) => void;
   /** Emitted when a host removes a player. Clients check userId against their own. */

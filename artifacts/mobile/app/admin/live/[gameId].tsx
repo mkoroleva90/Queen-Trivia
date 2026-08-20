@@ -159,7 +159,7 @@ export default function AdminLiveScreen() {
   // Before the persisted seed resolves, events go into a ref buffer so they
   // can be applied additively on top of the baseline without being overwritten.
   // After seeding, events increment React state directly.
-  const onAnswerSubmitted = useCallback(
+  const onAnswerGraded = useCallback(
     (p: { gameId: number; questionId: number; playerName: string; isCorrect: boolean }) => {
       if (p.gameId !== gameId) return;
       if (!seeded) {
@@ -191,7 +191,7 @@ export default function AdminLiveScreen() {
     [gameId, qc, router],
   );
 
-  useAdminGameSocket(isNaN(gameId) ? null : gameId, { onAnswerSubmitted, onGameEnded });
+  useAdminGameSocket(isNaN(gameId) ? null : gameId, { onAnswerGraded, onGameEnded });
 
   const totalPlayers = participants?.length ?? 0;
 
