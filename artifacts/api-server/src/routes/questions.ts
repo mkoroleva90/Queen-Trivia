@@ -49,6 +49,7 @@ router.get("/games/:gameId/questions", requireAuth, async (req, res): Promise<vo
         return;
     }
 
+    if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
     const [game, questions] = await Promise.all([
         db.select({ status: gamesTable.status })
@@ -66,8 +67,6 @@ router.get("/games/:gameId/questions", requireAuth, async (req, res): Promise<vo
         res.status(404).json({ error: "Game not found" });
         return;
     }
-
-    if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
     const isAdmin = req.session.isAdmin === true;
     // Reveal correct answers once the game is over — safe to show players their results

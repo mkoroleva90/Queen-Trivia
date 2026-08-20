@@ -26,11 +26,10 @@ router.get("/games/:gameId/results", requireAuth, async (req, res): Promise<void
  const gameId = parseInt(String(req.params.gameId ?? ""), 10);
  if (isNaN(gameId)) { res.status(400).json({ error: "Invalid gameId" }); return; }
 
+ if (!await assertGameOwnership(req, res, gameId)) return;
 
  const [game] = await db.select().from(gamesTable).where(eq(gamesTable.id, gameId));
  if (!game) { res.status(404).json({ error: "Game not found" }); return; }
-
- if (!await assertGameOwnership(req, res, gameId)) return;
 
  // Participants ordered by score desc
  const participants = await db
@@ -80,7 +79,10 @@ const enriched = participants.map((p, i) => {
   .then((r) => r[0]?.count ?? 0);
 
 
- res.json(toJsonSafe({ game, participants: enriched, totalQuestions }));
+  const responseGame = req.session.isAdmin === true
+    ? game
+    : { ...game, accessCode: null };
+  res.json(toJsonSafe({ game: responseGame, participants: enriched, totalQuestions }));
 });
 
 

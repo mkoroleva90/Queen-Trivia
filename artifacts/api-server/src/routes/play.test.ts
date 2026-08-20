@@ -141,6 +141,58 @@ describe("POST /api/games/:gameId/join — idempotency", () => {
   });
 });
 
+// ─── Suite 2: player game isolation ──────────────────────────────────────────
+//
+// A player must not be able to use a valid session from one room to enumerate
+// another room's game data or access code.
+
+describe("player game-data authorization", () => {
+  let joinedGame: TestGame;
+  let otherGame: TestGame;
+  let playerAgent: ReturnType<typeof request.agent>;
+  const JOINED_CODE = "TISOL1";
+  const OTHER_CODE = "TISOL2";
+
+  before(async () => {
+    ({ game: joinedGame } = await seedGameWithQuestions(JOINED_CODE, 1));
+    ({ game: otherGame } = await seedGameWithQuestions(OTHER_CODE, 1));
+
+    playerAgent = request.agent(app);
+    const loginRes = await playerAgent
+      .post("/api/auth/login")
+      .send({ code: JOINED_CODE, name: "__test__game_isolation" });
+    assert.equal(loginRes.status, 200, `player login failed: ${JSON.stringify(loginRes.body)}`);
+
+    const joinRes = await playerAgent.post(`/api/games/${joinedGame.id}/join`);
+    assert.equal(joinRes.status, 201, `player join failed: ${JSON.stringify(joinRes.body)}`);
+  });
+
+  after(async () => {
+    await cleanupGame(joinedGame.id);
+    await cleanupGame(otherGame.id);
+  });
+
+  for (const [routeName, path] of [
+    ["game metadata", (gameId: number) => `/api/games/${gameId}`],
+    ["questions", (gameId: number) => `/api/games/${gameId}/questions`],
+    ["participants", (gameId: number) => `/api/games/${gameId}/participants`],
+    ["results", (gameId: number) => `/api/games/${gameId}/results`],
+  ]) {
+    it(`rejects an unjoined game's ${routeName}`, async () => {
+      const res = await playerAgent.get(path(otherGame.id));
+      assert.equal(res.status, 403, `expected 403 but got ${res.status}: ${JSON.stringify(res.body)}`);
+      assert.equal(JSON.stringify(res.body).includes(OTHER_CODE), false, "must not expose the other game's access code");
+    });
+  }
+
+  it("allows results for the joined game but redacts its access code", async () => {
+    const res = await playerAgent.get(`/api/games/${joinedGame.id}/results`);
+    assert.equal(res.status, 200, `expected 200 but got ${res.status}: ${JSON.stringify(res.body)}`);
+    assert.equal(res.body.game.accessCode, null);
+    assert.equal(JSON.stringify(res.body).includes(JOINED_CODE), false, "must not expose the joined game's access code");
+  });
+});
+
 // ─── Suite 2: answered-question preservation across re-entry ─────────────────
 
 describe("mid-game re-entry — answered questions preserved", () => {

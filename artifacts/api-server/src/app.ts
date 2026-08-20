@@ -8,6 +8,7 @@ import { sessionMiddleware } from "./lib/session.ts";
 import { corsOrigin } from "./lib/cors.ts";
 import { injectMobileSession } from "./lib/mobileAuth.ts";
 import { globalErrorHandler } from "./lib/globalErrorHandler.ts";
+export { initSocket, safeEmit } from "./lib/socket.ts";
 
 // Export for integration tests: the router is mounted at /api before the
 // global error handler, so test routes added to it will have 500-handling.

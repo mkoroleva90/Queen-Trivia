@@ -248,6 +248,7 @@ if (!params.success) {
     return;
 }
 
+if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
 const [game] = await db
     .select()
@@ -259,8 +260,6 @@ if (!game) {
     res.status(404).json({ error: "Game not found" });
     return;
 }
-
-if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
 const [participants] = await db
     .select({ value: count() })

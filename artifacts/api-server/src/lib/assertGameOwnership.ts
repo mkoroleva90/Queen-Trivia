@@ -1,8 +1,12 @@
 import type { Request, Response } from "express";
-import { eq } from "drizzle-orm";
-import { db, gamesTable } from "@workspace/db";
+import { and, eq } from "drizzle-orm";
+import { db, gameParticipantsTable, gamesTable } from "@workspace/db";
 
 /**
+ * Players may access data only for games they have joined. This check is
+ * deliberately based on the participant record, not a session game ID, so it
+ * remains authoritative for cookie and mobile-token sessions alike.
+ *
  * For email-auth admins (those with `adminAccountId` in session), verify the
  * requested game belongs to them. Ownerless games are NOT accessible to regular
  * hosts — they are surfaced only through the owner dashboard.
@@ -20,6 +24,32 @@ export async function assertGameOwnership(
   res: Response,
   gameId: number,
 ): Promise<boolean> {
+  if (req.session.isAdmin !== true) {
+    const userId = req.session.userId;
+    if (userId == null) {
+      res.status(403).json({ error: "Access denied" });
+      return false;
+    }
+
+    const [participant] = await db
+      .select({ id: gameParticipantsTable.id })
+      .from(gameParticipantsTable)
+      .where(
+        and(
+          eq(gameParticipantsTable.gameId, gameId),
+          eq(gameParticipantsTable.userId, userId),
+        ),
+      )
+      .limit(1);
+
+    if (!participant) {
+      res.status(403).json({ error: "Access denied" });
+      return false;
+    }
+
+    return true;
+  }
+
   const ownerAdminId = req.session.adminAccountId;
   if (ownerAdminId == null) {
     // Code-based (legacy) admin — no ownership restriction.
