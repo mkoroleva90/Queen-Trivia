@@ -71,9 +71,9 @@ const OPENTDB_CATEGORIES = [
 ] as const;
 
 const DIFF_LABELS: Record<Difficulty, string> = {
-  easy: 'Easy (5 pts each)',
-  medium: 'Medium (10 pts each)',
-  hard: 'Hard (15 pts each)',
+  easy: 'Easy',
+  medium: 'Medium',
+  hard: 'Hard',
 };
 
 const TYPE_ICONS: Record<string, string> = {
