@@ -2,87 +2,94 @@
 
 ## Project Overview
 
-Trivia Night is a multiplayer pub-quiz web application. Players join live games using an access code, answer timed questions (multiple choice, true/false, matching, image, write-in), and see live leaderboards. Admins (called "hosts") manage games, questions (with Gemini AI generation / fact-check and OpenTDB import), and settings.
+Trivia Night is a multiplayer pub-quiz web application. Players join live games using an access code, answer timed questions (multiple choice, true/false, matching, image, write-in), and see live leaderboards. Hosts manage games, questions (including Gemini AI generation/fact-check and OpenTDB import), and settings.
 
 - **Stack:** Node.js 24 / TypeScript, Express 5, PostgreSQL + Drizzle ORM, Socket.IO, React frontend (Vite), pnpm workspaces.
-- **Auth model:** Open self-service host registration (`POST /api/auth/email/register`) — any visitor with a valid email address can create a host account. The account is inactive until the email verification link is clicked. The previously-supported shared admin access code login path (`POST /api/admin/login`) is fully removed (returns 410). Players authenticate via per-game access codes only.
-- **Deployment:** Publicly deployed at `https://mktrivia.com` (autoscale, Replit-managed TLS). Mobile Expo update server deployed at `/mobile/`.
+- **Auth model:** Open self-service host registration (`POST /api/auth/email/register`) — any visitor with a valid email address can create a host account. The account is inactive until the email verification link is clicked. The shared admin access-code login path (`POST /api/admin/login`) is removed (410). Players authenticate via per-game access codes only.
+- **Deployment:** Publicly deployed at `https://mktrivia.com` (autoscale, Replit-managed TLS). Mobile Expo update server is deployed at `/mobile/`.
 
 ## Assets
 
-- **Host (admin) email accounts** — Per-host accounts (email + bcrypt password) in `admin_accounts`. A compromised account grants full CRUD over that host's own games, questions, and settings for their tenant. The shared admin code field (`admin_settings.adminAccessCode`) is a legacy artifact — the code-based login path is removed; this field is no longer used for authentication.
-- **Player names** — Display names chosen at login; no email or PII beyond the chosen nickname.
-- **Game and question data** — Game configs, questions, and correct answers are stored server-side. Correct answers are stripped from player-facing responses (except when the game is completed). Each game is scoped to its owning host (`ownerAdminId`).
-- **Admin session** — An active admin session grants full control over the host's own games, questions, and settings.
-- **Google API key** — Used for Gemini AI generation; stored as an env secret. Exposure would allow abuse of the project's Gemini quota.
-- **Owner access key** — `ADMIN_ACCESS_KEY` env var, used as a Bearer token for platform owner management routes (`/api/owner/*`). Exposure would allow full platform administration.
+- **Host email accounts** — Email/password or SSO accounts in `admin_accounts`. A compromised account grants full CRUD over that host's own games and questions.
+- **Player names and IDs** — Display names chosen at login and participant identity data.
+- **Game and question data** — Game configs, question banks, correct answers, participant lists, scores, and live answer activity. Correct answers are normally stripped from player-facing responses while a game is active.
+- **Admin sessions and bearer tokens** — An active host session grants control over that host's games; mobile admin tokens are HMAC-signed with `SESSION_SECRET`.
+- **Google API key** — Used for Gemini AI generation; stored as an environment secret. Exposure allows quota abuse.
+- **Owner access key** — `ADMIN_ACCESS_KEY`, used as a Bearer token for `/api/owner/*`. Exposure grants platform administration, including host and report data and plan changes.
 
 ## Trust Boundaries
 
-- **Browser → API** — All game and admin actions cross this boundary. Express session cookies authenticate the caller. The client is fully untrusted.
-- **API → PostgreSQL** — Application code talks directly to Postgres via Drizzle ORM (parameterized queries). SQL injection risk is low given ORM usage.
-- **API → External services** — Gemini API (Google) and OpenTDB are called server-side. Image URLs from Gemini are allowlisted to `upload.wikimedia.org/wikipedia/commons/` before any outbound fetch. OpenTDB is a fixed upstream endpoint. Resend (email) is called server-side for verification and password-reset emails.
-- **Public / Authenticated** — `/api/health`, `/api/auth/*`, `/api/admin/me`, `/api/auth/email/verify`, `/api/auth/email/login`, `/api/auth/email/forgot-password`, `/api/auth/email/reset-password`, `/api/auth/email/register`, and `POST /reports` are public. All gameplay and admin endpoints require a valid session.
-- **Host / Platform owner** — Hosts have full CRUD over their own games, questions, and settings. The platform owner uses `ADMIN_ACCESS_KEY` to manage hosts, plans, and reports via `/api/owner/*`. Enforced server-side via `requireAdmin`, `assertGameOwnership`, and `requireOwnerKey`.
-- **Tenant isolation** — `assertGameOwnership` enforces that email-auth hosts (those with `adminAccountId` in session) can only access their own games. Legacy code-based sessions (no `adminAccountId`) are treated as super-admin, but the code-based login path is removed (410); no new legacy sessions can be created.
-- **Mobile server** — The Expo update server at `/mobile/` is a separate Node.js HTTP process (`artifacts/mobile/server/serve.js`). It serves static build assets and platform manifests. The `expo-platform` header is strictly validated to `'ios'` or `'android'` before constructing any file path. Static file serving uses a `startsWith(STATIC_ROOT)` boundary check.
+- **Browser/mobile client → API and Socket.IO** — All game and host actions cross this boundary. Clients are untrusted; every HTTP object and Socket.IO room must be authenticated and authorized server-side.
+- **API → PostgreSQL** — Application code talks directly to Postgres via Drizzle ORM. Queries must remain parameterized and tenant/object scoped.
+- **API → external services** — Gemini, OpenTDB, Wikimedia, and Resend are called server-side. Gemini/image data and email content cross into trusted services and must be constrained.
+- **Public / authenticated** — Health, auth, verification/reset, and reports are public; gameplay and host APIs require the appropriate session. Player authentication does not imply access to every game.
+- **Host / platform owner** — Hosts may manage only their own games. The owner bearer key controls `/api/owner/*`.
+- **Host tenant / game room** — HTTP host routes enforce game ownership, but Socket.IO `game:join` must enforce the same ownership for host sessions before admitting them to a game room.
+- **Mobile update server** — `artifacts/mobile/server/serve.js` is a separate public static server. Platform values and static paths must remain constrained to the build root.
 
 ## Scan Anchors
 
-- **Entry points:** `artifacts/api-server/src/routes/` (all route files), `artifacts/api-server/src/app.ts` (Express setup and CORS), `artifacts/mobile/server/serve.js` (mobile update server)
-- **Highest-risk areas:** Host session logic in `routes/emailAuth.ts`; tenant isolation in `lib/assertGameOwnership.ts`; AI grading in `services/geminiApi.ts` (`gradeWithAI` — residual prompt injection, open MEDIUM finding `ai-grader-prompt-injection-short-response`); owner API key enforcement in `routes/owner.ts`; shared settings mutation in `routes/settings.ts`
-- **Public surface:** `/api/health`, `/api/auth/verify`, `/api/auth/login`, `/api/admin/login` (410 tombstone), `/api/auth/me`, `/api/admin/me`, `/api/auth/email/verify`, `/api/auth/email/login`, `/api/auth/email/register`, `/api/auth/email/forgot-password`, `/api/auth/email/reset-password`, `POST /api/reports`
-- **Admin (host) surface:** `/api/settings` (PATCH/GET — any authenticated host can update the legacy `adminAccessCode` field; no practical impact since code-based login is removed), `/api/games` (CRUD scoped to ownerAdminId), `/api/questions` (CRUD scoped via assertGameOwnership), `/api/stats/summary`, Gemini and OpenTDB import routes, `/api/games/:id/results/export.csv`
-- **Owner-only surface:** `/api/owner/*` — protected by `ADMIN_ACCESS_KEY` Bearer token
-- **Player surface:** `/api/games` (GET), `/api/games/:id/join`, `/api/games/:id/answers`, `/api/games/:id/results`
-- **Dev-only:** `artifacts/mockup-sandbox/` — design canvas, not production-reachable
+- **Entry points:** `artifacts/api-server/src/routes/` (all route files), `artifacts/api-server/src/app.ts`, `artifacts/api-server/src/lib/socket.ts`, and `artifacts/mobile/server/serve.js`.
+- **Highest-risk areas:** host session logic in `routes/emailAuth.ts` and `lib/mobileAuth.ts`; tenant isolation in `lib/assertGameOwnership.ts`; player cross-game reads in `routes/games.ts`, `routes/questions.ts`, `routes/play.ts`, and `routes/results.ts`; Socket.IO room admission in `lib/socket.ts`; AI grading in `services/geminiApi.ts` (residual prompt-injection risk); owner API key enforcement in `routes/owner.ts`.
+- **Public surfaces:** `/api/healthz`, `/api/auth/*`, `/api/admin/me`, `/api/auth/email/verify`, `/api/auth/email/login`, `/api/auth/email/forgot-password`, `/api/auth/email/reset-password`, `/api/auth/email/register`, `POST /api/reports`, and `/mobile/`.
+- **Host surface:** `/api/games`, `/api/questions`, `/api/stats`, Gemini/OpenTDB imports, results export, account, and kick routes. Host game operations must be scoped by `ownerAdminId`.
+- **Owner-only surface:** `/api/owner/*` protected by `ADMIN_ACCESS_KEY`.
+- **Player surface:** game join, answers, results, participant/question reads, and Socket.IO game rooms. Player access must be limited to games joined or otherwise explicitly authorized.
+- **Dev-only:** `artifacts/mockup-sandbox/` is a design canvas and is not production-reachable.
 
 ## Threat Categories
 
 ### Spoofing
 
-Host registration is open to any visitor with a valid email address. After email verification, the account receives an admin session (`isAdmin = true`) scoped to their tenant via `adminAccountId`. The code-based admin login path is fully removed (returns 410). Sessions are tied to httpOnly, Secure, SameSite cookies. Session IDs are regenerated on login. Per-game access codes use a CSPRNG (`crypto.randomBytes`).
+Host registration is open to visitors with a valid email address. Accounts remain inactive until verification. Email/SSO login establishes an admin session with `adminAccountId`; player login establishes a player session with `userId` and allowed game IDs. Sessions use httpOnly, Secure, SameSite cookies, and login regenerates the session ID. Mobile bearer tokens use HMAC-SHA256 and expire. Password reset and password-change flows must invalidate old sessions/tokens.
 
 **Required guarantees:**
-- Host accounts are inactive until email is verified. ✅
-- Sessions MUST be tied to httpOnly, Secure, SameSite cookies. ✅
-- Auth endpoints are rate-limited (10 req / 15 min per IP). ✅
-- Session IDs MUST be regenerated on login. ✅
-- Per-game access codes MUST use a CSPRNG. ✅
-- **Open registration:** Any visitor can register as a host. Tenant isolation (via `assertGameOwnership`) ensures hosts can only access their own games. No cross-tenant privilege escalation is possible via email auth.
+- Email accounts MUST be inactive until verification.
+- Session IDs MUST be regenerated on login.
+- Cookies MUST be httpOnly, Secure in production, and SameSite constrained.
+- SSO tokens MUST verify signature, issuer, audience, expiry, and subject.
+- Player and host session types MUST not be confused when applying authorization.
+- Per-game access codes MUST use a CSPRNG and MUST never appear in player responses.
 
 ### Tampering
 
-Correct answers and question data are fetched from the database server-side. Score updates are computed server-side. Player submissions are scoped to the session user ID.
+Correct answers and score updates are computed server-side. Player submissions are scoped to the session user and participant row, and duplicate submissions are rejected. AI grading treats player answers as untrusted and clamps the resulting score.
 
-- **AI grader prompt injection:** `write_in` questions use Gemini AI to grade answers (`gradeWithAI` in `services/geminiApi.ts`). The player-controlled `userAnswer` is JSON-encoded, wrapped in delimiters, and the model is instructed to disregard instruction-like content. Server-side score clamping limits score inflation. ⚠️ Open MEDIUM finding (`ai-grader-prompt-injection-short-response`).
+**Required guarantees:**
+- Game status, points, correctness, and participant identity MUST be server-controlled.
+- Every answer and host mutation MUST be scoped to the exact game and authorized subject.
+- Socket.IO events MUST not permit a host to subscribe to another tenant's room.
 
 ### Information Disclosure
 
-- **Correct answers:** Stripped from `GET /api/games/:gameId/questions` responses for non-admin sessions. Exposed only after a game is `completed`. ✅
-- **CORS:** Restricted to an allowlist of this app's own Replit domains (`REPLIT_DOMAINS` env var). ✅
-- **User enumeration:** Both GET and POST `/api/users/:userId` require `requireAdmin`. ✅
-- **Image SSRF:** Gemini-generated image URLs are validated against a strict allowlist (`upload.wikimedia.org/wikipedia/commons/`) before any outbound fetch. ✅
-- **CSV formula injection:** The results export sanitizes formula trigger characters in player names via `escapeCsv()`. ✅
-- **Mobile manifest path traversal:** `serveManifest` validates `expo-platform` to be exactly `'ios'` or `'android'` before constructing any file path. Static file serving uses a `startsWith(STATIC_ROOT)` boundary check. ✅
+The server must keep game data and participant activity within the correct game/tenant boundary. A current production risk is the nullish `adminAccountId` shortcut in `assertGameOwnership`: player sessions have no `adminAccountId`, so player-reachable read routes can bypass the helper. The results route also returns a full game row, including `accessCode`, rather than applying the player redaction used by the game-detail route. Socket.IO host room admission currently lacks a corresponding ownership check, allowing cross-tenant live event disclosure.
+
+**Required guarantees:**
+- Player reads of game details, questions, participants, and results MUST require participation or another explicit game authorization; a missing `adminAccountId` MUST not mean super-admin for player sessions.
+- Player-facing responses MUST never include active-game access codes or correct answers unless explicitly intended after completion.
+- Host reads and writes MUST be scoped to `ownerAdminId`.
+- Socket.IO room admission MUST enforce player membership and host ownership before joining.
+- Errors and logs MUST not disclose secrets, reset tokens, or database internals.
+- Image fetches MUST remain restricted to the Wikimedia allowlist; static file paths MUST remain under the mobile build root.
 
 ### Elevation of Privilege
 
-- Admin routes are protected by `requireAdmin` middleware checking `req.session.isAdmin`.
-- Player routes use `requireUser` checking `req.session.userId`.
-- `requireAuth` accepts either an admin or a player session for shared read-only endpoints.
-- `assertGameOwnership` enforces that email-auth hosts only access their own games.
-- Answer history (`GET /games/:gameId/users/:userId/answers`) checks `req.session.userId === params.data.userId`.
-- Socket.IO `game:join` events verify participant membership in the DB.
-- **Password reset invalidates existing sessions.** ✅
-- **Code-based admin login is removed (410 tombstone).** No new legacy "super-admin" sessions can be created. ✅
-- **Shared settings mutation:** `PATCH /api/settings` is reachable by any authenticated host. It can modify the `adminAccessCode` field, but this field is no longer used for authentication (code-based login removed). No practical security impact. ℹ️
+Host routes use `requireAdmin`, player routes use `requireUser`, and shared reads use `requireAuth`, but shared authorization helpers must distinguish player sessions from legacy admin sessions. The removed code-based login route must remain unavailable. Owner routes require the separate bearer key. Account deletion, password changes, game mutation, question mutation, exports, and plan changes require exact subject/object authorization.
+
+**Required guarantees:**
+- Authentication MUST be followed by object-level authorization for every sensitive game, question, participant, report, and owner action.
+- Client-side route guards and hidden controls MUST never substitute for server checks.
+- Full game rows and credentials MUST not be returned through alternate read endpoints.
 
 ### Denial of Service
 
-- Auth endpoints (`/api/auth/login`, `/api/admin/login`, `/api/auth/verify`, `/api/auth/email/*`) are rate-limited (10 req / 15 min per IP).
-- Answer submission is rate-limited (30 req / 60 sec per IP).
-- Gemini generation is rate-limited (5 req / 10 min per IP); single operations rate-limited (20 req / 10 min).
-- OpenTDB import is rate-limited (10 req / 10 min per IP).
-- `POST /api/users` requires admin — the DB flood vector is closed.
-- `POST /api/reports` (public) is rate-limited to 15 requests per hour per IP via a shared PostgreSQL-backed store (`rate_limit_hits` table), preventing email-quota exhaustion and DB row flooding. ✅
+Auth, player join, answer submission, Gemini, OpenTDB, and reports endpoints have rate limits. Public reports use a PostgreSQL-backed store. External service calls use bounded operations and timeouts. Limits should be shared across autoscale instances where the threat depends on a global budget, and resource-intensive operations should remain authenticated.
+
+**Required guarantees:**
+- Password, reset-code, and SSO endpoints MUST resist distributed brute force and abuse.
+- AI generation and import operations MUST remain authenticated, rate-limited, and usage-metered.
+- Request bodies, uploaded/static content, and external calls MUST have bounded size/time.
+
+### Repudiation
+
+Sensitive host and owner mutations should be attributable to the authenticated session and logged without recording passwords, bearer tokens, or reset links. Database and platform-owner auditability is important for account, plan, game, and report changes.
