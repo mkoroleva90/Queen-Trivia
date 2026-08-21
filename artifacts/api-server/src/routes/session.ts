@@ -1,7 +1,7 @@
 
 import { Router, type IRouter } from "express";
 import { and, eq, ne } from "drizzle-orm";
-import { db, usersTable, gamesTable } from "@workspace/db";
+import { db, usersTable, gamesTable, gameAccessGrantsTable } from "@workspace/db";
 import { toJsonSafe } from "../lib/serialize.ts";
 import { triviaJoinRateLimit } from "../middleware/authRateLimit.ts";
 import { generateMobileToken } from "../lib/mobileAuth.ts";
@@ -12,10 +12,8 @@ import { PlayerLoginBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 // POST /api/auth/login — verify per-game code + create/retrieve user, start session.
-// Only per-game codes are accepted. Sessions always carry an allowedGameIds list.
-// If the caller already has a valid player session (req.session.userId is set),
-// this endpoint simply appends the new game to their allowedGameIds list and
-// returns the existing user — no regenerate, no new user row.
+// A successful room-code check creates a durable server-side grant. Session and
+// mobile-token claims are deliberately not used to authorize games.
 router.post("/auth/login", triviaJoinRateLimit, async (req, res): Promise<void> => {
 const parsed = PlayerLoginBody.safeParse(req.body);
 if (!parsed.success) {
@@ -44,21 +42,8 @@ if (!matchedGame) {
 }
 
 
-// ── Already-logged-in path: append game to session without regenerating ──
+// ── Already-logged-in path: grant this room without regenerating ──────────
 if (req.session.userId) {
-    // Seed from the legacy single-game field if the new list hasn't been
-    // written yet (sessions created before the multi-game update only have
-    // the old allowedGameId).
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const legacyId: number | undefined = (req.session as any).allowedGameId;
-    const existing: number[] = req.session.allowedGameIds
-        ?? (typeof legacyId === "number" ? [legacyId] : []);
-    if (!existing.includes(matchedGame.id)) {
-        req.session.allowedGameIds = [...existing, matchedGame.id];
-    } else {
-        req.session.allowedGameIds = existing;
-    }
-
     const [existingUser] = await db
         .select()
         .from(usersTable)
@@ -69,12 +54,17 @@ if (req.session.userId) {
         return;
     }
 
+    await db
+        .insert(gameAccessGrantsTable)
+        .values({ gameId: matchedGame.id, userId: existingUser.id })
+        .onConflictDoNothing();
+
     req.session.save((err) => {
         if (err) {
             res.status(500).json({ error: "Failed to save session" });
             return;
         }
-        const mobileToken = generateMobileToken(req.session.userId!, req.session.allowedGameIds!);
+        const mobileToken = generateMobileToken(req.session.userId!);
         res.json(toJsonSafe({ id: existingUser.id, name: existingUser.name, gameId: matchedGame.id, mobileToken }));
     });
     return;
@@ -101,6 +91,9 @@ if (containsBannedContent(name)) {
 // Reusing an existing row by name would let any caller impersonate another
 // player just by knowing their display name.
 const [user] = await db.insert(usersTable).values({ name }).returning();
+await db
+    .insert(gameAccessGrantsTable)
+    .values({ gameId: matchedGame.id, userId: user!.id });
 
  // Regenerate the session ID on login to prevent session fixation attacks.
  req.session.regenerate((err) => {
@@ -111,9 +104,8 @@ const [user] = await db.insert(usersTable).values({ name }).returning();
      req.session.userId = user!.id;
      req.session.userName = user!.name;
      req.session.isAdmin = false;
-     req.session.allowedGameIds = [matchedGame.id];
 
-     const mobileToken = generateMobileToken(user!.id, [matchedGame.id]);
+      const mobileToken = generateMobileToken(user!.id);
      res.json(toJsonSafe({ id: user!.id, name: user!.name, gameId: matchedGame.id, mobileToken }));
  });
 });

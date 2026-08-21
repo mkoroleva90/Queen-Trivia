@@ -9,6 +9,7 @@ import {
  questionsTable,
  answersTable,
  gameParticipantsTable,
+  gameAccessGrantsTable,
  removedParticipantsTable,
 } from "@workspace/db";
 import { safeEmit } from "../lib/socket.ts";
@@ -56,63 +57,55 @@ router.post("/games/:gameId/join", requireUser, async (req, res): Promise<void> 
 
 
     const sessionUserId = req.session.userId!;
+    const [game] = await db
+        .select()
+        .from(gamesTable)
+        .where(eq(gamesTable.id, params.data.gameId));
 
-    // Sessions must have an allowedGameIds list and the requested game must be in it.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const legacyId: number | undefined = (req.session as any).allowedGameId;
-    const allowedIds: number[] = req.session.allowedGameIds
-        ?? (typeof legacyId === "number" ? [legacyId] : []);
-    if (!allowedIds.includes(params.data.gameId)) {
-        res.status(403).json({ error: "Your access code is only valid for a different game" });
+    if (!game) {
+        res.status(404).json({ error: "Game not found" });
         return;
     }
 
-
-    const [game] = await db
+    const [user] = await db
         .select()
-    .from(gamesTable)
-    .where(eq(gamesTable.id, params.data.gameId));
+        .from(usersTable)
+        .where(eq(usersTable.id, sessionUserId));
 
+    if (!user) {
+        res.status(404).json({ error: "User not found" });
+        return;
+    }
 
-if (!game) {
-    res.status(404).json({ error: "Game not found" });
-    return;
-}
+    const [existing] = await db
+        .select()
+        .from(gameParticipantsTable)
+        .where(
+            and(
+                eq(gameParticipantsTable.gameId, game.id),
+                eq(gameParticipantsTable.userId, user.id),
+            ),
+        );
 
+    if (existing) {
+        res.status(201).json(JoinGameResponse.parse(toJsonSafe(existing)));
+        return;
+    }
 
-const [user] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.id, sessionUserId));
-
-
-if (!user) {
-    res.status(404).json({ error: "User not found" });
-    return;
-}
-
-
-const [existing] = await db
-    .select()
-    .from(gameParticipantsTable)
-    .where(
-     and(
-      eq(gameParticipantsTable.gameId, game.id),
-      eq(gameParticipantsTable.userId, user.id),
-     ),
-     );
-
-
- if (existing) {
-     res.status(201).json(JoinGameResponse.parse(toJsonSafe(existing)));
-     return;
- }
-
- // Rejoin block: refuse if the host previously removed this player.
- // Two checks are run:
- //  1. By userId  — catches the same browser/device after the original kick.
- //  2. By display name (case-insensitive) — catches a player who cleared their
- //     storage or switched devices and rejoined with the same name.
+    const [grant] = await db
+        .select({ id: gameAccessGrantsTable.id })
+        .from(gameAccessGrantsTable)
+        .where(
+            and(
+                eq(gameAccessGrantsTable.gameId, params.data.gameId),
+                eq(gameAccessGrantsTable.userId, sessionUserId),
+            ),
+        )
+        .limit(1);
+    if (!grant) {
+        res.status(403).json({ error: "Enter this game's access code before joining" });
+        return;
+    }
  const [removedByUserId] = await db
      .select({ id: removedParticipantsTable.id })
      .from(removedParticipantsTable)
@@ -168,21 +161,20 @@ router.get("/games/:gameId/participants", requireAuth, async (req, res): Promise
 
  const rows = await db
      .select({
-      id: gameParticipantsTable.id,
-      gameId: gameParticipantsTable.gameId,
-      userId: gameParticipantsTable.userId,
-      userName: usersTable.name,
-      totalScore: gameParticipantsTable.totalScore,
-      joinedAt: gameParticipantsTable.joinedAt,
-  })
-  .from(gameParticipantsTable)
-  .innerJoin(usersTable, eq(gameParticipantsTable.userId, usersTable.id))
-  .where(eq(gameParticipantsTable.gameId, params.data.gameId))
-  .orderBy(
-      desc(gameParticipantsTable.totalScore),
-      asc(gameParticipantsTable.joinedAt),
-  );
-
+         id: gameParticipantsTable.id,
+         gameId: gameParticipantsTable.gameId,
+         userId: gameParticipantsTable.userId,
+         userName: usersTable.name,
+         totalScore: gameParticipantsTable.totalScore,
+         joinedAt: gameParticipantsTable.joinedAt,
+     })
+     .from(gameParticipantsTable)
+     .innerJoin(usersTable, eq(gameParticipantsTable.userId, usersTable.id))
+     .where(eq(gameParticipantsTable.gameId, params.data.gameId))
+     .orderBy(
+         desc(gameParticipantsTable.totalScore),
+         asc(gameParticipantsTable.joinedAt),
+     );
 
  res.json(ListGameParticipantsResponse.parse(toJsonSafe(rows)));
 });
@@ -192,14 +184,13 @@ router.get("/games/:gameId/participants", requireAuth, async (req, res): Promise
 
 
 router.post("/games/:gameId/answers", requireUser, answerRateLimit, async (req, res):Promise<void> => {
- const params = SubmitAnswerParams.safeParse(req.params);
- if (!params.success) {
-  res.status(400).json({ error: params.error.message });
-  return;
-}
+        const params = SubmitAnswerParams.safeParse(req.params);
+        if (!params.success) {
+            res.status(400).json({ error: params.error.message });
+            return;
+        }
 
-
-const parsed = SubmitAnswerBody.safeParse(req.body);
+        const parsed = SubmitAnswerBody.safeParse(req.body);
 if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
@@ -209,10 +200,10 @@ if (!parsed.success) {
 const sessionUserId = req.session.userId!;
 
 
-const [game] = await db
-    .select()
-    .from(gamesTable)
-    .where(eq(gamesTable.id, params.data.gameId));
+        const [game] = await db
+            .select()
+            .from(gamesTable)
+            .where(eq(gamesTable.id, params.data.gameId));
 
 
 if (!game) {
@@ -220,29 +211,25 @@ if (!game) {
     return;
 }
 
-
 if (game.status !== "active") {
     res.status(403).json({ error: "Answers can only be submitted to an active game" });
     return;
 }
 
-
 const [participant] = await db
     .select()
     .from(gameParticipantsTable)
     .where(
-     and(
-         eq(gameParticipantsTable.gameId, game.id),
-         eq(gameParticipantsTable.userId, sessionUserId),
-     ),
+        and(
+            eq(gameParticipantsTable.gameId, game.id),
+            eq(gameParticipantsTable.userId, sessionUserId),
+        ),
     );
-
 
 if (!participant) {
     res.status(403).json({ error: "You must join the game before submitting answers" });
     return;
 }
-
 
 const [question] = await db
     .select()
@@ -280,8 +267,8 @@ if (containsBannedContent(parsed.data.userAnswer)) {
     return;
 }
 
-const opts = question.options as { alternateAnswers?: string[] } | null;
-const alternates = opts?.alternateAnswers ?? [];
+        const opts = question.options as { alternateAnswers?: string[] } | null;
+        const alternates = opts?.alternateAnswers ?? [];
 
 
 const { isCorrect, pointsEarned, feedback } = await gradeAnswer(
@@ -307,8 +294,7 @@ const [answer] = await db
  })
  .returning();
 
-
-const totalScore = (participant.totalScore ?? 0) + pointsEarned;
+        const totalScore = (participant.totalScore ?? 0) + pointsEarned;
 
 
 await db
@@ -364,57 +350,52 @@ router.get(
       res.status(400).json({ error: "Invalid params" });
       return;
   }
-// Admins: enforce game ownership. Players: must be a participant in the game.
-if (req.session.isAdmin) {
-    if (!await assertGameOwnership(req, res, gameId)) return;
-} else {
-    const [participant] = await db
-        .select({ id: gameParticipantsTable.id })
-        .from(gameParticipantsTable)
-        .where(
-         and(
-             eq(gameParticipantsTable.gameId, gameId),
-             eq(gameParticipantsTable.userId, req.session.userId!),
-         ),
-        );
-    if (!participant) {
-        res.status(403).json({ error: "Access denied" });
-        return;
-    }
-}
+  // Admins: enforce game ownership. Players: must be a participant in the game.
+  if (req.session.isAdmin) {
+      if (!await assertGameOwnership(req, res, gameId)) return;
+  } else {
+      const [participant] = await db
+          .select({ id: gameParticipantsTable.id })
+          .from(gameParticipantsTable)
+          .where(
+              and(
+                  eq(gameParticipantsTable.gameId, gameId),
+                  eq(gameParticipantsTable.userId, req.session.userId!),
+              ),
+          );
+      if (!participant) {
+          res.status(403).json({ error: "Access denied" });
+          return;
+      }
+  }
 
+  const [question] = await db
+      .select({ id: questionsTable.id })
+      .from(questionsTable)
+      .where(
+          and(
+              eq(questionsTable.id, questionId),
+              eq(questionsTable.gameId, gameId),
+          ),
+      );
+  if (!question) {
+      res.status(404).json({ error: "Question not found" });
+      return;
+  }
 
-const [question] = await db
-    .select({ id: questionsTable.id })
-    .from(questionsTable)
-    .where(
-        and(
-         eq(questionsTable.id, questionId),
-         eq(questionsTable.gameId, gameId),
-        ),
-    );
-     if (!question) {
-         res.status(404).json({ error: "Question not found" });
-         return;
-     }
-
-
-     const rows = await db
-         .select({ isCorrect: answersTable.isCorrect })
-         .from(answersTable)
-         .where(
+  const rows = await db
+      .select({ isCorrect: answersTable.isCorrect })
+      .from(answersTable)
+      .where(
           and(
               eq(answersTable.gameId, gameId),
               eq(answersTable.questionId, questionId),
           ),
-         );
+      );
 
-
-     const totalAnswered = rows.length;
-     const correctCount = rows.filter((r) => r.isCorrect).length;
-
-
-     res.json({ totalAnswered, correctCount });
+  const totalAnswered = rows.length;
+  const correctCount = rows.filter((r) => r.isCorrect).length;
+  res.json({ totalAnswered, correctCount });
  },
 );
 
@@ -444,12 +425,26 @@ const [game] = await db
     .from(gamesTable)
     .where(eq(gamesTable.id, params.data.gameId));
 
-
 if (!game) {
     res.status(404).json({ error: "Game not found" });
     return;
 }
 
+const [participant] = await db
+    .select({ id: gameParticipantsTable.id })
+    .from(gameParticipantsTable)
+    .where(
+        and(
+            eq(gameParticipantsTable.gameId, params.data.gameId),
+            eq(gameParticipantsTable.userId, params.data.userId),
+        ),
+    )
+    .limit(1);
+
+if (!participant) {
+    res.status(403).json({ error: "Access denied" });
+    return;
+}
 
 const gameCompleted = game.status === "completed";
 const rows = await db
@@ -655,5 +650,3 @@ router.post(
 
 
 export default router;
-
-

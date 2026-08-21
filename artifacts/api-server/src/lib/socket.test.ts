@@ -46,6 +46,14 @@ const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
   req.session.save(() => res.json({ ok: true }));
 });
 
+// Simulates a pre-email-auth legacy cookie. It has no tenant identity and must
+// not receive events from a game owned by an email-authenticated host.
+(router as IRouter).post("/test-set-legacy-socket-admin-session", (req, res): void => {
+  req.session.isAdmin = true;
+  req.session.adminAccountId = undefined;
+  req.session.save(() => res.json({ ok: true }));
+});
+
 function listen(server: import("node:http").Server): Promise<number> {
   return new Promise((resolve, reject) => {
     server.once("error", reject);
@@ -94,6 +102,7 @@ describe("Socket.IO host game-room ownership", () => {
   let ownerCookie: string;
   let ownerSocket: Socket;
   let foreignSocket: Socket;
+  let legacySocket: Socket;
   let ownerAdminId: number;
   let foreignAdminId: number;
 
@@ -146,11 +155,18 @@ describe("Socket.IO host game-room ownership", () => {
     assert.equal(foreignSession.status, 200);
     const foreignCookie = foreignSession.headers["set-cookie"]![0]!.split(";")[0]!;
     foreignSocket = await connect(port, foreignCookie);
+
+    const legacyAgent = request.agent(app);
+    const legacySession = await legacyAgent.post("/api/test-set-legacy-socket-admin-session");
+    assert.equal(legacySession.status, 200);
+    const legacyCookie = legacySession.headers["set-cookie"]![0]!.split(";")[0]!;
+    legacySocket = await connect(port, legacyCookie);
   });
 
   after(async () => {
     ownerSocket?.disconnect();
     foreignSocket?.disconnect();
+    legacySocket?.disconnect();
     await new Promise<void>((resolve) => ioServer.close(() => resolve()));
     await new Promise<void>((resolve) => httpServer.close(() => resolve()));
     await pool.query("DELETE FROM games WHERE id = ANY($1)", [[ownGameId, foreignGameId]]);
@@ -170,6 +186,36 @@ describe("Socket.IO host game-room ownership", () => {
     });
     safeEmit(`game:${ownGameId}`, "game:ended", { gameId: ownGameId });
     assert.deepEqual(await received, { gameId: ownGameId });
+  });
+
+  it("returns summary totals for only the authenticated host's games", async () => {
+    const stats = await request(app)
+      .get("/api/stats/summary")
+      .set("Cookie", ownerCookie);
+
+    assert.equal(stats.status, 200);
+    assert.deepEqual(stats.body, {
+      totalGames: 1,
+      activeGames: 1,
+      totalPlayers: 0,
+      totalAnswers: 0,
+    });
+  });
+
+  it("places admins in tenant-specific lobbies instead of a global room", async () => {
+    ownerSocket.emit("lobby:join");
+    legacySocket.emit("lobby:join");
+    const joined = await waitFor(() =>
+      (ioServer.sockets.adapter.rooms.get(`lobby:host:${ownerAdminId}`)?.has(ownerSocket.id) ?? false)
+      && (ioServer.sockets.adapter.rooms.get("lobby:legacy")?.has(legacySocket.id) ?? false),
+    );
+
+    assert.equal(joined, true, "admin lobby subscriptions must be tenant-specific");
+    assert.equal(
+      ioServer.sockets.adapter.rooms.get("lobby")?.has(ownerSocket.id) ?? false,
+      false,
+      "a host must not join the former global lobby",
+    );
   });
 
   it("rejects a host from another tenant's room and withholds its live events", async () => {
@@ -194,5 +240,21 @@ describe("Socket.IO host game-room ownership", () => {
     safeEmit(`game:${foreignGameId}`, "game:ended", { gameId: foreignGameId });
     await new Promise((resolve) => setTimeout(resolve, 100));
     assert.equal(received, false, "foreign host must not receive another tenant's live events");
+  });
+
+  it("rejects a legacy admin from an owned tenant's live and host rooms", async () => {
+    legacySocket.emit("game:join", foreignGameId);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    assert.equal(
+      ioServer.sockets.adapter.rooms.get(`game:${foreignGameId}`)?.has(legacySocket.id) ?? false,
+      false,
+      "legacy admin must not join another host's live room",
+    );
+    assert.equal(
+      ioServer.sockets.adapter.rooms.get(`game:host:${foreignGameId}`)?.has(legacySocket.id) ?? false,
+      false,
+      "legacy admin must not join another host's private event room",
+    );
   });
 });

@@ -11,6 +11,8 @@
 - [Admin code source of truth](admin-auth-code-source.md) — /api/admin/login checks ADMIN_ACCESS_KEY env before the DB code; the two can disagree. Socket singleton: one hook cleanup disconnects all.
 - [Live tally seeding](live-tally-seeding.md) — seed+socket live counts must use the synchronous ref store in lib/live-tally; React-state flags misroute transition events and double-count.
 - [Access code security model](access-code-security.md) — trivia 4–6 chars / case-insensitive; admin 12–64 chars / bcrypt hashed / never returned to client; bootstrap auto-migrates plain text.
+- [Game access authorization](game-access-authorization.md) — only server-side room-code grants or participation authorize a player to see or join a game.
+- [Tenant aggregate isolation](tenant-aggregate-isolation.md) — host metrics must be derived through owned-game joins, never global player or answer totals.
 - [Content filter](content-filter.md) — naughty-words list, collapse-3+-to-2 normalization (not to-1 or Niger false-positives), 4 server enforcement points, client surfacing pattern.
 - [Player removal (kick)](player-removal.md) — lib/db dist must be rebuilt (npx tsc) after new schema tables; userId-based block; player:kicked socket to game room; active-games-only guard.
 - [API server zod import](api-server-zod.md) — api-server has no direct zod dependency; use plain typeof guards for inline validation, or @workspace/api-zod for generated schemas. `zod/v4` import causes build failure.

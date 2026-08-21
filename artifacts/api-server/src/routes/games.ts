@@ -1,10 +1,11 @@
 
 import { Router, type IRouter } from "express";
-import { and, or, eq, desc, count } from "drizzle-orm";
+import { and, or, eq, desc, count, inArray, isNull } from "drizzle-orm";
 import {
  db,
  gamesTable,
  gameParticipantsTable,
+  gameAccessGrantsTable,
  adminAccountsTable,
  usersTable,
 } from "@workspace/db";
@@ -90,23 +91,55 @@ router.get("/games", requireAuth, async (req, res): Promise<void> => {
      return;
  }
 
- const status = query.data.status;
- const ownerAdminId = req.session.adminAccountId;
+  const status = query.data.status;
+  let games: Array<typeof gamesTable.$inferSelect>;
 
- // Email-auth admins see only their own games.
- // Code-based (legacy) admins and players see all games.
- const ownerFilter = ownerAdminId != null
-     ? eq(gamesTable.ownerAdminId, ownerAdminId)
-     : undefined;
+  if (req.session.isAdmin === true) {
+    const ownerAdminId = req.session.adminAccountId;
+    // Scoped email-auth admins see only their own games. A legacy session has
+    // no tenant identity, so it may see only ownerless migration games.
+    const ownerFilter = ownerAdminId != null
+        ? eq(gamesTable.ownerAdminId, ownerAdminId)
+        : isNull(gamesTable.ownerAdminId);
+    const statusFilter = status ? eq(gamesTable.status, status) : undefined;
+    const whereClause = statusFilter ? and(ownerFilter, statusFilter) : ownerFilter;
+    games = await db.select().from(gamesTable).where(whereClause).orderBy(desc(gamesTable.createdAt));
+  } else {
+    const userId = req.session.userId;
+    if (userId == null) {
+      res.status(401).json({ error: "Not authenticated" });
+      return;
+    }
 
- const statusFilter = status ? eq(gamesTable.status, status) : undefined;
- const whereClause = ownerFilter && statusFilter
-     ? and(ownerFilter, statusFilter)
-     : ownerFilter ?? statusFilter;
+    // A player may see only games with a server-recorded room-code grant or a
+    // participant record. Do not trust client session/token game ID claims:
+    // old bridge-to-next requests could have written arbitrary IDs there.
+    const [participants, grants] = await Promise.all([
+      db
+        .select({ gameId: gameParticipantsTable.gameId })
+        .from(gameParticipantsTable)
+        .where(eq(gameParticipantsTable.userId, userId)),
+      db
+        .select({ gameId: gameAccessGrantsTable.gameId })
+        .from(gameAccessGrantsTable)
+        .where(eq(gameAccessGrantsTable.userId, userId)),
+    ]);
+    const authorizedGameIds = [
+      ...new Set([
+        ...participants.map(({ gameId }) => gameId),
+        ...grants.map(({ gameId }) => gameId),
+      ]),
+    ];
 
- const games = whereClause
-     ? await db.select().from(gamesTable).where(whereClause).orderBy(desc(gamesTable.createdAt))
-     : await db.select().from(gamesTable).orderBy(desc(gamesTable.createdAt));
+    if (authorizedGameIds.length === 0) {
+      games = [];
+    } else {
+      const accessFilter = inArray(gamesTable.id, authorizedGameIds);
+      const statusFilter = status ? eq(gamesTable.status, status) : undefined;
+      const whereClause = statusFilter ? and(accessFilter, statusFilter) : accessFilter;
+      games = await db.select().from(gamesTable).where(whereClause).orderBy(desc(gamesTable.createdAt));
+    }
+  }
 
  // Participant counts per game
  const participantCounts = await db
@@ -378,78 +411,21 @@ router.patch("/games/:gameId", requireAdmin, async (req, res): Promise<void> => 
 
  // Real-time: notify relevant rooms when status changes
  if (game.status === "active") {
-     safeEmit("lobby", "game:started", { gameId: game.id, topic: game.topic });
+      safeEmit(`game:${game.id}`, "game:started", { gameId: game.id, topic: game.topic });
  } else if (game.status === "completed") {
      safeEmit(`game:${game.id}`, "game:ended", { gameId: game.id });
  }
 });
 
 
-// ─── Next-game-by-host (player-facing, no auth required) ─────────────────────
-// Given a completed game, returns the first waiting/active game by the same
-// host (excluding the current game). Used to power the mobile bridge button.
-router.get("/games/:gameId/next-by-host", async (req, res): Promise<void> => {
- const gameId = parseInt(String(req.params['gameId'] ?? ""), 10);
- if (!gameId || isNaN(gameId)) { res.status(400).json({ error: "Invalid gameId" }); return; }
-
- const [current] = await db.select({ ownerAdminId: gamesTable.ownerAdminId })
-   .from(gamesTable).where(eq(gamesTable.id, gameId));
- if (!current || current.ownerAdminId == null) { res.json({ game: null }); return; }
-
- const [next] = await db.select({ id: gamesTable.id, topic: gamesTable.topic, status: gamesTable.status })
-   .from(gamesTable)
-   .where(and(
-     eq(gamesTable.ownerAdminId, current.ownerAdminId),
-     or(eq(gamesTable.status, "waiting"), eq(gamesTable.status, "active")),
-     // exclude the current game
-   ))
-   .orderBy(desc(gamesTable.createdAt))
-   .limit(1);
-
- const game = next && next.id !== gameId ? next : null;
- res.json({ game: game ? toJsonSafe(game) : null });
-});
-
-
-// ─── Bridge-to-next (requireUser — adds next game to session allowedGameIds) ──
-// Verifies the calling player is a participant of the current game, then finds
-// the next game by the same host and adds it to the session so the player can
-// call POST /games/:nextId/join without a room code.
+// ─── Bridge-to-next (retired) ─────────────────────────────────────────────────
+// A prior-game participant is not evidence that the host authorized access to
+// a different game. There is no explicit host-to-player bridge grant in the
+// data model, so this endpoint must never change game authorization state.
 router.post("/games/:gameId/bridge-to-next", requireUser, async (req, res): Promise<void> => {
- const gameId = parseInt(String(req.params['gameId'] ?? ""), 10);
- if (!gameId || isNaN(gameId)) { res.status(400).json({ error: "Invalid gameId" }); return; }
-
- const userId = req.session.userId!;
-
- // Verify the player is a participant of the current game.
- const [participant] = await db.select({ id: gameParticipantsTable.id })
-   .from(gameParticipantsTable)
-   .where(and(eq(gameParticipantsTable.gameId, gameId), eq(gameParticipantsTable.userId, userId)));
- if (!participant) { res.status(403).json({ error: "Not a participant of this game" }); return; }
-
- // Find the next game by the same host.
- const [current] = await db.select({ ownerAdminId: gamesTable.ownerAdminId })
-   .from(gamesTable).where(eq(gamesTable.id, gameId));
- if (!current || current.ownerAdminId == null) { res.json({ game: null }); return; }
-
- const [next] = await db.select({ id: gamesTable.id, topic: gamesTable.topic, status: gamesTable.status })
-   .from(gamesTable)
-   .where(and(
-     eq(gamesTable.ownerAdminId, current.ownerAdminId),
-     or(eq(gamesTable.status, "waiting"), eq(gamesTable.status, "active")),
-   ))
-   .orderBy(desc(gamesTable.createdAt))
-   .limit(1);
-
- if (!next || next.id === gameId) { res.json({ game: null }); return; }
-
- // Grant session access to the next game so the player can call POST /join.
- const existing: number[] = req.session.allowedGameIds ?? [];
- if (!existing.includes(next.id)) {
-   req.session.allowedGameIds = [...existing, next.id];
- }
-
- res.json({ game: toJsonSafe(next) });
+  res.status(410).json({
+    error: "Automatic transition is no longer available. Enter the next game's access code to join.",
+  });
 });
 
 

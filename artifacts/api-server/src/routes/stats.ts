@@ -2,8 +2,8 @@
 import { Router, type IRouter } from "express";
 import { and, eq, count, sql } from "drizzle-orm";
 import {
- db,
- gamesTable,
+  db,
+  gamesTable,
   answersTable,
   gameParticipantsTable,
 } from "@workspace/db";
@@ -45,10 +45,10 @@ router.get("/stats/summary", requireAdmin, async (req, res): Promise<void> => {
 
 res.json(
  GetStatsSummaryResponse.parse({
-     totalGames: totalGames?.value ?? 0,
-     activeGames: activeGames?.value ?? 0,
-     totalPlayers: totalPlayers?.value ?? 0,
-     totalAnswers: totalAnswers?.value ?? 0,
+      totalGames: totalGames?.value ?? 0,
+      activeGames: activeGames?.value ?? 0,
+      totalPlayers: totalPlayers?.value ?? 0,
+      totalAnswers: totalAnswers?.value ?? 0,
  }),
 );
 });

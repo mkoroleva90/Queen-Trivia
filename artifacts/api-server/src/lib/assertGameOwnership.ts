@@ -11,9 +11,10 @@ import { db, gameParticipantsTable, gamesTable } from "@workspace/db";
  * requested game belongs to them. Ownerless games are NOT accessible to regular
  * hosts — they are surfaced only through the owner dashboard.
  *
- * Legacy code-based admins (no `adminAccountId`) are treated as super-admins
- * and bypass the check (backwards-compatibility path — the login UI no longer
- * exposes this route, but the session type can still exist until it expires).
+ * Legacy code-based admins (no `adminAccountId`) may still manage ownerless
+ * legacy games while those games are being assigned to host accounts. They
+ * cannot access games owned by an email-authenticated host because they have
+ * no tenant identity to authorize against.
  *
  * Returns `true` if access is allowed (caller may proceed).
  * Returns `false` if access was denied — a 403 or 404 response has already been
@@ -50,12 +51,6 @@ export async function assertGameOwnership(
     return true;
   }
 
-  const ownerAdminId = req.session.adminAccountId;
-  if (ownerAdminId == null) {
-    // Code-based (legacy) admin — no ownership restriction.
-    return true;
-  }
-
   const [game] = await db
     .select({ ownerAdminId: gamesTable.ownerAdminId })
     .from(gamesTable)
@@ -64,6 +59,15 @@ export async function assertGameOwnership(
 
   if (!game) {
     res.status(404).json({ error: "Game not found" });
+    return false;
+  }
+
+  const ownerAdminId = req.session.adminAccountId;
+  if (ownerAdminId == null) {
+    // Legacy sessions have no tenant identity. Keep the migration path for
+    // ownerless legacy games, but never let it cross into an owned tenant.
+    if (game.ownerAdminId == null) return true;
+    res.status(403).json({ error: "A host account is required to access this game" });
     return false;
   }
 

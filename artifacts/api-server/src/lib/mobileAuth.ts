@@ -7,12 +7,12 @@
  * in SecureStore and sends as `Authorization: Bearer <token>`.
  *
  * Supports two token roles:
- *  - 'player' — regular trivia player (has userId, allowedGameIds)
+ *  - 'player' — regular trivia player (has userId)
  *  - 'admin'  — host/admin (sets isAdmin = true on the session)
  *
  * `injectMobileSession` runs after sessionMiddleware on every request.
  * When a valid Bearer token is present it populates req.session so that
- * all existing requireUser / requireAdmin / allowedGameIds checks work
+ * existing requireUser / requireAdmin checks work transparently.
  * transparently without any route changes.
  */
 
@@ -28,15 +28,13 @@ const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 interface PlayerTokenPayload {
   role?: "player"; // optional — old tokens omit this field
   userId: number;
-  /** Array of game IDs this player is allowed to join. */
-  allowedGameIds: number[] | null;
   iat: number;
 }
 
 interface AdminTokenPayload {
   role: "admin";
-  /** Scoped to an email-authenticated admin account. Null = legacy code-based super-admin. */
-  adminAccountId: number | null;
+  /** Scoped to an email-authenticated admin account. */
+  adminAccountId: number;
   iat: number;
 }
 
@@ -87,27 +85,24 @@ function parseToken(token: string): AnyTokenPayload | null {
 
 /**
  * Generate a signed HMAC token for a mobile player session.
- * @param allowedGameIds  Array of game IDs this player may join.
  */
 export function generateMobileToken(
   userId: number,
-  allowedGameIds: number[],
 ): string {
-  return makeToken({ role: "player", userId, allowedGameIds, iat: Date.now() });
+  return makeToken({ role: "player", userId, iat: Date.now() });
 }
 
 /**
  * Generate a signed HMAC token for a mobile admin session.
  *
- * @param adminAccountId  Pass the email-admin account ID for scoped access (owns
- *   only their games), or `null` for a legacy code-based super-admin token (all
- *   games, matching existing code-admin cookie behaviour).
+ * @param adminAccountId  The email-admin account ID that scopes access to the
+ *   account's games.
  * @param options.issuedAt  Override the `iat` field (ms since epoch). Use when you
  *   need the token to be provably newer than a known `passwordChangedAt` timestamp
  *   (e.g. pass `passwordChangedAt.getTime() + 1` from the change-password route).
  */
 export function generateAdminToken(
-  adminAccountId: number | null = null,
+  adminAccountId: number,
   options?: { issuedAt?: number },
 ): string {
   const iat = options?.issuedAt ?? Date.now();
@@ -119,7 +114,7 @@ export function generateAdminToken(
 /**
  * Runs after sessionMiddleware. If the request carries a valid Bearer token
  * and no active cookie session exists, hydrates req.session so that
- * requireUser, requireAdmin, and allowedGameIds checks all pass.
+ * requireUser and requireAdmin checks all pass.
  */
 export async function injectMobileSession(
   req: Request,
@@ -149,9 +144,17 @@ export async function injectMobileSession(
       return next();
     }
 
-    // For email-authenticated admin tokens, verify the token was issued after
-    // the most recent password change to enforce revocation.
-    if (payload.adminAccountId != null) {
+    // Reject legacy/null admin tokens. A token without a tenant identity must
+    // never hydrate a super-admin session.
+    if (!Number.isSafeInteger(payload.adminAccountId) || payload.adminAccountId <= 0) {
+      req.session.isAdmin = false;
+      req.session.adminAccountId = undefined;
+      return next();
+    }
+
+    // Verify the token was issued after the most recent password change to
+    // enforce revocation.
+    {
       let revoked = false;
       try {
         const [acct] = await db
@@ -179,8 +182,7 @@ export async function injectMobileSession(
     req.session.isAdmin = true;
     req.session.userId = undefined;
     req.session.userName = undefined;
-    // null → legacy code-based super-admin; number → email-auth scoped admin.
-    req.session.adminAccountId = payload.adminAccountId ?? undefined;
+    req.session.adminAccountId = payload.adminAccountId;
     return next();
   }
 
@@ -195,19 +197,6 @@ export async function injectMobileSession(
     req.session.userId = p.userId;
     req.session.isAdmin = false;
 
-    // Per-game: union of token's allowed IDs + current participant rows.
-    const tokenIds = p.allowedGameIds ?? [];
-    try {
-      const rows = await db
-        .select({ gameId: gameParticipantsTable.gameId })
-        .from(gameParticipantsTable)
-        .where(eq(gameParticipantsTable.userId, p.userId));
-      const dbIds = rows.map((r) => r.gameId);
-      const all = new Set([...tokenIds, ...dbIds]);
-      req.session.allowedGameIds = [...all];
-    } catch {
-      req.session.allowedGameIds = tokenIds;
-    }
   }
 
   next();

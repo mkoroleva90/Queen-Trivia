@@ -150,6 +150,7 @@ describe("player game-data authorization", () => {
   let joinedGame: TestGame;
   let otherGame: TestGame;
   let playerAgent: ReturnType<typeof request.agent>;
+  let playerUserId: number;
   const JOINED_CODE = "TISOL1";
   const OTHER_CODE = "TISOL2";
 
@@ -162,6 +163,7 @@ describe("player game-data authorization", () => {
       .post("/api/auth/login")
       .send({ code: JOINED_CODE, name: "__test__game_isolation" });
     assert.equal(loginRes.status, 200, `player login failed: ${JSON.stringify(loginRes.body)}`);
+    playerUserId = loginRes.body.id;
 
     const joinRes = await playerAgent.post(`/api/games/${joinedGame.id}/join`);
     assert.equal(joinRes.status, 201, `player join failed: ${JSON.stringify(joinRes.body)}`);
@@ -190,6 +192,13 @@ describe("player game-data authorization", () => {
     assert.equal(res.status, 200, `expected 200 but got ${res.status}: ${JSON.stringify(res.body)}`);
     assert.equal(res.body.game.accessCode, null);
     assert.equal(JSON.stringify(res.body).includes(JOINED_CODE), false, "must not expose the joined game's access code");
+  });
+
+  it("rejects a player's own answer history for an unjoined game", async () => {
+    const res = await playerAgent.get(
+      `/api/games/${otherGame.id}/users/${playerUserId}/answers`,
+    );
+    assert.equal(res.status, 403, `expected 403 but got ${res.status}: ${JSON.stringify(res.body)}`);
   });
 });
 
@@ -385,7 +394,7 @@ describe("POST /api/auth/login — active session returns existing user", () => 
 //
 // Verifies the full removed_participants flow end-to-end:
 //  1. A player joins an active game.
-//  2. A host (admin session, no adminAccountId → legacy bypass) kicks them.
+//  2. A legacy admin session manages the ownerless test game and kicks them.
 //  3. The removed_participants row is written to the database.
 //  4. The kicked player's next join attempt returns 403.
 
@@ -394,8 +403,8 @@ describe("POST /api/auth/login — active session returns existing user", () => 
 // and is never shipped to production.
 (router as IRouter).post("/test-set-admin-session", (req, res): void => {
   req.session.isAdmin = true;
-  // Deliberately omit adminAccountId so assertGameOwnership skips ownership
-  // check (legacy-admin / super-admin code path).
+  // Deliberately omit adminAccountId: legacy sessions may still manage
+  // ownerless migration games, which is how the test fixture is seeded.
   req.session.save(() => res.json({ ok: true }));
 });
 
@@ -467,8 +476,8 @@ describe("DELETE /api/games/:gameId/participants/:userId — kick + rejoin block
 
   it("kicked player is rejected with 403 when attempting to rejoin (same session)", async () => {
     // playerAgent already holds the session cookie with the original userId.
-    // The login route's "already logged in" path will restore allowedGameIds
-    // without creating a new user, so the join check uses the correct userId.
+    // The login route's "already logged in" path restores the same player
+    // identity and refreshes the durable room-code grant.
     const reloginRes = await playerAgent
       .post("/api/auth/login")
       .send({ code: ACCESS_CODE });

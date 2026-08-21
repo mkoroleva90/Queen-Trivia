@@ -70,7 +70,15 @@ export function initSocket(server: HTTPServer): IO {
         logger.debug({ socketId: socket.id }, "Unauthenticated lobby:join rejected");
         return;
       }
-      void socket.join("lobby");
+      if (!req.session.isAdmin) {
+        // Players are notified through their authorized game room, never a
+        // platform-wide lobby that could disclose another host's activity.
+        return;
+      }
+      const adminAccountId = req.session.adminAccountId;
+      void socket.join(
+        adminAccountId == null ? "lobby:legacy" : `lobby:host:${adminAccountId}`,
+      );
     });
 
     socket.on("game:join", async (gameId: number) => {
@@ -84,15 +92,7 @@ export function initSocket(server: HTTPServer): IO {
       }
 
       if (req.session.isAdmin) {
-        // Only the retired code-based admin path is a super-admin. Email-auth
-        // hosts must own the requested game before they can observe its live room.
         const adminAccountId = req.session.adminAccountId;
-        if (adminAccountId == null) {
-          await socket.join(`game:${gameId}`);
-          await socket.join(`game:host:${gameId}`);
-          return;
-        }
-
         try {
           const [game] = await db
             .select({ ownerAdminId: gamesTable.ownerAdminId })
@@ -100,7 +100,15 @@ export function initSocket(server: HTTPServer): IO {
             .where(eq(gamesTable.id, gameId))
             .limit(1);
 
-          if (!game || game.ownerAdminId == null || game.ownerAdminId !== adminAccountId) {
+          // A legacy cookie has no tenant identity. It may observe only
+          // ownerless migration games, matching assertGameOwnership; it must
+          // never subscribe to a room belonging to an email-auth host.
+          const canJoin = game != null && (
+            adminAccountId == null
+              ? game.ownerAdminId == null
+              : game.ownerAdminId != null && game.ownerAdminId === adminAccountId
+          );
+          if (!canJoin) {
             logger.debug({ socketId: socket.id, gameId, adminAccountId }, "game:join rejected: host does not own game");
             return;
           }

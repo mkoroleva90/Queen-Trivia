@@ -142,17 +142,6 @@ export default function ResultsScreen() {
     retry: false,
   });
 
-  const { data: nextGame } = useQuery<{ game: { id: number; topic: string; status: string } | null }>({
-    queryKey: ['next-game-by-host', gameId],
-    queryFn: async () => {
-      const r = await fetch(`${baseUrl}/api/games/${gameId}/next-by-host`);
-      if (!r.ok) return { game: null };
-      return r.json() as Promise<{ game: { id: number; topic: string; status: string } | null }>;
-    },
-    enabled: !!gameId,
-    refetchInterval: 10000,
-  });
-
   const sortedQuestions = useMemo(() => [...questions].sort((a, b) => a.orderIndex - b.orderIndex), [questions]);
   const answerMap = useMemo(() => new Map(myAnswers.map((a) => [a.questionId, a])), [myAnswers]);
   const statsMap = useMemo(() => new Map(questionStats.map((s) => [s.id, s])), [questionStats]);
@@ -224,20 +213,6 @@ export default function ResultsScreen() {
   const { game, participants, totalQuestions } = results;
   const sortedParticipants = [...participants].sort((a, b) => a.rank - b.rank);
   const me = participants.find((p) => p.userId === userId);
-
-  const handleBridgeJoin = async () => {
-    if (!nextGame?.game) return;
-    try {
-      const r = await fetch(`${baseUrl}/api/games/${gameId}/bridge-to-next`, { method: 'POST' });
-      if (!r.ok) return;
-      const bridged = await r.json() as { game: { id: number; topic: string; status: string } | null };
-      if (!bridged.game) return;
-      await fetch(`${baseUrl}/api/games/${bridged.game.id}/join`, { method: 'POST' });
-      router.replace(`/game/${bridged.game.id}`);
-    } catch {
-      // silently ignore — button disappears on next poll if game is gone
-    }
-  };
 
   const handleShare = async () => {
     const shareText = me
@@ -327,17 +302,6 @@ export default function ResultsScreen() {
             </View>
             <Text style={[styles.myScore, { color: colors.accent }]}>{me.totalScore}</Text>
           </View>
-        )}
-
-        {/* Next-game bridge */}
-        {nextGame?.game && (
-          <TouchableOpacity
-            style={[styles.nextGameBridgeBtn, { backgroundColor: colors.primary }]}
-            onPress={handleBridgeJoin}
-          >
-            <Ionicons name="arrow-forward-circle" size={18} color="#ffffff" />
-            <Text style={styles.nextGameBridgeBtnText}>{COPY.results.nextGameLive}</Text>
-          </TouchableOpacity>
         )}
 
         {/* Leaderboard */}
@@ -565,8 +529,6 @@ const styles = StyleSheet.create({
   backBtnText: { fontSize: 16, fontWeight: '800' },
   reportBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14 },
   reportBtnText: { fontSize: 14, fontWeight: '600' },
-  nextGameBridgeBtn: { height: 54, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  nextGameBridgeBtnText: { fontSize: 15, fontWeight: '800', color: '#ffffff' },
   signOutBtn: { alignItems: 'center', paddingVertical: 14 },
   signOutBtnText: { fontSize: 14, fontWeight: '600' },
   errorContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },
