@@ -22,8 +22,10 @@ export const authRateLimit = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many attempts. Please wait 15 minutes before trying again." },
   skipSuccessfulRequests: false,
-  // Skip rate-limiting for loopback requests in development.
-  skip: (req) => isDev && isLoopback(req),
+  // Authentication endpoints must remain protected in development as well as
+  // production because the preview proxy presents anonymous traffic to the
+  // server as a loopback request.
+  store: new PgRateLimitStore(),
 });
 
 /**

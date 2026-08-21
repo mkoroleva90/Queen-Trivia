@@ -9,7 +9,7 @@
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --experimental-strip-types --test src/lib/grading.test.ts src/lib/promptInjection.test.ts src/services/geminiApi.test.ts",
-    "test:integration": "node --experimental-strip-types --test src/routes/app.test.ts src/routes/play.test.ts src/routes/reports.test.ts src/routes/stats.test.ts src/routes/answerConfidentiality.test.ts src/lib/socket.test.ts",
+    "test:integration": "node --experimental-strip-types --test src/routes/app.test.ts src/routes/authRateLimit.test.ts src/routes/play.test.ts src/routes/reports.test.ts src/routes/stats.test.ts src/routes/answerConfidentiality.test.ts src/lib/socket.test.ts",
     "test:all": "pnpm run test && pnpm run build && pnpm run test:integration"
   },
   "dependencies": {
