@@ -1,7 +1,8 @@
 
-import rateLimit from "express-rate-limit";
+import crypto from "node:crypto";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import type { Request } from "express";
-import { PgRateLimitStore } from "./pgRateLimitStore.ts";
+import { PgRateLimitStore, PgRollingRateLimitStore } from "./pgRateLimitStore.ts";
 
 const isDev = process.env["NODE_ENV"] !== "production";
 
@@ -12,7 +13,8 @@ function isLoopback(req: Request): boolean {
 
 /**
  * Strict rate limit for admin/auth routes:
- * 8 attempts per 15 minutes per IP.
+ * 8 attempts per 15 minutes per IP, persisted in PostgreSQL so limits apply
+ * across restarts and all deployed replicas.
  * Applied to admin settings, email login, and admin code verification.
  */
 export const authRateLimit = rateLimit({
@@ -22,12 +24,23 @@ export const authRateLimit = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many attempts. Please wait 15 minutes before trying again." },
   skipSuccessfulRequests: false,
-  // Authentication endpoints must remain protected in development as well as
-  // production because the preview proxy presents anonymous traffic to the
-  // server as a loopback request.
   store: new PgRateLimitStore(),
+  // Namespace keys because the shared store also backs the reports limiter.
+  keyGenerator: (req) => `auth:${ipKeyGenerator(req.ip ?? "0.0.0.0")}`,
+  // Authentication endpoints remain protected in development because the
+  // preview proxy presents anonymous traffic to the server as loopback.
 });
 
+/**
+ * Password-reset codes have limited entropy, so failed mobile reset attempts
+ * need a second, account-scoped limit in addition to the IP-based auth limit.
+ * The rolling window prevents fixed-window rollover during a code's validity
+ * period and remains in force if a new code is issued.
+ *
+ * An HMAC protects the account identifier stored in the rate-limit table from
+ * offline correlation if that table is exposed.
+ */
+export const mobileResetAttemptStore = new PgRollingRateLimitStore(30 * 60 * 1000);
 /**
  * Rate limit for public content reports:
  * 15 reports per hour per IP.
@@ -69,3 +82,16 @@ export const triviaJoinRateLimit = rateLimit({
   skipSuccessfulRequests: true,
   skip: (req) => isDev && isLoopback(req),
 });
+
+export function mobileResetAttemptKey(accountId: number): string {
+  const secret = process.env["SESSION_SECRET"];
+  if (!secret) {
+    throw new Error("SESSION_SECRET must be configured before password reset attempts can be tracked.");
+  }
+
+  const digest = crypto
+    .createHmac("sha256", secret)
+    .update(`mobile-password-reset:v1:${accountId}`)
+    .digest("hex");
+  return `mobile-password-reset:${digest}`;
+}

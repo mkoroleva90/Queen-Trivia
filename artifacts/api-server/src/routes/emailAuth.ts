@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
-import { and, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db, adminAccountsTable, sessionsTable, gamesTable } from "@workspace/db";
 import {
   EmailRegisterBody,
@@ -13,7 +13,11 @@ import {
   MobileForgotPasswordBody,
   MobileResetPasswordBody,
 } from "@workspace/api-zod";
-import { authRateLimit } from "../middleware/authRateLimit.ts";
+import {
+  authRateLimit,
+  mobileResetAttemptKey,
+  mobileResetAttemptStore,
+} from "../middleware/authRateLimit.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import {
   sendVerificationEmail,
@@ -376,7 +380,9 @@ router.post(
 
 // POST /api/auth/email/mobile-reset-password
 // Mobile variant: accepts email + 6-digit code + new password.
-// Looks up by both email and hash for extra safety (low code entropy).
+// A persistent, account-scoped failed-attempt limit is applied in addition to
+// the persistent IP limit, preventing distributed OTP guessing across code
+// reissues.
 // On success clears the token, invalidates web sessions, and returns a
 // mobile Bearer token so the app can sign the host in immediately.
 router.post(
@@ -397,19 +403,30 @@ router.post(
     const [account] = await db
       .select()
       .from(adminAccountsTable)
-      .where(
-        and(
-          eq(adminAccountsTable.email, normalised),
-          eq(adminAccountsTable.resetTokenHash, tokenHash)
-        )
-      )
+      .where(eq(adminAccountsTable.email, normalised))
       .limit(1);
 
     if (
       !account ||
       !account.resetTokenExpiry ||
-      account.resetTokenExpiry < now
+      account.resetTokenExpiry < now ||
+      !account.resetTokenHash
     ) {
+      res.status(400).json({ error: "That code is invalid or has expired." });
+      return;
+    }
+
+    const resetAttempt = await mobileResetAttemptStore.increment(
+      mobileResetAttemptKey(account.id),
+    );
+    if (resetAttempt.totalHits > 5) {
+      res.status(429).json({
+        error: "Too many reset attempts for this account. Please request a new code and try again later.",
+      });
+      return;
+    }
+
+    if (account.resetTokenHash !== tokenHash) {
       res.status(400).json({ error: "That code is invalid or has expired." });
       return;
     }
