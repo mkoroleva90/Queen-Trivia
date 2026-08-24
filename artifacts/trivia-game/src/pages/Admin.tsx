@@ -15,6 +15,10 @@ import { COPY } from "@workspace/copy";
 import { RunModeScreen, type RunMode } from "@/components/RunModeScreen";
 import { JoinCodeScreen } from "@/components/JoinCodeScreen";
 import { OpenTdbQuestionMixSelector, type OpenTdbImportMode } from "@/components/OpenTdbQuestionMixSelector";
+import {
+  QuestionSpecialistEditors,
+  type MultiSelectChoice,
+} from "@/components/QuestionSpecialistEditors";
 
 /**
  * Maps a PATCH /games/:id join-code failure to the shared field-level message,
@@ -164,6 +168,18 @@ type QuestionFormState = {
  questionType: QuestionType;
  correctAnswer: string;
  choices: string[];
+ orderingItems: string[];
+ multiSelectChoices: MultiSelectChoice[];
+ multiSelectCorrectOrder: string[];
+ sliderMin: string;
+ sliderMax: string;
+ sliderStep: string;
+ sliderUnit: string;
+ sliderTolerance: string;
+ sliderAnswer: string;
+ shortResponseAnswer: string;
+ shortResponseRubric: string;
+ shortResponseMaxWords: string;
  pairs: { left: string; right: string }[];
  imageUrl: string;
  points: string;
@@ -193,6 +209,22 @@ const emptyForm: QuestionFormState = {
     questionType: "multiple_choice",
     correctAnswer: "",
     choices: ["", "", "", ""],
+    orderingItems: ["", "", ""],
+    multiSelectChoices: [
+      { text: "", correct: false },
+      { text: "", correct: false },
+      { text: "", correct: false },
+    ],
+    multiSelectCorrectOrder: [],
+    sliderMin: "0",
+    sliderMax: "100",
+    sliderStep: "1",
+    sliderUnit: "",
+    sliderTolerance: "0",
+    sliderAnswer: "50",
+    shortResponseAnswer: "",
+    shortResponseRubric: "",
+    shortResponseMaxWords: "",
     pairs: [
      { left: "", right: "" },
      { left: "", right: "" },
@@ -206,9 +238,48 @@ const emptyForm: QuestionFormState = {
     factCheckUrl: "",
 };
 
+function specialistFieldsForType(type: QuestionType): Partial<QuestionFormState> {
+  if (type === "ordering") {
+    return { orderingItems: ["", "", ""] };
+  }
+  if (type === "multi_select") {
+    return {
+      multiSelectChoices: [
+        { text: "", correct: false },
+        { text: "", correct: false },
+        { text: "", correct: false },
+      ],
+      multiSelectCorrectOrder: [],
+    };
+  }
+  if (type === "slider") {
+    return {
+      sliderMin: "0",
+      sliderMax: "100",
+      sliderStep: "1",
+      sliderUnit: "",
+      sliderTolerance: "0",
+      sliderAnswer: "50",
+    };
+  }
+  if (type === "short_response") {
+    return {
+      shortResponseAnswer: "",
+      shortResponseRubric: "",
+      shortResponseMaxWords: "",
+    };
+  }
+  return {};
+}
+
 
 function emptyFormForType(type: QuestionType): QuestionFormState {
-    return { ...emptyForm, questionType: type, points: String(DEFAULT_POINTS[type]) };
+    return {
+      ...emptyForm,
+      ...specialistFieldsForType(type),
+      questionType: type,
+      points: String(DEFAULT_POINTS[type]),
+    };
 }
 
 
@@ -250,14 +321,26 @@ function FreeTierLimitModal({ msg, onClose }: { msg: string | null; onClose: () 
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-function formFromQuestion(q: Question): QuestionFormState {
+export function formFromQuestion(q: Question): QuestionFormState {
     const opts = q.options as
      |{
          choices?: string[];
          pairs?: { left: string; right: string }[];
          alternateAnswers?: string[];
+         items?: string[];
+         min?: number;
+         max?: number;
+         step?: number;
+         unit?: string;
+         tolerance?: number;
+         rubric?: string;
+         maxWords?: number;
      }
  | null;
+ const correctParts = (q.correctAnswer ?? "")
+   .split("|")
+   .map((part) => part.trim())
+   .filter(Boolean);
 return {
  questionText: q.questionText,
  questionType: q.questionType,
@@ -265,6 +348,29 @@ return {
  choices: opts?.choices?.length
      ? [...opts.choices]
      : ["", "", "", ""],
+ orderingItems: opts?.items?.length
+     ? [...opts.items]
+     : ["", "", ""],
+ multiSelectChoices: opts?.choices?.length
+     ? opts.choices.map((choice) => ({
+       text: choice,
+       correct: correctParts.includes(choice),
+     }))
+     : [
+       { text: "", correct: false },
+       { text: "", correct: false },
+       { text: "", correct: false },
+     ],
+  multiSelectCorrectOrder: q.questionType === "multi_select" ? correctParts : [],
+ sliderMin: typeof opts?.min === "number" ? String(opts.min) : "0",
+ sliderMax: typeof opts?.max === "number" ? String(opts.max) : "100",
+ sliderStep: typeof opts?.step === "number" ? String(opts.step) : "1",
+ sliderUnit: typeof opts?.unit === "string" ? opts.unit : "",
+ sliderTolerance: typeof opts?.tolerance === "number" ? String(opts.tolerance) : "0",
+ sliderAnswer: q.questionType === "slider" ? (q.correctAnswer ?? "") : "50",
+ shortResponseAnswer: q.questionType === "short_response" ? (q.correctAnswer ?? "") : "",
+ shortResponseRubric: typeof opts?.rubric === "string" ? opts.rubric : "",
+ shortResponseMaxWords: typeof opts?.maxWords === "number" ? String(opts.maxWords) : "",
  pairs: opts?.pairs?.length
      ? opts.pairs.map((p) => ({ ...p }))
      :[
@@ -281,8 +387,63 @@ return {
 };
 }
 
+type QuestionPreviewData = {
+  questionType: string;
+  questionText: string;
+  correctAnswer: string;
+  options: Record<string, unknown> | string[] | null;
+  points: number;
+  source: string;
+};
 
-function buildPayload(form: QuestionFormState, orderIndex: number) {
+function formFromPreview(preview: QuestionPreviewData): QuestionFormState {
+  const questionType = preview.questionType as QuestionType;
+  const options = preview.options && !Array.isArray(preview.options) ? preview.options : null;
+  const form = {
+    ...emptyFormForType(questionType),
+    questionType,
+    questionText: preview.questionText,
+    correctAnswer: preview.correctAnswer,
+    choices: Array.isArray(preview.options) && preview.options.length > 0
+      ? preview.options.filter((option): option is string => typeof option === "string")
+      : ["", "", "", ""],
+    points: String(preview.points),
+    source: preview.source,
+    imageUrl: "",
+    alternateAnswers: "",
+    factCheckUrl: "",
+  };
+  const correctParts = preview.correctAnswer.split("|").map((part) => part.trim()).filter(Boolean);
+
+  if (questionType === "ordering" && Array.isArray(options?.items)) {
+    form.orderingItems = options.items.filter((item): item is string => typeof item === "string");
+  }
+  if (questionType === "multi_select" && Array.isArray(options?.choices)) {
+    form.multiSelectChoices = options.choices
+      .filter((choice): choice is string => typeof choice === "string")
+      .map((choice) => ({ text: choice, correct: correctParts.includes(choice) }));
+    form.multiSelectCorrectOrder = correctParts;
+  }
+  if (questionType === "slider") {
+    form.sliderMin = typeof options?.min === "number" ? String(options.min) : form.sliderMin;
+    form.sliderMax = typeof options?.max === "number" ? String(options.max) : form.sliderMax;
+    form.sliderStep = typeof options?.step === "number" ? String(options.step) : form.sliderStep;
+    form.sliderUnit = typeof options?.unit === "string" ? options.unit : form.sliderUnit;
+    form.sliderTolerance = typeof options?.tolerance === "number"
+      ? String(options.tolerance)
+      : form.sliderTolerance;
+    form.sliderAnswer = preview.correctAnswer;
+  }
+  if (questionType === "short_response") {
+    form.shortResponseAnswer = preview.correctAnswer;
+    form.shortResponseRubric = typeof options?.rubric === "string" ? options.rubric : "";
+    form.shortResponseMaxWords = typeof options?.maxWords === "number" ? String(options.maxWords) : "";
+  }
+  return form;
+}
+
+
+export function buildPayload(form: QuestionFormState, orderIndex: number) {
  const points = Math.max(1, Number(form.points) ||DEFAULT_POINTS[form.questionType]);
     const base = {
         questionText: form.questionText.trim(),
@@ -306,6 +467,54 @@ function buildPayload(form: QuestionFormState, orderIndex: number) {
          correctAnswer: form.correctAnswer.trim(),
         };
     }
+if (form.questionType === "ordering") {
+    const items = form.orderingItems.map((item) => item.trim());
+    return {
+      ...base,
+      options: { items },
+      correctAnswer: items.join("|"),
+    };
+}
+if (form.questionType === "multi_select") {
+    const choices = form.multiSelectChoices.map((choice) => choice.text.trim());
+    const selectedChoices = form.multiSelectChoices
+      .filter((choice) => choice.correct)
+      .map((choice) => choice.text.trim())
+      .filter(Boolean);
+    const preservedCorrectOrder = form.multiSelectCorrectOrder
+      .filter((choice) => selectedChoices.includes(choice));
+    const correctAnswer = [
+      ...preservedCorrectOrder,
+      ...selectedChoices.filter((choice) => !preservedCorrectOrder.includes(choice)),
+    ].join("|");
+    return {
+      ...base,
+      options: { choices },
+      correctAnswer,
+    };
+}
+if (form.questionType === "slider") {
+    return {
+      ...base,
+      options: {
+        min: Number(form.sliderMin),
+        max: Number(form.sliderMax),
+        step: Number(form.sliderStep),
+        unit: form.sliderUnit.trim(),
+        tolerance: Number(form.sliderTolerance),
+      },
+      correctAnswer: String(Number(form.sliderAnswer)),
+    };
+}
+if (form.questionType === "short_response") {
+    const rubric = form.shortResponseRubric.trim();
+    const maxWords = form.shortResponseMaxWords.trim();
+    return {
+      ...base,
+      options: maxWords ? { rubric, maxWords: Number(maxWords) } : { rubric },
+      correctAnswer: form.shortResponseAnswer.trim(),
+    };
+}
 if (form.questionType === "matching") {
     const pairs = form.pairs
      .map((p) => ({ left: p.left.trim(), right: p.right.trim() }))
@@ -353,8 +562,14 @@ function payloadFromExisting(q: Question, orderIndex: number) {
     };
 }
 
+function finiteFormNumber(value: string): number | null {
+    if (!value.trim()) return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+}
 
-function validateForm(form: QuestionFormState): string | null {
+
+export function validateForm(form: QuestionFormState): string | null {
     if (!form.questionText.trim()) return "Question text is required";
     if (form.questionType === "multiple_choice") {
      const choices = form.choices.map((c) => c.trim()).filter(Boolean);
@@ -362,6 +577,44 @@ function validateForm(form: QuestionFormState): string | null {
      if (!form.correctAnswer.trim()) return "Pick the correct choice";
         if (!choices.includes(form.correctAnswer.trim()))
          return "Correct answer must be one of the choices";
+    } else if (form.questionType === "ordering") {
+        const items = form.orderingItems.map((item) => item.trim());
+        if (items.length < 3) return "Add at least 3 items";
+        if (items.some((item) => !item)) return "Every ordering item must be non-empty";
+        if (new Set(items.map((item) => item.toLocaleLowerCase())).size !== items.length)
+            return "Ordering items must be unique";
+    } else if (form.questionType === "multi_select") {
+        const choices = form.multiSelectChoices.map((choice) => choice.text.trim());
+        if (choices.length < 3) return "Add at least 3 choices";
+        if (choices.some((choice) => !choice)) return "Every choice must be non-empty";
+        if (new Set(choices.map((choice) => choice.toLocaleLowerCase())).size !== choices.length)
+            return "Choices must be unique";
+        const correctCount = form.multiSelectChoices.filter((choice) => choice.correct).length;
+        if (correctCount < 2 || correctCount >= choices.length)
+            return "Choose at least 2 correct choices and leave at least 1 incorrect choice";
+    } else if (form.questionType === "slider") {
+        const min = finiteFormNumber(form.sliderMin);
+        const max = finiteFormNumber(form.sliderMax);
+        const step = finiteFormNumber(form.sliderStep);
+        const tolerance = finiteFormNumber(form.sliderTolerance);
+        const answer = finiteFormNumber(form.sliderAnswer);
+        if (min === null || max === null || min >= max)
+            return "Minimum must be a finite number less than maximum";
+        if (step === null || step <= 0)
+            return "Step must be a finite number greater than 0";
+        if (tolerance === null || tolerance < 0)
+            return "Tolerance must be a finite number 0 or greater";
+        if (!form.sliderUnit.trim()) return "Unit is required";
+        if (answer === null || answer < min || answer > max)
+            return "Correct answer must be a finite number within minimum and maximum";
+    } else if (form.questionType === "short_response") {
+        if (!form.shortResponseRubric.trim()) return "A grading rubric is required";
+        if (!form.shortResponseAnswer.trim()) return "Correct answer is required";
+        if (form.shortResponseMaxWords.trim()) {
+            const maxWords = Number(form.shortResponseMaxWords);
+            if (!Number.isFinite(maxWords) || !Number.isInteger(maxWords) || maxWords <= 0)
+                return "Maximum words must be a positive integer";
+        }
     } else if (form.questionType === "matching") {
         const pairs = form.pairs.filter((p) => p.left.trim() && p.right.trim());
         if (pairs.length < 2) return "Add at least two complete pairs";
@@ -437,6 +690,7 @@ function QuestionForm({
 }) {
  const [form, setForm] = useState<QuestionFormState>(initial);
  const [aiLoading, setAiLoading] = useState(false);
+ const [showValidation, setShowValidation] = useState(false);
  const [upgradeLimitMsg, setUpgradeLimitMsg] = useState<string | null>(null);
  const { toast } = useToast();
  const set = <K extends keyof QuestionFormState>(k: K, v: QuestionFormState[K]) =>
@@ -464,10 +718,12 @@ function QuestionForm({
  const handleTypeChange = (v: QuestionType) => {
   setForm((f) => ({
        ...f,
+       ...specialistFieldsForType(v),
        questionType: v,
        correctAnswer: "",
        points: String(DEFAULT_POINTS[v]),
    }));
+   setShowValidation(false);
  };
 const validChoices = form.choices.map((c) => c.trim()).filter(Boolean);
 
@@ -620,6 +876,63 @@ return (
  </p>
 )}
    </div>
+  )}
+
+  {(form.questionType === "ordering"
+    || form.questionType === "multi_select"
+    || form.questionType === "slider"
+    || form.questionType === "short_response") && (
+    <QuestionSpecialistEditors
+      questionType={form.questionType}
+      orderingItems={form.orderingItems}
+      onOrderingItemsChange={(orderingItems) => set("orderingItems", orderingItems)}
+      multiSelectChoices={form.multiSelectChoices}
+       onMultiSelectChoicesChange={(multiSelectChoices) => setForm((previous) => {
+         const selectedChoices = multiSelectChoices
+           .filter((choice) => choice.correct)
+           .map((choice) => choice.text.trim())
+           .filter(Boolean);
+         const preservedCorrectOrder = previous.multiSelectCorrectOrder
+           .filter((choice) => selectedChoices.includes(choice));
+         return {
+           ...previous,
+           multiSelectChoices,
+           multiSelectCorrectOrder: [
+             ...preservedCorrectOrder,
+             ...selectedChoices.filter((choice) => !preservedCorrectOrder.includes(choice)),
+           ],
+         };
+       })}
+      sliderMin={form.sliderMin}
+      sliderMax={form.sliderMax}
+      sliderStep={form.sliderStep}
+      sliderUnit={form.sliderUnit}
+      sliderTolerance={form.sliderTolerance}
+      sliderAnswer={form.sliderAnswer}
+      onSliderFieldChange={(field, value) => {
+        const fieldKey = {
+          min: "sliderMin",
+          max: "sliderMax",
+          step: "sliderStep",
+          unit: "sliderUnit",
+          tolerance: "sliderTolerance",
+          answer: "sliderAnswer",
+        } as const;
+        set(fieldKey[field], value);
+      }}
+      shortResponseAnswer={form.shortResponseAnswer}
+      shortResponseRubric={form.shortResponseRubric}
+      shortResponseMaxWords={form.shortResponseMaxWords}
+      onShortResponseFieldChange={(field, value) => {
+        const fieldKey = {
+          answer: "shortResponseAnswer",
+          rubric: "shortResponseRubric",
+          maxWords: "shortResponseMaxWords",
+        } as const;
+        set(fieldKey[field], value);
+      }}
+      showErrors={showValidation}
+    />
   )}
 
 
@@ -839,6 +1152,7 @@ return (
          className="w-full font-bold"
          disabled={pending}
          onClick={() => {
+             setShowValidation(true);
              const err = validateForm(form);
              if (err) {
                  toast({ variant: "destructive", title: err });
@@ -1152,22 +1466,8 @@ return (
    body: JSON.stringify({ questionType: type, difficulty: game.difficulty ?? "medium" }),
   });
   if (!res.ok) throw new Error(await res.text());
-  const preview = await res.json() as {
-   questionType: string; questionText: string; correctAnswer: string;
-   options: string[] | null; points: number; source: string;
-  };
-  return {
-   questionType: preview.questionType as QuestionType,
-   questionText: preview.questionText,
-   correctAnswer: preview.correctAnswer,
-   choices: preview.options && preview.options.length > 0 ? preview.options : ["", "", "", ""],
-   pairs: [{ left: "", right: "" }, { left: "", right: "" }, { left: "", right: "" }, { left: "", right: "" }],
-   imageUrl: "",
-   points: String(preview.points),
-   alternateAnswers: "",
-   source: preview.source,
-   factCheckUrl: "",
-  };
+  const preview = await res.json() as QuestionPreviewData;
+  return formFromPreview(preview);
  }}
  onSubmit={(form) => {
   if (editing) {
