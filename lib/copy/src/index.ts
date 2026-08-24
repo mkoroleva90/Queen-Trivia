@@ -89,6 +89,15 @@ export const COPY = {
     category: 'Questions are pulled from Open Trivia Database.',
   },
 
+  /** Open Trivia Database question-mix selector labels. */
+  openTdbQuestionMix: {
+    title:    'Question mix',
+    standard: 'Multiple choice & true/false only',
+    extended: 'Multiple choice, true/false, write-in, ordering & multi-select',
+    surprise: 'Surprise me',
+    hint:     'Choose a question mix',
+  },
+
   /** Common button labels. */
   btn: {
     newGame:       'New game',

@@ -14,6 +14,7 @@ import {
 import { COPY } from "@workspace/copy";
 import { RunModeScreen, type RunMode } from "@/components/RunModeScreen";
 import { JoinCodeScreen } from "@/components/JoinCodeScreen";
+import { OpenTdbQuestionMixSelector, type OpenTdbImportMode } from "@/components/OpenTdbQuestionMixSelector";
 
 /**
  * Maps a PATCH /games/:id join-code failure to the shared field-level message,
@@ -1379,6 +1380,7 @@ const [retryCountdown, setRetryCountdown] = useState(0);
 const [dailyQuotaExhausted, setDailyQuotaExhausted] = useState(false);
 const [brief, setBrief] = useState("");
 const [playAlong, setPlayAlong] = useState(false);
+ const [openTdbMode, setOpenTdbMode] = useState<OpenTdbImportMode | null>(null);
 const [runMode, setRunMode] = useState<RunMode | null>(null);
 const [runModeChosen, setRunModeChosen] = useState(false);
 const [joinCodeChosen, setJoinCodeChosen] = useState(false);
@@ -1414,10 +1416,15 @@ const parseGeminiRateError = (err: unknown): { isDaily: boolean; isPerMinute: bo
 const isCustom = categoryId === "custom";
 const selectedCategory = OPENTDB_CATEGORIES.find((c) => String(c.id) === categoryId);
 const topicName = isCustom ? customTopic.trim() : (selectedCategory?.name ?? "");
-const canSubmit = topicName.length > 0 && !createGame.isPending && !working;
+ const canSubmit =
+  topicName.length > 0
+  && !createGame.isPending
+  && !working
+  && (isCustom || openTdbMode !== null);
 const handleSubmit = async (e: React.FormEvent) => {
  e.preventDefault();
  if (!canSubmit) return;
+  if (!isCustom && openTdbMode === null) return;
 
 
  let game: Game;
@@ -1443,13 +1450,19 @@ const handleSubmit = async (e: React.FormEvent) => {
   }
 
 
- if (!isCustom && selectedCategory) {
+  if (!isCustom && selectedCategory && openTdbMode !== null) {
   // OpenTDB path
   setWorkingLabel("Importing from Open Trivia Database…");
   try {
+      const importData = {
+        categoryId: selectedCategory.id,
+        difficulty,
+        amount: Number(amount),
+        mode: openTdbMode,
+      };
       const result = await importQuestions.mutateAsync({
        gameId: game.id,
-       data: { categoryId: selectedCategory.id, difficulty, amount: Number(amount) },
+        data: importData,
       });
       queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
       setImportedCount(result.imported);
@@ -1560,6 +1573,7 @@ const handleReset = () => {
  setImportError(null);
  setImportSource(null);
  setCustomTopic("");
+ setOpenTdbMode(null);
  setPlayAlong(false);
  setRunMode(null);
  setRunModeChosen(false);
@@ -1768,7 +1782,13 @@ return (
          {/* Category / Topic */}
          <div className="space-y-2">
           <Label>Category</Label>
-          <Select value={categoryId} onValueChange={setCategoryId}>
+           <Select
+            value={categoryId}
+            onValueChange={(value) => {
+             setCategoryId(value);
+             if (value === "custom") setOpenTdbMode(null);
+            }}
+           >
            <SelectTrigger className="h-12">
             <SelectValue placeholder="Select a category…" />
            </SelectTrigger>
@@ -1784,6 +1804,10 @@ return (
  </Select>
 <p className="text-xs text-muted-foreground mt-1">{isCustom ? 'Gemini AI generates questions on the topic you enter below.' : 'Questions are pulled from Open Trivia Database.'}</p>
 </div>
+
+ {!isCustom && (
+  <OpenTdbQuestionMixSelector value={openTdbMode} onSelect={setOpenTdbMode} />
+ )}
 
 
 {/* Custom topic text input */}
