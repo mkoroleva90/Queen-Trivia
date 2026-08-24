@@ -68,7 +68,13 @@ type QForm = {
   orderedItems: string[];
   sliderMin: string;
   sliderMax: string;
+  sliderStep: string;
+  sliderUnit: string;
+  sliderTolerance: string;
   sliderCorrect: string;
+  shortResponseAnswer: string;
+  shortResponseRubric: string;
+  shortResponseMaxWords: string;
   imageUrl: string;
   hotspotX: string;
   hotspotY: string;
@@ -104,6 +110,39 @@ const ALL_TYPES: QType[] = [
   'image_recognition', 'image_hotspot', 'matching',
 ];
 
+function specialistFieldsForType(type: QType): Partial<QForm> {
+  if (type === 'ordering') {
+    return { orderedItems: ['', '', ''] };
+  }
+  if (type === 'multi_select') {
+    return {
+      choices: ['', '', ''],
+      correctChoices: [],
+      correctAnswer: '',
+    };
+  }
+  if (type === 'slider') {
+    return {
+      sliderMin: '0',
+      sliderMax: '100',
+      sliderStep: '1',
+      sliderUnit: '',
+      sliderTolerance: '0',
+      sliderCorrect: '50',
+    };
+  }
+  if (type === 'short_response') {
+    return {
+      correctAnswer: '',
+      alternateAnswers: '',
+      shortResponseAnswer: '',
+      shortResponseRubric: '',
+      shortResponseMaxWords: '',
+    };
+  }
+  return {};
+}
+
 function emptyForm(type: QType = 'multiple_choice'): QForm {
   return {
     questionText: '', questionType: type,
@@ -111,11 +150,14 @@ function emptyForm(type: QType = 'multiple_choice'): QForm {
     choices: ['', '', '', ''], correctAnswer: '', correctChoices: [],
     tfAnswer: 'true', alternateAnswers: '',
     orderedItems: ['', '', '', ''],
-    sliderMin: '0', sliderMax: '100', sliderCorrect: '50',
+    sliderMin: '0', sliderMax: '100', sliderStep: '1', sliderUnit: '',
+    sliderTolerance: '0', sliderCorrect: '50',
+    shortResponseAnswer: '', shortResponseRubric: '', shortResponseMaxWords: '',
     imageUrl: '', hotspotX: '0.5', hotspotY: '0.5',
     pairs: [{ left: '', right: '' }, { left: '', right: '' }, { left: '', right: '' }],
     source: '',
     factCheckUrl: '',
+    ...specialistFieldsForType(type),
   };
 }
 
@@ -123,6 +165,7 @@ function formFromQuestion(q: Question): QForm {
   const opts = q.options as {
     choices?: string[]; pairs?: { left: string; right: string }[];
     alternateAnswers?: string[]; min?: number; max?: number;
+    step?: number; unit?: string; tolerance?: number; rubric?: string; maxWords?: number;
   } | null;
   const type = q.questionType as QType;
   const ca = q.correctAnswer ?? '';
@@ -140,15 +183,23 @@ function formFromQuestion(q: Question): QForm {
     questionText: q.questionText,
     questionType: type,
     points: String(q.points),
-    choices: opts?.choices?.length ? [...opts.choices, '', ''] : ['', '', '', ''],
-    correctAnswer: type === 'matching' || type === 'multi_select' || type === 'image_hotspot' ? '' : ca,
+    choices: opts?.choices?.length
+      ? (type === 'multi_select' ? [...opts.choices] : [...opts.choices, '', ''])
+      : ['', '', '', ''],
+    correctAnswer: type === 'matching' || type === 'multi_select' || type === 'image_hotspot' || type === 'short_response' ? '' : ca,
     correctChoices: type === 'multi_select' ? ca.split('|').filter(Boolean) : [],
     tfAnswer: ca === 'false' ? 'false' : 'true',
-    alternateAnswers: opts?.alternateAnswers?.join(', ') ?? '',
+    alternateAnswers: type === 'short_response' ? '' : (opts?.alternateAnswers?.join(', ') ?? ''),
     orderedItems: type === 'ordering' ? (optsWithItems?.items ?? []) : ['', '', '', ''],
     sliderMin: String(opts?.min ?? 0),
     sliderMax: String(opts?.max ?? 100),
+    sliderStep: String(opts?.step ?? 1),
+    sliderUnit: typeof opts?.unit === 'string' ? opts.unit : '',
+    sliderTolerance: String(opts?.tolerance ?? 0),
     sliderCorrect: type === 'slider' ? ca : '50',
+    shortResponseAnswer: type === 'short_response' ? ca : '',
+    shortResponseRubric: type === 'short_response' && typeof opts?.rubric === 'string' ? opts.rubric : '',
+    shortResponseMaxWords: type === 'short_response' && typeof opts?.maxWords === 'number' ? String(opts.maxWords) : '',
     imageUrl: q.imageUrl ?? '',
     hotspotX,
     hotspotY,
@@ -191,9 +242,24 @@ function buildPayload(form: QForm, orderIndex: number) {
     case 'slider':
       return {
         ...base,
-        options: { min: Number(form.sliderMin), max: Number(form.sliderMax) },
-        correctAnswer: form.sliderCorrect,
+        options: {
+          min: Number(form.sliderMin),
+          max: Number(form.sliderMax),
+          step: Number(form.sliderStep),
+          unit: form.sliderUnit.trim(),
+          tolerance: Number(form.sliderTolerance),
+        },
+        correctAnswer: String(Number(form.sliderCorrect)),
       };
+    case 'short_response': {
+      const rubric = form.shortResponseRubric.trim();
+      const maxWords = form.shortResponseMaxWords.trim();
+      return {
+        ...base,
+        options: maxWords ? { rubric, maxWords: Number(maxWords) } : { rubric },
+        correctAnswer: form.shortResponseAnswer.trim(),
+      };
+    }
     case 'matching': {
       const pairs = form.pairs
         .filter((p) => p.left.trim() && p.right.trim())
@@ -245,21 +311,59 @@ function validateForm(form: QForm): string | null {
       break;
     }
     case 'multi_select': {
-      const choices = form.choices.map((c) => c.trim()).filter(Boolean);
-      if (choices.length < 2) return 'Add at least two choices';
-      if (form.correctChoices.length === 0) return 'Select at least one correct answer';
+      const rawChoices = form.choices.map((c) => c.trim());
+      const choices = rawChoices.filter(Boolean);
+      if (choices.length < 3) return COPY.questionEditor.specialist.multiSelect.minError;
+      if (rawChoices.some((choice) => !choice)) return COPY.questionEditor.specialist.multiSelect.emptyError;
+      if (new Set(choices.map((choice) => choice.toLocaleLowerCase())).size !== choices.length) {
+        return COPY.questionEditor.specialist.multiSelect.uniqueError;
+      }
+      const correctChoices = form.correctChoices.filter((choice) => choices.includes(choice));
+      if (correctChoices.length < 2 || correctChoices.length >= choices.length) {
+        return COPY.questionEditor.specialist.multiSelect.correctnessError;
+      }
       break;
     }
     case 'ordering': {
-      const items = form.orderedItems.map((i) => i.trim()).filter(Boolean);
-      if (items.length < 2) return 'Add at least two items';
+      const items = form.orderedItems.map((i) => i.trim());
+      if (items.length < 3) return COPY.questionEditor.specialist.ordering.minError;
+      if (items.some((item) => !item)) return COPY.questionEditor.specialist.ordering.emptyError;
+      if (new Set(items.map((item) => item.toLocaleLowerCase())).size !== items.length) {
+        return COPY.questionEditor.specialist.ordering.uniqueError;
+      }
       break;
     }
     case 'slider': {
-      const min = Number(form.sliderMin); const max = Number(form.sliderMax);
-      const correct = Number(form.sliderCorrect);
-      if (isNaN(min) || isNaN(max) || min >= max) return 'Min must be less than Max';
-      if (isNaN(correct) || correct < min || correct > max) return 'Correct value must be between min and max';
+      const parseNumber = (value: string) => {
+        if (!value.trim()) return null;
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : null;
+      };
+      const min = parseNumber(form.sliderMin);
+      const max = parseNumber(form.sliderMax);
+      const step = parseNumber(form.sliderStep);
+      const tolerance = parseNumber(form.sliderTolerance);
+      const correct = parseNumber(form.sliderCorrect);
+      if (min === null || max === null || min >= max) {
+        return COPY.questionEditor.specialist.slider.rangeError;
+      }
+      if (step === null || step <= 0) return COPY.questionEditor.specialist.slider.stepError;
+      if (tolerance === null || tolerance < 0) return COPY.questionEditor.specialist.slider.toleranceError;
+      if (!form.sliderUnit.trim()) return COPY.questionEditor.specialist.slider.unitError;
+      if (correct === null || correct < min || correct > max) {
+        return COPY.questionEditor.specialist.slider.answerError;
+      }
+      break;
+    }
+    case 'short_response': {
+      if (!form.shortResponseRubric.trim()) return COPY.questionEditor.specialist.shortResponse.rubricError;
+      if (!form.shortResponseAnswer.trim()) return COPY.questionEditor.specialist.shortResponse.answerError;
+      if (form.shortResponseMaxWords.trim()) {
+        const maxWords = Number(form.shortResponseMaxWords);
+        if (!Number.isFinite(maxWords) || !Number.isInteger(maxWords) || maxWords <= 0) {
+          return COPY.questionEditor.specialist.shortResponse.maxWordsError;
+        }
+      }
       break;
     }
     case 'matching': {
@@ -404,6 +508,10 @@ function QuestionFormModal({
   const set = useCallback(<K extends keyof QForm>(k: K, v: QForm[K]) =>
     setForm((f) => ({ ...f, [k]: v })), []);
 
+  const handleTypeChange = (questionType: QType) => {
+    setForm((f) => ({ ...f, questionType, ...specialistFieldsForType(questionType) }));
+  };
+
   const handleSave = () => {
     const err = validateForm(form);
     if (err) { setError(err); return; }
@@ -473,7 +581,7 @@ function QuestionFormModal({
             {ALL_TYPES.map((t) => (
               <Pressable
                 key={t}
-                onPress={() => set('questionType', t)}
+                onPress={() => handleTypeChange(t)}
                 style={[
                   s.typeChip,
                   {
@@ -542,7 +650,16 @@ function QuestionFormModal({
           {/* Multiple Choice / Multi-Select */}
           {(form.questionType === 'multiple_choice' || form.questionType === 'multi_select') && (
             <>
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Choices (tap to mark correct)</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>
+                {form.questionType === 'multi_select'
+                  ? COPY.questionEditor.specialist.multiSelect.choicesLabel
+                  : 'Choices (tap to mark correct)'}
+              </Text>
+              {form.questionType === 'multi_select' && (
+                <Text style={[s.hint, { color: colors.mutedForeground, textAlign: 'left', paddingVertical: 0 }]}>
+                  {COPY.questionEditor.specialist.multiSelect.help}
+                </Text>
+              )}
               {form.choices.map((choice, i) => {
                 const isCorrect = form.questionType === 'multi_select'
                   ? form.correctChoices.includes(choice.trim())
@@ -587,23 +704,37 @@ function QuestionFormModal({
                           return { ...f, ...updates };
                         });
                       }}
-                      placeholder={`Choice ${String.fromCharCode(65 + i)}`}
+                       placeholder={form.questionType === 'multi_select'
+                         ? `${COPY.questionEditor.specialist.multiSelect.choicePlaceholder} ${String.fromCharCode(65 + i)}`
+                         : `Choice ${String.fromCharCode(65 + i)}`}
                       placeholderTextColor={colors.mutedForeground}
                     />
                     {form.choices.length > 2 && (
-                      <Pressable onPress={() => set('choices', form.choices.filter((_, j) => j !== i))} hitSlop={8}>
+                       <Pressable
+                         onPress={() => setForm((f) => ({
+                           ...f,
+                           choices: f.choices.filter((_, j) => j !== i),
+                           correctChoices: f.correctChoices.filter((c) => c !== choice.trim()),
+                         }))}
+                         hitSlop={8}
+                         accessibilityLabel={form.questionType === 'multi_select'
+                           ? COPY.questionEditor.specialist.multiSelect.removeChoice
+                           : 'Remove choice'}
+                       >
                         <Ionicons name="close-circle" size={18} color={colors.mutedForeground} />
                       </Pressable>
                     )}
                   </View>
                 );
               })}
-              {form.choices.length < 6 && (
-                <Pressable style={[s.addItemBtn, { borderColor: colors.border }]} onPress={() => set('choices', [...form.choices, ''])}>
-                  <Ionicons name="add" size={16} color={colors.primary} />
-                  <Text style={[s.addItemText, { color: colors.primary }]}>Add choice</Text>
-                </Pressable>
-              )}
+               <Pressable style={[s.addItemBtn, { borderColor: colors.border }]} onPress={() => set('choices', [...form.choices, ''])}>
+                 <Ionicons name="add" size={16} color={colors.primary} />
+                 <Text style={[s.addItemText, { color: colors.primary }]}>
+                   {form.questionType === 'multi_select'
+                     ? COPY.questionEditor.specialist.multiSelect.addChoice
+                     : 'Add choice'}
+                 </Text>
+               </Pressable>
             </>
           )}
 
@@ -633,8 +764,8 @@ function QuestionFormModal({
             </>
           )}
 
-          {/* Write-in / Short Response */}
-          {(form.questionType === 'write_in' || form.questionType === 'short_response') && (
+          {/* Write-in */}
+          {form.questionType === 'write_in' && (
             <>
               <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Correct answer</Text>
               <TextInput
@@ -655,10 +786,57 @@ function QuestionFormModal({
             </>
           )}
 
+          {/* Short Response */}
+          {form.questionType === 'short_response' && (
+            <>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>
+                {COPY.questionEditor.specialist.shortResponse.answerLabel}
+              </Text>
+              <TextInput
+                style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
+                value={form.shortResponseAnswer}
+                onChangeText={(v) => set('shortResponseAnswer', v)}
+                placeholder={COPY.questionEditor.specialist.shortResponse.answerPlaceholder}
+                placeholderTextColor={colors.mutedForeground}
+              />
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>
+                {COPY.questionEditor.specialist.shortResponse.rubricLabel}
+              </Text>
+              <TextInput
+                style={[s.textArea, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
+                value={form.shortResponseRubric}
+                onChangeText={(v) => set('shortResponseRubric', v)}
+                placeholder={COPY.questionEditor.specialist.shortResponse.rubricPlaceholder}
+                placeholderTextColor={colors.mutedForeground}
+                multiline
+                numberOfLines={4}
+              />
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>
+                {COPY.questionEditor.specialist.shortResponse.maxWordsLabel}{' '}
+                <Text style={{ fontWeight: '400' }}>
+                  ({COPY.questionEditor.specialist.shortResponse.optionalLabel})
+                </Text>
+              </Text>
+              <TextInput
+                style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border, width: 140 }]}
+                value={form.shortResponseMaxWords}
+                onChangeText={(v) => set('shortResponseMaxWords', v)}
+                placeholder={COPY.questionEditor.specialist.shortResponse.maxWordsPlaceholder}
+                placeholderTextColor={colors.mutedForeground}
+                keyboardType="numeric"
+              />
+            </>
+          )}
+
           {/* Ordering */}
           {form.questionType === 'ordering' && (
             <>
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Items in correct order</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>
+                {COPY.questionEditor.specialist.ordering.itemsLabel}
+              </Text>
+              <Text style={[s.hint, { color: colors.mutedForeground, textAlign: 'left', paddingVertical: 0 }]}>
+                {COPY.questionEditor.specialist.ordering.help}
+              </Text>
               {form.orderedItems.map((item, i) => (
                 <View key={i} style={s.choiceRow}>
                   <Text style={[s.choiceLetter, { color: colors.mutedForeground }]}>{i + 1}</Text>
@@ -666,18 +844,24 @@ function QuestionFormModal({
                     style={[s.choiceInput, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
                     value={item}
                     onChangeText={(v) => { const next = [...form.orderedItems]; next[i] = v; set('orderedItems', next); }}
-                    placeholder={`Item ${i + 1}`}
+                    placeholder={`${COPY.questionEditor.specialist.ordering.itemPlaceholder} ${i + 1}`}
                     placeholderTextColor={colors.mutedForeground}
                   />
                   <View style={s.orderBtns}>
-                    <Pressable disabled={i === 0} onPress={() => {
+                    <Pressable
+                      disabled={i === 0}
+                      accessibilityLabel={COPY.questionEditor.specialist.ordering.moveUp}
+                      onPress={() => {
                       const next = [...form.orderedItems];
                       [next[i - 1], next[i]] = [next[i], next[i - 1]];
                       set('orderedItems', next);
                     }} hitSlop={8}>
                       <Ionicons name="chevron-up" size={18} color={i === 0 ? colors.border : colors.mutedForeground} />
                     </Pressable>
-                    <Pressable disabled={i === form.orderedItems.length - 1} onPress={() => {
+                    <Pressable
+                      disabled={i === form.orderedItems.length - 1}
+                      accessibilityLabel={COPY.questionEditor.specialist.ordering.moveDown}
+                      onPress={() => {
                       const next = [...form.orderedItems];
                       [next[i], next[i + 1]] = [next[i + 1], next[i]];
                       set('orderedItems', next);
@@ -685,31 +869,71 @@ function QuestionFormModal({
                       <Ionicons name="chevron-down" size={18} color={i === form.orderedItems.length - 1 ? colors.border : colors.mutedForeground} />
                     </Pressable>
                     {form.orderedItems.length > 2 && (
-                      <Pressable onPress={() => set('orderedItems', form.orderedItems.filter((_, j) => j !== i))} hitSlop={8}>
+                      <Pressable
+                        onPress={() => set('orderedItems', form.orderedItems.filter((_, j) => j !== i))}
+                        hitSlop={8}
+                        accessibilityLabel={COPY.questionEditor.specialist.ordering.removeItem}
+                      >
                         <Ionicons name="close-circle" size={16} color={colors.mutedForeground} />
                       </Pressable>
                     )}
                   </View>
                 </View>
               ))}
-              {form.orderedItems.length < 8 && (
-                <Pressable style={[s.addItemBtn, { borderColor: colors.border }]} onPress={() => set('orderedItems', [...form.orderedItems, ''])}>
-                  <Ionicons name="add" size={16} color={colors.primary} />
-                  <Text style={[s.addItemText, { color: colors.primary }]}>Add item</Text>
-                </Pressable>
-              )}
+              <Pressable style={[s.addItemBtn, { borderColor: colors.border }]} onPress={() => set('orderedItems', [...form.orderedItems, ''])}>
+                <Ionicons name="add" size={16} color={colors.primary} />
+                <Text style={[s.addItemText, { color: colors.primary }]}>
+                  {COPY.questionEditor.specialist.ordering.addItem}
+                </Text>
+              </Pressable>
             </>
           )}
 
           {/* Slider */}
           {form.questionType === 'slider' && (
             <>
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Range & correct value</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>
+                {COPY.questionEditor.specialist.slider.settingsLabel}
+              </Text>
+              <Text style={[s.hint, { color: colors.mutedForeground, textAlign: 'left', paddingVertical: 0 }]}>
+                {COPY.questionEditor.specialist.slider.help}
+              </Text>
               <View style={s.sliderRow}>
                 {[
-                  { label: 'Min', key: 'sliderMin' as const },
-                  { label: 'Max', key: 'sliderMax' as const },
-                  { label: 'Answer', key: 'sliderCorrect' as const },
+                  { label: COPY.questionEditor.specialist.slider.minLabel, key: 'sliderMin' as const },
+                  { label: COPY.questionEditor.specialist.slider.maxLabel, key: 'sliderMax' as const },
+                  { label: COPY.questionEditor.specialist.slider.stepLabel, key: 'sliderStep' as const },
+                ].map(({ label, key }) => (
+                  <View key={key} style={s.sliderField}>
+                    <Text style={[s.sliderLabel, { color: colors.mutedForeground }]}>{label}</Text>
+                    <TextInput
+                      style={[s.sliderInput, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
+                      value={form[key]}
+                      onChangeText={(v) => set(key, v)}
+                      keyboardType="numeric"
+                      placeholder="0"
+                      placeholderTextColor={colors.mutedForeground}
+                    />
+                  </View>
+                ))}
+              </View>
+              <View style={s.sliderRow}>
+                <View style={s.sliderField}>
+                  <Text style={[s.sliderLabel, { color: colors.mutedForeground }]}>
+                    {COPY.questionEditor.specialist.slider.unitLabel}
+                  </Text>
+                  <TextInput
+                    style={[s.sliderInput, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
+                    value={form.sliderUnit}
+                    onChangeText={(v) => set('sliderUnit', v)}
+                    placeholder={COPY.questionEditor.specialist.slider.unitPlaceholder}
+                    placeholderTextColor={colors.mutedForeground}
+                    autoCapitalize="none"
+                  />
+                </View>
+                {[
+                  { label: COPY.questionEditor.specialist.slider.toleranceLabel, key: 'sliderTolerance' as const },
+                  { label: COPY.questionEditor.specialist.slider.answerLabel, key: 'sliderCorrect' as const },
                 ].map(({ label, key }) => (
                   <View key={key} style={s.sliderField}>
                     <Text style={[s.sliderLabel, { color: colors.mutedForeground }]}>{label}</Text>
