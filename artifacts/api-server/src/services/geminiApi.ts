@@ -263,6 +263,15 @@ export type GeminiQuestionType =
     | "slider"
     | "short_response";
 
+export type GeminiVarietyQuestionType = Exclude<
+    GeminiQuestionType,
+    "multiple_choice" | "true_false" | "image_recognition"
+>;
+
+export type GeminiVarietyTargetCounts = Partial<
+    Record<GeminiVarietyQuestionType, number>
+>;
+
 
 export interface GeminiQuestion {
     questionText: string;
@@ -304,6 +313,27 @@ export interface GeminiGenerateOptions {
     /** When true, skip the grounded verification pass (use for fiction / family topics). */
     skipFactCheck?: boolean;
 }
+
+export interface GeminiVarietyGenerateOptions extends GeminiGenerateOptions {
+    /**
+     * Explicit specialist-only targets. Any omitted specialist type receives zero
+     * slots and is discarded if the model returns it anyway.
+     */
+    targetCounts: GeminiVarietyTargetCounts;
+    /** Permitted specialist types for validation and surplus substitution. */
+    allowedTypes: readonly GeminiVarietyQuestionType[];
+}
+
+export type GeminiVarietyGenerateResult =
+    | {
+        ok: true;
+        questions: GeminiQuestion[];
+        discarded: number;
+        topUpRoundsUsed: number;
+        deviationReason: string | null;
+        targetCounts: GeminiVarietyTargetCounts;
+    }
+    | { ok: false; error: GeminiGenerateError };
 
 
 interface RawGeminiQuestion {
@@ -348,7 +378,7 @@ const CORE_TYPES: readonly GeminiQuestionType[] = [
     "image_recognition",
 ];
 
-const VARIETY_TYPES: readonly GeminiQuestionType[] = [
+const VARIETY_TYPES: readonly GeminiVarietyQuestionType[] = [
     "write_in",
     "matching",
     "ordering",
@@ -522,10 +552,19 @@ export function computeTypeCounts(total: number): TypeCounts {
         remaining--;
     }
 
-    let varietySlots = requestedTotal - coreSlots;
+    fillVarietyTypeCounts(counts, requestedTotal - coreSlots, VARIETY_TYPES, 2);
+    return counts;
+}
+
+function fillVarietyTypeCounts(
+    counts: TypeCounts,
+    varietySlots: number,
+    varietyTypes: readonly GeminiVarietyQuestionType[],
+    maxPerType: number,
+): void {
     while (varietySlots > 0) {
-        const availableVarietyTypes = shuffleArray([...VARIETY_TYPES])
-            .filter((questionType) => counts[TYPE_COUNT_FIELDS[questionType]] < 2);
+        const availableVarietyTypes = shuffleArray([...varietyTypes])
+            .filter((questionType) => counts[TYPE_COUNT_FIELDS[questionType]] < maxPerType);
         if (availableVarietyTypes.length === 0) {
             counts.mcCount += varietySlots;
             break;
@@ -536,7 +575,20 @@ export function computeTypeCounts(total: number): TypeCounts {
             varietySlots--;
         }
     }
-    return counts;
+}
+
+/** Compute a specialist-only target mix using the same shuffled, capped pool as pure AI generation. */
+export function computeVarietyOnlyTypeCounts(
+    total: number,
+    varietyTypes: readonly GeminiVarietyQuestionType[],
+    maxPerType = 2,
+): GeminiVarietyTargetCounts {
+    const counts = emptyTypeCounts();
+    const uniqueTypes = [...new Set(varietyTypes)];
+    fillVarietyTypeCounts(counts, Math.max(0, Math.floor(total)), uniqueTypes, maxPerType);
+    return Object.fromEntries(
+        uniqueTypes.map((questionType) => [questionType, counts[TYPE_COUNT_FIELDS[questionType]]]),
+    ) as GeminiVarietyTargetCounts;
 }
 
 // ─── Prompt builder ────────────────────────────────────────────────────────────
@@ -1078,6 +1130,7 @@ async function topUpWithNonImageQuestions(
     existingTexts: string[],
     requestedCounts?: TypeCounts,
     skipFactCheck = true,
+    allowedQuestionTypes?: readonly GeminiQuestionType[],
 ): Promise<ValidatedQuestionBatch | null> {
     const baseCounts = computeTypeCounts(amount);
     const topUpCounts: TypeCounts = requestedCounts ?? {
@@ -1100,12 +1153,17 @@ async function topUpWithNonImageQuestions(
         }
         try {
             const parsed = JSON.parse(extractJson(raw.text));
-            const questions = parseQuestions(parsed, topUpOpts, raw.groundingUrls);
+            const parsedQuestions = parseQuestions(parsed, topUpOpts, raw.groundingUrls);
+            const questions = allowedQuestionTypes
+                ? parsedQuestions.filter((question) => allowedQuestionTypes.includes(question.questionType))
+                : parsedQuestions;
             const parsedCount = Array.isArray(parsed) ? parsed.length : 0;
             const validated = await validateGeneratedQuestions(apiKey, questions, skipFactCheck);
             return {
                 questions: validated.questions,
-                discarded: Math.max(0, parsedCount - questions.length) + validated.discarded,
+                discarded: Math.max(0, parsedCount - parsedQuestions.length)
+                    + Math.max(0, parsedQuestions.length - questions.length)
+                    + validated.discarded,
             };
         } catch {
             logger.warn({ model }, "Top-up Gemini response failed to parse");
@@ -1233,6 +1291,7 @@ async function enforceQuestionTypeMix(
     targetCounts: TypeCounts,
     initialQuestions: GeminiQuestion[],
     skipFactCheck: boolean,
+    allowedQuestionTypes?: readonly GeminiQuestionType[],
 ): Promise<EnforcedQuestionMix> {
     const selected: GeminiQuestion[] = [];
     const selectedCounts = emptyTypeCounts();
@@ -1288,6 +1347,7 @@ async function enforceQuestionTypeMix(
             existingTexts,
             missingCounts,
             skipFactCheck,
+            allowedQuestionTypes,
         );
         if (!topUp) continue;
         discarded += topUp.discarded;
@@ -1320,7 +1380,8 @@ async function enforceQuestionTypeMix(
             0,
         );
         if (varietySlots > 0) {
-            const afterVarietySurplus = takeSurplus(varietySlots, VARIETY_TYPES);
+            const varietyTypes = allowedQuestionTypes ?? VARIETY_TYPES;
+            const afterVarietySurplus = takeSurplus(varietySlots, varietyTypes);
             if (afterVarietySurplus < varietySlots) {
                 fallbackReasons.push("variety_type_shortfall_filled_from_variety_surplus");
             }
@@ -1332,10 +1393,10 @@ async function enforceQuestionTypeMix(
         }
 
         if (missingBeforeFallback.imgCount > 0) {
-            const imageRemaining = takeSurplus(
-                missingBeforeFallback.imgCount,
-                ["multiple_choice", ...VARIETY_TYPES, "true_false", "image_recognition"],
-            );
+            const imageFallbackTypes = allowedQuestionTypes
+                ? allowedQuestionTypes
+                : ["multiple_choice", ...VARIETY_TYPES, "true_false", "image_recognition"] as GeminiQuestionType[];
+            const imageRemaining = takeSurplus(missingBeforeFallback.imgCount, imageFallbackTypes);
             if (imageRemaining < missingBeforeFallback.imgCount) {
                 fallbackReasons.push("image_type_shortfall_filled_from_surplus");
             }
@@ -1346,7 +1407,7 @@ async function enforceQuestionTypeMix(
             // A last generic pass only runs for non-core shortfalls. It is
             // deliberately after the variety and MC paths so logs explain why
             // an exact requested type was substituted.
-            const remaining = takeSurplus(fallbackSlots, TYPE_TIE_BREAK_ORDER);
+            const remaining = takeSurplus(fallbackSlots, allowedQuestionTypes ?? TYPE_TIE_BREAK_ORDER);
             if (remaining < fallbackSlots) fallbackReasons.push("remaining_non_core_shortfall_filled_from_surplus");
             fallbackSlots = remaining;
         }
@@ -1504,6 +1565,158 @@ for (const model of GEMINI_MODELS) {
         if (!isDaily) break; // non-rate-limit error — don't try further models
     }
 
+
+    return { ok: false, error: lastError };
+}
+
+function typeCountsFromVarietyTargets(
+    allowedTypes: readonly GeminiVarietyQuestionType[],
+    targetCounts: GeminiVarietyTargetCounts,
+): TypeCounts | null {
+    const counts = emptyTypeCounts();
+    for (const questionType of [...new Set(allowedTypes)]) {
+        const target = targetCounts[questionType] ?? 0;
+        if (!Number.isInteger(target) || target < 0) return null;
+        counts[TYPE_COUNT_FIELDS[questionType]] = target;
+    }
+    return counts;
+}
+
+/**
+ * Generate an explicit specialist-only mix. This is intentionally separate from
+ * generateGeminiQuestions so the established pure-AI core/variety behavior does
+ * not change. Disallowed model output is removed before image validation, so this
+ * path never performs a Wikimedia lookup.
+ */
+export async function generateGeminiVarietyQuestions(
+    opts: GeminiVarietyGenerateOptions,
+): Promise<GeminiVarietyGenerateResult> {
+    const apiKey = process.env.GOOGLE_API_KEY;
+    if (!apiKey) return { ok: false, error: { code: "no_api_key" } };
+
+    const allowedTypes = [...new Set(opts.allowedTypes)];
+    if (allowedTypes.length === 0) {
+        return { ok: false, error: { code: "parse_error", message: "At least one variety type is required." } };
+    }
+    const targetCounts = typeCountsFromVarietyTargets(allowedTypes, opts.targetCounts);
+    if (!targetCounts || sumTypeCounts(targetCounts) !== opts.amount) {
+        return {
+            ok: false,
+            error: { code: "parse_error", message: "Invalid variety question type targets." },
+        };
+    }
+
+    const candidateCounts: TypeCounts = {
+        mcCount: 0,
+        tfCount: 0,
+        wiCount: targetCounts.wiCount * 2,
+        matchCount: targetCounts.matchCount * 2,
+        imgCount: 0,
+        orderingCount: targetCounts.orderingCount * 2,
+        multiSelectCount: targetCounts.multiSelectCount * 2,
+        sliderCount: targetCounts.sliderCount * 2,
+        shortResponseCount: targetCounts.shortResponseCount * 2,
+    };
+    const promptOpts: GeminiGenerateOptions = {
+        ...opts,
+        amount: sumTypeCounts(candidateCounts),
+    };
+    const prompt = buildBulkPrompt(promptOpts, candidateCounts);
+    const skipFactCheck = opts.skipFactCheck ?? false;
+    let lastError: GeminiGenerateError = { code: "api_error", message: "Not attempted" };
+    let useGrounding = BULK_GROUNDING_ENABLED;
+
+    for (const model of GEMINI_MODELS) {
+        let raw: GeminiRawResult | GeminiRawError = { ok: false, error: lastError };
+        for (let attempt = 0; attempt < 2; attempt++) {
+            logger.info({ model, grounding: useGrounding, attempt }, "Gemini variety supplement call");
+            raw = await callGeminiRaw(apiKey, model, prompt, 0.4, 16384, useGrounding);
+            logger.info(
+                {
+                    model,
+                    grounding: useGrounding,
+                    attempt,
+                    ok: raw.ok,
+                    ...(!raw.ok ? { kind: (raw.error as Record<string, unknown>)["kind"] ?? raw.error.code } : {}),
+                },
+                "Gemini variety supplement result",
+            );
+            if (raw.ok) break;
+            lastError = raw.error;
+            if (!raw.ok && raw.error.code === "api_error" && raw.error.kind === "grounding_quota") {
+                logger.warn({ model }, "Gemini variety supplement grounding quota hit — retrying ungrounded");
+                useGrounding = false;
+                raw = await callGeminiRaw(apiKey, model, prompt, 0.4, 16384, false);
+                if (raw.ok) break;
+                lastError = raw.error;
+                break;
+            }
+            const isPerMinute = !raw.ok && raw.rateLimitKind === "per_minute";
+            if (!isPerMinute || attempt >= 1) break;
+            await new Promise((resolve) => setTimeout(resolve, 25000));
+        }
+
+        if (raw.ok) {
+            let parsed: unknown;
+            try {
+                parsed = JSON.parse(extractJson(raw.text));
+            } catch {
+                return {
+                    ok: false,
+                    error: { code: "parse_error", message: "Invalid response format from Gemini. Please try again." },
+                };
+            }
+            const parsedQuestions = parseQuestions(parsed, opts, raw.groundingUrls);
+            const allowedQuestions = parsedQuestions.filter((question) => allowedTypes.includes(
+                question.questionType as GeminiVarietyQuestionType,
+            ));
+            const disallowedCount = parsedQuestions.length - allowedQuestions.length;
+            if (disallowedCount > 0) {
+                logger.warn(
+                    { disallowedCount, allowedTypes },
+                    "Dropping disallowed question types from Gemini variety supplement",
+                );
+            }
+            const validated = await validateGeneratedQuestions(apiKey, allowedQuestions, skipFactCheck);
+            const enforced = await enforceQuestionTypeMix(
+                apiKey,
+                opts,
+                targetCounts,
+                validated.questions,
+                skipFactCheck,
+                allowedTypes,
+            );
+            const parsedCount = Array.isArray(parsed) ? parsed.length : 0;
+            const discarded = Math.max(0, parsedCount - parsedQuestions.length)
+                + disallowedCount
+                + validated.discarded
+                + enforced.discarded;
+            const deliveredCounts = countQuestionTypes(enforced.questions);
+            logger.info(
+                {
+                    requestedTotal: opts.amount,
+                    allowedTypes,
+                    computedTargets: typeCountsForLog(targetCounts),
+                    deliveredCounts: typeCountsForLog(deliveredCounts),
+                    topUpRoundsUsed: enforced.topUpRoundsUsed,
+                    deviationReason: enforced.deviationReason,
+                },
+                "AI variety supplement mix enforcement summary",
+            );
+            return {
+                ok: true,
+                questions: enforced.questions,
+                discarded,
+                topUpRoundsUsed: enforced.topUpRoundsUsed,
+                deviationReason: enforced.deviationReason,
+                targetCounts: opts.targetCounts,
+            };
+        }
+
+        const isDaily = !raw.ok && raw.rateLimitKind === "daily";
+        logger.warn({ model, isDaily, error: raw.error }, "Gemini variety supplement model failed, trying next");
+        if (!isDaily) break;
+    }
 
     return { ok: false, error: lastError };
 }

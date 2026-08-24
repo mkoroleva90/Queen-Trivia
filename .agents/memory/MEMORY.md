@@ -18,3 +18,4 @@
 - [API server zod import](api-server-zod.md) — api-server has no direct zod dependency; use plain typeof guards for inline validation, or @workspace/api-zod for generated schemas. `zod/v4` import causes build failure.
 - [Commons content filter matching](commons-content-filter-matching.md) — image safety terms must use whole-term matching; substring matching blocks ordinary metadata such as “category.”
 - [Mobile OTP reset limits](mobile-otp-reset-limits.md) — OTP attempts need a rolling, account-stable HMAC key; fixed windows or per-token keys can be reset by timing or code reissue.
+- [OpenTDB supplement compatibility](opentdb-supplement-compatibility.md) — import modes are server-validated locally so existing OpenAPI/Orval clients and standard imports remain unchanged.
