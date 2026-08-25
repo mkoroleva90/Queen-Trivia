@@ -405,6 +405,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
       invalidate(game.id);
       setWorkingGameId(game.id);
       setSetupResult({ type: 'ai', imported: result.imported, game });
+      setBuildStage('joinCode');
       setShowQuestionReview(false);
       // If the content filter removed some questions, tell the host.
       if (result.contentFilteredCount && result.contentFilteredCount > 0 && result.contentFilteredMessage) {
@@ -444,6 +445,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
       invalidate(game.id);
       setWorkingGameId(game.id);
       setSetupResult({ type: 'opentdb', imported: result.imported, game });
+      setBuildStage('joinCode');
       setShowQuestionReview(false);
     } catch (err) {
       setSetupError(extractApiError(err, 'Could not import questions — please retry'));
