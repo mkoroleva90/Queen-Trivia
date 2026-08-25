@@ -15,6 +15,7 @@ import { useQuery } from '@tanstack/react-query';
 import * as SecureStore from 'expo-secure-store';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import { getListGameQuestionsQueryKey, useListGameQuestions } from '@workspace/api-client-react';
 import { ADMIN_TOKEN_KEY } from '@/context/AdminAuthContext';
 import { useColors } from '@/hooks/useColors';
 import { API_BASE_URL } from '@/lib/apiBase';
@@ -48,6 +49,43 @@ type QuestionStat = {
 };
 
 const RANK_COLORS = ['#ffe500', '#aaaaaa', '#cd7f32'];
+
+function formatCorrectAnswer(questionType: string, correctAnswer: string): string {
+  if (!correctAnswer) return correctAnswer;
+  if (questionType === 'image_hotspot') {
+    const parts = correctAnswer.split(',').map((s) => parseFloat(s).toFixed(1));
+    if (parts.length === 2) return `X: ${parts[0]}%, Y: ${parts[1]}%`;
+  }
+  if (questionType === 'ordering') {
+    const items = correctAnswer.split('|').map((item) => item.trim()).filter(Boolean);
+    if (items.length > 1) return items.map((item, i) => `${i + 1}. ${item}`).join('\n');
+    try {
+      const parsed = JSON.parse(correctAnswer) as string[];
+      if (Array.isArray(parsed)) return parsed.map((item, i) => `${i + 1}. ${item}`).join('\n');
+    } catch { /* fall through */ }
+  }
+  if (questionType === 'multi_select') {
+    const choices = correctAnswer.split('|').map((choice) => choice.trim()).filter(Boolean);
+    if (choices.length > 1) return choices.join(' · ');
+  }
+  if (questionType === 'matching') {
+    const pairs = correctAnswer
+      .split('|')
+      .map((pair) => {
+        const separator = pair.indexOf(':');
+        return separator > 0
+          ? [pair.slice(0, separator).trim(), pair.slice(separator + 1).trim()] as const
+          : null;
+      })
+      .filter((pair): pair is readonly [string, string] => pair !== null);
+    if (pairs.length > 0) return pairs.map(([left, right]) => `${left} → ${right}`).join('\n');
+    try {
+      const parsed = JSON.parse(correctAnswer) as [string, string][];
+      if (Array.isArray(parsed)) return parsed.map(([a, b]) => `${a} → ${b}`).join('\n');
+    } catch { /* fall through */ }
+  }
+  return correctAnswer;
+}
 
 async function fetchWithAdminToken(url: string) {
   const token = await SecureStore.getItemAsync(ADMIN_TOKEN_KEY).catch(() => null);
@@ -93,6 +131,10 @@ export default function AdminResultsScreen() {
     enabled: !isNaN(gameId),
     retry: 1,
   });
+  const { data: questions = [] } = useListGameQuestions(gameId, {
+    query: { enabled: !isNaN(gameId), queryKey: getListGameQuestionsQueryKey(gameId) },
+  });
+  const questionsById = useMemo(() => new Map(questions.map((q) => [q.id, q])), [questions]);
 
   const avgScore = useMemo(() => {
     const pts = results?.participants ?? [];
@@ -277,7 +319,10 @@ export default function AdminResultsScreen() {
               </Pressable>
             </View>
           ) : (
-            (qStats ?? []).map((q, idx) => (
+            (qStats ?? []).map((q, idx) => {
+              const question = questionsById.get(q.id);
+              const correctAnswer = question?.correctAnswer ?? '';
+              return (
               <View key={q.id} style={[s.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={s.statTop}>
                   <Text style={[s.statQ, { color: colors.mutedForeground }]}>Q{idx + 1}</Text>
@@ -312,8 +357,17 @@ export default function AdminResultsScreen() {
                     </Text>
                   </View>
                 )}
+                {!!correctAnswer && (
+                  <View style={[s.correctRow, { borderTopColor: colors.border }]}>
+                    <Text style={[s.correctLabel, { color: colors.secondary }]}>CORRECT ANSWER</Text>
+                    <Text style={[s.correctText, { color: colors.secondary }]}>
+                      {formatCorrectAnswer(q.questionType, correctAnswer)}
+                    </Text>
+                  </View>
+                )}
               </View>
-            ))
+              );
+            })
           )
         )}
 
@@ -364,6 +418,9 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     wrongRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     wrongText: { fontSize: 12, flex: 1 },
     progressFill: { height: 4, borderRadius: 2 },
+    correctRow: { borderTopWidth: 1, paddingTop: 10, gap: 3 },
+    correctLabel: { fontSize: 9, fontFamily: 'Manrope_700Bold', letterSpacing: 1.5 },
+    correctText: { fontSize: 14, fontFamily: 'Manrope_700Bold', lineHeight: 20 },
     errorBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 12, padding: 14 },
     errorMsg: { flex: 1, fontSize: 13 },
     retrySmall: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },

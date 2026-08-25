@@ -76,15 +76,31 @@ function formatCorrectAnswer(questionType: string, correctAnswer: string): strin
     if (parts.length === 2) return `X: ${parts[0]}%, Y: ${parts[1]}%`;
   }
   if (questionType === 'ordering') {
+    const items = correctAnswer.split('|').map((item) => item.trim()).filter(Boolean);
+    if (items.length > 1) return items.map((item, i) => `${i + 1}. ${item}`).join('\n');
     try {
-      const items = JSON.parse(correctAnswer) as string[];
-      if (Array.isArray(items)) return items.map((item, i) => `${i + 1}. ${item}`).join('\n');
+      const parsed = JSON.parse(correctAnswer) as string[];
+      if (Array.isArray(parsed)) return parsed.map((item, i) => `${i + 1}. ${item}`).join('\n');
     } catch { /* fall through */ }
   }
+  if (questionType === 'multi_select') {
+    const choices = correctAnswer.split('|').map((choice) => choice.trim()).filter(Boolean);
+    if (choices.length > 1) return choices.join(' · ');
+  }
   if (questionType === 'matching') {
+    const pairs = correctAnswer
+      .split('|')
+      .map((pair) => {
+        const separator = pair.indexOf(':');
+        return separator > 0
+          ? [pair.slice(0, separator).trim(), pair.slice(separator + 1).trim()] as const
+          : null;
+      })
+      .filter((pair): pair is readonly [string, string] => pair !== null);
+    if (pairs.length > 0) return pairs.map(([left, right]) => `${left} → ${right}`).join('\n');
     try {
-      const pairs = JSON.parse(correctAnswer) as [string, string][];
-      if (Array.isArray(pairs)) return pairs.map(([a, b]) => `${a} → ${b}`).join('\n');
+      const parsed = JSON.parse(correctAnswer) as [string, string][];
+      if (Array.isArray(parsed)) return parsed.map(([a, b]) => `${a} → ${b}`).join('\n');
     } catch { /* fall through */ }
   }
   return correctAnswer;
@@ -393,8 +409,8 @@ export default function ResultsScreen() {
                     })()}
                   </Text>
 
-                  {/* ── Answer detail — only for missed / unanswered ── */}
-                  {missed && (
+                  {/* ── Answer detail — always show the correct answer ── */}
+                  {(missed || !!correctAnswer) && (
                     <View style={styles.qAnswerDetail}>
                       {myAns && (
                         <View style={styles.qAnswerRow}>
