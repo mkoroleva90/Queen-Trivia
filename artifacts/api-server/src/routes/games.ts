@@ -249,11 +249,11 @@ router.post("/games", requireAdmin, async (req, res): Promise<void> => {
 });
 
 
-// ─── Code-availability check (no auth required) ──────────────────────────────
+// ─── Code-availability check (admin only) ───────────────────────────────────
 // Returns { available: boolean } — true when the code is not in use by any game.
 // The caller is responsible for validating format before submitting; this route
-// only checks uniqueness so a debounced UI check can inform the host early.
-router.get("/games/code-available", async (req, res): Promise<void> => {
+// only checks uniqueness so an authenticated host can inform themselves early.
+router.get("/games/code-available", requireAdmin, async (req, res): Promise<void> => {
  const rawCode = req.query['code'];
  if (typeof rawCode !== "string" || !rawCode.trim()) {
   res.status(400).json({ error: "code query parameter is required" });
