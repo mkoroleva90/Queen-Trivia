@@ -131,6 +131,74 @@ describe("gradeAnswer write_in", () => {
     });
 });
 
+// ─── gradeAnswer — short_response ────────────────────────────────────────────
+
+describe("gradeAnswer short_response", () => {
+    const options = {
+        rubric: "Name the planet's largest moon.",
+        maxWords: 5,
+    };
+
+    it("awards full points for an exact answer without AI grading", async () => {
+        const result = await gradeAnswer(
+            "short_response",
+            "Titan",
+            "Titan",
+            10,
+            [],
+            options,
+            "What is Saturn's largest moon?",
+        );
+
+        assert.deepEqual(result, {
+            isCorrect: true,
+            pointsEarned: 10,
+            feedback: "Correct.",
+        });
+    });
+
+    it("awards full points for a normalized exact answer", async () => {
+        const result = await gradeAnswer(
+            "short_response",
+            "  titan.  ",
+            "Titan",
+            10,
+            [],
+            options,
+            "What is Saturn's largest moon?",
+        );
+
+        assert.equal(result.isCorrect, true);
+        assert.equal(result.pointsEarned, 10);
+    });
+
+    it("gives an unrelated answer zero when AI grading is unavailable", async () => {
+        const previousApiKey = process.env.GOOGLE_API_KEY;
+        delete process.env.GOOGLE_API_KEY;
+
+        try {
+            const result = await gradeAnswer(
+                "short_response",
+                "The Pacific Ocean",
+                "Titan",
+                10,
+                [],
+                options,
+                "What is Saturn's largest moon?",
+            );
+
+            assert.equal(result.isCorrect, false);
+            assert.equal(result.pointsEarned, 0);
+        } finally {
+            if (previousApiKey === undefined) {
+                delete process.env.GOOGLE_API_KEY;
+            } else {
+                process.env.GOOGLE_API_KEY = previousApiKey;
+            }
+        }
+    });
+});
+
 // ─── gradeAnswer — multiple_choice / true_false ──────────────────────────────
 
 describe("gradeAnswer multiple_choice", () => {

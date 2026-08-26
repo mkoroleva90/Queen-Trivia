@@ -77,6 +77,44 @@ async function seedGameWithQuestions(
   return { game: { id: gameId, accessCode }, questions };
 }
 
+/** Insert one active short-response question for disposable grading coverage. */
+async function seedGameWithShortResponseQuestion(
+  accessCode: string,
+): Promise<{ game: TestGame; question: TestQuestion }> {
+  const gameRes = await pool.query<{ id: number }>(
+    `INSERT INTO games (topic, difficulty, question_count, status, access_code, created_by_admin)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id`,
+    ["Short response test", "easy", 1, "active", accessCode, true],
+  );
+  const gameId = gameRes.rows[0]!.id;
+
+  const questionRes = await pool.query<{ id: number }>(
+    `INSERT INTO questions (
+        game_id, question_text, question_type, correct_answer, options, points, order_index
+     )
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
+     RETURNING id`,
+    [
+      gameId,
+      "What is Saturn's largest moon?",
+      "short_response",
+      "Titan",
+      JSON.stringify({
+        rubric: "Award full credit only for Titan, Saturn's largest moon.",
+        maxWords: 5,
+      }),
+      13,
+      0,
+    ],
+  );
+
+  return {
+    game: { id: gameId, accessCode },
+    question: { id: questionRes.rows[0]!.id },
+  };
+}
+
 /** Remove all test rows created by the suite. */
 async function cleanupGame(gameId: number): Promise<void> {
   // Cascade deletes questions, answers, and game_participants automatically.
@@ -572,6 +610,73 @@ describe("name-based rejoin block — fresh session, same display name", () => {
       403,
       `expected 403 for name-based rejoin block but got ${rejoinRes.status}: ${JSON.stringify(rejoinRes.body)}`,
     );
+  });
+});
+
+// ─── Short-response grading through the player answer route ──────────────────
+
+describe("POST /api/games/:gameId/answers — short-response grading", () => {
+  let game: TestGame;
+  let question: TestQuestion;
+  const ACCESS_CODE = "TSHORT1";
+
+  before(async () => {
+    ({ game, question } = await seedGameWithShortResponseQuestion(ACCESS_CODE));
+  });
+
+  after(async () => {
+    await cleanupGame(game.id);
+  });
+
+  it("awards the question's points for a normalized exact short response", async () => {
+    const agent = request.agent(app);
+    const loginRes = await agent
+      .post("/api/auth/login")
+      .send({ code: ACCESS_CODE, name: "__test__short_response_correct" });
+    assert.equal(loginRes.status, 200, `login failed: ${JSON.stringify(loginRes.body)}`);
+
+    const joinRes = await agent.post(`/api/games/${game.id}/join`);
+    assert.equal(joinRes.status, 201, `join failed: ${JSON.stringify(joinRes.body)}`);
+
+    const answerRes = await agent
+      .post(`/api/games/${game.id}/answers`)
+      .send({ questionId: question.id, userAnswer: "  titan.  " });
+
+    assert.equal(answerRes.status, 201, `answer failed: ${JSON.stringify(answerRes.body)}`);
+    assert.equal(answerRes.body.isCorrect, true);
+    assert.equal(answerRes.body.pointsEarned, 13);
+    assert.equal(answerRes.body.totalScore, 13);
+  });
+
+  it("awards zero for an unrelated short response", async () => {
+    const previousApiKey = process.env.GOOGLE_API_KEY;
+    delete process.env.GOOGLE_API_KEY;
+
+    try {
+      const agent = request.agent(app);
+      const loginRes = await agent
+        .post("/api/auth/login")
+        .send({ code: ACCESS_CODE, name: "__test__short_response_unrelated" });
+      assert.equal(loginRes.status, 200, `login failed: ${JSON.stringify(loginRes.body)}`);
+
+      const joinRes = await agent.post(`/api/games/${game.id}/join`);
+      assert.equal(joinRes.status, 201, `join failed: ${JSON.stringify(joinRes.body)}`);
+
+      const answerRes = await agent
+        .post(`/api/games/${game.id}/answers`)
+        .send({ questionId: question.id, userAnswer: "The Pacific Ocean" });
+
+      assert.equal(answerRes.status, 201, `answer failed: ${JSON.stringify(answerRes.body)}`);
+      assert.equal(answerRes.body.isCorrect, false);
+      assert.equal(answerRes.body.pointsEarned, 0);
+      assert.equal(answerRes.body.totalScore, 0);
+    } finally {
+      if (previousApiKey === undefined) {
+        delete process.env.GOOGLE_API_KEY;
+      } else {
+        process.env.GOOGLE_API_KEY = previousApiKey;
+      }
+    }
   });
 });
 

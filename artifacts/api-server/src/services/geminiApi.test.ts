@@ -4,6 +4,7 @@ import {
     canUseSurplusFallback,
     computeTypeCounts,
     evaluateQuestionMixOutcome,
+    gradeWithAI,
     parseQuestions,
 } from "./geminiApi.ts";
 
@@ -252,4 +253,51 @@ test("parser drops host-built image_hotspot and malformed specialist payloads", 
         },
     ], { topic: "science", difficulty: "medium", amount: 3 });
     assert.deepEqual(questions, []);
+});
+
+test("short-response AI grading receives rubric and maxWords unchanged", async () => {
+    const previousApiKey = process.env.GOOGLE_API_KEY;
+    const previousFetch = globalThis.fetch;
+    process.env.GOOGLE_API_KEY = "test-key";
+
+    let requestBody: { contents?: Array<{ parts?: Array<{ text?: string }> }> } | undefined;
+    globalThis.fetch = async (_input, init) => {
+        requestBody = JSON.parse(String(init?.body)) as typeof requestBody;
+        return new Response(JSON.stringify({
+            candidates: [{
+                content: {
+                    parts: [{
+                        text: JSON.stringify({
+                            isCorrect: true,
+                            pointsEarned: 10,
+                            feedback: "Correct.",
+                        }),
+                    }],
+                },
+            }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+    };
+
+    try {
+        const result = await gradeWithAI({
+            questionText: "Why does the Moon show one face?",
+            correctAnswer: "Tidal locking",
+            rubric: "Mention tidal locking or synchronous rotation.",
+            maxWords: 25,
+            userAnswer: "It is tidally locked.",
+            points: 10,
+        });
+
+        assert.equal(result.isCorrect, true);
+        const prompt = requestBody?.contents?.[0]?.parts?.[0]?.text ?? "";
+        assert.match(prompt, /Grading rubric: Mention tidal locking or synchronous rotation\./);
+        assert.match(prompt, /MAXIMUM WORDS: 25/);
+    } finally {
+        globalThis.fetch = previousFetch;
+        if (previousApiKey === undefined) {
+            delete process.env.GOOGLE_API_KEY;
+        } else {
+            process.env.GOOGLE_API_KEY = previousApiKey;
+        }
+    }
 });

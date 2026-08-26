@@ -2049,12 +2049,14 @@ export async function gradeWithAI({
     questionText,
     correctAnswer,
     rubric,
+    maxWords,
     userAnswer,
     points,
 }: {
     questionText: string;
     correctAnswer: string;
     rubric?: string;
+    maxWords?: number;
     userAnswer: string;
     points: number;
 }): Promise<AIGradeResult> {
@@ -2075,6 +2077,9 @@ export async function gradeWithAI({
     const encodedCriteria = JSON.stringify(
         rubric ? `Grading rubric: ${rubric}` : `Model answer / key facts: ${correctAnswer}`
     );
+    const wordLimit = typeof maxWords === "number"
+        ? `\nMAXIMUM WORDS: ${maxWords}`
+        : "";
 
     // Prompt is structured to mitigate semantic prompt injection:
     //   1. The model's role and output format are established upfront.
@@ -2090,7 +2095,7 @@ Grade the player's answer against the question and criteria below.
 
 QUESTION: ${encodedQuestion}
 GRADING CRITERIA: ${encodedCriteria}
-MAXIMUM POINTS: ${points}
+MAXIMUM POINTS: ${points}${wordLimit}
 
 ---PLAYER ANSWER START---
 ${encodedAnswer}

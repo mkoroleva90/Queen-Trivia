@@ -55,11 +55,26 @@ export async function gradeAnswer(
 ): Promise<{ isCorrect: boolean; pointsEarned: number; feedback?: string }> {
     // ── Short response: AI-graded ─────────────────────────────────────────
     if (questionType === "short_response") {
-        const opts    = questionOptions as { rubric?: string } | null;
+        const opts = questionOptions as { rubric?: string; maxWords?: number } | null;
+        const normalizedUser = normalize(userAnswer);
+        const normalizedCorrect = normalize(correctAnswer);
+
+        // An exact answer should not depend on Gemini availability. This also
+        // handles the common case where the player enters the answer verbatim
+        // but the AI grader is unavailable or returns an unusable response.
+        if (normalizedUser.length > 0 && normalizedUser === normalizedCorrect) {
+            return {
+                isCorrect: true,
+                pointsEarned: points,
+                feedback: "Correct.",
+            };
+        }
+
         return gradeWithAI({
             questionText: questionText ?? "",
             correctAnswer,
             rubric: opts?.rubric,
+            maxWords: opts?.maxWords,
             userAnswer,
             points,
         });
