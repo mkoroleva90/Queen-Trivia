@@ -499,6 +499,60 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Answer"
+  /games/{gameId}/answers/pending-review:
+    get:
+      operationId: listPendingAnswerReviews
+      tags: [play]
+      summary: List short-response answers awaiting host review
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Answers awaiting review
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PendingAnswerReview"
+  /games/{gameId}/answers/{answerId}/review:
+    post:
+      operationId: reviewAnswer
+      tags: [play]
+      summary: Award or deny points for an answer awaiting host review
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: answerId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewAnswerInput"
+      responses:
+        "200":
+          description: Previously reviewed answer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewAnswerResult"
+        "201":
+          description: Review recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewAnswerResult"
+        "404":
+          description: Answer not found in this game
   /stats/summary:
     get:
       operationId: getStatsSummary
@@ -847,6 +901,9 @@ components:
         userAnswer: { type: string }
         isCorrect: { type: boolean }
         pointsEarned: { type: integer }
+        gradingStatus:
+          type: string
+          enum: [graded, needs_review, reviewed]
         answeredAt: { type: string }
         correctAnswer: { type: string }
     AnswerResult:
@@ -861,7 +918,55 @@ components:
         isCorrect: { type: boolean }
         answeredAt: { type: string }
         pointsEarned: { type: integer }
+        gradingStatus:
+          type: string
+          enum: [graded, needs_review, reviewed]
+        feedback: { type: string }
         totalScore: { type: integer }
+    ReviewAnswerInput:
+      type: object
+      required: [award]
+      properties:
+        award: { type: boolean }
+    ReviewAnswerResult:
+      type: object
+      required: [id, userId, gameId, questionId, userAnswer, isCorrect, pointsEarned, gradingStatus, answeredAt]
+      properties:
+        id: { type: integer }
+        userId: { type: integer }
+        gameId: { type: integer }
+        questionId: { type: integer }
+        userAnswer: { type: string }
+        isCorrect: { type: boolean }
+        pointsEarned: { type: integer }
+        gradingStatus:
+          type: string
+          enum: [graded, needs_review, reviewed]
+        answeredAt: { type: string }
+        reviewedAt: { type: string, nullable: true }
+        alreadyReviewed: { type: boolean }
+    PendingAnswerReview:
+      type: object
+      required: [id, userId, gameId, questionId, userAnswer, isCorrect, pointsEarned, gradingStatus, answeredAt, userName, questionText, questionType, points]
+      properties:
+        id: { type: integer }
+        userId: { type: integer }
+        gameId: { type: integer }
+        questionId: { type: integer }
+        userAnswer: { type: string }
+        isCorrect: { type: boolean }
+        pointsEarned: { type: integer }
+        gradingStatus:
+          type: string
+          enum: [graded, needs_review, reviewed]
+        answeredAt: { type: string }
+        userName: { type: string }
+        questionText: { type: string }
+        questionType: { type: string }
+        points: { type: integer }
+        correctAnswer: { type: string }
+        rubric: { type: string, nullable: true }
+        maxWords: { type: integer, nullable: true }
     ReportInput:
       type: object
       required: [gameId, reason]

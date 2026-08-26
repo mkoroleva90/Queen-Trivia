@@ -5,6 +5,7 @@
  * Trivia game API
  * OpenAPI spec version: 0.1.0
  */
+import type { AnswerResultGradingStatus } from './answerResultGradingStatus';
 
 export interface AnswerResult {
   id: number;
@@ -15,5 +16,7 @@ export interface AnswerResult {
   isCorrect: boolean;
   answeredAt: string;
   pointsEarned: number;
+  gradingStatus?: AnswerResultGradingStatus;
+  feedback?: string;
   totalScore: number;
 }

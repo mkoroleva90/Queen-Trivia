@@ -17,6 +17,7 @@
 
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import request from "supertest";
 import pg from "pg";
 import type { IRouter } from "express";
@@ -24,6 +25,19 @@ import type { IRouter } from "express";
 // ── Environment setup ────────────────────────────────────────────────────────
 
 process.env.SESSION_SECRET = "test-secret-for-unit-tests-32chars!!";
+
+function generateTestAdminToken(adminAccountId: number): string {
+  const encoded = Buffer.from(JSON.stringify({
+    role: "admin",
+    adminAccountId,
+    iat: Date.now(),
+  })).toString("base64url");
+  const signature = crypto
+    .createHmac("sha256", process.env.SESSION_SECRET!)
+    .update(encoded)
+    .digest("base64url");
+  return `${encoded}.${signature}`;
+}
 
 const { default: app, router } = await import("../../dist/app.mjs") as {
   default: import("express").Express;
@@ -109,10 +123,12 @@ async function seedGameWithShortResponseQuestion(
     ],
   );
 
-  return {
-    game: { id: gameId, accessCode },
-    question: { id: questionRes.rows[0]!.id },
-  };
+  const question = { id: questionRes.rows[0]!.id };
+  await pool.query(
+    "UPDATE games SET current_question_id = $1 WHERE id = $2",
+    [question.id, gameId],
+  );
+  return { game: { id: gameId, accessCode }, question };
 }
 
 /** Remove all test rows created by the suite. */
@@ -619,6 +635,7 @@ describe("POST /api/games/:gameId/answers — short-response grading", () => {
   let game: TestGame;
   let question: TestQuestion;
   const ACCESS_CODE = "TSHORT1";
+  const REVIEWER_EMAIL = "short-response-reviewer@example.invalid";
 
   before(async () => {
     ({ game, question } = await seedGameWithShortResponseQuestion(ACCESS_CODE));
@@ -626,6 +643,7 @@ describe("POST /api/games/:gameId/answers — short-response grading", () => {
 
   after(async () => {
     await cleanupGame(game.id);
+    await pool.query("DELETE FROM admin_accounts WHERE email = $1", [REVIEWER_EMAIL]);
   });
 
   it("awards the question's points for a normalized exact short response", async () => {
@@ -670,6 +688,49 @@ describe("POST /api/games/:gameId/answers — short-response grading", () => {
       assert.equal(answerRes.body.isCorrect, false);
       assert.equal(answerRes.body.pointsEarned, 0);
       assert.equal(answerRes.body.totalScore, 0);
+      assert.equal(answerRes.body.gradingStatus, "needs_review");
+
+      const playerId = loginRes.body.id as number;
+      const account = await pool.query<{ id: number }>(
+        `INSERT INTO admin_accounts (email, email_verified)
+         VALUES ($1, TRUE)
+         RETURNING id`,
+        [REVIEWER_EMAIL],
+      );
+      const adminId = account.rows[0]!.id;
+      await pool.query("UPDATE games SET owner_admin_id = $1 WHERE id = $2", [adminId, game.id]);
+      const token = generateTestAdminToken(adminId);
+
+      const pending = await request(app)
+        .get(`/api/games/${game.id}/answers/pending-review`)
+        .set("Authorization", `Bearer ${token}`);
+      assert.equal(pending.status, 200, `pending list failed: ${JSON.stringify(pending.body)}`);
+      assert.equal(pending.body.length, 1);
+      assert.equal(pending.body[0].id, answerRes.body.id);
+      assert.equal(pending.body[0].rubric, "Award full credit only for Titan, Saturn's largest moon.");
+
+      const review = await request(app)
+        .post(`/api/games/${game.id}/answers/${answerRes.body.id}/review`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({ award: true });
+      assert.equal(review.status, 201, `review failed: ${JSON.stringify(review.body)}`);
+      assert.equal(review.body.isCorrect, true);
+      assert.equal(review.body.pointsEarned, 13);
+      assert.equal(review.body.gradingStatus, "reviewed");
+
+      const duplicateReview = await request(app)
+        .post(`/api/games/${game.id}/answers/${answerRes.body.id}/review`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({ award: false });
+      assert.equal(duplicateReview.status, 200);
+      assert.equal(duplicateReview.body.alreadyReviewed, true);
+      assert.equal(duplicateReview.body.pointsEarned, 13);
+
+      const score = await pool.query<{ total_score: number }>(
+        "SELECT total_score FROM game_participants WHERE game_id = $1 AND user_id = $2",
+        [game.id, playerId],
+      );
+      assert.equal(score.rows[0]!.total_score, 13);
     } finally {
       if (previousApiKey === undefined) {
         delete process.env.GOOGLE_API_KEY;

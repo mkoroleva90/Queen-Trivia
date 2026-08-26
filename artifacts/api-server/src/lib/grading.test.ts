@@ -189,6 +189,7 @@ describe("gradeAnswer short_response", () => {
 
             assert.equal(result.isCorrect, false);
             assert.equal(result.pointsEarned, 0);
+            assert.equal(result.needsReview, true);
         } finally {
             if (previousApiKey === undefined) {
                 delete process.env.GOOGLE_API_KEY;

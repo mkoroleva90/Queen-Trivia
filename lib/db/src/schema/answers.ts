@@ -26,6 +26,10 @@ export const answersTable = pgTable("answers", {
  userAnswer: text("user_answer").notNull(),
  isCorrect: boolean("is_correct").notNull(),
  pointsEarned: integer("points_earned").notNull().default(0),
+ gradingStatus: text("grading_status", {
+  enum: ["graded", "needs_review", "reviewed"],
+ }).notNull().default("graded"),
+ reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
  answeredAt: timestamp("answered_at", { withTimezone: true })
   .notNull()
   .defaultNow(),

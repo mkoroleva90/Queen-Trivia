@@ -2014,12 +2014,14 @@ export type AIGradeResult = {
     isCorrect: boolean;
     pointsEarned: number;
     feedback: string;
+    needsReview?: boolean;
 };
 
 const AI_GRADE_FALLBACK: AIGradeResult = {
     isCorrect: false,
     pointsEarned: 0,
     feedback: "We couldn't grade this automatically — an admin will review it.",
+    needsReview: true,
 };
 
 import { looksLikePromptInjection } from "../lib/promptInjection.ts";

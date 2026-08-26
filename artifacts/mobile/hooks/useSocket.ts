@@ -207,6 +207,12 @@ export function useAdminGameSocket(
       playerName: string;
       isCorrect: boolean;
     }) => void;
+    onAnswerReviewed?: (p: {
+      gameId: number;
+      questionId: number;
+      playerName: string;
+      isCorrect: boolean;
+    }) => void;
     onGameEnded?: (p: { gameId: number }) => void;
     /** Called every time the socket (re)connects. */
     onConnect?: () => void;
@@ -239,6 +245,14 @@ export function useAdminGameSocket(
     }) {
       cbRef.current.onAnswerGraded?.(p);
     }
+    function onAnswerReviewed(p: {
+      gameId: number;
+      questionId: number;
+      playerName: string;
+      isCorrect: boolean;
+    }) {
+      cbRef.current.onAnswerReviewed?.(p);
+    }
 
     function onGameEnded(p: { gameId: number }) {
       if (p.gameId === gameId) cbRef.current.onGameEnded?.(p);
@@ -247,6 +261,7 @@ export function useAdminGameSocket(
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on('answer:graded', onAnswerGraded);
+    socket.on('answer:reviewed', onAnswerReviewed);
     socket.on('game:ended', onGameEnded);
 
     if (socket.connected) {
@@ -259,6 +274,7 @@ export function useAdminGameSocket(
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
       socket.off('answer:graded', onAnswerGraded);
+      socket.off('answer:reviewed', onAnswerReviewed);
       socket.off('game:ended', onGameEnded);
       socket.disconnect();
     };

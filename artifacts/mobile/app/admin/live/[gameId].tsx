@@ -24,7 +24,7 @@ import {
   useListGameParticipants,
   useUpdateGame,
 } from '@workspace/api-client-react';
-import type { Question } from '@workspace/api-client-react';
+import type { PendingAnswerReview, Question } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
 import { LiveBanner } from '@/components/admin/LiveBanner';
 import { useAdminGameSocket } from '@/hooks/useSocket';
@@ -80,6 +80,7 @@ export default function AdminLiveScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [ending, setEnding] = useState(false);
   const [endGameError, setEndGameError] = useState<string | null>(null);
+  const [reviewingAnswerId, setReviewingAnswerId] = useState<number | null>(null);
 
   // ── Host play-along state ──
   const [hostAnswers, setHostAnswers] = useState<Record<number, string>>({});
@@ -97,6 +98,42 @@ export default function AdminLiveScreen() {
   const updateGame = useUpdateGame();
 
   const baseUrl = API_BASE_URL;
+  const {
+    data: pendingReviews = [],
+    refetch: refetchPendingReviews,
+  } = useQuery<PendingAnswerReview[]>({
+    queryKey: ['pending-answer-reviews', gameId],
+    queryFn: () => fetchAdminJson<PendingAnswerReview[]>(`${baseUrl}/api/games/${gameId}/answers/pending-review`),
+    enabled: !isNaN(gameId),
+    refetchInterval: 10000,
+  });
+
+  const handleReviewAnswer = async (review: PendingAnswerReview, award: boolean) => {
+    if (reviewingAnswerId !== null) return;
+    setReviewingAnswerId(review.id);
+    try {
+      const token = await getItem(ADMIN_TOKEN_KEY).catch(() => null);
+      const response = await fetch(`${baseUrl}/api/games/${gameId}/answers/${review.id}/review`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ award }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      await Promise.all([
+        refetchPendingReviews(),
+        refetchParticipants(),
+      ]);
+      qc.invalidateQueries({ queryKey: ['admin-results', gameId] });
+      qc.invalidateQueries({ queryKey: ['admin-q-stats', gameId] });
+    } catch {
+      Alert.alert('Could not save review', 'Please check your connection and try again.');
+    } finally {
+      setReviewingAnswerId(null);
+    }
+  };
 
   const handleKickPlayer = (userId: number, userName: string) => {
     Alert.alert(
@@ -181,6 +218,21 @@ export default function AdminLiveScreen() {
     [gameId, seeded, refetchParticipants],
   );
 
+  const onAnswerReviewed = useCallback(
+    (p: { gameId: number; questionId: number; playerName: string; isCorrect: boolean }) => {
+      if (p.gameId !== gameId) return;
+      // A review changes the score for an existing submission; do not increment
+      // the answer count a second time. Only an awarded review raises corrects.
+      if (p.isCorrect) {
+        setCorrectCounts((prev) => ({ ...prev, [p.questionId]: (prev[p.questionId] ?? 0) + 1 }));
+      }
+      void refetchParticipants();
+      void refetchPendingReviews();
+      qc.invalidateQueries({ queryKey: ['admin-results', gameId] });
+    },
+    [gameId, qc, refetchParticipants, refetchPendingReviews],
+  );
+
   const onGameEnded = useCallback(
     (p: { gameId: number }) => {
       if (p.gameId === gameId) {
@@ -191,7 +243,7 @@ export default function AdminLiveScreen() {
     [gameId, qc, router],
   );
 
-  useAdminGameSocket(isNaN(gameId) ? null : gameId, { onAnswerGraded, onGameEnded });
+  useAdminGameSocket(isNaN(gameId) ? null : gameId, { onAnswerGraded, onAnswerReviewed, onGameEnded });
 
   const totalPlayers = participants?.length ?? 0;
 
@@ -502,6 +554,61 @@ export default function AdminLiveScreen() {
           </>
         )}
 
+        {/* Manual review queue — only contains answers whose AI grading was unavailable. */}
+        {pendingReviews.length > 0 && (
+          <>
+            <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>
+              NEEDS REVIEW · {pendingReviews.length}
+            </Text>
+            {pendingReviews.map((review) => {
+              const isReviewing = reviewingAnswerId === review.id;
+              return (
+                <View key={review.id} style={[s.reviewCard, { backgroundColor: colors.card, borderColor: colors.accent + '77' }]}>
+                  <View style={s.reviewTop}>
+                    <View style={[s.reviewBadge, { backgroundColor: colors.accent + '20' }]}>
+                      <Ionicons name="sparkles-outline" size={14} color={colors.accent} />
+                      <Text style={[s.reviewBadgeText, { color: colors.accent }]}>AI UNAVAILABLE</Text>
+                    </View>
+                    <Text style={[s.reviewPlayer, { color: colors.mutedForeground }]}>{review.userName}</Text>
+                  </View>
+                  <Text style={[s.reviewQuestion, { color: colors.foreground }]}>{review.questionText}</Text>
+                  <View style={[s.reviewAnswer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                    <Text style={[s.reviewLabel, { color: colors.mutedForeground }]}>PLAYER ANSWER</Text>
+                    <Text style={[s.reviewAnswerText, { color: colors.foreground }]}>{review.userAnswer}</Text>
+                  </View>
+                  {!!review.rubric && (
+                    <View style={s.reviewRubric}>
+                      <Text style={[s.reviewLabel, { color: colors.mutedForeground }]}>RUBRIC</Text>
+                      <Text style={[s.reviewRubricText, { color: colors.mutedForeground }]}>{review.rubric}</Text>
+                    </View>
+                  )}
+                  <Text style={[s.reviewSuggested, { color: colors.mutedForeground }]}>
+                    Suggested score: {review.pointsEarned}/{review.points} points · awaiting your decision
+                  </Text>
+                  <View style={s.reviewActions}>
+                    <Pressable
+                      disabled={isReviewing}
+                      onPress={() => void handleReviewAnswer(review, false)}
+                      style={[s.reviewBtn, { borderColor: colors.destructive, backgroundColor: colors.destructive + '14', opacity: isReviewing ? 0.6 : 1 }]}
+                    >
+                      <Ionicons name="close" size={16} color={colors.destructive} />
+                      <Text style={[s.reviewBtnText, { color: colors.destructive }]}>Deny</Text>
+                    </Pressable>
+                    <Pressable
+                      disabled={isReviewing}
+                      onPress={() => void handleReviewAnswer(review, true)}
+                      style={[s.reviewBtn, { borderColor: colors.secondary, backgroundColor: colors.secondary + '18', opacity: isReviewing ? 0.6 : 1 }]}
+                    >
+                      {isReviewing ? <ActivityIndicator size="small" color={colors.secondary} /> : <Ionicons name="checkmark" size={16} color={colors.secondary} />}
+                      <Text style={[s.reviewBtnText, { color: colors.secondary }]}>Award {review.points} pts</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            })}
+          </>
+        )}
+
         {/* Players */}
         {(participants?.length ?? 0) > 0 && (
           <>
@@ -572,6 +679,21 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     sectionLabel: { fontSize: 11, fontFamily: 'Manrope_700Bold', letterSpacing: 2, textTransform: 'uppercase', marginTop: 8, marginBottom: 4 },
     emptyText: { fontSize: 14, textAlign: 'center' },
     qCard: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 8 },
+    reviewCard: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 10 },
+    reviewTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+    reviewBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 4 },
+    reviewBadgeText: { fontSize: 10, fontFamily: 'Manrope_700Bold', letterSpacing: 0.8 },
+    reviewPlayer: { fontSize: 13, fontFamily: 'Manrope_600SemiBold', flexShrink: 1 },
+    reviewQuestion: { fontSize: 15, fontFamily: 'Manrope_700Bold', lineHeight: 21 },
+    reviewAnswer: { borderWidth: 1, borderRadius: 10, padding: 10, gap: 3 },
+    reviewLabel: { fontSize: 10, fontFamily: 'Manrope_700Bold', letterSpacing: 1 },
+    reviewAnswerText: { fontSize: 14, lineHeight: 20 },
+    reviewRubric: { gap: 3 },
+    reviewRubricText: { fontSize: 13, lineHeight: 19 },
+    reviewSuggested: { fontSize: 12, fontFamily: 'Manrope_600SemiBold' },
+    reviewActions: { flexDirection: 'row', gap: 8 },
+    reviewBtn: { flex: 1, minHeight: 42, borderWidth: 1, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 8 },
+    reviewBtnText: { fontSize: 13, fontFamily: 'Manrope_700Bold' },
     qTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     qNum: { fontSize: 12, fontFamily: 'Manrope_700Bold', width: 24 },
     qAnswered: { flex: 1, fontSize: 13, fontFamily: 'Manrope_600SemiBold' },

@@ -39,6 +39,7 @@ import type {
   OpenTdbImportResult,
   Participant,
   ParticipantWithUser,
+  PendingAnswerReview,
   Question,
   QuestionInput,
   QuestionUpdate,
@@ -46,6 +47,8 @@ import type {
   RegenerateQuestionPreview,
   ReportInput,
   ReportSubmitted,
+  ReviewAnswerInput,
+  ReviewAnswerResult,
   StatsSummary,
   SubmitReport422,
   User,
@@ -1709,6 +1712,157 @@ export function useListUserAnswers<TData = Awaited<ReturnType<typeof listUserAns
 
 
 
+
+export const getListPendingAnswerReviewsUrl = (gameId: number,) => {
+
+
+
+
+  return `/api/games/${gameId}/answers/pending-review`
+}
+
+/**
+ * @summary List short-response answers awaiting host review
+ */
+export const listPendingAnswerReviews = async (gameId: number, options?: RequestInit): Promise<PendingAnswerReview[]> => {
+
+  return customFetch<PendingAnswerReview[]>(getListPendingAnswerReviewsUrl(gameId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPendingAnswerReviewsQueryKey = (gameId: number,) => {
+    return [
+    `/api/games/${gameId}/answers/pending-review`
+    ] as const;
+    }
+
+
+export const getListPendingAnswerReviewsQueryOptions = <TData = Awaited<ReturnType<typeof listPendingAnswerReviews>>, TError = ErrorType<unknown>>(gameId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPendingAnswerReviews>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPendingAnswerReviewsQueryKey(gameId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPendingAnswerReviews>>> = ({ signal }) => listPendingAnswerReviews(gameId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: gameId !== null && gameId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPendingAnswerReviews>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPendingAnswerReviewsQueryResult = NonNullable<Awaited<ReturnType<typeof listPendingAnswerReviews>>>
+export type ListPendingAnswerReviewsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List short-response answers awaiting host review
+ */
+
+export function useListPendingAnswerReviews<TData = Awaited<ReturnType<typeof listPendingAnswerReviews>>, TError = ErrorType<unknown>>(
+ gameId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPendingAnswerReviews>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPendingAnswerReviewsQueryOptions(gameId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getReviewAnswerUrl = (gameId: number,
+    answerId: number,) => {
+
+
+
+
+  return `/api/games/${gameId}/answers/${answerId}/review`
+}
+
+/**
+ * @summary Award or deny points for an answer awaiting host review
+ */
+export const reviewAnswer = async (gameId: number,
+    answerId: number,
+    reviewAnswerInput: ReviewAnswerInput, options?: RequestInit): Promise<ReviewAnswerResult> => {
+
+  return customFetch<ReviewAnswerResult>(getReviewAnswerUrl(gameId,answerId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reviewAnswerInput)
+  }
+);}
+
+
+
+
+
+export const getReviewAnswerMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewAnswer>>, TError,{gameId: number;answerId: number;data: BodyType<ReviewAnswerInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reviewAnswer>>, TError,{gameId: number;answerId: number;data: BodyType<ReviewAnswerInput>}, TContext> => {
+
+const mutationKey = ['reviewAnswer'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reviewAnswer>>, {gameId: number;answerId: number;data: BodyType<ReviewAnswerInput>}> = (props) => {
+          const {gameId,answerId,data} = props ?? {};
+
+          return  reviewAnswer(gameId,answerId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReviewAnswerMutationResult = NonNullable<Awaited<ReturnType<typeof reviewAnswer>>>
+    export type ReviewAnswerMutationBody = BodyType<ReviewAnswerInput>
+    export type ReviewAnswerMutationError = ErrorType<void>
+
+    /**
+ * @summary Award or deny points for an answer awaiting host review
+ */
+export const useReviewAnswer = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewAnswer>>, TError,{gameId: number;answerId: number;data: BodyType<ReviewAnswerInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reviewAnswer>>,
+        TError,
+        {gameId: number;answerId: number;data: BodyType<ReviewAnswerInput>},
+        TContext
+      > => {
+      return useMutation(getReviewAnswerMutationOptions(options));
+    }
 
 export const getGetStatsSummaryUrl = () => {
 

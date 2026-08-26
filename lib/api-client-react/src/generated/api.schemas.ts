@@ -469,6 +469,7 @@ export interface AnswerInput {
   userAnswer: string;
 }
 
+export type AnswerGradingStatus = typeof AnswerGradingStatus[keyof typeof AnswerGradingStatus];
 export interface Answer {
   id: number;
   userId: number;
@@ -477,10 +478,12 @@ export interface Answer {
   userAnswer: string;
   isCorrect: boolean;
   pointsEarned: number;
+  gradingStatus?: AnswerGradingStatus;
   answeredAt: string;
   correctAnswer?: string;
 }
 
+export type AnswerResultGradingStatus = typeof AnswerResultGradingStatus[keyof typeof AnswerResultGradingStatus];
 export interface AnswerResult {
   id: number;
   userId: number;
@@ -490,9 +493,14 @@ export interface AnswerResult {
   isCorrect: boolean;
   answeredAt: string;
   pointsEarned: number;
+  gradingStatus?: AnswerResultGradingStatus;
+  feedback?: string;
   totalScore: number;
 }
 
+export interface ReviewAnswerInput {
+  award: boolean;
+}
 export type ReportInputReason = typeof ReportInputReason[keyof typeof ReportInputReason];
 
 
@@ -540,3 +548,64 @@ export type SubmitReport422 = {
   error?: string;
   code?: string;
 };
+
+export interface ReviewAnswerResult {
+  id: number;
+  userId: number;
+  gameId: number;
+  questionId: number;
+  userAnswer: string;
+  isCorrect: boolean;
+  pointsEarned: number;
+  gradingStatus: ReviewAnswerResultGradingStatus;
+  answeredAt: string;
+  reviewedAt?: string | null;
+  alreadyReviewed?: boolean;
+}
+
+export const PendingAnswerReviewGradingStatus = {
+  graded: 'graded',
+  needs_review: 'needs_review',
+  reviewed: 'reviewed',
+} as const;
+
+export interface PendingAnswerReview {
+  id: number;
+  userId: number;
+  gameId: number;
+  questionId: number;
+  userAnswer: string;
+  isCorrect: boolean;
+  pointsEarned: number;
+  gradingStatus: PendingAnswerReviewGradingStatus;
+  answeredAt: string;
+  userName: string;
+  questionText: string;
+  questionType: string;
+  points: number;
+  correctAnswer?: string;
+  rubric?: string | null;
+  maxWords?: number | null;
+}
+
+export const ReviewAnswerResultGradingStatus = {
+  graded: 'graded',
+  needs_review: 'needs_review',
+  reviewed: 'reviewed',
+} as const;
+
+export type PendingAnswerReviewGradingStatus = typeof PendingAnswerReviewGradingStatus[keyof typeof PendingAnswerReviewGradingStatus];
+
+export const AnswerResultGradingStatus = {
+  graded: 'graded',
+  needs_review: 'needs_review',
+  reviewed: 'reviewed',
+} as const;
+
+export const AnswerGradingStatus = {
+  graded: 'graded',
+  needs_review: 'needs_review',
+  reviewed: 'reviewed',
+} as const;
+
+export type ReviewAnswerResultGradingStatus = typeof ReviewAnswerResultGradingStatus[keyof typeof ReviewAnswerResultGradingStatus];

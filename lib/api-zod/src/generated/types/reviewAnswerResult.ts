@@ -5,9 +5,9 @@
  * Trivia game API
  * OpenAPI spec version: 0.1.0
  */
-import type { AnswerGradingStatus } from './answerGradingStatus';
+import type { ReviewAnswerResultGradingStatus } from './reviewAnswerResultGradingStatus';
 
-export interface Answer {
+export interface ReviewAnswerResult {
   id: number;
   userId: number;
   gameId: number;
@@ -15,7 +15,8 @@ export interface Answer {
   userAnswer: string;
   isCorrect: boolean;
   pointsEarned: number;
-  gradingStatus?: AnswerGradingStatus;
+  gradingStatus: ReviewAnswerResultGradingStatus;
   answeredAt: string;
-  correctAnswer?: string;
+  reviewedAt?: string | null;
+  alreadyReviewed?: boolean;
 }

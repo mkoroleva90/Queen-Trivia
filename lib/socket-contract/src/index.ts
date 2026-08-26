@@ -33,6 +33,13 @@ export type ServerToClientEvents = {
     playerName: string;
     isCorrect: boolean;
   }) => void;
+  /** Emitted after a host resolves an answer previously awaiting manual review. */
+  "answer:reviewed": (payload: {
+    gameId: number;
+    questionId: number;
+    playerName: string;
+    isCorrect: boolean;
+  }) => void;
   /** Emitted when a host removes a player. Clients check userId against their own. */
   "player:kicked": (payload: { gameId: number; userId: number }) => void;
 };

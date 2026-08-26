@@ -11,7 +11,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as SecureStore from 'expo-secure-store';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -19,6 +19,7 @@ import { getListGameQuestionsQueryKey, useListGameQuestions } from '@workspace/a
 import { ADMIN_TOKEN_KEY } from '@/context/AdminAuthContext';
 import { useColors } from '@/hooks/useColors';
 import { API_BASE_URL } from '@/lib/apiBase';
+import type { PendingAnswerReview } from '@workspace/api-client-react';
 
 type Participant = {
   id: number;
@@ -100,11 +101,13 @@ export default function AdminResultsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { gameId: gameIdStr } = useLocalSearchParams<{ gameId: string }>();
   const gameId = parseInt(gameIdStr ?? '', 10);
 
   const [showStats, setShowStats] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [reviewingAnswerId, setReviewingAnswerId] = useState<number | null>(null);
 
   const baseUrl = API_BASE_URL;
 
@@ -133,6 +136,15 @@ export default function AdminResultsScreen() {
   });
   const { data: questions = [] } = useListGameQuestions(gameId, {
     query: { enabled: !isNaN(gameId), queryKey: getListGameQuestionsQueryKey(gameId) },
+  });
+  const {
+    data: pendingReviews = [],
+    refetch: refetchPendingReviews,
+  } = useQuery<PendingAnswerReview[]>({
+    queryKey: ['pending-answer-reviews', gameId],
+    queryFn: () => fetchWithAdminToken(`${baseUrl}/api/games/${gameId}/answers/pending-review`) as Promise<PendingAnswerReview[]>,
+    enabled: !isNaN(gameId),
+    refetchInterval: 10000,
   });
   const questionsById = useMemo(() => new Map(questions.map((q) => [q.id, q])), [questions]);
 
@@ -175,6 +187,29 @@ export default function AdminResultsScreen() {
       Alert.alert('Export failed', e instanceof Error ? e.message : 'Could not export results.');
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleReviewAnswer = async (review: PendingAnswerReview, award: boolean) => {
+    if (reviewingAnswerId !== null) return;
+    setReviewingAnswerId(review.id);
+    try {
+      const token = await SecureStore.getItemAsync(ADMIN_TOKEN_KEY).catch(() => null);
+      const response = await fetch(`${baseUrl}/api/games/${gameId}/answers/${review.id}/review`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ award }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      await Promise.all([refetchPendingReviews(), refetchResults(), refetchStats()]);
+      queryClient.invalidateQueries({ queryKey: ['live-seed-stats', gameId] });
+    } catch {
+      Alert.alert('Could not save review', 'Please check your connection and try again.');
+    } finally {
+      setReviewingAnswerId(null);
     }
   };
 
@@ -298,6 +333,60 @@ export default function AdminResultsScreen() {
           </View>
         ))}
 
+        {pendingReviews.length > 0 && (
+          <>
+            <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>
+              ANSWERS NEEDING REVIEW · {pendingReviews.length}
+            </Text>
+            {pendingReviews.map((review) => {
+              const isReviewing = reviewingAnswerId === review.id;
+              return (
+                <View key={review.id} style={[s.reviewCard, { backgroundColor: colors.card, borderColor: colors.accent + '77' }]}>
+                  <View style={s.reviewTop}>
+                    <View style={[s.reviewBadge, { backgroundColor: colors.accent + '20' }]}>
+                      <Ionicons name="sparkles-outline" size={14} color={colors.accent} />
+                      <Text style={[s.reviewBadgeText, { color: colors.accent }]}>AI UNAVAILABLE</Text>
+                    </View>
+                    <Text style={[s.reviewPlayer, { color: colors.mutedForeground }]}>{review.userName}</Text>
+                  </View>
+                  <Text style={[s.reviewQuestion, { color: colors.foreground }]}>{review.questionText}</Text>
+                  <View style={[s.reviewAnswer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                    <Text style={[s.reviewLabel, { color: colors.mutedForeground }]}>PLAYER ANSWER</Text>
+                    <Text style={[s.reviewAnswerText, { color: colors.foreground }]}>{review.userAnswer}</Text>
+                  </View>
+                  {!!review.rubric && (
+                    <View style={s.reviewRubric}>
+                      <Text style={[s.reviewLabel, { color: colors.mutedForeground }]}>RUBRIC</Text>
+                      <Text style={[s.reviewRubricText, { color: colors.mutedForeground }]}>{review.rubric}</Text>
+                    </View>
+                  )}
+                  <Text style={[s.reviewSuggested, { color: colors.mutedForeground }]}>
+                    Suggested score: {review.pointsEarned}/{review.points} points · awaiting your decision
+                  </Text>
+                  <View style={s.reviewActions}>
+                    <Pressable
+                      disabled={isReviewing}
+                      onPress={() => void handleReviewAnswer(review, false)}
+                      style={[s.reviewBtn, { borderColor: colors.destructive, backgroundColor: colors.destructive + '14', opacity: isReviewing ? 0.6 : 1 }]}
+                    >
+                      <Ionicons name="close" size={16} color={colors.destructive} />
+                      <Text style={[s.reviewBtnText, { color: colors.destructive }]}>Deny</Text>
+                    </Pressable>
+                    <Pressable
+                      disabled={isReviewing}
+                      onPress={() => void handleReviewAnswer(review, true)}
+                      style={[s.reviewBtn, { borderColor: colors.secondary, backgroundColor: colors.secondary + '18', opacity: isReviewing ? 0.6 : 1 }]}
+                    >
+                      {isReviewing ? <ActivityIndicator size="small" color={colors.secondary} /> : <Ionicons name="checkmark" size={16} color={colors.secondary} />}
+                      <Text style={[s.reviewBtnText, { color: colors.secondary }]}>Award {review.points} pts</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            })}
+          </>
+        )}
+
         {/* Per-question breakdown toggle */}
         <Pressable
           style={[s.toggleBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -402,6 +491,21 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     playerName: { fontSize: 15, fontFamily: 'Manrope_600SemiBold' },
     playerSub: { fontSize: 12 },
     playerScore: { fontSize: 20, fontFamily: 'Manrope_800ExtraBold' },
+    reviewCard: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 10 },
+    reviewTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+    reviewBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 4 },
+    reviewBadgeText: { fontSize: 10, fontFamily: 'Manrope_700Bold', letterSpacing: 0.8 },
+    reviewPlayer: { fontSize: 13, fontFamily: 'Manrope_600SemiBold', flexShrink: 1 },
+    reviewQuestion: { fontSize: 15, fontFamily: 'Manrope_700Bold', lineHeight: 21 },
+    reviewAnswer: { borderWidth: 1, borderRadius: 10, padding: 10, gap: 3 },
+    reviewLabel: { fontSize: 10, fontFamily: 'Manrope_700Bold', letterSpacing: 1 },
+    reviewAnswerText: { fontSize: 14, lineHeight: 20 },
+    reviewRubric: { gap: 3 },
+    reviewRubricText: { fontSize: 13, lineHeight: 19 },
+    reviewSuggested: { fontSize: 12, fontFamily: 'Manrope_600SemiBold' },
+    reviewActions: { flexDirection: 'row', gap: 8 },
+    reviewBtn: { flex: 1, minHeight: 42, borderWidth: 1, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 8 },
+    reviewBtnText: { fontSize: 13, fontFamily: 'Manrope_700Bold' },
     toggleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 14, borderWidth: 1, padding: 16, marginTop: 8 },
     toggleText: { fontSize: 15, fontFamily: 'Manrope_600SemiBold' },
     statCard: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 8 },

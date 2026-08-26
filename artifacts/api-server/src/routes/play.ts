@@ -276,7 +276,7 @@ if (containsBannedContent(parsed.data.userAnswer)) {
         const alternates = opts?.alternateAnswers ?? [];
 
 
-const { isCorrect, pointsEarned, feedback } = await gradeAnswer(
+const { isCorrect, pointsEarned, feedback, needsReview } = await gradeAnswer(
     question.questionType,
     parsed.data.userAnswer,
     decodeHtml(question.correctAnswer),
@@ -296,6 +296,7 @@ const [answer] = await db
      userAnswer: parsed.data.userAnswer,
      isCorrect,
      pointsEarned,
+      gradingStatus: needsReview ? "needs_review" : "graded",
  })
  .returning();
 
@@ -314,7 +315,8 @@ res.status(201).json(
          ...answer,
          pointsEarned,
          totalScore,
-         ...(feedback ? { feedback } : {}),
+          ...(feedback ? { feedback } : {}),
+          ...(needsReview ? { gradingStatus: "needs_review" } : {}),
      }),
  ),
 );
@@ -461,6 +463,7 @@ const rows = await db
     userAnswer: answersTable.userAnswer,
     isCorrect: answersTable.isCorrect,
     pointsEarned: answersTable.pointsEarned,
+     gradingStatus: answersTable.gradingStatus,
     answeredAt: answersTable.answeredAt,
     correctAnswer: questionsTable.correctAnswer,
 })
@@ -486,6 +489,159 @@ answeredAt: string; correctAnswer: string;
 
 
      res.json(ListUserAnswersResponse.parse(safeRows));
+ },
+);
+
+
+// ─── Answers awaiting host review ────────────────────────────────────────────
+
+router.get(
+ "/games/:gameId/answers/pending-review",
+ requireAdmin,
+ async (req, res): Promise<void> => {
+  const gameId = parseInt(String(req.params.gameId ?? ""), 10);
+  if (isNaN(gameId)) { res.status(400).json({ error: "Invalid gameId" }); return; }
+  if (!await assertGameOwnership(req, res, gameId)) return;
+
+  const rows = await db
+   .select({
+    id: answersTable.id,
+    userId: answersTable.userId,
+    gameId: answersTable.gameId,
+    questionId: answersTable.questionId,
+    userAnswer: answersTable.userAnswer,
+    isCorrect: answersTable.isCorrect,
+    pointsEarned: answersTable.pointsEarned,
+    gradingStatus: answersTable.gradingStatus,
+    answeredAt: answersTable.answeredAt,
+    userName: usersTable.name,
+    questionText: questionsTable.questionText,
+    questionType: questionsTable.questionType,
+    points: questionsTable.points,
+    correctAnswer: questionsTable.correctAnswer,
+    options: questionsTable.options,
+   })
+   .from(answersTable)
+   .innerJoin(usersTable, eq(answersTable.userId, usersTable.id))
+   .innerJoin(questionsTable, eq(answersTable.questionId, questionsTable.id))
+   .where(and(
+    eq(answersTable.gameId, gameId),
+    eq(answersTable.gradingStatus, "needs_review"),
+   ))
+   .orderBy(asc(answersTable.answeredAt));
+
+  res.json(toJsonSafe(rows.map((row) => {
+   const options = row.options as { rubric?: unknown; maxWords?: unknown } | null;
+   return {
+    ...row,
+    rubric: typeof options?.rubric === "string" ? options.rubric : null,
+    maxWords: typeof options?.maxWords === "number" ? options.maxWords : null,
+   };
+  })));
+ },
+);
+
+router.post(
+ "/games/:gameId/answers/:answerId/review",
+ requireAdmin,
+ async (req, res): Promise<void> => {
+  const gameId = parseInt(String(req.params.gameId ?? ""), 10);
+  const answerId = parseInt(String(req.params.answerId ?? ""), 10);
+  if (isNaN(gameId) || isNaN(answerId)) { res.status(400).json({ error: "Invalid answer or game ID" }); return; }
+  if (typeof req.body?.award !== "boolean") {
+   res.status(400).json({ error: "award must be a boolean" });
+   return;
+  }
+  if (!await assertGameOwnership(req, res, gameId)) return;
+
+  const result = await db.transaction(async (tx) => {
+   const [candidate] = await tx
+    .select({
+     id: answersTable.id,
+     userId: answersTable.userId,
+     gameId: answersTable.gameId,
+     questionId: answersTable.questionId,
+     userAnswer: answersTable.userAnswer,
+     isCorrect: answersTable.isCorrect,
+     pointsEarned: answersTable.pointsEarned,
+     gradingStatus: answersTable.gradingStatus,
+     answeredAt: answersTable.answeredAt,
+     questionPoints: questionsTable.points,
+    })
+    .from(answersTable)
+    .innerJoin(questionsTable, eq(answersTable.questionId, questionsTable.id))
+    .where(and(eq(answersTable.id, answerId), eq(answersTable.gameId, gameId)))
+    .limit(1);
+
+   if (!candidate) return { kind: "missing" as const };
+   if (candidate.gradingStatus !== "needs_review") {
+    return { kind: "already_reviewed" as const, answer: candidate };
+   }
+
+   const pointsEarned = req.body.award ? candidate.questionPoints : 0;
+   const [reviewed] = await tx
+    .update(answersTable)
+    .set({
+     isCorrect: req.body.award,
+     pointsEarned,
+     gradingStatus: "reviewed",
+     reviewedAt: new Date(),
+    })
+    .where(and(
+     eq(answersTable.id, answerId),
+     eq(answersTable.gameId, gameId),
+     eq(answersTable.gradingStatus, "needs_review"),
+    ))
+    .returning();
+
+   // A concurrent host action won the conditional update. Return the stored
+   // decision without changing the participant total a second time.
+   if (!reviewed) {
+    const [current] = await tx
+     .select()
+     .from(answersTable)
+     .where(eq(answersTable.id, answerId))
+     .limit(1);
+    return { kind: "already_reviewed" as const, answer: current };
+   }
+
+   if (pointsEarned > 0) {
+    await tx
+     .update(gameParticipantsTable)
+     .set({ totalScore: sql`${gameParticipantsTable.totalScore} + ${pointsEarned}` })
+     .where(and(
+      eq(gameParticipantsTable.gameId, gameId),
+      eq(gameParticipantsTable.userId, reviewed.userId),
+     ));
+   }
+   return { kind: "reviewed" as const, answer: reviewed };
+  });
+
+  if (result.kind === "missing") {
+   res.status(404).json({ error: "Answer not found in this game" });
+   return;
+  }
+  const answer = result.answer;
+  res.status(result.kind === "already_reviewed" ? 200 : 201).json(toJsonSafe({
+   ...answer,
+   alreadyReviewed: result.kind === "already_reviewed",
+  }));
+
+  if (result.kind === "reviewed") {
+   db.select({ name: usersTable.name })
+    .from(usersTable)
+    .where(eq(usersTable.id, answer.userId))
+    .then(([u]) => {
+     if (!u) return;
+      safeEmit(`game:host:${gameId}`, "answer:reviewed", {
+      gameId,
+      questionId: answer.questionId,
+      playerName: u.name,
+      isCorrect: answer.isCorrect,
+     });
+    })
+    .catch(() => {});
+  }
  },
 );
 
@@ -594,11 +750,12 @@ router.post(
         let isCorrect: boolean;
         let pointsEarned: number;
         let feedback: string | undefined;
+        let needsReview = false;
         if (parsed.data.userAnswer === "") {
             isCorrect = false;
             pointsEarned = 0;
         } else {
-            ({ isCorrect, pointsEarned, feedback } = await gradeAnswer(
+            const grade = await gradeAnswer(
                 question.questionType,
                 parsed.data.userAnswer,
                 decodeHtml(question.correctAnswer),
@@ -606,7 +763,11 @@ router.post(
                 alternates,
                 question.options as Record<string, unknown> | null,
                 decodeHtml(question.questionText),
-            ));
+            );
+            isCorrect = grade.isCorrect;
+            pointsEarned = grade.pointsEarned;
+            feedback = grade.feedback;
+            needsReview = grade.needsReview ?? false;
         }
 
         const [answer] = await db
@@ -618,6 +779,7 @@ router.post(
                 userAnswer: parsed.data.userAnswer,
                 isCorrect,
                 pointsEarned,
+             gradingStatus: needsReview ? "needs_review" : "graded",
             })
             .returning();
 
@@ -632,6 +794,7 @@ router.post(
             pointsEarned,
             totalScore,
             ...(feedback ? { feedback } : {}),
+            ...(needsReview ? { gradingStatus: "needs_review" } : {}),
         });
         res.status(201).json(SubmitAnswerResponse.parse(responsePayload));
 

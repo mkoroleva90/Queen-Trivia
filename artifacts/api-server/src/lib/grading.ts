@@ -52,7 +52,7 @@ export async function gradeAnswer(
     alternates: string[],
     questionOptions?: Record<string, unknown> | null,
     questionText?: string,
-): Promise<{ isCorrect: boolean; pointsEarned: number; feedback?: string }> {
+): Promise<{ isCorrect: boolean; pointsEarned: number; feedback?: string; needsReview?: boolean }> {
     // ── Short response: AI-graded ─────────────────────────────────────────
     if (questionType === "short_response") {
         const opts = questionOptions as { rubric?: string; maxWords?: number } | null;

@@ -353,6 +353,11 @@ export const CreateQuestionParams = zod.object({
 export const createQuestionBodyOrderIndexMin = 0;
 
 
+const safeFactCheckUrl = zod.string().regex(
+  /^https?:\/\/[^/\s?#]+(?:[/?#][^\s]*)?$/i,
+  "factCheckUrl must be an absolute HTTP(S) URL",
+);
+
 export const CreateQuestionBody = zod.object({
   "questionText": zod.string().min(1),
   "questionType": zod.enum(['multiple_choice', 'write_in', 'matching', 'image_recognition', 'true_false', 'multi_select', 'ordering', 'slider', 'image_hotspot', 'short_response']),
@@ -494,6 +499,8 @@ export const SubmitAnswerResponse = zod.object({
   "isCorrect": zod.boolean(),
   "answeredAt": zod.string(),
   "pointsEarned": zod.number(),
+  "gradingStatus": zod.enum(['graded', 'needs_review', 'reviewed']).optional(),
+  "feedback": zod.string().optional(),
   "totalScore": zod.number()
 })
 
@@ -514,12 +521,18 @@ export const ListUserAnswersResponseItem = zod.object({
   "userAnswer": zod.string(),
   "isCorrect": zod.boolean(),
   "pointsEarned": zod.number(),
+  "gradingStatus": zod.enum(['graded', 'needs_review', 'reviewed']).optional(),
   "answeredAt": zod.string(),
   "correctAnswer": zod.string().optional()
 })
 export const ListUserAnswersResponse = zod.array(ListUserAnswersResponseItem)
 
-
+/**
+ * @summary List short-response answers awaiting host review
+ */
+export const ListPendingAnswerReviewsParams = zod.object({
+  "gameId": zod.coerce.number()
+})
 /**
  * @summary Aggregate stats for dashboard
  */
@@ -549,8 +562,49 @@ export const SubmitReportResponse = zod.object({
   "id": zod.number()
 })
 
+export const ListPendingAnswerReviewsResponseItem = zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "gameId": zod.number(),
+  "questionId": zod.number(),
+  "userAnswer": zod.string(),
+  "isCorrect": zod.boolean(),
+  "pointsEarned": zod.number(),
+  "gradingStatus": zod.enum(['graded', 'needs_review', 'reviewed']),
+  "answeredAt": zod.string(),
+  "userName": zod.string(),
+  "questionText": zod.string(),
+  "questionType": zod.string(),
+  "points": zod.number(),
+  "correctAnswer": zod.string().optional(),
+  "rubric": zod.string().nullish(),
+  "maxWords": zod.number().nullish()
+})
 
-const safeFactCheckUrl = zod.string().regex(
-  /^https?:\/\/[^/\s?#]+(?:[/?#][^\s]*)?$/i,
-  "factCheckUrl must be an absolute HTTP(S) URL",
-);
+export const ListPendingAnswerReviewsResponse = zod.array(ListPendingAnswerReviewsResponseItem)
+
+/**
+ * @summary Award or deny points for an answer awaiting host review
+ */
+export const ReviewAnswerParams = zod.object({
+  "gameId": zod.coerce.number(),
+  "answerId": zod.coerce.number()
+})
+
+export const ReviewAnswerBody = zod.object({
+  "award": zod.boolean()
+})
+
+export const ReviewAnswerResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "gameId": zod.number(),
+  "questionId": zod.number(),
+  "userAnswer": zod.string(),
+  "isCorrect": zod.boolean(),
+  "pointsEarned": zod.number(),
+  "gradingStatus": zod.enum(['graded', 'needs_review', 'reviewed']),
+  "answeredAt": zod.string(),
+  "reviewedAt": zod.string().nullish(),
+  "alreadyReviewed": zod.boolean().optional()
+})
