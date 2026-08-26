@@ -86,7 +86,8 @@ export const ListGamesResponseItem = zod.object({
   "accessCode": zod.string().nullish(),
   "brief": zod.string().nullish(),
   "hostPlaysAlong": zod.boolean().optional(),
-  "hostUserId": zod.number().nullish()
+  "hostUserId": zod.number().nullish(),
+  "currentQuestionId": zod.number().nullish()
 })
 export const ListGamesResponse = zod.array(ListGamesResponseItem)
 
@@ -120,7 +121,8 @@ export const CreateGameResponse = zod.object({
   "accessCode": zod.string().nullish(),
   "brief": zod.string().nullish(),
   "hostPlaysAlong": zod.boolean().optional(),
-  "hostUserId": zod.number().nullish()
+  "hostUserId": zod.number().nullish(),
+  "currentQuestionId": zod.number().nullish()
 })
 
 
@@ -143,7 +145,8 @@ export const GetGameResponse = zod.object({
   "accessCode": zod.string().nullish(),
   "brief": zod.string().nullish(),
   "hostPlaysAlong": zod.boolean().optional(),
-  "hostUserId": zod.number().nullish()
+  "hostUserId": zod.number().nullish(),
+  "currentQuestionId": zod.number().nullish()
 })
 
 
@@ -186,7 +189,8 @@ export const UpdateGameResponse = zod.object({
   "accessCode": zod.string().nullish(),
   "brief": zod.string().nullish(),
   "hostPlaysAlong": zod.boolean().optional(),
-  "hostUserId": zod.number().nullish()
+  "hostUserId": zod.number().nullish(),
+  "currentQuestionId": zod.number().nullish()
 })
 
 

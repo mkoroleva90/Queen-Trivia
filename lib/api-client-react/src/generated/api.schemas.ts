@@ -145,6 +145,8 @@ export interface Game {
   hostPlaysAlong?: boolean;
   /** @nullable */
   hostUserId?: number | null;
+  /** @nullable */
+  currentQuestionId?: number | null;
 }
 
 export type GameDetailDifficulty = typeof GameDetailDifficulty[keyof typeof GameDetailDifficulty];
@@ -181,6 +183,8 @@ export interface GameDetail {
   hostPlaysAlong?: boolean;
   /** @nullable */
   hostUserId?: number | null;
+  /** @nullable */
+  currentQuestionId?: number | null;
 }
 
 export type QuestionInputQuestionType = typeof QuestionInputQuestionType[keyof typeof QuestionInputQuestionType];

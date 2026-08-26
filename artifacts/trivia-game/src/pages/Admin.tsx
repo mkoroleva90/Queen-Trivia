@@ -3363,6 +3363,7 @@ function LiveGameView({
   endGame: (id: number) => void;
 }) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   // ── First-run reassurance banner (Host & play only, persisted per game) ──
   const liveBannerKey = activeGame ? `${LIVE_BANNER_DISMISSED_KEY}.${activeGame.id}` : null;
@@ -3444,19 +3445,44 @@ function LiveGameView({
     setHostAnswers({});
     setHostSkippedIds(new Set());
   }, [activeGame?.id]);
+  useEffect(() => {
+    const releasedIndex = questions.findIndex((question) => question.id === activeGame?.currentQuestionId);
+    if (releasedIndex >= 0) setQIndex(releasedIndex);
+  }, [activeGame?.currentQuestionId, questions]);
   const currentQ = questions[Math.min(qIndex, Math.max(questions.length - 1, 0))];
 
   // Playing-host navigation: "next unanswered, non-deferred" — mirrors player screen logic.
   const unansweredForHost = questions.filter((q) => hostAnswers[q.id] === undefined);
-  const currentPlayingQ = activeGame?.hostPlaysAlong
-    ? (unansweredForHost.find((q) => !hostSkippedIds.has(q.id)) ?? unansweredForHost[0])
-    : undefined;
+  const currentPlayingQ = activeGame?.hostPlaysAlong ? currentQ : undefined;
   const hostCanSkip = unansweredForHost.length > 1;
   // Question shown in the card header (playing host sees their unanswered q; monitor sees qIndex q).
   const displayQ = (activeGame?.hostPlaysAlong && currentPlayingQ) ? currentPlayingQ : currentQ;
   const displayQNum = activeGame?.hostPlaysAlong
     ? (currentPlayingQ ? questions.findIndex((q) => q.id === currentPlayingQ.id) + 1 : 0)
     : (questions.length ? qIndex + 1 : 0);
+
+  const advanceQuestion = async () => {
+    if (!activeGame) return;
+    try {
+      const response = await fetch(`/api/games/${activeGame.id}/advance-question`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null) as { error?: string } | null;
+        throw new Error(body?.error ?? "Could not release the next question");
+      }
+      const { currentQuestionId } = await response.json() as { currentQuestionId: number };
+      const nextIndex = questions.findIndex((question) => question.id === currentQuestionId);
+      if (nextIndex >= 0) setQIndex(nextIndex);
+      queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: error instanceof Error ? error.message : "Could not release the next question",
+      });
+    }
+  };
 
   const { data: parts = [], refetch: refetchParts } = useListGameParticipants(activeGame?.id ?? 0, {
     query: {
@@ -3721,6 +3747,7 @@ function LiveGameView({
                   hasMore={unansweredForHost.length > 1}
                   onNext={(questionId, answer) => {
                     setHostAnswers((prev) => ({ ...prev, [questionId]: answer }));
+                     void advanceQuestion();
                   }}
                   canSkip={hostCanSkip}
                   onSkip={() => setHostSkippedIds((prev) => new Set([...prev, currentPlayingQ.id]))}
@@ -3735,8 +3762,7 @@ function LiveGameView({
           {!activeGame.hostPlaysAlong && (
           <div className="flex flex-wrap items-center gap-2 bg-[#0f1724] border border-[#1b2740] rounded-2xl px-3.5 py-3">
             <button
-              disabled={qIndex === 0}
-              onClick={() => setQIndex((i) => Math.max(0, i - 1))}
+               disabled
               className="text-xs font-bold text-[#9aa6bc] bg-white/[.04] border border-[#1b2740] rounded-[10px] px-3.5 py-2.5 disabled:opacity-40 hover:brightness-110 transition"
             >
               ‹ Prev
@@ -3753,7 +3779,7 @@ function LiveGameView({
             </button>
             <button
               disabled={qIndex >= questions.length - 1}
-              onClick={() => setQIndex((i) => Math.min(questions.length - 1, i + 1))}
+               onClick={() => void advanceQuestion()}
               className="ml-auto text-[13px] font-extrabold text-[#08130c] bg-[#ff0080] rounded-[10px] px-5 py-3 shadow-[0_8px_22px_-6px_rgba(255,0,128,.6)] disabled:opacity-40 hover:brightness-110 transition"
             >
               Next question ›

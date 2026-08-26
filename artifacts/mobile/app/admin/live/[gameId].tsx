@@ -199,9 +199,23 @@ export default function AdminLiveScreen() {
   const playAlong = !!game?.hostPlaysAlong;
   const unansweredForHost = sortedQs.filter((q) => hostAnswers[q.id] === undefined);
   const currentPlayingQ = playAlong
-    ? (unansweredForHost.find((q) => !hostSkippedIds.has(q.id)) ?? unansweredForHost[0])
+    ? sortedQs.find((question) => question.id === game?.currentQuestionId)
     : undefined;
   const hostCanSkip = unansweredForHost.length > 1;
+
+  const releaseNextQuestion = async () => {
+    try {
+      const token = await getItem(ADMIN_TOKEN_KEY).catch(() => null);
+      const response = await fetch(`${baseUrl}/api/games/${gameId}/advance-question`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      await qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
+    } catch {
+      setAnswerError('Could not release the next question — please retry');
+    }
+  };
 
   /** Submits the host's answer. On success, sets feedback state; feedback
    *  stays visible until host presses "Next" (advanceToNext). */
@@ -250,6 +264,7 @@ export default function AdminLiveScreen() {
     }
     setPendingAnswer(null);
     setHostFeedback(null);
+    void releaseNextQuestion();
   };
 
   /** Renders the appropriate player question component for the playing host. */
@@ -442,6 +457,14 @@ export default function AdminLiveScreen() {
         {/* ANSWER PROGRESS — hidden when host is playing along */}
         {!playAlong && (
           <>
+            <Pressable
+              style={[s.choiceBtn, { borderColor: colors.primary, backgroundColor: colors.primary + '22', marginBottom: 12 }]}
+              onPress={() => void releaseNextQuestion()}
+            >
+              <Text style={[s.choiceText, { color: colors.primary, textAlign: 'center' }]}>
+                Release next question
+              </Text>
+            </Pressable>
             <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>ANSWER PROGRESS</Text>
             {sortedQs.length === 0 ? (
               <Text style={[s.emptyText, { color: colors.mutedForeground }]}>No questions in this game.</Text>

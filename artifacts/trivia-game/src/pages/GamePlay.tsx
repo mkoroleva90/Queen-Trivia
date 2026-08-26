@@ -498,7 +498,7 @@ export function OrderingQuestion({
         <SortableContext items={displayItems} strategy={verticalListSortingStrategy}>
           <div className="flex flex-col gap-[8px]">
             {displayItems.map((item, i) => {
-              const posCorrect = answered ? normalize_item(item) === normalize_item(correct[i] ?? "") : null;
+              const posCorrect = answered ? feedbackResult!.isCorrect : null;
               return (
                 <SortableItem
                   key={item}
@@ -1062,21 +1062,25 @@ export function MatchingBoard({
   onSubmit: (a: string) => void;
   disabled: boolean;
 }) {
-  const pairs = useMemo(() => {
-    const opts = question.options as { pairs?: { left: string; right: string }[] } | null;
-    return opts?.pairs ?? [];
+  const { leftItems, rightItems } = useMemo(() => {
+    const opts = question.options as {
+      pairs?: { left: string; right: string }[];
+      leftItems?: string[];
+      rightItems?: string[];
+    } | null;
+    const pairs = opts?.pairs ?? [];
+    return {
+      leftItems: opts?.leftItems ?? pairs.map((pair) => pair.left),
+      rightItems: opts?.rightItems ?? pairs.map((pair) => pair.right),
+    };
   }, [question.options]);
 
-  const shuffledRights = useMemo(
-    () => [...pairs.map((p) => p.right)].sort(() => Math.random() - 0.5),
-    [pairs],
-  );
   const [choices, setChoices] = useState<Record<string, string>>({});
-  const allChosen = pairs.length > 0 && pairs.every((p) => choices[p.left]);
+  const allChosen = leftItems.length > 0 && leftItems.every((left) => choices[left]);
 
   const submit = () => {
-    const answer = pairs
-      .map((p) => `${p.left}:${choices[p.left]}`)
+    const answer = leftItems
+      .map((left) => `${left}:${choices[left]}`)
       .sort((a, b) => a.localeCompare(b))
       .join("|");
     onSubmit(answer);
@@ -1087,27 +1091,27 @@ export function MatchingBoard({
       <p className="text-xs text-muted-foreground">
         {COPY.gameplay.hintMatchBoard}
       </p>
-      {pairs.map((p) => (
-        <div key={p.left} className="flex items-center gap-3">
+      {leftItems.map((left) => (
+        <div key={left} className="flex items-center gap-3">
           <div
             className="flex-1 rounded-md px-4 py-3 font-medium text-sm"
             style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.12)" }}
           >
-            {p.left}
+            {left}
           </div>
           <span className="text-muted-foreground shrink-0">→</span>
           <Select
-            value={choices[p.left] ?? ""}
-            onValueChange={(v) => setChoices((c) => ({ ...c, [p.left]: v }))}
+            value={choices[left] ?? ""}
+            onValueChange={(v) => setChoices((c) => ({ ...c, [left]: v }))}
             disabled={disabled}
           >
             <SelectTrigger
-              className={`flex-1 ${choices[p.left] ? "border-secondary/50 bg-secondary/5" : ""}`}
+              className={`flex-1 ${choices[left] ? "border-secondary/50 bg-secondary/5" : ""}`}
             >
               <SelectValue placeholder="Match with…" />
             </SelectTrigger>
             <SelectContent>
-              {shuffledRights.map((r) => (
+              {rightItems.map((r) => (
                 <SelectItem key={r} value={r}>{r}</SelectItem>
               ))}
             </SelectContent>
@@ -1353,12 +1357,12 @@ export default function GamePlay() {
     [myAnswers],
   );
 
-  const unanswered       = sorted.filter((q) => !answeredIds.has(q.id));
-  const current          = unanswered.find((q) => !skippedIds.has(q.id)) ?? unanswered[0];
-  const answeredCount    = sorted.filter((q) => answeredIds.has(q.id)).length;
-  const total            = sorted.length;
-  const isLastQuestion   = !!current && sorted.indexOf(current) === total - 1;
-  const canSkip          = unanswered.length > 1;
+  const current          = sorted[0];
+  const answeredCount    = (myAnswers ?? []).length;
+  const total            = game?.questionCount ?? 0;
+  const awaitingHost     = !current || (answeredIds.has(current.id) && !feedback);
+  const isLastQuestion   = !!current && current.orderIndex === total - 1;
+  const canSkip          = false;
 
   const sortedParticipants = useMemo(
     () => [...(participants ?? [])].sort((a, b) => b.totalScore - a.totalScore),
@@ -1575,7 +1579,7 @@ export default function GamePlay() {
                   </div>
                 </motion.div>
 
-              ) : current ? (
+              ) : current && !awaitingHost ? (
                 <motion.div
                   key={current.id}
                   initial={{ opacity: 0, y: 16 }}
@@ -1703,7 +1707,7 @@ export default function GamePlay() {
 
                         {/* Advance CTA */}
                         <button
-                          onClick={isLastQuestion ? () => setLocation(`/results/${gameId}`) : nextQuestion}
+                          onClick={nextQuestion}
                           className="w-full font-extrabold uppercase text-[15px]"
                           style={{
                             height: 58, borderRadius: 14,
@@ -1713,7 +1717,7 @@ export default function GamePlay() {
                             border: "none", cursor: "pointer",
                           }}
                         >
-                          {isLastQuestion ? COPY.gameplay.feedbackSeeResults : COPY.gameplay.feedbackNext}
+                          {COPY.gameplay.feedbackNext}
                         </button>
                       </motion.div>
                     ) : (
@@ -1731,7 +1735,7 @@ export default function GamePlay() {
                   </AnimatePresence>
                 </motion.div>
 
-              ) : (
+              ) : game?.status === "completed" ? (
                 /* All done */
                 <motion.div
                   key="done"
@@ -1795,6 +1799,20 @@ export default function GamePlay() {
                       </button>
                     </div>
                   </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="waiting"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="rounded-[20px] p-10 text-center space-y-4"
+                  style={{ background: "rgba(255,255,255,.04)", border: "1px dashed rgba(255,255,255,.1)" }}
+                >
+                  <Sparkles className="mx-auto h-12 w-12" style={{ color: "rgba(0,221,255,.65)" }} />
+                  <h3 className="text-2xl font-bold">Waiting for the host</h3>
+                  <p className="text-muted-foreground max-w-md mx-auto text-sm">
+                    The next question will appear here when the host releases it.
+                  </p>
                 </motion.div>
               )}
             </AnimatePresence>

@@ -622,6 +622,7 @@ components:
         brief: { type: ["string", "null"] }
         hostPlaysAlong: { type: boolean }
         hostUserId: { type: ["integer", "null"] }
+        currentQuestionId: { type: ["integer", "null"] }
     GameDetail:
       type: object
       required: [id, topic, difficulty, questionCount, status, createdAt, createdByAdmin,participantCount]
@@ -642,6 +643,7 @@ components:
         brief: { type: ["string", "null"] }
         hostPlaysAlong: { type: boolean }
         hostUserId: { type: ["integer", "null"] }
+        currentQuestionId: { type: ["integer", "null"] }
     QuestionInput:
       type: object
       required: [questionText, questionType, correctAnswer, points, orderIndex]

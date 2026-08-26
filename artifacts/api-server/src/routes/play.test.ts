@@ -67,6 +67,12 @@ async function seedGameWithQuestions(
     );
     questions.push({ id: qRes.rows[0]!.id });
   }
+  if (questions[0]) {
+    await pool.query(
+      "UPDATE games SET current_question_id = $1 WHERE id = $2",
+      [questions[0].id, gameId],
+    );
+  }
 
   return { game: { id: gameId, accessCode }, questions };
 }
@@ -240,6 +246,11 @@ describe("mid-game re-entry — answered questions preserved", () => {
       .send({ questionId: q1.id, userAnswer: "true" });
     assert.equal(ans1.status, 201, `answer Q1 failed: ${JSON.stringify(ans1.body)}`);
 
+    // A host release, not a client-side cursor, authorizes the next question.
+    await pool.query(
+      "UPDATE games SET current_question_id = $1 WHERE id = $2",
+      [q2.id, game.id],
+    );
     const ans2 = await agent
       .post(`/api/games/${game.id}/answers`)
       .send({ questionId: q2.id, userAnswer: "true" });
@@ -351,17 +362,14 @@ describe("POST /api/auth/login — active session returns existing user", () => 
 
   it("prior answers are accessible after session-based re-entry", async () => {
     const agent = request.agent(app);
-    const [question] = (await seedGameWithQuestions(`${ACCESS_CODE}X`, 1)).questions;
-
-    // Seed a second mini-game just for this sub-test to avoid collision.
-    const miniGame = (await pool.query<{ id: number }>(
-      `SELECT id FROM games WHERE access_code = $1`,
-      [`${ACCESS_CODE}X`],
-    )).rows[0]!;
+    const { game: miniGame, questions: [question] } = await seedGameWithQuestions(
+      `P${String(Date.now()).slice(-5)}`,
+      1,
+    );
 
     const loginRes = await agent
       .post("/api/auth/login")
-      .send({ code: `${ACCESS_CODE}X`, name: `${PLAYER_NAME}_answers` });
+      .send({ code: miniGame.accessCode, name: `${PLAYER_NAME}_answers` });
     assert.equal(loginRes.status, 200);
     const userId: number = loginRes.body.id;
 

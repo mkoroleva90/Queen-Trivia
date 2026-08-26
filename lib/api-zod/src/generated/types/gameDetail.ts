@@ -24,4 +24,6 @@ export interface GameDetail {
   hostPlaysAlong?: boolean;
   /** @nullable */
   hostUserId?: number | null;
+  /** @nullable */
+  currentQuestionId?: number | null;
 }

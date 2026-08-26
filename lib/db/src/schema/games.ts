@@ -35,6 +35,10 @@ export const gamesTable = pgTable("games", {
  hostPlaysAlong: boolean("host_plays_along").notNull().default(false),
  // The player-user record created for the host when hostPlaysAlong is on.
  hostUserId: integer("host_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+  // The only question active players may view or answer while a game is live.
+  // This deliberately has no DB-level foreign key because questions already
+  // reference games, and the circular relationship complicates migrations.
+  currentQuestionId: integer("current_question_id"),
 });
 
 

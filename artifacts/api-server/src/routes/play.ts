@@ -242,6 +242,11 @@ if (!question || question.gameId !== params.data.gameId) {
     return;
 }
 
+if (game.currentQuestionId !== question.id) {
+    res.status(409).json({ error: "This question has not been released by the host" });
+    return;
+}
+
 
 const [already] = await db
     .select()
@@ -555,6 +560,10 @@ router.post(
 
         if (!question) {
             res.status(404).json({ error: "Question not found in this game" });
+            return;
+        }
+        if (game.currentQuestionId !== question.id) {
+            res.status(409).json({ error: "This question has not been released by the host" });
             return;
         }
 

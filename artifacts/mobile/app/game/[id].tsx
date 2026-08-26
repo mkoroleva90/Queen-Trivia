@@ -523,10 +523,14 @@ export function MatchingQ({
   question, onSubmit, disabled, lockedAnswer,
 }: { question: Question; onSubmit: (a: string) => void; disabled: boolean; lockedAnswer: string | null }) {
   const colors = useColors();
-  const opts = question.options as { pairs?: { left: string; right: string }[] } | null;
+  const opts = question.options as {
+    pairs?: { left: string; right: string }[];
+    leftItems?: string[];
+    rightItems?: string[];
+  } | null;
   const pairs = opts?.pairs ?? [];
-  const leftItems = pairs.map((p) => p.left);
-  const rightItems = useMemo(() => shuffle(pairs.map((p) => p.right)), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const leftItems = opts?.leftItems ?? pairs.map((p) => p.left);
+  const rightItems = opts?.rightItems ?? shuffle(pairs.map((p) => p.right));
   const [selectedLeft, setSelectedLeft] = useState<string | null>(null);
   const [matched, setMatched] = useState<Record<string, string>>({});
   const answered = !!lockedAnswer;
@@ -692,12 +696,12 @@ export default function GamePlayScreen() {
     [questions],
   );
   const answeredIds = useMemo(() => new Set((myAnswers ?? []).map((a) => a.questionId)), [myAnswers]);
-  const unanswered = sorted.filter((q) => !answeredIds.has(q.id));
-  const current = unanswered.find((q) => !skippedIds.has(q.id)) ?? unanswered[0];
-  const answeredCount = sorted.filter((q) => answeredIds.has(q.id)).length;
-  const total = sorted.length;
-  const isLastQuestion = !!current && sorted.indexOf(current) === total - 1;
-  const canSkip = unanswered.length > 1;
+  const current = sorted[0];
+  const answeredCount = (myAnswers ?? []).length;
+  const total = game?.questionCount ?? 0;
+  const awaitingHost = !current || (answeredIds.has(current.id) && !feedback);
+  const isLastQuestion = !!current && current.orderIndex === total - 1;
+  const canSkip = false;
   const myScore = participants?.find((p) => p.userId === userId)?.totalScore ?? 0;
 
   useEffect(() => {
@@ -710,7 +714,7 @@ export default function GamePlayScreen() {
 
   // Navigate to results if game is completed and all answered
   useEffect(() => {
-    if (game?.status === 'completed' && !current && answeredCount === total && total > 0) {
+    if (game?.status === 'completed') {
       router.replace(`/results/${gameId}`);
     }
   }, [game?.status, current, answeredCount, total, gameId, router]);
@@ -752,10 +756,6 @@ export default function GamePlayScreen() {
   };
 
   const handleNext = () => {
-    if (isLastQuestion || !current) {
-      router.replace(`/results/${gameId}`);
-      return;
-    }
     queryClient.invalidateQueries({ queryKey: getListUserAnswersQueryKey(gameId, userId) });
     setFeedback(null);
     setLockedAnswer(null);
@@ -894,26 +894,14 @@ export default function GamePlayScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {!current ? (
-          /* All questions answered */
+        {awaitingHost ? (
+          /* The host controls when the next question is released. */
           <View style={styles.doneState}>
-            <Ionicons name="trophy" size={64} color={colors.accent} />
-            <Text style={[styles.doneTitle, { color: colors.foreground }]}>{COPY.gameplay.allDoneTitle}</Text>
+            <Ionicons name="time-outline" size={64} color={colors.secondary} />
+            <Text style={[styles.doneTitle, { color: colors.foreground }]}>Waiting for the host</Text>
             <Text style={[styles.doneSub, { color: colors.mutedForeground }]}>
-              {COPY.gameplay.allDoneSub}
+              The next question will appear here when the host releases it.
             </Text>
-            <TouchableOpacity
-              onPress={() => router.replace(`/results/${gameId}`)}
-              style={[styles.confirmBtn, { backgroundColor: colors.accent, marginTop: 8 }]}
-            >
-              <Text style={[styles.confirmBtnText, { color: colors.accentForeground }]}>{COPY.gameplay.allDoneViewResults}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => router.replace('/')}
-              style={[styles.confirmBtn, { backgroundColor: colors.muted, marginTop: 8 }]}
-            >
-              <Text style={[styles.confirmBtnText, { color: colors.foreground }]}>{COPY.results.backToLobby}</Text>
-            </TouchableOpacity>
           </View>
         ) : (
           <>

@@ -1,5 +1,6 @@
 
 import { Router, type IRouter } from "express";
+import { createHmac } from "node:crypto";
 import { eq, asc, count } from "drizzle-orm";
 import { db, gamesTable, questionsTable } from "@workspace/db";
 import {
@@ -47,6 +48,72 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isFiniteNumber(value: unknown): value is number {
     return typeof value === "number" && Number.isFinite(value);
+}
+
+function displayOrder(items: string[], seed: string): string[] {
+    if (items.length < 2) return [...items];
+    const secret = process.env.SESSION_SECRET;
+    if (!secret) throw new Error("SESSION_SECRET is required to order protected question displays");
+
+    const ordered = [...items].sort((a, b) => {
+        const rank = (item: string) => createHmac("sha256", secret).update(`${seed}:${item}`).digest("hex");
+        return rank(a).localeCompare(rank(b));
+    });
+    // A display order must never be the grading order. The keyed ranking is
+    // unrelated to the solution and stable across requests, so repeated reads
+    // cannot reveal a missing permutation.
+    if (ordered.every((item, index) => item === items[index])) {
+        [ordered[0], ordered[1]] = [ordered[1]!, ordered[0]!];
+    }
+    return ordered;
+}
+
+/**
+ * The host stores matching pairs and ordering items in their correct order for
+ * grading. Players need the same values to interact with those question types,
+ * but must never receive their correct associations or sequence.
+ */
+function redactPlayerQuestion<T extends {
+    id: number;
+    correctAnswer: string;
+    questionType: string;
+    options: Record<string, unknown> | null;
+}>(question: T): Omit<T, "correctAnswer"> {
+    const { correctAnswer: _correctAnswer, ...safeQuestion } = question;
+    const options = safeQuestion.options ? { ...safeQuestion.options } : null;
+
+    if (!options) return safeQuestion;
+
+    if (safeQuestion.questionType === "ordering") {
+        const items = options.items;
+        if (Array.isArray(items) && items.every((item): item is string => typeof item === "string")) {
+            options.items = displayOrder(items, `${question.id}:ordering`);
+        } else {
+            delete options.items;
+        }
+    }
+
+    if (safeQuestion.questionType === "matching") {
+        const pairs = options.pairs;
+        if (
+            Array.isArray(pairs)
+            && pairs.every((pair) =>
+                isRecord(pair) && typeof pair.left === "string" && typeof pair.right === "string",
+            )
+        ) {
+            const leftItems = pairs.map((pair) => pair.left as string);
+            const rightItems = pairs.map((pair) => pair.right as string);
+            // Do not return a pair-shaped structure to players: even a shuffled
+            // pairing can be aggregated across responses to recover the answer.
+            delete options.pairs;
+            options.leftItems = displayOrder(leftItems, `${question.id}:matching-left`);
+            options.rightItems = displayOrder(rightItems, `${question.id}:matching-right`);
+        } else {
+            delete options.pairs;
+        }
+    }
+
+    return { ...safeQuestion, options };
 }
 
 function validateSpecialistQuestion(
@@ -184,7 +251,10 @@ router.get("/games/:gameId/questions", requireAuth, async (req, res): Promise<vo
     if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
     const [game, questions] = await Promise.all([
-        db.select({ status: gamesTable.status })
+        db.select({
+            status: gamesTable.status,
+            currentQuestionId: gamesTable.currentQuestionId,
+        })
             .from(gamesTable)
             .where(eq(gamesTable.id, params.data.gameId))
             .limit(1)
@@ -200,14 +270,18 @@ router.get("/games/:gameId/questions", requireAuth, async (req, res): Promise<vo
         return;
     }
 
-    const isAdmin = req.session.isAdmin === true;
-    // Reveal correct answers once the game is over — safe to show players their results
-    const revealAnswers = isAdmin || game.status === "completed";
-
     const decoded = questions.map(decodeQuestionFields);
-    const response = revealAnswers
+    const isAdmin = req.session.isAdmin === true;
+    // Players receive only the question the host has released. Waiting games
+    // have no released question; completed games safely reveal the full review.
+    const visibleQuestions = isAdmin || game.status === "completed"
         ? decoded
-        : decoded.map(({ correctAnswer: _ca, ...rest }) => rest);
+        : game.status === "active" && game.currentQuestionId != null
+            ? decoded.filter((question) => question.id === game.currentQuestionId)
+            : [];
+    const response = isAdmin || game.status === "completed"
+        ? visibleQuestions
+        : visibleQuestions.map(redactPlayerQuestion);
 
 
  res.json(ListGameQuestionsResponse.parse(response));
