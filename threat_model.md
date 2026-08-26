@@ -1,7 +1,6 @@
 # Threat Model
 
 ## Project Overview
-
 Trivia Night is a multiplayer pub-quiz web application. Players join live games using an access code, answer timed questions (multiple choice, true/false, matching, image, write-in), and see live leaderboards. Hosts manage games, questions (including Gemini AI generation/fact-check and OpenTDB import), and settings.
 
 - **Stack:** Node.js 24 / TypeScript, Express 5, PostgreSQL + Drizzle ORM, Socket.IO, React frontend (Vite), pnpm workspaces.
@@ -30,8 +29,8 @@ Trivia Night is a multiplayer pub-quiz web application. Players join live games 
 ## Scan Anchors
 
 - **Entry points:** `artifacts/api-server/src/routes/` (all route files), `artifacts/api-server/src/app.ts`, `artifacts/api-server/src/lib/socket.ts`, and `artifacts/mobile/server/serve.js`.
-- **Highest-risk areas:** host session logic in `routes/emailAuth.ts` and `lib/mobileAuth.ts`; tenant isolation in `lib/assertGameOwnership.ts`; player cross-game reads in `routes/games.ts`, `routes/questions.ts`, `routes/play.ts`, and `routes/results.ts`; Socket.IO room admission in `lib/socket.ts`; AI grading in `services/geminiApi.ts`; owner API key enforcement in `routes/owner.ts`.
-- **Public surfaces:** `/api/healthz`, `/api/auth/*`, `/api/admin/me`, `/api/auth/email/verify`, `/api/auth/email/login`, `/api/auth/email/forgot-password`, `/api/auth/email/reset-password`, `/api/auth/email/register`, `POST /api/reports`, and `/mobile/`.
+- **Highest-risk areas:** host session logic in `routes/emailAuth.ts` and `lib/mobileAuth.ts`; tenant isolation in `lib/assertGameOwnership.ts`; player cross-game reads in `routes/games.ts`, `routes/questions.ts`, `routes/play.ts`, and `routes/results.ts`; Socket.IO room admission/lifecycle in `lib/socket.ts`; AI grading in `services/geminiApi.ts`; owner API key enforcement in `routes/owner.ts`.
+- **Public surfaces:** `/api/healthz`, `/api/auth/*`, `/api/admin/me`, `/api/auth/email/verify`, `/api/auth/email/login`, `/api/auth/email/forgot-password`, `/api/auth/email/reset-password`, `/api/auth/email/register`, `POST /api/reports`, unauthenticated `GET /api/games/code-available`, and `/mobile/`.
 - **Host surface:** `/api/games`, `/api/questions`, `/api/stats`, Gemini/OpenTDB imports, results export, account, and kick routes. Host game operations must be scoped by `ownerAdminId`.
 - **Owner-only surface:** `/api/owner/*` protected by `ADMIN_ACCESS_KEY`.
 - **Player surface:** game join, answers, results, participant/question reads, and Socket.IO game rooms. Player access must be limited to games joined or otherwise explicitly authorized.
@@ -41,7 +40,7 @@ Trivia Night is a multiplayer pub-quiz web application. Players join live games 
 
 ### Spoofing
 
-Host registration is open to visitors with a valid email address. Accounts remain inactive until verification. Email/SSO login establishes an admin session with `adminAccountId`; player login establishes a player session with `userId` and allowed game IDs. Sessions use httpOnly, Secure, SameSite cookies, and login regenerates the session ID. Mobile bearer tokens use HMAC-SHA256 and expire. Password reset and password-change flows must invalidate old sessions/tokens. The mobile reset flow currently uses a six-digit code, so distributed and persistent attempt controls are required to prevent account takeover.
+Host registration is open to visitors with a valid email address. Accounts remain inactive until verification. Email/SSO login establishes an admin session with `adminAccountId`; player login establishes a player session with `userId` and allowed game IDs. Sessions use httpOnly, Secure, SameSite cookies, and login regenerates the session ID. Mobile bearer tokens use HMAC-SHA256 and expire. Password reset and password-change flows should invalidate old sessions/tokens; the current browser change-password and account-deletion paths do not invalidate other existing cookie sessions. The mobile reset flow uses a six-digit code, so distributed and persistent attempt controls are required to prevent account takeover.
 
 **Required guarantees:**
 - Email accounts MUST be inactive until verification.
@@ -50,47 +49,51 @@ Host registration is open to visitors with a valid email address. Accounts remai
 - SSO tokens MUST verify signature, issuer, audience, expiry, and subject.
 - Player and host session types MUST not be confused when applying authorization.
 - Per-game access codes MUST use a CSPRNG and MUST never appear in player responses.
+- Password-reset, password-change, and account-deletion actions MUST revoke all prior host sessions/tokens, not only the invoking browser session.
 - Password-reset codes MUST have sufficient entropy and failed attempts MUST be bounded per account as well as per source.
 
 ### Tampering
 
-Correct answers and score updates are computed server-side. Player submissions are scoped to the session user and participant row, and duplicate submissions are rejected. AI grading treats player answers as untrusted and clamps the resulting score.
+Correct answers and score updates are computed server-side, but the active answer endpoint currently accepts any question in an active game without a server-controlled current-question or presentation window. A participant can submit future questions out of order and receive points. Matching and ordering options also retain their solutions in active player responses, allowing direct perfect submissions. Player submissions are scoped to the session user and participant row, and duplicate submissions are rejected by application logic but require an atomic database constraint to withstand races.
 
 **Required guarantees:**
-- Game status, points, correctness, and participant identity MUST be server-controlled.
+- Game status, current question, release/deadline, points, correctness, and participant identity MUST be server-controlled.
 - Every answer and host mutation MUST be scoped to the exact game and authorized subject.
+- Active player question responses MUST not contain matching mappings, ordering sequences, or any other answer-equivalent data.
 - Socket.IO events MUST not permit a host to subscribe to another tenant's room.
 
 ### Information Disclosure
 
-The server must keep game data and participant activity within the correct game/tenant boundary. Current scan findings include an unscoped `GET /games` listing reachable by player sessions, platform-wide aggregate statistics exposed to any authenticated host, and the unauthenticated `next-by-host` metadata endpoint. Legacy admin sessions without `adminAccountId` also retain a documented cross-tenant bypass in `assertGameOwnership`. During active games, the answer-submission response currently includes the correct answer for slider and image-hotspot questions.
+The server must keep game data and participant activity within the correct game/tenant boundary. Player list and game reads are scoped to grants or participation, and host reads/writes are scoped to `ownerAdminId`. Active-game responses still expose matching/order solutions, and a kicked player's already admitted Socket.IO room is not revoked, so that socket can continue receiving live activity. Host-controlled fact-check URLs are rendered as links and must be treated as untrusted URL data. The unauthenticated code-availability oracle also reveals whether weak custom room codes are in use.
 
 **Required guarantees:**
 - Player reads of game details, questions, participants, lists, and results MUST require participation or another explicit game authorization; a missing `adminAccountId` MUST not mean super-admin for player sessions.
 - Player-facing responses MUST never include active-game access codes or correct answers unless explicitly intended after completion.
 - Host reads and writes MUST be scoped to `ownerAdminId`.
 - Platform aggregate endpoints MUST scope results to the requesting host unless the data is intentionally public.
-- Socket.IO room admission MUST enforce player membership and host ownership before joining.
+- Socket.IO room admission MUST enforce player membership and host ownership before joining, and kick operations MUST evict already-connected unauthorized sockets.
 - Errors and logs MUST not disclose secrets, reset tokens, or database internals.
-- Image fetches MUST remain restricted to the Wikimedia allowlist; static file paths MUST remain under the mobile build root.
+- Player-facing URLs MUST be restricted to safe schemes such as HTTPS; image fetches MUST remain restricted to the Wikimedia allowlist; static file paths MUST remain under the mobile build root.
 
 ### Elevation of Privilege
 
-Host routes use `requireAdmin`, player routes use `requireUser`, and shared reads use `requireAuth`, but shared authorization helpers must distinguish player sessions from legacy admin sessions. The removed code-based login route must remain unavailable and old legacy sessions must not retain unrestricted tenant access. Owner routes require the separate bearer key. Account deletion, password changes, game mutation, question mutation, exports, and plan changes require exact subject/object authorization.
+Host routes use `requireAdmin`, player routes use `requireUser`, and shared reads use `requireAuth`, but shared authorization helpers must distinguish player sessions from legacy admin sessions. The removed code-based login route must remain unavailable and old legacy sessions must not retain unrestricted tenant access. Owner routes require the separate bearer key. Account deletion, password changes, game mutation, question mutation, exports, and plan changes require exact subject/object authorization. A deleted host's other browser session currently remains accepted by `requireAdmin` and can retain host privileges.
 
 **Required guarantees:**
 - Authentication MUST be followed by object-level authorization for every sensitive game, question, participant, report, and owner action.
 - Client-side route guards and hidden controls MUST never substitute for server checks.
 - Full game rows and credentials MUST not be returned through alternate read endpoints.
+- `requireAdmin` MUST validate that the account-backed subject still exists and is active, and all account security changes MUST invalidate prior sessions.
 
 ### Denial of Service
 
-Auth, player join, answer submission, Gemini, OpenTDB, and reports endpoints have rate limits. Public reports use a PostgreSQL-backed store, but auth rate limiting currently uses the default per-process in-memory store. External service calls use bounded operations and timeouts. Limits should be shared across autoscale instances where the threat depends on a global budget, and resource-intensive operations should remain authenticated.
+Auth, player join, answer submission, Gemini, OpenTDB, and reports endpoints have rate limits. Public reports use a PostgreSQL-backed store, but some provider and answer limits are per-process. External service calls use bounded operations and timeouts. The public Socket.IO `game:join` event currently has no per-socket event/concurrency limit and performs a database participant lookup for every supplied game ID, allowing an authenticated player socket to create an unbounded database-work backlog.
 
 **Required guarantees:**
 - Password, reset-code, and SSO endpoints MUST resist distributed brute force and abuse.
 - Auth and reset-code limits MUST persist across restarts and replicas, and reset attempts MUST be bound to the target account.
 - AI generation and import operations MUST remain authenticated, rate-limited, and usage-metered.
+- Socket.IO events that trigger database work MUST have bounded rate/concurrency and disconnect or backpressure abusive clients.
 - Request bodies, uploaded/static content, and external calls MUST have bounded size/time.
 
 ### Repudiation
