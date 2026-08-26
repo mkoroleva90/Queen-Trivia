@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
-import { eq, sql } from "drizzle-orm";
-import { db, adminAccountsTable, sessionsTable, gamesTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import { db, adminAccountsTable, gamesTable } from "@workspace/db";
 import {
   EmailRegisterBody,
   EmailLoginBody,
@@ -19,6 +19,8 @@ import {
   mobileResetAttemptStore,
 } from "../middleware/authRateLimit.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
+import { invalidateAdminSessions } from "../lib/session.ts";
+import { revokeAdminSockets } from "../lib/socket.ts";
 import {
   sendVerificationEmail,
   sendPasswordResetEmail,
@@ -318,11 +320,14 @@ router.post(
 
     // Invalidate all existing sessions for this admin so stolen sessions cannot
     // continue to be used after a password reset.
-    // connect-pg-simple stores session data as JSON in the `sess` column;
-    // we delete any row whose sess->>'adminEmail' matches the account directly.
-    await db
-      .delete(sessionsTable)
-      .where(sql`${sessionsTable.sess}->>'adminEmail' = ${account.email}`);
+    await invalidateAdminSessions({
+      adminAccountId: account.id,
+      adminEmail: account.email,
+    });
+    revokeAdminSockets({
+      adminAccountId: account.id,
+      adminEmail: account.email,
+    });
 
     res.json({ ok: true, message: "Password updated. You can now log in." });
   }
@@ -450,9 +455,14 @@ router.post(
       .where(eq(adminAccountsTable.id, account.id));
 
     // Invalidate existing web sessions for this admin.
-    await db
-      .delete(sessionsTable)
-      .where(sql`${sessionsTable.sess}->>'adminEmail' = ${account.email}`);
+    await invalidateAdminSessions({
+      adminAccountId: account.id,
+      adminEmail: account.email,
+    });
+    revokeAdminSockets({
+      adminAccountId: account.id,
+      adminEmail: account.email,
+    });
 
     const { generateAdminToken } = await import("../lib/mobileAuth.js");
     const adminToken = generateAdminToken(account.id);
@@ -505,6 +515,21 @@ router.post(
     }
 
     const newHash = await bcrypt.hash(parsed.data.newPassword, 12);
+
+    // Revoke other browser sessions before changing the password. If the
+    // password update fails, sessions are safely logged out rather than
+    // leaving stolen sessions authorized after a successful password update.
+    await invalidateAdminSessions({
+      adminAccountId: account.id,
+      adminEmail: account.email,
+      exceptSessionId: req.sessionID,
+    });
+    revokeAdminSockets({
+      adminAccountId: account.id,
+      adminEmail: account.email,
+      exceptSessionId: req.sessionID,
+    });
+
     const passwordChangedAt = new Date();
     await db
       .update(adminAccountsTable)
@@ -572,9 +597,19 @@ router.delete(
       return;
     }
 
+    const adminAccountId = req.session.adminAccountId;
     await db
       .delete(adminAccountsTable)
       .where(eq(adminAccountsTable.email, email));
+
+    await invalidateAdminSessions({
+      adminAccountId,
+      adminEmail: email,
+    });
+    revokeAdminSockets({
+      adminAccountId,
+      adminEmail: email,
+    });
 
     req.session.destroy(() => {
       res.json({ ok: true, message: `Account ${email} deleted and session cleared.` });
@@ -609,7 +644,16 @@ router.delete(
       .delete(adminAccountsTable)
       .where(eq(adminAccountsTable.id, adminAccountId));
 
-    // Invalidate the session
+    await invalidateAdminSessions({
+      adminAccountId,
+      adminEmail: req.session.adminEmail,
+    });
+    revokeAdminSockets({
+      adminAccountId,
+      adminEmail: req.session.adminEmail,
+    });
+
+    // Invalidate the current session
     req.session.destroy(() => {
       res.json({ ok: true, message: "Account deleted." });
     });

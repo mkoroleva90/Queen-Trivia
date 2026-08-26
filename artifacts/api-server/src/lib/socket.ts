@@ -156,6 +156,35 @@ export function getIo(): IO {
   return io;
 }
 
+/**
+ * Disconnect active host sockets when their persisted browser sessions are
+ * revoked. Socket.IO snapshots req.session at handshake time, so deleting the
+ * session-store row alone cannot remove an already joined socket from private
+ * game and lobby rooms.
+ */
+export function revokeAdminSockets(options: {
+  adminAccountId?: number | null;
+  adminEmail?: string | null;
+  exceptSessionId?: string;
+}): void {
+  if (!io) return;
+
+  for (const socket of io.sockets.sockets.values()) {
+    const req = socket.request as Request;
+    if (
+      (
+        (options.adminAccountId != null
+          && req.session?.adminAccountId === options.adminAccountId)
+        || (options.adminEmail != null
+          && req.session?.adminEmail === options.adminEmail)
+      )
+      && req.sessionID !== options.exceptSessionId
+    ) {
+      socket.disconnect(true);
+    }
+  }
+}
+
 /** Extracts the payload type for a given server-to-client event. */
 type PayloadOf<E extends keyof ServerToClientEvents> =
   ServerToClientEvents[E] extends (payload: infer P) => void ? P : never;

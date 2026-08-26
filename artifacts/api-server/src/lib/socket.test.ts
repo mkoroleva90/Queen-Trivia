@@ -15,11 +15,17 @@ const {
   default: app,
   router,
   initSocket,
+  revokeAdminSockets,
   safeEmit,
 } = await import("../../dist/app.mjs") as {
   default: import("express").Express;
   router: IRouter;
   initSocket: (server: import("node:http").Server) => import("socket.io").Server;
+  revokeAdminSockets: (options: {
+    adminAccountId?: number | null;
+    adminEmail?: string | null;
+    exceptSessionId?: string;
+  }) => void;
   safeEmit: (
     room: string,
     event: "game:ended",
@@ -50,6 +56,21 @@ const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 // not receive events from a game owned by an email-authenticated host.
 (router as IRouter).post("/test-set-legacy-socket-admin-session", (req, res): void => {
   req.session.isAdmin = true;
+  req.session.adminAccountId = undefined;
+  req.session.save(() => res.json({ ok: true }));
+});
+
+// Simulates an email-authenticated cookie created before adminAccountId was
+// added to the session payload. It must be revoked by its email identity, not
+// treated like the identity-free code-based legacy session above.
+(router as IRouter).post("/test-set-email-only-socket-admin-session", (req, res): void => {
+  const email = (req.body as { email?: unknown })?.email;
+  if (typeof email !== "string") {
+    res.status(400).json({ error: "email is required" });
+    return;
+  }
+  req.session.isAdmin = true;
+  req.session.adminEmail = email;
   req.session.adminAccountId = undefined;
   req.session.save(() => res.json({ ok: true }));
 });
@@ -103,16 +124,20 @@ describe("Socket.IO host game-room ownership", () => {
   let ownerSocket: Socket;
   let foreignSocket: Socket;
   let legacySocket: Socket;
+  let emailOnlySocket: Socket;
   let ownerAdminId: number;
   let foreignAdminId: number;
+  let ownerEmail: string;
 
   before(async () => {
     const suffix = `${process.pid}-${Date.now()}`;
+    ownerEmail = `__test__socket_owner_${suffix}@example.test`;
+    const foreignEmail = `__test__socket_foreign_${suffix}@example.test`;
     const owners = await pool.query<{ id: number }>(
       `INSERT INTO admin_accounts (email, email_verified)
        VALUES ($1, true), ($2, true)
        RETURNING id`,
-      [`__test__socket_owner_${suffix}@example.test`, `__test__socket_foreign_${suffix}@example.test`],
+      [ownerEmail, foreignEmail],
     );
     ownerAdminId = owners.rows[0]!.id;
     foreignAdminId = owners.rows[1]!.id;
@@ -161,12 +186,21 @@ describe("Socket.IO host game-room ownership", () => {
     assert.equal(legacySession.status, 200);
     const legacyCookie = legacySession.headers["set-cookie"]![0]!.split(";")[0]!;
     legacySocket = await connect(port, legacyCookie);
+
+    const emailOnlyAgent = request.agent(app);
+    const emailOnlySession = await emailOnlyAgent
+      .post("/api/test-set-email-only-socket-admin-session")
+      .send({ email: ownerEmail });
+    assert.equal(emailOnlySession.status, 200);
+    const emailOnlyCookie = emailOnlySession.headers["set-cookie"]![0]!.split(";")[0]!;
+    emailOnlySocket = await connect(port, emailOnlyCookie);
   });
 
   after(async () => {
     ownerSocket?.disconnect();
     foreignSocket?.disconnect();
     legacySocket?.disconnect();
+    emailOnlySocket?.disconnect();
     await new Promise<void>((resolve) => ioServer.close(() => resolve()));
     await new Promise<void>((resolve) => httpServer.close(() => resolve()));
     await pool.query("DELETE FROM games WHERE id = ANY($1)", [[ownGameId, foreignGameId]]);
@@ -256,5 +290,27 @@ describe("Socket.IO host game-room ownership", () => {
       false,
       "legacy admin must not join another host's private event room",
     );
+  });
+
+  it("disconnects revoked host sockets while preserving an explicitly retained session", async () => {
+    const serverSocket = ioServer.sockets.sockets.get(ownerSocket.id);
+    assert.ok(serverSocket, "owner socket should still be connected");
+    const sessionId = (serverSocket.request as import("express").Request).sessionID;
+
+    revokeAdminSockets({
+      adminAccountId: ownerAdminId,
+      exceptSessionId: sessionId,
+    });
+    assert.equal(ownerSocket.connected, true, "the retained current session must stay connected");
+
+    revokeAdminSockets({ adminEmail: ownerEmail });
+    const emailOnlyDisconnected = await waitFor(() => emailOnlySocket.disconnected);
+    assert.equal(emailOnlyDisconnected, true, "email-only migration sessions must be revoked");
+    assert.equal(legacySocket.connected, true, "identity-free code sessions must remain connected");
+
+    revokeAdminSockets({ adminAccountId: ownerAdminId });
+    const disconnected = await waitFor(() => ownerSocket.disconnected);
+    assert.equal(disconnected, true, "revoked sessions must lose their active socket");
+    assert.equal(foreignSocket.connected, true, "other hosts must remain connected");
   });
 });

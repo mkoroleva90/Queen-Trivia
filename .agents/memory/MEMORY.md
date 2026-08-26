@@ -20,3 +20,4 @@
 - [Mobile OTP reset limits](mobile-otp-reset-limits.md) — OTP attempts need a rolling, account-stable HMAC key; fixed windows or per-token keys can be reset by timing or code reissue.
 - [OpenTDB supplement compatibility](opentdb-supplement-compatibility.md) — import modes are server-validated locally so existing OpenAPI/Orval clients and standard imports remain unchanged.
 - [Development database migration drift](development-database-migration-drift.md) — player login can 500 when the development DB lacks the game access-grants migration.
+- [Admin session revocation](admin-session-revocation.md) — database revocation must disconnect active Socket.IO hosts; email-only migration sessions are account-backed, not legacy code sessions.
