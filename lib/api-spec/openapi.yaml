@@ -660,7 +660,7 @@ components:
         points: { type: integer, minimum: 1 }
         orderIndex: { type: integer, minimum: 0 }
         source: { type: ["string", "null"] }
-        factCheckUrl: { type: ["string", "null"] }
+        factCheckUrl: { type: ["string", "null"], pattern: '^https?://[^/\s?#]+(?:[/?#][^\s]*)?$' }
         verifiedByAdmin: { type: boolean }
         aiGenerated: { type: boolean }
     QuestionUpdate:
@@ -678,7 +678,7 @@ components:
         points: { type: integer, minimum: 1 }
         orderIndex: { type: integer, minimum: 0 }
         source: { type: ["string", "null"] }
-        factCheckUrl: { type: ["string", "null"] }
+        factCheckUrl: { type: ["string", "null"], pattern: '^https?://[^/\s?#]+(?:[/?#][^\s]*)?$' }
         verifiedByAdmin: { type: boolean }
     RegenerateQuestionInput:
       type: object

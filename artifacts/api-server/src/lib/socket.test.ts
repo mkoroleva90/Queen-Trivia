@@ -16,6 +16,7 @@ const {
   router,
   initSocket,
   revokeAdminSockets,
+  revokePlayerFromGame,
   safeEmit,
 } = await import("../../dist/app.mjs") as {
   default: import("express").Express;
@@ -26,6 +27,7 @@ const {
     adminEmail?: string | null;
     exceptSessionId?: string;
   }) => void;
+  revokePlayerFromGame: (gameId: number, userId: number) => Promise<void>;
   safeEmit: (
     room: string,
     event: "game:ended",
@@ -57,6 +59,18 @@ const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 (router as IRouter).post("/test-set-legacy-socket-admin-session", (req, res): void => {
   req.session.isAdmin = true;
   req.session.adminAccountId = undefined;
+  req.session.save(() => res.json({ ok: true }));
+});
+
+// Creates a player session for the room-revocation regression test.
+(router as IRouter).post("/test-set-socket-player-session", (req, res): void => {
+  const userId = (req.body as { userId?: unknown })?.userId;
+  if (!Number.isSafeInteger(userId) || userId <= 0) {
+    res.status(400).json({ error: "userId is required" });
+    return;
+  }
+  req.session.isAdmin = false;
+  req.session.userId = userId;
   req.session.save(() => res.json({ ok: true }));
 });
 
@@ -124,9 +138,11 @@ describe("Socket.IO host game-room ownership", () => {
   let ownerSocket: Socket;
   let foreignSocket: Socket;
   let legacySocket: Socket;
+  let playerSocket: Socket;
   let emailOnlySocket: Socket;
   let ownerAdminId: number;
   let foreignAdminId: number;
+  let playerId: number;
   let ownerEmail: string;
 
   before(async () => {
@@ -187,6 +203,24 @@ describe("Socket.IO host game-room ownership", () => {
     const legacyCookie = legacySession.headers["set-cookie"]![0]!.split(";")[0]!;
     legacySocket = await connect(port, legacyCookie);
 
+    const player = await pool.query<{ id: number }>(
+      "INSERT INTO users (name) VALUES ($1) RETURNING id",
+      [`__test__socket_player_${suffix}`],
+    );
+    playerId = player.rows[0]!.id;
+    await pool.query(
+      "INSERT INTO game_participants (game_id, user_id) VALUES ($1, $2)",
+      [ownGameId, playerId],
+    );
+
+    const playerAgent = request.agent(app);
+    const playerSession = await playerAgent
+      .post("/api/test-set-socket-player-session")
+      .send({ userId: playerId });
+    assert.equal(playerSession.status, 200);
+    const playerCookie = playerSession.headers["set-cookie"]![0]!.split(";")[0]!;
+    playerSocket = await connect(port, playerCookie);
+
     const emailOnlyAgent = request.agent(app);
     const emailOnlySession = await emailOnlyAgent
       .post("/api/test-set-email-only-socket-admin-session")
@@ -200,10 +234,12 @@ describe("Socket.IO host game-room ownership", () => {
     ownerSocket?.disconnect();
     foreignSocket?.disconnect();
     legacySocket?.disconnect();
+    playerSocket?.disconnect();
     emailOnlySocket?.disconnect();
     await new Promise<void>((resolve) => ioServer.close(() => resolve()));
     await new Promise<void>((resolve) => httpServer.close(() => resolve()));
     await pool.query("DELETE FROM games WHERE id = ANY($1)", [[ownGameId, foreignGameId]]);
+    await pool.query("DELETE FROM users WHERE id = $1", [playerId]);
     await pool.query("DELETE FROM admin_accounts WHERE id = ANY($1)", [[ownerAdminId, foreignAdminId]]);
     await pool.end();
   });
@@ -231,7 +267,7 @@ describe("Socket.IO host game-room ownership", () => {
     assert.deepEqual(stats.body, {
       totalGames: 1,
       activeGames: 1,
-      totalPlayers: 0,
+      totalPlayers: 1,
       totalAnswers: 0,
     });
   });
@@ -312,5 +348,32 @@ describe("Socket.IO host game-room ownership", () => {
     const disconnected = await waitFor(() => ownerSocket.disconnected);
     assert.equal(disconnected, true, "revoked sessions must lose their active socket");
     assert.equal(foreignSocket.connected, true, "other hosts must remain connected");
+  });
+
+  it("forcibly removes a kicked player from the live game room", async () => {
+    playerSocket.emit("game:join", ownGameId);
+    const joined = await waitFor(() =>
+      ioServer.sockets.adapter.rooms.get(`game:${ownGameId}`)?.has(playerSocket.id) ?? false,
+    );
+    assert.equal(joined, true, "participant must initially join the live room");
+
+    const kicked = new Promise<{ gameId: number; userId: number }>((resolve) => {
+      playerSocket.once("player:kicked", resolve);
+    });
+    await revokePlayerFromGame(ownGameId, playerId);
+    assert.deepEqual(await kicked, { gameId: ownGameId, userId: playerId });
+
+    const removed = await waitFor(() =>
+      !(ioServer.sockets.adapter.rooms.get(`game:${ownGameId}`)?.has(playerSocket.id) ?? false),
+    );
+    assert.equal(removed, true, "kicked player must be removed server-side from the room");
+
+    let receivedFutureEvent = false;
+    playerSocket.once("game:ended", () => {
+      receivedFutureEvent = true;
+    });
+    safeEmit(`game:${ownGameId}`, "game:ended", { gameId: ownGameId });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(receivedFutureEvent, false, "removed player must not receive later room events");
   });
 });

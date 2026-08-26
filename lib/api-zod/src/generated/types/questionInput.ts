@@ -25,6 +25,7 @@ export interface QuestionInput {
   /** @nullable */
   source?: string | null;
   /** @nullable */
+  /** @pattern ^https?://[^/\s?#]+(?:[/?#][^\s]*)?$ */
   factCheckUrl?: string | null;
   verifiedByAdmin?: boolean;
   aiGenerated?: boolean;

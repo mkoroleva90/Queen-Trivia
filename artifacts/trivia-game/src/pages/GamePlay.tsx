@@ -86,7 +86,10 @@ type QuestionStats = {
   correctCount: number;
 };
 
-// Inline answer-reveal result passed to question components
+function isSafeFactCheckUrl(value: string | null | undefined): value is string {
+  return typeof value === "string"
+    && /^https?:\/\/[^/\s?#]+(?:[/?#][^\s]*)?$/i.test(value);
+}
 export type FeedbackResult = {
   isCorrect: boolean;
   lockedAnswer: string;
@@ -1680,7 +1683,7 @@ export default function GamePlay() {
                               </span>
                             </>
                           )}
-                          {feedback.factCheckUrl && (
+                          {isSafeFactCheckUrl(feedback.factCheckUrl) && (
                             <>
                               <span style={{ color: "#475569" }}>·</span>
                               <a

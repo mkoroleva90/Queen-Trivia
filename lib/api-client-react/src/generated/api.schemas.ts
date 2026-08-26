@@ -225,6 +225,7 @@ export interface QuestionInput {
   /** @nullable */
   source?: string | null;
   /** @nullable */
+  /** @pattern ^https?://[^/\s?#]+(?:[/?#][^\s]*)?$ */
   factCheckUrl?: string | null;
   verifiedByAdmin?: boolean;
   aiGenerated?: boolean;
@@ -268,6 +269,7 @@ export interface QuestionUpdate {
   /** @nullable */
   source?: string | null;
   /** @nullable */
+  /** @pattern ^https?://[^/\s?#]+(?:[/?#][^\s]*)?$ */
   factCheckUrl?: string | null;
   verifiedByAdmin?: boolean;
 }
@@ -538,4 +540,3 @@ export type SubmitReport422 = {
   error?: string;
   code?: string;
 };
-

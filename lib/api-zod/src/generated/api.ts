@@ -7,7 +7,9 @@
  */
 import * as zod from 'zod';
 
-
+// Fact-check links are rendered as player-clickable anchors. Only absolute
+// HTTP(S) URLs are accepted; in particular, javascript:/data:/file: schemes
+// must never enter player-facing question data.
 /**
  * Returns server health status
  * @summary Health check
@@ -20,7 +22,6 @@ export const HealthCheckResponse = zod.object({
 /**
  * @summary Verify a trivia or admin access code
  */
-
 
 
 export const VerifyAccessCodeBody = zod.object({
@@ -39,7 +40,6 @@ export const VerifyAccessCodeResponse = zod.object({
  * @summary Create a player by name
  */
 export const createUserBodyNameMax = 80;
-
 
 
 export const CreateUserBody = zod.object({
@@ -98,7 +98,6 @@ export const ListGamesResponse = zod.array(ListGamesResponseItem)
 export const createGameBodyTopicMax = 120;
 
 export const createGameBodyBriefMax = 2000;
-
 
 
 export const CreateGameBody = zod.object({
@@ -214,7 +213,6 @@ export const ImportOpenTdbQuestionsParams = zod.object({
 export const importOpenTdbQuestionsBodyAmountMax = 50;
 
 
-
 export const ImportOpenTdbQuestionsBody = zod.object({
   "categoryId": zod.number(),
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
@@ -241,7 +239,6 @@ export const GenerateGeminiQuestionsParams = zod.object({
 export const generateGeminiQuestionsBodyAmountMax = 20;
 
 export const generateGeminiQuestionsBodyBriefMax = 2000;
-
 
 
 export const GenerateGeminiQuestionsBody = zod.object({
@@ -353,10 +350,7 @@ export const CreateQuestionParams = zod.object({
 })
 
 
-
-
 export const createQuestionBodyOrderIndexMin = 0;
-
 
 
 export const CreateQuestionBody = zod.object({
@@ -368,7 +362,7 @@ export const CreateQuestionBody = zod.object({
   "points": zod.number().min(1),
   "orderIndex": zod.number().min(createQuestionBodyOrderIndexMin),
   "source": zod.string().nullish(),
-  "factCheckUrl": zod.string().nullish(),
+  "factCheckUrl": safeFactCheckUrl.nullish(),
   "verifiedByAdmin": zod.boolean().optional(),
   "aiGenerated": zod.boolean().optional()
 })
@@ -398,10 +392,7 @@ export const UpdateQuestionParams = zod.object({
 })
 
 
-
-
 export const updateQuestionBodyOrderIndexMin = 0;
-
 
 
 export const UpdateQuestionBody = zod.object({
@@ -413,7 +404,7 @@ export const UpdateQuestionBody = zod.object({
   "points": zod.number().min(1).optional(),
   "orderIndex": zod.number().min(updateQuestionBodyOrderIndexMin).optional(),
   "source": zod.string().nullish(),
-  "factCheckUrl": zod.string().nullish(),
+  "factCheckUrl": safeFactCheckUrl.nullish(),
   "verifiedByAdmin": zod.boolean().optional()
 })
 
@@ -547,7 +538,6 @@ export const GetStatsSummaryResponse = zod.object({
 export const submitReportBodyNoteMax = 1000;
 
 
-
 export const SubmitReportBody = zod.object({
   "gameId": zod.number(),
   "questionId": zod.number().optional(),
@@ -560,3 +550,7 @@ export const SubmitReportResponse = zod.object({
 })
 
 
+const safeFactCheckUrl = zod.string().regex(
+  /^https?:\/\/[^/\s?#]+(?:[/?#][^\s]*)?$/i,
+  "factCheckUrl must be an absolute HTTP(S) URL",
+);

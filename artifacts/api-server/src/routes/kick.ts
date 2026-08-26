@@ -9,7 +9,7 @@ import {
 } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { assertGameOwnership } from "../lib/assertGameOwnership.ts";
-import { safeEmit } from "../lib/socket.ts";
+import { revokePlayerFromGame, safeEmit } from "../lib/socket.ts";
 import { COPY } from "@workspace/copy";
 
 const router: IRouter = Router();
@@ -85,8 +85,11 @@ router.delete(
         ),
       );
 
-    // Notify all clients in the game room. Each client checks whether the
-    // kicked userId matches their own and self-disconnects if so.
+    // Revoke the kicked player's existing room memberships before notifying
+    // everyone else. The direct event lets the official client update its UI,
+    // while the server-side leave prevents custom clients from remaining
+    // subscribed after ignoring that event.
+    await revokePlayerFromGame(gameId, userId);
     safeEmit(`game:${gameId}`, "player:kicked", { gameId, userId });
 
     res.status(200).json({ ok: true });

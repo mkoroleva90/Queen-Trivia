@@ -17,6 +17,7 @@ type IO = SocketIOServer<ClientToServerEvents, ServerToClientEvents>;
 
 let io: IO | null = null;
 
+const GAME_JOIN_WINDOW_MS = 10_000;
 export function initSocket(server: HTTPServer): IO {
   io = new SocketIOServer<ClientToServerEvents, ServerToClientEvents>(server, {
     path: "/api/socket.io",
@@ -64,6 +65,41 @@ export function initSocket(server: HTTPServer): IO {
     logger.debug({ socketId: socket.id }, "Socket connected");
 
     const req = socket.request as Request;
+    socket.data.userId = req.session.userId;
+    socket.data.isAdmin = req.session.isAdmin === true;
+
+    const recentGameJoinAt: number[] = [];
+    const pendingGameJoins = new Set<number>();
+    let inFlightGameJoins = 0;
+
+    function reserveGameJoin(gameId: number): boolean {
+      // A room join is idempotent. Avoid even rate-limit accounting for the
+      // normal repeated emit that can happen during a reconnect/render cycle.
+      if (socket.rooms.has(`game:${gameId}`) || pendingGameJoins.has(gameId)) {
+        return false;
+      }
+
+      const now = Date.now();
+      while (recentGameJoinAt[0] !== undefined && recentGameJoinAt[0] <= now - GAME_JOIN_WINDOW_MS) {
+        recentGameJoinAt.shift();
+      }
+      if (
+        inFlightGameJoins >= GAME_JOIN_MAX_IN_FLIGHT
+        || recentGameJoinAt.length >= GAME_JOIN_MAX_REQUESTS
+      ) {
+        return false;
+      }
+
+      recentGameJoinAt.push(now);
+      pendingGameJoins.add(gameId);
+      inFlightGameJoins += 1;
+      return true;
+    }
+
+    function releaseGameJoin(gameId: number): void {
+      pendingGameJoins.delete(gameId);
+      inFlightGameJoins = Math.max(0, inFlightGameJoins - 1);
+    }
 
     socket.on("lobby:join", () => {
       if (!req.session.userId && !req.session.isAdmin) {
@@ -88,6 +124,10 @@ export function initSocket(server: HTTPServer): IO {
       }
       if (!Number.isSafeInteger(gameId) || gameId <= 0) {
         logger.debug({ socketId: socket.id, gameId }, "game:join rejected: invalid game ID");
+        return;
+      }
+      if (!reserveGameJoin(gameId)) {
+        logger.debug({ socketId: socket.id, gameId }, "game:join rejected: rate or concurrency limit");
         return;
       }
 
@@ -117,12 +157,18 @@ export function initSocket(server: HTTPServer): IO {
           await socket.join(`game:host:${gameId}`);
         } catch (err) {
           logger.error({ err, socketId: socket.id, gameId, adminAccountId }, "game:join host ownership check failed");
+        } finally {
+          releaseGameJoin(gameId);
         }
         return;
       }
 
       // Non-admin: verify the caller is a participant of this game.
       try {
+        if (revokedPlayerGameKeys.has(playerGameKey(gameId, req.session.userId!))) {
+          logger.debug({ socketId: socket.id, gameId }, "game:join rejected: player was removed");
+          return;
+        }
         const [participant] = await db
           .select({ id: gameParticipantsTable.id })
           .from(gameParticipantsTable)
@@ -137,9 +183,20 @@ export function initSocket(server: HTTPServer): IO {
           logger.debug({ socketId: socket.id, gameId }, "game:join rejected: not a participant");
           return;
         }
-        await socket.join(`game:${gameId}`);
+        // The participant can be removed while the lookup is in flight.
+        // Serialize this final revocation check and room admission with the
+        // kick path so a join cannot commit after the player was revoked.
+        await withPlayerGameLock(playerGameKey(gameId, req.session.userId!), async () => {
+          if (revokedPlayerGameKeys.has(playerGameKey(gameId, req.session.userId!))) {
+            logger.debug({ socketId: socket.id, gameId }, "game:join rejected: player was removed during lookup");
+            return;
+          }
+          await socket.join(`game:${gameId}`);
+        });
       } catch (err) {
         logger.error({ err, socketId: socket.id, gameId }, "game:join participant check failed");
+      } finally {
+        releaseGameJoin(gameId);
       }
     });
 
@@ -154,6 +211,37 @@ export function initSocket(server: HTTPServer): IO {
 export function getIo(): IO {
   if (!io) throw new Error("Socket.io not initialized — call initSocket first");
   return io;
+}
+
+/**
+ * Revoke a player's existing subscription after a host removes them.
+ *
+ * The kick event is sent directly before leaving the room so the official
+ * client can update its UI, but an untrusted client cannot ignore the event
+ * and remain subscribed to subsequent game activity.
+ */
+export async function revokePlayerFromGame(gameId: number, userId: number): Promise<void> {
+  const key = playerGameKey(gameId, userId);
+  revokedPlayerGameKeys.add(key);
+
+  const activeIo = io;
+  if (!activeIo) return;
+
+  try {
+    await withPlayerGameLock(key, async () => {
+      const sockets = await activeIo.in(`game:${gameId}`).fetchSockets();
+      await Promise.all(
+        sockets
+          .filter((socket) => socket.data.userId === userId)
+          .map(async (socket) => {
+            socket.emit("player:kicked", { gameId, userId });
+            await socket.leave(`game:${gameId}`);
+          }),
+      );
+    });
+  } catch (err) {
+    logger.error({ err, gameId, userId }, "Failed to revoke kicked player's socket room");
+  }
 }
 
 /**
@@ -202,5 +290,45 @@ export function safeEmit<E extends keyof ServerToClientEvents>(
     (getIo().to(room) as any).emit(event, payload);
   } catch {
     // Socket not initialized — silently skip
+  }
+}
+
+const GAME_JOIN_MAX_IN_FLIGHT = 2;
+
+function playerGameKey(gameId: number, userId: number): string {
+  return `${gameId}:${userId}`;
+}
+
+const revokedPlayerGameKeys = new Set<string>();
+
+const playerGameLockTails = new Map<string, Promise<void>>();
+
+const GAME_JOIN_MAX_REQUESTS = 10;
+
+/**
+ * Serialize room-admission and revocation transitions for one player/game
+ * pair. Database reads stay outside this lock; only the security-sensitive
+ * check-and-join / remove-from-room transition needs to be atomic.
+ */
+async function withPlayerGameLock<T>(
+  key: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const previous = playerGameLockTails.get(key) ?? Promise.resolve();
+  let releaseCurrent!: () => void;
+  const current = new Promise<void>((resolve) => {
+    releaseCurrent = resolve;
+  });
+  const tail = previous.catch(() => undefined).then(() => current);
+  playerGameLockTails.set(key, tail);
+
+  await previous.catch(() => undefined);
+  try {
+    return await operation();
+  } finally {
+    releaseCurrent();
+    if (playerGameLockTails.get(key) === tail) {
+      playerGameLockTails.delete(key);
+    }
   }
 }
