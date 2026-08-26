@@ -21,3 +21,4 @@
 - [OpenTDB supplement compatibility](opentdb-supplement-compatibility.md) — import modes are server-validated locally so existing OpenAPI/Orval clients and standard imports remain unchanged.
 - [Development database migration drift](development-database-migration-drift.md) — player login can 500 when the development DB lacks the game access-grants migration.
 - [Admin session revocation](admin-session-revocation.md) — database revocation must disconnect active Socket.IO hosts; email-only migration sessions are account-backed, not legacy code sessions.
+- [Expo Launch App Store state](expo-launch-app-state.md) — guided submission can retain a stale App Store record; compare Launch IDs with app.json/eas.json before changing bundle identifiers.
