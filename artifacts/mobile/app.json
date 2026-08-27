@@ -70,9 +70,7 @@
     "updates": {
       "url": "https://u.expo.dev/c0e8c7d6-4cf3-4241-9284-2005ad2bd8ee"
     },
-    "runtimeVersion": {
-      "policy": "fingerprint"
-    },
+    "runtimeVersion": "1.0.0",
     "extra": {
       "eas": {
         "projectId": "c0e8c7d6-4cf3-4241-9284-2005ad2bd8ee"
