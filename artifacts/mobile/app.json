@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.queentrivia.app",
+      "bundleIdentifier": "com.queentrivia.games",
       "buildNumber": "1",
       "usesAppleSignIn": true,
       "ITSAppUsesNonExemptEncryption": false,
