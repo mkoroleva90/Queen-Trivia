@@ -77,21 +77,6 @@ router.post("/games/:gameId/join", requireUser, async (req, res): Promise<void> 
         return;
     }
 
-    const [existing] = await db
-        .select()
-        .from(gameParticipantsTable)
-        .where(
-            and(
-                eq(gameParticipantsTable.gameId, game.id),
-                eq(gameParticipantsTable.userId, user.id),
-            ),
-        );
-
-    if (existing) {
-        res.status(201).json(JoinGameResponse.parse(toJsonSafe(existing)));
-        return;
-    }
-
     const [grant] = await db
         .select({ id: gameAccessGrantsTable.id })
         .from(gameAccessGrantsTable)
@@ -137,10 +122,31 @@ router.post("/games/:gameId/join", requireUser, async (req, res): Promise<void> 
  }
 
 
- const [participant] = await db
+ let [participant] = await db
      .insert(gameParticipantsTable)
      .values({ gameId: game.id, userId: user.id })
+     .onConflictDoNothing({
+         target: [gameParticipantsTable.gameId, gameParticipantsTable.userId],
+     })
      .returning();
+
+ if (!participant) {
+     [participant] = await db
+         .select()
+         .from(gameParticipantsTable)
+         .where(
+             and(
+                 eq(gameParticipantsTable.gameId, game.id),
+                 eq(gameParticipantsTable.userId, user.id),
+             ),
+         )
+         .limit(1);
+ }
+
+ if (!participant) {
+     res.status(500).json({ error: "Unable to create game participant" });
+     return;
+ }
 
 
  res.status(201).json(JoinGameResponse.parse(toJsonSafe(participant)));
@@ -159,7 +165,7 @@ router.get("/games/:gameId/participants", requireAuth, async (req, res): Promise
 
  if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
- const rows = await db
+ const participantRows = await db
      .select({
          id: gameParticipantsTable.id,
          gameId: gameParticipantsTable.gameId,
@@ -175,6 +181,13 @@ router.get("/games/:gameId/participants", requireAuth, async (req, res): Promise
          desc(gameParticipantsTable.totalScore),
          asc(gameParticipantsTable.joinedAt),
      );
+
+ const seenUsers = new Set<number>();
+ const rows = participantRows.filter((row) => {
+     if (seenUsers.has(row.userId)) return false;
+     seenUsers.add(row.userId);
+     return true;
+ });
 
  res.json(ListGameParticipantsResponse.parse(toJsonSafe(rows)));
 });
@@ -254,6 +267,7 @@ const [already] = await db
     .where(
      and(
          eq(answersTable.userId, sessionUserId),
+          eq(answersTable.gameId, game.id),
          eq(answersTable.questionId, question.id),
      ),
     );
@@ -287,26 +301,62 @@ const { isCorrect, pointsEarned, feedback, needsReview } = await gradeAnswer(
 );
 
 
-const [answer] = await db
-    .insert(answersTable)
- .values({
-     userId: sessionUserId,
-     gameId: question.gameId,
-     questionId: question.id,
-     userAnswer: parsed.data.userAnswer,
-     isCorrect,
-     pointsEarned,
-      gradingStatus: needsReview ? "needs_review" : "graded",
- })
- .returning();
+const result = await db.transaction(async (tx) => {
+    const [answer] = await tx
+        .insert(answersTable)
+        .values({
+            userId: sessionUserId,
+            gameId: question.gameId,
+            questionId: question.id,
+            userAnswer: parsed.data.userAnswer,
+            isCorrect,
+            pointsEarned,
+            gradingStatus: needsReview ? "needs_review" : "graded",
+        })
+        .onConflictDoNothing({
+            target: [
+                answersTable.userId,
+                answersTable.gameId,
+                answersTable.questionId,
+            ],
+        })
+        .returning();
 
-        const totalScore = (participant.totalScore ?? 0) + pointsEarned;
+    if (!answer) return { kind: "duplicate" as const };
 
+    const [updatedParticipant] = await tx
+        .update(gameParticipantsTable)
+        .set({
+            // Increment in SQL so concurrent answers for different questions
+            // cannot overwrite one another with stale totals.
+            totalScore: sql`${gameParticipantsTable.totalScore} + ${pointsEarned}`,
+        })
+        .where(
+            and(
+                eq(gameParticipantsTable.id, participant.id),
+                eq(gameParticipantsTable.gameId, game.id),
+                eq(gameParticipantsTable.userId, sessionUserId),
+            ),
+        )
+        .returning({ totalScore: gameParticipantsTable.totalScore });
 
-await db
- .update(gameParticipantsTable)
- .set({ totalScore })
- .where(eq(gameParticipantsTable.id, participant.id));
+    if (!updatedParticipant) {
+        throw new Error("Participant disappeared while recording answer");
+    }
+
+    return {
+        kind: "created" as const,
+        answer,
+        totalScore: updatedParticipant.totalScore,
+    };
+});
+
+if (result.kind === "duplicate") {
+    res.status(409).json({ error: "Question already answered" });
+    return;
+}
+
+const { answer, totalScore } = result;
 
 
 res.status(201).json(
@@ -730,6 +780,7 @@ router.post(
             .where(
                 and(
                     eq(answersTable.userId, hostUserId),
+                    eq(answersTable.gameId, game.id),
                     eq(answersTable.questionId, question.id),
                 ),
             );
@@ -770,24 +821,70 @@ router.post(
             needsReview = grade.needsReview ?? false;
         }
 
-        const [answer] = await db
-            .insert(answersTable)
-            .values({
-                userId: hostUserId,
-                gameId: question.gameId,
-                questionId: question.id,
-                userAnswer: parsed.data.userAnswer,
-                isCorrect,
-                pointsEarned,
-             gradingStatus: needsReview ? "needs_review" : "graded",
-            })
-            .returning();
+        const result = await db.transaction(async (tx) => {
+            const [answer] = await tx
+                .insert(answersTable)
+                .values({
+                    userId: hostUserId,
+                    gameId: question.gameId,
+                    questionId: question.id,
+                    userAnswer: parsed.data.userAnswer,
+                    isCorrect,
+                    pointsEarned,
+                    gradingStatus: needsReview ? "needs_review" : "graded",
+                })
+                .onConflictDoNothing({
+                    target: [
+                        answersTable.userId,
+                        answersTable.gameId,
+                        answersTable.questionId,
+                    ],
+                })
+                .returning();
 
-        const totalScore = (participant.totalScore ?? 0) + pointsEarned;
-        await db
-            .update(gameParticipantsTable)
-            .set({ totalScore })
-            .where(eq(gameParticipantsTable.id, participant.id));
+            if (!answer) {
+                const [stored] = await tx
+                    .select({ userAnswer: answersTable.userAnswer })
+                    .from(answersTable)
+                    .where(
+                        and(
+                            eq(answersTable.userId, hostUserId),
+                            eq(answersTable.gameId, game.id),
+                            eq(answersTable.questionId, question.id),
+                        ),
+                    )
+                    .limit(1);
+                return { kind: "duplicate" as const, stored };
+            }
+
+            const [updatedParticipant] = await tx
+                .update(gameParticipantsTable)
+                .set({
+                    totalScore: sql`${gameParticipantsTable.totalScore} + ${pointsEarned}`,
+                })
+                .where(eq(gameParticipantsTable.id, participant.id))
+                .returning({ totalScore: gameParticipantsTable.totalScore });
+
+            if (!updatedParticipant) {
+                throw new Error("Participant disappeared while recording host answer");
+            }
+
+            return {
+                kind: "created" as const,
+                answer,
+                totalScore: updatedParticipant.totalScore,
+            };
+        });
+
+        if (result.kind === "duplicate") {
+            res.status(409).json({
+                error: "You already answered this question",
+                ...(result.stored ? { existingAnswer: result.stored.userAnswer } : {}),
+            });
+            return;
+        }
+
+        const { answer, totalScore } = result;
 
         const responsePayload = toJsonSafe({
             ...answer,

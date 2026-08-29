@@ -199,6 +199,38 @@ describe("POST /api/games/:gameId/join — idempotency", () => {
       "exactly one game_participants row must exist after two join calls",
     );
   });
+
+  it("returns one participant record across concurrent joins", async () => {
+    const agent = request.agent(app);
+    const loginRes = await agent
+      .post("/api/auth/login")
+      .send({ code: ACCESS_CODE, name: `${PLAYER_NAME}_concurrent` });
+    assert.equal(loginRes.status, 200, `login failed: ${JSON.stringify(loginRes.body)}`);
+    const cookie = loginRes.headers["set-cookie"];
+    assert.ok(cookie, "login must return a session cookie");
+
+    const responses = await Promise.all(
+      Array.from({ length: 20 }, () =>
+        request(app).post(`/api/games/${game.id}/join`).set("Cookie", cookie),
+      ),
+    );
+    assert.ok(
+      responses.every((response) => response.status === 201),
+      `concurrent joins returned: ${responses.map((response) => response.status).join(", ")}`,
+    );
+    assert.equal(
+      new Set(responses.map((response) => response.body.id)).size,
+      1,
+      "all concurrent joins must return the same participant id",
+    );
+
+    const countRes = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) AS count FROM game_participants
+       WHERE game_id = $1 AND user_id = $2`,
+      [game.id, loginRes.body.id],
+    );
+    assert.equal(Number(countRes.rows[0]!.count), 1);
+  });
 });
 
 // ─── Suite 2: player game isolation ──────────────────────────────────────────
@@ -738,6 +770,126 @@ describe("POST /api/games/:gameId/answers — short-response grading", () => {
         process.env.GOOGLE_API_KEY = previousApiKey;
       }
     }
+  });
+
+  it("stores and scores only one concurrent answer submission", async () => {
+    const agent = request.agent(app);
+    const loginRes = await agent
+      .post("/api/auth/login")
+      .send({ code: ACCESS_CODE, name: "__test__short_response_concurrent" });
+    assert.equal(loginRes.status, 200, `login failed: ${JSON.stringify(loginRes.body)}`);
+    const cookie = loginRes.headers["set-cookie"];
+    assert.ok(cookie, "login must return a session cookie");
+
+    const joinRes = await agent.post(`/api/games/${game.id}/join`);
+    assert.equal(joinRes.status, 201, `join failed: ${JSON.stringify(joinRes.body)}`);
+
+    const responses = await Promise.all(
+      Array.from({ length: 12 }, () =>
+        request(app)
+          .post(`/api/games/${game.id}/answers`)
+          .set("Cookie", cookie)
+          .send({ questionId: question.id, userAnswer: "Titan" }),
+      ),
+    );
+    assert.equal(responses.filter((response) => response.status === 201).length, 1);
+    assert.equal(responses.filter((response) => response.status === 409).length, 11);
+
+    const answerCount = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) AS count FROM answers
+       WHERE game_id = $1 AND user_id = $2 AND question_id = $3`,
+      [game.id, loginRes.body.id, question.id],
+    );
+    assert.equal(Number(answerCount.rows[0]!.count), 1);
+
+    const participant = await pool.query<{ total_score: number }>(
+      `SELECT total_score FROM game_participants
+       WHERE game_id = $1 AND user_id = $2`,
+      [game.id, loginRes.body.id],
+    );
+    assert.equal(participant.rows[0]!.total_score, 13);
+  });
+});
+
+describe("POST /api/games/:gameId/host-answer — concurrency", () => {
+  let game: TestGame;
+  let question: TestQuestion;
+  let hostUserId: number;
+  let adminCookie: string | string[];
+  const HOST_NAME = "__test__host_answer_concurrent";
+
+  before(async () => {
+    const host = await pool.query<{ id: number }>(
+      "INSERT INTO users (name) VALUES ($1) RETURNING id",
+      [HOST_NAME],
+    );
+    hostUserId = host.rows[0]!.id;
+
+    const gameRes = await pool.query<{ id: number }>(
+      `INSERT INTO games (
+         topic, difficulty, question_count, status, access_code,
+         created_by_admin, host_plays_along, host_user_id
+       )
+       VALUES ($1, 'easy', 1, 'active', $2, TRUE, TRUE, $3)
+       RETURNING id`,
+      ["Concurrent host answer", "THOSTC", hostUserId],
+    );
+    game = { id: gameRes.rows[0]!.id, accessCode: "THOSTC" };
+
+    const questionRes = await pool.query<{ id: number }>(
+      `INSERT INTO questions (
+         game_id, question_text, question_type, correct_answer, points, order_index
+       )
+       VALUES ($1, 'Host concurrency?', 'true_false', 'true', 17, 0)
+       RETURNING id`,
+      [game.id],
+    );
+    question = { id: questionRes.rows[0]!.id };
+    await pool.query(
+      "UPDATE games SET current_question_id = $1 WHERE id = $2",
+      [question.id, game.id],
+    );
+    await pool.query(
+      "INSERT INTO game_participants (game_id, user_id) VALUES ($1, $2)",
+      [game.id, hostUserId],
+    );
+
+    const sessionRes = await request(app).post("/api/test-set-admin-session");
+    assert.equal(sessionRes.status, 200, "test admin session setup failed");
+    const cookie = sessionRes.headers["set-cookie"];
+    assert.ok(cookie, "admin session setup must return a cookie");
+    adminCookie = cookie;
+  });
+
+  after(async () => {
+    await cleanupGame(game.id);
+  });
+
+  it("stores and scores only one concurrent host answer", async () => {
+    const responses = await Promise.all(
+      Array.from({ length: 10 }, () =>
+        request(app)
+          .post(`/api/games/${game.id}/host-answer`)
+          .set("Cookie", adminCookie)
+          .send({ questionId: question.id, userAnswer: "true" }),
+      ),
+    );
+    assert.equal(responses.filter((response) => response.status === 201).length, 1);
+    assert.equal(responses.filter((response) => response.status === 409).length, 9);
+
+    const answers = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) AS count FROM answers
+       WHERE game_id = $1 AND user_id = $2 AND question_id = $3`,
+      [game.id, hostUserId, question.id],
+    );
+    assert.equal(Number(answers.rows[0]!.count), 1);
+
+    const participant = await pool.query<{ total_score: number }>(
+      `SELECT total_score FROM game_participants
+       WHERE game_id = $1 AND user_id = $2`,
+      [game.id, hostUserId],
+    );
+    assert.equal(participant.rows[0]!.total_score, 17);
   });
 });
 

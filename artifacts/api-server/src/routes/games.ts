@@ -1,6 +1,6 @@
 
 import { Router, type IRouter } from "express";
-import { and, or, eq, desc, asc, gt, count, inArray, isNull } from "drizzle-orm";
+import { and, or, eq, desc, asc, gt, count, countDistinct, inArray, isNull } from "drizzle-orm";
 import {
  db,
  gamesTable,
@@ -144,7 +144,7 @@ router.get("/games", requireAuth, async (req, res): Promise<void> => {
 
  // Participant counts per game
  const participantCounts = await db
-     .select({ gameId: gameParticipantsTable.gameId, value: count() })
+      .select({ gameId: gameParticipantsTable.gameId, value: countDistinct(gameParticipantsTable.userId) })
      .from(gameParticipantsTable)
      .groupBy(gameParticipantsTable.gameId);
  const countMap = new Map(participantCounts.map((c) => [c.gameId, c.value]));
@@ -296,7 +296,7 @@ if (!game) {
 }
 
 const [participants] = await db
-    .select({ value: count() })
+    .select({ value: countDistinct(gameParticipantsTable.userId) })
     .from(gameParticipantsTable)
     .where(eq(gameParticipantsTable.gameId, game.id));
 
@@ -424,7 +424,7 @@ router.patch("/games/:gameId", requireAdmin, async (req, res): Promise<void> => 
  }
 
  const [pCount] = await db
-     .select({ value: count() })
+     .select({ value: countDistinct(gameParticipantsTable.userId) })
      .from(gameParticipantsTable)
      .where(eq(gameParticipantsTable.gameId, game.id));
  res.json(UpdateGameResponse.parse(toJsonSafe({ ...game, participantCount: pCount?.value ?? 0 })));

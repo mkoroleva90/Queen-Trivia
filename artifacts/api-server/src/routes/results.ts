@@ -32,7 +32,7 @@ router.get("/games/:gameId/results", requireAuth, async (req, res): Promise<void
  if (!game) { res.status(404).json({ error: "Game not found" }); return; }
 
  // Participants ordered by score desc
- const participants = await db
+  const participantRows = await db
   .select({
    id: gameParticipantsTable.id,
    userId: gameParticipantsTable.userId,
@@ -44,6 +44,15 @@ router.get("/games/:gameId/results", requireAuth, async (req, res): Promise<void
  .innerJoin(usersTable, eq(gameParticipantsTable.userId, usersTable.id))
  .where(eq(gameParticipantsTable.gameId, gameId))
   .orderBy(sql`${gameParticipantsTable.totalScore} DESC`,asc(gameParticipantsTable.joinedAt));
+
+ // Keep legacy duplicate rows from producing multiple ranked entries while
+ // the database constraint is being applied.
+ const seenUsers = new Set<number>();
+ const participants = participantRows.filter((participant) => {
+  if (seenUsers.has(participant.userId)) return false;
+  seenUsers.add(participant.userId);
+  return true;
+ });
 
 
 // Aggregate correct / total per user
@@ -193,7 +202,7 @@ router.get("/games/:gameId/results/export.csv", requireAdmin, async (req, res):P
 
  if (!await assertGameOwnership(req, res, gameId)) return;
 
- const participants = await db
+ const participantRows = await db
   .select({
       userId: gameParticipantsTable.userId,
       userName: usersTable.name,
@@ -203,6 +212,13 @@ router.get("/games/:gameId/results/export.csv", requireAdmin, async (req, res):P
  .innerJoin(usersTable, eq(gameParticipantsTable.userId, usersTable.id))
  .where(eq(gameParticipantsTable.gameId, gameId))
  .orderBy(sql`${gameParticipantsTable.totalScore} DESC`);
+
+ const seenUsers = new Set<number>();
+ const participants = participantRows.filter((participant) => {
+  if (seenUsers.has(participant.userId)) return false;
+  seenUsers.add(participant.userId);
+  return true;
+ });
 
 
 const answerStats = await db
