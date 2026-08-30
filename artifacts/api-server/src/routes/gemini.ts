@@ -117,6 +117,7 @@ router.post(
             existingQuestions: body.data.existingQuestions,
             brief: (body.data.brief as string | undefined) ?? game.brief ?? undefined,
             skipFactCheck: true,
+            mode: body.data.mode,
         });
 
         if (!result.ok) {
@@ -197,7 +198,8 @@ router.post(
         await recordAiUsage(req.session.adminAccountId, game.id, "generate_bulk", questions.length);
 
         const distinctTypes = new Set(questions.map((q) => q.questionType));
-        if (body.data.amount >= 5 && distinctTypes.size < 3) {
+        // The standard mix only permits two types, so low variety is expected there.
+        if (body.data.amount >= 5 && distinctTypes.size < 3 && body.data.mode !== "standard") {
             req.log.warn(
                 { gameId: game.id, types: [...distinctTypes], requested: body.data.amount },
                 "Generated questions lack variety (fewer than 3 question types)",

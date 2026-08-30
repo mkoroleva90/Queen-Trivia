@@ -7,9 +7,7 @@
  */
 import * as zod from 'zod';
 
-// Fact-check links are rendered as player-clickable anchors. Only absolute
-// HTTP(S) URLs are accepted; in particular, javascript:/data:/file: schemes
-// must never enter player-facing question data.
+
 /**
  * Returns server health status
  * @summary Health check
@@ -22,6 +20,7 @@ export const HealthCheckResponse = zod.object({
 /**
  * @summary Verify a trivia or admin access code
  */
+
 
 
 export const VerifyAccessCodeBody = zod.object({
@@ -40,6 +39,7 @@ export const VerifyAccessCodeResponse = zod.object({
  * @summary Create a player by name
  */
 export const createUserBodyNameMax = 80;
+
 
 
 export const CreateUserBody = zod.object({
@@ -98,6 +98,7 @@ export const ListGamesResponse = zod.array(ListGamesResponseItem)
 export const createGameBodyTopicMax = 120;
 
 export const createGameBodyBriefMax = 2000;
+
 
 
 export const CreateGameBody = zod.object({
@@ -213,6 +214,7 @@ export const ImportOpenTdbQuestionsParams = zod.object({
 export const importOpenTdbQuestionsBodyAmountMax = 50;
 
 
+
 export const ImportOpenTdbQuestionsBody = zod.object({
   "categoryId": zod.number(),
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
@@ -241,13 +243,15 @@ export const generateGeminiQuestionsBodyAmountMax = 20;
 export const generateGeminiQuestionsBodyBriefMax = 2000;
 
 
+
 export const GenerateGeminiQuestionsBody = zod.object({
   "topic": zod.string().min(1),
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
   "amount": zod.number().min(1).max(generateGeminiQuestionsBodyAmountMax),
   "existingQuestions": zod.array(zod.string()).optional(),
   "brief": zod.string().max(generateGeminiQuestionsBodyBriefMax).nullish(),
-  "skipFactCheck": zod.boolean().optional()
+  "skipFactCheck": zod.boolean().optional(),
+  "mode": zod.enum(['standard', 'extended', 'surprise']).optional().describe('Host-selected question mix. standard = multiple choice and true\/false only. extended = multiple choice, true\/false, write-in, ordering, and multi-select only. surprise = every question type the AI generator supports. When omitted the server keeps its full default mix (identical to surprise).\n')
 })
 
 export const GenerateGeminiQuestionsResponse = zod.object({
@@ -350,13 +354,12 @@ export const CreateQuestionParams = zod.object({
 })
 
 
+
+
 export const createQuestionBodyOrderIndexMin = 0;
 
+export const createQuestionBodyFactCheckUrlRegExp = new RegExp('^https?://[^/\\s?#]+(?:[/?#][^\\s]*)?$');
 
-const safeFactCheckUrl = zod.string().regex(
-  /^https?:\/\/[^/\s?#]+(?:[/?#][^\s]*)?$/i,
-  "factCheckUrl must be an absolute HTTP(S) URL",
-);
 
 export const CreateQuestionBody = zod.object({
   "questionText": zod.string().min(1),
@@ -367,7 +370,7 @@ export const CreateQuestionBody = zod.object({
   "points": zod.number().min(1),
   "orderIndex": zod.number().min(createQuestionBodyOrderIndexMin),
   "source": zod.string().nullish(),
-  "factCheckUrl": safeFactCheckUrl.nullish(),
+  "factCheckUrl": zod.string().regex(createQuestionBodyFactCheckUrlRegExp).nullish(),
   "verifiedByAdmin": zod.boolean().optional(),
   "aiGenerated": zod.boolean().optional()
 })
@@ -397,7 +400,11 @@ export const UpdateQuestionParams = zod.object({
 })
 
 
+
+
 export const updateQuestionBodyOrderIndexMin = 0;
+
+export const updateQuestionBodyFactCheckUrlRegExp = new RegExp('^https?://[^/\\s?#]+(?:[/?#][^\\s]*)?$');
 
 
 export const UpdateQuestionBody = zod.object({
@@ -409,7 +416,7 @@ export const UpdateQuestionBody = zod.object({
   "points": zod.number().min(1).optional(),
   "orderIndex": zod.number().min(updateQuestionBodyOrderIndexMin).optional(),
   "source": zod.string().nullish(),
-  "factCheckUrl": safeFactCheckUrl.nullish(),
+  "factCheckUrl": zod.string().regex(updateQuestionBodyFactCheckUrlRegExp).nullish(),
   "verifiedByAdmin": zod.boolean().optional()
 })
 
@@ -527,39 +534,12 @@ export const ListUserAnswersResponseItem = zod.object({
 })
 export const ListUserAnswersResponse = zod.array(ListUserAnswersResponseItem)
 
+
 /**
  * @summary List short-response answers awaiting host review
  */
 export const ListPendingAnswerReviewsParams = zod.object({
   "gameId": zod.coerce.number()
-})
-/**
- * @summary Aggregate stats for dashboard
- */
-export const GetStatsSummaryResponse = zod.object({
-  "totalGames": zod.number(),
-  "activeGames": zod.number(),
-  "totalPlayers": zod.number(),
-  "totalAnswers": zod.number()
-})
-
-
-/**
- * Saves a player-submitted content report. No authentication required — players are anonymous. Returns 201 on success. Returns 422 if the optional note contains content that fails the server-side content filter.
- * @summary Submit a content report
- */
-export const submitReportBodyNoteMax = 1000;
-
-
-export const SubmitReportBody = zod.object({
-  "gameId": zod.number(),
-  "questionId": zod.number().optional(),
-  "reason": zod.enum(['hateful', 'sexual', 'harassment', 'spam', 'other']),
-  "note": zod.string().max(submitReportBodyNoteMax).optional()
-})
-
-export const SubmitReportResponse = zod.object({
-  "id": zod.number()
 })
 
 export const ListPendingAnswerReviewsResponseItem = zod.object({
@@ -580,8 +560,8 @@ export const ListPendingAnswerReviewsResponseItem = zod.object({
   "rubric": zod.string().nullish(),
   "maxWords": zod.number().nullish()
 })
-
 export const ListPendingAnswerReviewsResponse = zod.array(ListPendingAnswerReviewsResponseItem)
+
 
 /**
  * @summary Award or deny points for an answer awaiting host review
@@ -608,3 +588,36 @@ export const ReviewAnswerResponse = zod.object({
   "reviewedAt": zod.string().nullish(),
   "alreadyReviewed": zod.boolean().optional()
 })
+
+
+/**
+ * @summary Aggregate stats for dashboard
+ */
+export const GetStatsSummaryResponse = zod.object({
+  "totalGames": zod.number(),
+  "activeGames": zod.number(),
+  "totalPlayers": zod.number(),
+  "totalAnswers": zod.number()
+})
+
+
+/**
+ * Saves a player-submitted content report. No authentication required — players are anonymous. Returns 201 on success. Returns 422 if the optional note contains content that fails the server-side content filter.
+ * @summary Submit a content report
+ */
+export const submitReportBodyNoteMax = 1000;
+
+
+
+export const SubmitReportBody = zod.object({
+  "gameId": zod.number(),
+  "questionId": zod.number().optional(),
+  "reason": zod.enum(['hateful', 'sexual', 'harassment', 'spam', 'other']),
+  "note": zod.string().max(submitReportBodyNoteMax).optional()
+})
+
+export const SubmitReportResponse = zod.object({
+  "id": zod.number()
+})
+
+

@@ -224,8 +224,10 @@ export interface QuestionInput {
   orderIndex: number;
   /** @nullable */
   source?: string | null;
-  /** @nullable */
-  /** @pattern ^https?://[^/\s?#]+(?:[/?#][^\s]*)?$ */
+  /**
+     * @nullable
+     * @pattern ^https?://[^/\s?#]+(?:[/?#][^\s]*)?$
+     */
   factCheckUrl?: string | null;
   verifiedByAdmin?: boolean;
   aiGenerated?: boolean;
@@ -268,8 +270,10 @@ export interface QuestionUpdate {
   orderIndex?: number;
   /** @nullable */
   source?: string | null;
-  /** @nullable */
-  /** @pattern ^https?://[^/\s?#]+(?:[/?#][^\s]*)?$ */
+  /**
+     * @nullable
+     * @pattern ^https?://[^/\s?#]+(?:[/?#][^\s]*)?$
+     */
   factCheckUrl?: string | null;
   verifiedByAdmin?: boolean;
 }
@@ -360,6 +364,18 @@ export const GeminiGenerateInputDifficulty = {
   hard: 'hard',
 } as const;
 
+/**
+ * Host-selected question mix. standard = multiple choice and true/false only. extended = multiple choice, true/false, write-in, ordering, and multi-select only. surprise = every question type the AI generator supports. When omitted the server keeps its full default mix (identical to surprise).
+ */
+export type GeminiGenerateInputMode = typeof GeminiGenerateInputMode[keyof typeof GeminiGenerateInputMode];
+
+
+export const GeminiGenerateInputMode = {
+  standard: 'standard',
+  extended: 'extended',
+  surprise: 'surprise',
+} as const;
+
 export interface GeminiGenerateInput {
   /** @minLength 1 */
   topic: string;
@@ -373,6 +389,8 @@ export interface GeminiGenerateInput {
   /** @maxLength 2000 */
   brief?: string | null;
   skipFactCheck?: boolean;
+  /** Host-selected question mix. standard = multiple choice and true/false only. extended = multiple choice, true/false, write-in, ordering, and multi-select only. surprise = every question type the AI generator supports. When omitted the server keeps its full default mix (identical to surprise). */
+  mode?: GeminiGenerateInputMode;
 }
 
 export type OpenTdbImportInputDifficulty = typeof OpenTdbImportInputDifficulty[keyof typeof OpenTdbImportInputDifficulty];
@@ -470,6 +488,14 @@ export interface AnswerInput {
 }
 
 export type AnswerGradingStatus = typeof AnswerGradingStatus[keyof typeof AnswerGradingStatus];
+
+
+export const AnswerGradingStatus = {
+  graded: 'graded',
+  needs_review: 'needs_review',
+  reviewed: 'reviewed',
+} as const;
+
 export interface Answer {
   id: number;
   userId: number;
@@ -484,6 +510,14 @@ export interface Answer {
 }
 
 export type AnswerResultGradingStatus = typeof AnswerResultGradingStatus[keyof typeof AnswerResultGradingStatus];
+
+
+export const AnswerResultGradingStatus = {
+  graded: 'graded',
+  needs_review: 'needs_review',
+  reviewed: 'reviewed',
+} as const;
+
 export interface AnswerResult {
   id: number;
   userId: number;
@@ -501,6 +535,58 @@ export interface AnswerResult {
 export interface ReviewAnswerInput {
   award: boolean;
 }
+
+export type ReviewAnswerResultGradingStatus = typeof ReviewAnswerResultGradingStatus[keyof typeof ReviewAnswerResultGradingStatus];
+
+
+export const ReviewAnswerResultGradingStatus = {
+  graded: 'graded',
+  needs_review: 'needs_review',
+  reviewed: 'reviewed',
+} as const;
+
+export interface ReviewAnswerResult {
+  id: number;
+  userId: number;
+  gameId: number;
+  questionId: number;
+  userAnswer: string;
+  isCorrect: boolean;
+  pointsEarned: number;
+  gradingStatus: ReviewAnswerResultGradingStatus;
+  answeredAt: string;
+  reviewedAt?: string | null;
+  alreadyReviewed?: boolean;
+}
+
+export type PendingAnswerReviewGradingStatus = typeof PendingAnswerReviewGradingStatus[keyof typeof PendingAnswerReviewGradingStatus];
+
+
+export const PendingAnswerReviewGradingStatus = {
+  graded: 'graded',
+  needs_review: 'needs_review',
+  reviewed: 'reviewed',
+} as const;
+
+export interface PendingAnswerReview {
+  id: number;
+  userId: number;
+  gameId: number;
+  questionId: number;
+  userAnswer: string;
+  isCorrect: boolean;
+  pointsEarned: number;
+  gradingStatus: PendingAnswerReviewGradingStatus;
+  answeredAt: string;
+  userName: string;
+  questionText: string;
+  questionType: string;
+  points: number;
+  correctAnswer?: string;
+  rubric?: string | null;
+  maxWords?: number | null;
+}
+
 export type ReportInputReason = typeof ReportInputReason[keyof typeof ReportInputReason];
 
 
@@ -549,63 +635,3 @@ export type SubmitReport422 = {
   code?: string;
 };
 
-export interface ReviewAnswerResult {
-  id: number;
-  userId: number;
-  gameId: number;
-  questionId: number;
-  userAnswer: string;
-  isCorrect: boolean;
-  pointsEarned: number;
-  gradingStatus: ReviewAnswerResultGradingStatus;
-  answeredAt: string;
-  reviewedAt?: string | null;
-  alreadyReviewed?: boolean;
-}
-
-export const PendingAnswerReviewGradingStatus = {
-  graded: 'graded',
-  needs_review: 'needs_review',
-  reviewed: 'reviewed',
-} as const;
-
-export interface PendingAnswerReview {
-  id: number;
-  userId: number;
-  gameId: number;
-  questionId: number;
-  userAnswer: string;
-  isCorrect: boolean;
-  pointsEarned: number;
-  gradingStatus: PendingAnswerReviewGradingStatus;
-  answeredAt: string;
-  userName: string;
-  questionText: string;
-  questionType: string;
-  points: number;
-  correctAnswer?: string;
-  rubric?: string | null;
-  maxWords?: number | null;
-}
-
-export const ReviewAnswerResultGradingStatus = {
-  graded: 'graded',
-  needs_review: 'needs_review',
-  reviewed: 'reviewed',
-} as const;
-
-export type PendingAnswerReviewGradingStatus = typeof PendingAnswerReviewGradingStatus[keyof typeof PendingAnswerReviewGradingStatus];
-
-export const AnswerResultGradingStatus = {
-  graded: 'graded',
-  needs_review: 'needs_review',
-  reviewed: 'reviewed',
-} as const;
-
-export const AnswerGradingStatus = {
-  graded: 'graded',
-  needs_review: 'needs_review',
-  reviewed: 'reviewed',
-} as const;
-
-export type ReviewAnswerResultGradingStatus = typeof ReviewAnswerResultGradingStatus[keyof typeof ReviewAnswerResultGradingStatus];

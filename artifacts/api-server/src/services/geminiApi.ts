@@ -268,6 +268,9 @@ export type GeminiVarietyQuestionType = Exclude<
     "multiple_choice" | "true_false" | "image_recognition"
 >;
 
+/** Host-selected question mix for bulk AI generation. */
+export type GeminiGenerateMode = "standard" | "extended" | "surprise";
+
 export type GeminiVarietyTargetCounts = Partial<
     Record<GeminiVarietyQuestionType, number>
 >;
@@ -312,6 +315,11 @@ export interface GeminiGenerateOptions {
     brief?: string;
     /** When true, skip the grounded verification pass (use for fiction / family topics). */
     skipFactCheck?: boolean;
+    /**
+     * Host-selected question mix. Absent means the full default mix — the
+     * exact pre-mode behavior — which "surprise" also maps to.
+     */
+    mode?: GeminiGenerateMode;
 }
 
 export interface GeminiVarietyGenerateOptions extends GeminiGenerateOptions {
@@ -386,6 +394,19 @@ const VARIETY_TYPES: readonly GeminiVarietyQuestionType[] = [
     "slider",
     "short_response",
 ];
+
+// Allowed types per host-selected mix; the sets must match the
+// COPY.openTdbQuestionMix labels exactly. Variety types are listed first so
+// enforcement's surplus fallback prefers specialist surplus over multiple
+// choice, mirroring the unrestricted path. "surprise" is unrestricted —
+// undefined keeps the full default mix and the pre-mode code paths.
+const GENERATE_MODE_ALLOWED_TYPES: Readonly<
+    Record<GeminiGenerateMode, readonly GeminiQuestionType[] | undefined>
+> = Object.freeze({
+    standard: ["multiple_choice", "true_false"],
+    extended: ["write_in", "ordering", "multi_select", "multiple_choice", "true_false"],
+    surprise: undefined,
+});
 
 const TYPE_TIE_BREAK_ORDER: readonly GeminiQuestionType[] = [
     "multiple_choice",
@@ -532,13 +553,28 @@ function logValidationDrop(questionType: string | null, reason: string): void {
  * core (2:1:2). The remaining slots are selected from a shuffled variety pool,
  * with one of each variety type used before any type is repeated and no variety
  * type used more than twice. Any remaining slots overflow to multiple choice.
+ *
+ * When allowedTypes is provided, the core and variety pools are filtered to it
+ * before the same allocation runs; disallowed types receive zero slots and the
+ * usual overflow sends leftover variety slots to multiple choice.
  */
-export function computeTypeCounts(total: number): TypeCounts {
+export function computeTypeCounts(
+    total: number,
+    allowedTypes?: readonly GeminiQuestionType[],
+): TypeCounts {
     const requestedTotal = Math.max(0, Math.floor(total));
     const counts = emptyTypeCounts();
-    const coreSlots = Math.min(requestedTotal, Math.ceil(requestedTotal / 2));
-    const coreWeightTotal = CORE_TYPES.reduce((sum, questionType) => sum + CORE_TYPE_WEIGHTS[questionType], 0);
-    const rankedRemainders = CORE_TYPES.map((questionType, tieIndex) => {
+    const coreTypes = allowedTypes
+        ? CORE_TYPES.filter((questionType) => allowedTypes.includes(questionType))
+        : CORE_TYPES;
+    const varietyTypes = allowedTypes
+        ? VARIETY_TYPES.filter((questionType) => allowedTypes.includes(questionType))
+        : VARIETY_TYPES;
+    const coreSlots = coreTypes.length === 0
+        ? 0
+        : Math.min(requestedTotal, Math.ceil(requestedTotal / 2));
+    const coreWeightTotal = coreTypes.reduce((sum, questionType) => sum + CORE_TYPE_WEIGHTS[questionType], 0);
+    const rankedRemainders = coreTypes.map((questionType, tieIndex) => {
         const exactCount = coreSlots * CORE_TYPE_WEIGHTS[questionType] / coreWeightTotal;
         const baseCount = Math.floor(exactCount);
         counts[TYPE_COUNT_FIELDS[questionType]] = baseCount;
@@ -552,7 +588,7 @@ export function computeTypeCounts(total: number): TypeCounts {
         remaining--;
     }
 
-    fillVarietyTypeCounts(counts, requestedTotal - coreSlots, VARIETY_TYPES, 2);
+    fillVarietyTypeCounts(counts, requestedTotal - coreSlots, varietyTypes, 2);
     return counts;
 }
 
@@ -1452,7 +1488,8 @@ if (!apiKey) {
 
 
 const targetAmount = opts.amount;
-const normalCounts = computeTypeCounts(targetAmount);
+const allowedQuestionTypes = opts.mode ? GENERATE_MODE_ALLOWED_TYPES[opts.mode] : undefined;
+const normalCounts = computeTypeCounts(targetAmount, allowedQuestionTypes);
 const skipFactCheck = opts.skipFactCheck ?? false;
 // Generate a second candidate for every non-image target. The image target stays
 // exact so Commons validation is not flooded; image misses receive two targeted
@@ -1523,16 +1560,28 @@ for (const model of GEMINI_MODELS) {
              error: { code: "parse_error", message: "No valid questions in Gemini response. Please try again." },
          };
      }
+      const allowedQuestions = allowedQuestionTypes
+          ? rawQuestions.filter((question) => allowedQuestionTypes.includes(question.questionType))
+          : rawQuestions;
+      const disallowedCount = rawQuestions.length - allowedQuestions.length;
+      if (disallowedCount > 0) {
+          logger.warn(
+              { disallowedCount, mode: opts.mode },
+              "Dropping question types disallowed by the selected question mix",
+          );
+      }
       const parsedCount = Array.isArray(parsed) ? parsed.length : 0;
-      const validated = await validateGeneratedQuestions(apiKey, rawQuestions, skipFactCheck);
+      const validated = await validateGeneratedQuestions(apiKey, allowedQuestions, skipFactCheck);
       const enforced = await enforceQuestionTypeMix(
           apiKey,
           opts,
           normalCounts,
           validated.questions,
           skipFactCheck,
+          allowedQuestionTypes,
       );
       const discarded = Math.max(0, parsedCount - rawQuestions.length)
+          + disallowedCount
           + validated.discarded
           + enforced.discarded;
       const deliveredCounts = countQuestionTypes(enforced.questions);

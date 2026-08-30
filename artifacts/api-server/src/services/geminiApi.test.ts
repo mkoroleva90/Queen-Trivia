@@ -95,6 +95,43 @@ test("variety draws use every specialist type before repeats and cap each at two
     }
 });
 
+test("computeTypeCounts restricted to the standard mix allocates only multiple choice and true/false", () => {
+    for (let total = 1; total <= 20; total++) {
+        const counts = computeTypeCounts(total, ["multiple_choice", "true_false"]);
+        assert.equal(countTotal(counts), total);
+        assert.equal(counts.mcCount + counts.tfCount, total);
+    }
+    const ten = computeTypeCounts(10, ["multiple_choice", "true_false"]);
+    assert.equal(ten.mcCount, 8);
+    assert.equal(ten.tfCount, 2);
+});
+
+test("computeTypeCounts restricted to the extended mix never assigns excluded types", () => {
+    const extendedTypes = [
+        "multiple_choice",
+        "true_false",
+        "write_in",
+        "ordering",
+        "multi_select",
+    ] as const;
+    for (let total = 1; total <= 20; total++) {
+        const counts = computeTypeCounts(total, extendedTypes);
+        assert.equal(countTotal(counts), total);
+        assert.equal(counts.imgCount, 0);
+        assert.equal(counts.matchCount, 0);
+        assert.equal(counts.sliderCount, 0);
+        assert.equal(counts.shortResponseCount, 0);
+    }
+    const ten = computeTypeCounts(10, extendedTypes);
+    assert.equal(ten.mcCount, 3);
+    assert.equal(ten.tfCount, 2);
+    assert.equal(ten.wiCount + ten.orderingCount + ten.multiSelectCount, 5);
+    for (const count of [ten.wiCount, ten.orderingCount, ten.multiSelectCount]) {
+        assert.ok(count >= 1);
+        assert.ok(count <= 2);
+    }
+});
+
 test("surplus fallback never masks missing multiple-choice or true/false core slots", () => {
     assert.equal(canUseSurplusFallback({
         ...emptyCounts(),

@@ -245,6 +245,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
   const [aiOpen, setAiOpen] = useState(false);
   const [aiAmount, setAiAmount] = useState(10);
   const [aiBrief, setAiBrief] = useState('');
+  const [aiMode, setAiMode] = useState<OpenTdbImportMode | null>(null);
   const [aiSkipFactCheck, setAiSkipFactCheck] = useState(false);
   const [aiError, setAiError] = useState('');
   const [aiResult, setAiResult] = useState<{ imported: number } | null>(null);
@@ -388,6 +389,10 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
 
   const handleCreateAI = async () => {
     if (!topic.trim()) { setSetupError('Enter a topic'); return; }
+    if (openTdbMode === null) {
+      setSetupError(COPY.openTdbQuestionMix.hint);
+      return;
+    }
     setSetupError('');
     try {
       const game = await createGame.mutateAsync({
@@ -400,6 +405,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
           difficulty,
           amount: setupAmount,
           brief: brief.trim() || undefined,
+          mode: openTdbMode,
         },
       });
       invalidate(game.id);
@@ -454,6 +460,10 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
 
   const handleGenerateAi = async () => {
     if (!selectedGame) return;
+    if (aiMode === null) {
+      setAiError(COPY.openTdbQuestionMix.hint);
+      return;
+    }
     setAiError('');
     setAiResult(null);
     try {
@@ -464,6 +474,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
           difficulty: (selectedGame.difficulty ?? 'medium') as Difficulty,
           amount: aiAmount,
           brief: aiBrief.trim() || undefined,
+          mode: aiMode,
         },
       });
       invalidate(selectedGame.id);
@@ -858,9 +869,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                       : 'Questions are pulled from Open Trivia Database.'}
                   </Text>
 
-                  {source === 'opentdb' && (
-                    <OpenTdbQuestionMixSelector value={openTdbMode} onSelect={setOpenTdbMode} />
-                  )}
+                  <OpenTdbQuestionMixSelector value={openTdbMode} onSelect={setOpenTdbMode} />
 
                   {/* ── Custom topic fields ── */}
                   {source === 'ai' && (
@@ -959,12 +968,12 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                     style={[s.setupSaveBtn, {
                       opacity: setupWorking
                         ? 0.75
-                        : source === 'opentdb' && openTdbMode === null
+                        : openTdbMode === null
                           ? 0.4
                           : 1,
                     }]}
                     onPress={source === 'ai' ? handleCreateAI : handleCreateOpenTdb}
-                    disabled={setupWorking || (source === 'opentdb' && openTdbMode === null)}
+                    disabled={setupWorking || openTdbMode === null}
                   >
                     {setupWorking ? (
                       <View style={s.btnRow}>
@@ -1221,6 +1230,8 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                   <Text style={[sh.fieldLabel, { color: colors.mutedForeground }]}>How many</Text>
                   <AmountStepper value={aiAmount} onChange={setAiAmount} colors={colors} />
 
+                  <OpenTdbQuestionMixSelector value={aiMode} onSelect={setAiMode} />
+
                   <Text style={[sh.fieldLabel, { color: colors.mutedForeground }]}>Brief (optional)</Text>
                   <TextInput
                     style={[sh.textInput, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
@@ -1234,9 +1245,9 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                   {!!aiError && <Text style={[sh.errorText, { color: colors.destructive }]}>{aiError}</Text>}
 
                   <Pressable
-                    style={[sh.sheetBtn, { backgroundColor: AI_COLOR, opacity: generateGemini.isPending ? 0.7 : 1 }]}
+                    style={[sh.sheetBtn, { backgroundColor: AI_COLOR, opacity: generateGemini.isPending ? 0.7 : aiMode === null ? 0.4 : 1 }]}
                     onPress={handleGenerateAi}
-                    disabled={generateGemini.isPending}
+                    disabled={generateGemini.isPending || aiMode === null}
                   >
                     {generateGemini.isPending ? (
                       <View style={sh.btnRow}>

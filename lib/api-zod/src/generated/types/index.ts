@@ -32,6 +32,7 @@ export * from './gameUpdateDifficulty';
 export * from './gameUpdateStatus';
 export * from './geminiGenerateInput';
 export * from './geminiGenerateInputDifficulty';
+export * from './geminiGenerateInputMode';
 export * from './healthStatus';
 export * from './joinGameInput';
 export * from './listGamesParams';

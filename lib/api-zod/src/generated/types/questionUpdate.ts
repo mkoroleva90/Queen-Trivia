@@ -24,8 +24,10 @@ export interface QuestionUpdate {
   orderIndex?: number;
   /** @nullable */
   source?: string | null;
-  /** @nullable */
-  /** @pattern ^https?://[^/\s?#]+(?:[/?#][^\s]*)?$ */
+  /**
+     * @nullable
+     * @pattern ^https?://[^/\s?#]+(?:[/?#][^\s]*)?$
+     */
   factCheckUrl?: string | null;
   verifiedByAdmin?: boolean;
 }

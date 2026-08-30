@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { GeminiGenerateInputDifficulty } from './geminiGenerateInputDifficulty';
+import type { GeminiGenerateInputMode } from './geminiGenerateInputMode';
 
 export interface GeminiGenerateInput {
   /** @minLength 1 */
@@ -20,4 +21,6 @@ export interface GeminiGenerateInput {
   /** @maxLength 2000 */
   brief?: string | null;
   skipFactCheck?: boolean;
+  /** Host-selected question mix. standard = multiple choice and true/false only. extended = multiple choice, true/false, write-in, ordering, and multi-select only. surprise = every question type the AI generator supports. When omitted the server keeps its full default mix (identical to surprise). */
+  mode?: GeminiGenerateInputMode;
 }

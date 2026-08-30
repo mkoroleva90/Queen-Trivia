@@ -1308,9 +1308,11 @@ const [genCount, setGenCount] = useState(5);
 const [genDiff, setGenDiff] = useState<"easy" | "medium" | "hard" | "same">("same");
 const [genAvoid, setGenAvoid] = useState(true);
 const [genBrief, setGenBrief] = useState(game.brief ?? "");
+const [genMode, setGenMode] = useState<OpenTdbImportMode | null>(null);
 const [upgradeLimitMsg, setUpgradeLimitMsg] = useState<string | null>(null);
 
 const handleGenerate = async () => {
+ if (genMode === null) return;
  const difficulty =
   genDiff === "same"
    ? ((game.difficulty ?? "medium") as "easy" | "medium" | "hard")
@@ -1319,7 +1321,7 @@ const handleGenerate = async () => {
  try {
   const result = await generateQuestions.mutateAsync({
    gameId: game.id,
-   data: { topic: game.topic, difficulty, amount: genCount, existingQuestions: existingQs, brief: genBrief.trim() || undefined },
+   data: { topic: game.topic, difficulty, amount: genCount, existingQuestions: existingQs, brief: genBrief.trim() || undefined, mode: genMode },
   });
   invalidate();
   setGenOpen(false);
@@ -1569,6 +1571,7 @@ return (
      </SelectContent>
     </Select>
    </div>
+   <OpenTdbQuestionMixSelector value={genMode} onSelect={setGenMode} />
    <label className="flex items-center gap-2.5 cursor-pointer">
     <input
      type="checkbox"
@@ -1589,7 +1592,7 @@ return (
      className="resize-none text-sm"
     />
    </div>
-   <Button className="w-full" onClick={handleGenerate} disabled={generateQuestions.isPending}>
+   <Button className="w-full" onClick={handleGenerate} disabled={generateQuestions.isPending || genMode === null}>
     {generateQuestions.isPending ? (
      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating…</>
     ) : (
@@ -1720,11 +1723,11 @@ const topicName = isCustom ? customTopic.trim() : (selectedCategory?.name ?? "")
   topicName.length > 0
   && !createGame.isPending
   && !working
-  && (isCustom || openTdbMode !== null);
+  && openTdbMode !== null;
 const handleSubmit = async (e: React.FormEvent) => {
  e.preventDefault();
  if (!canSubmit) return;
-  if (!isCustom && openTdbMode === null) return;
+  if (openTdbMode === null) return;
 
 
  let game: Game;
@@ -1781,7 +1784,7 @@ const handleSubmit = async (e: React.FormEvent) => {
   try {
       const result = await generateQuestions.mutateAsync({
        gameId: game.id,
-       data: { topic: topicName, difficulty, amount: Number(amount), brief: brief.trim() || undefined },
+       data: { topic: topicName, difficulty, amount: Number(amount), brief: brief.trim() || undefined, mode: openTdbMode },
           });
           queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
           setImportedCount(result.imported);
@@ -1833,6 +1836,7 @@ const handleRetryGeneration = async () => {
      topic: created.topic,
      difficulty: (created.difficulty ?? "medium") as "easy" | "medium" | "hard",
      amount: Number(amount),
+     mode: openTdbMode ?? undefined,
     },
    });
    queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
@@ -2105,9 +2109,7 @@ return (
 <p className="text-xs text-muted-foreground mt-1">{isCustom ? 'Gemini AI generates questions on the topic you enter below.' : 'Questions are pulled from Open Trivia Database.'}</p>
 </div>
 
- {!isCustom && (
-  <OpenTdbQuestionMixSelector value={openTdbMode} onSelect={setOpenTdbMode} />
- )}
+ <OpenTdbQuestionMixSelector value={openTdbMode} onSelect={setOpenTdbMode} />
 
 
 {/* Custom topic text input */}
@@ -2316,6 +2318,7 @@ const [genMoreCount, setGenMoreCount] = useState(5);
  const [genMoreDiff, setGenMoreDiff] = useState<"easy" | "medium" | "hard" |"same">("same");
 const [genMoreAvoid, setGenMoreAvoid] = useState(true);
 const [genMoreBrief, setGenMoreBrief] = useState("");
+const [genMoreMode, setGenMoreMode] = useState<OpenTdbImportMode | null>(null);
 
 // Regenerate All modal state
 const [regenAllOpen, setRegenAllOpen] = useState(false);
@@ -2528,6 +2531,7 @@ const handleApplyEnhancements = () => {
 
 const handleGenerateMore = async () => {
  if (!selectedGameId) return;
+ if (genMoreMode === null) return;
  const game = games.find((g) => g.id === selectedGameId);
  if (!game) return;
  const difficulty =
@@ -2538,7 +2542,7 @@ const handleGenerateMore = async () => {
  try {
      const result = await generateMore.mutateAsync({
       gameId: selectedGameId,
-    data: { topic: game.topic, difficulty, amount: genMoreCount, existingQuestions: existingQs, brief: genMoreBrief.trim() || undefined },
+    data: { topic: game.topic, difficulty, amount: genMoreCount, existingQuestions: existingQs, brief: genMoreBrief.trim() || undefined, mode: genMoreMode },
      });
      invalidate();
       setGenMoreOpen(false);
@@ -3152,6 +3156,7 @@ return (
            </SelectContent>
         </Select>
        </div>
+       <OpenTdbQuestionMixSelector value={genMoreMode} onSelect={setGenMoreMode} />
        <label className="flex items-center gap-2.5 cursor-pointer">
         <input
            type="checkbox"
@@ -3175,7 +3180,7 @@ return (
        <Button
         className="w-full"
         onClick={handleGenerateMore}
-        disabled={generateMore.isPending}
+        disabled={generateMore.isPending || genMoreMode === null}
        >
         {generateMore.isPending ? (
              <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating…</>

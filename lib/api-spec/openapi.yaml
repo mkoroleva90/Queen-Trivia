@@ -810,6 +810,15 @@ components:
           maxLength: 2000
         skipFactCheck:
           type: boolean
+        mode:
+          type: string
+          enum: [standard, extended, surprise]
+          description: >
+            Host-selected question mix. standard = multiple choice and
+            true/false only. extended = multiple choice, true/false, write-in,
+            ordering, and multi-select only. surprise = every question type the
+            AI generator supports. When omitted the server keeps its full
+            default mix (identical to surprise).
     OpenTdbImportInput:
       type: object
       required: [categoryId, difficulty, amount]
