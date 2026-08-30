@@ -39,17 +39,31 @@ Player removal blocks by two identity factors (both checked on join):
 `lib/db/migrations/0004_removed_participants_display_name.sql`.
 
 ## Room-code revocation after a kick
-A kick closes new admissions under the room code that was current at removal time.
-Existing participants may reconnect, but admitting any new identity requires the host
-to change the shared room code. Resubmitting the same code must not reopen admissions.
+A kick permanently closes new anonymous admissions to that game, including after a
+room-code rotation. Existing participants may reconnect through their participant
+rows, but a shared code must never create a fresh identity after moderation begins.
 
 **Why:** Anonymous display names are mutable, so user ID and name checks cannot stop
 a kicked player from returning as a fresh identity. The shared room code is the only
-stable authorization capability the server can revoke.
+stable authorization capability the server can revoke; rotating it cannot distinguish
+the kicked person from a genuinely new attendee.
 
-**How to apply:** Treat kick, new admission, and code rotation as one serialized
-authorization boundary. Historical case-folded code collisions must fail closed
-rather than selecting an arbitrary game.
+**How to apply:** Any removal record closes fresh login/grant creation for that game.
+Do not scope this check to the latest access-code timestamp. Historical case-folded
+code collisions must fail closed rather than selecting an arbitrary game.
+
+## Cross-replica socket revocation
+Socket.IO room enumeration, leaves, disconnects, and broadcasts must use the shared
+PostgreSQL adapter. Player socket admission and kick deletion must also share a
+transaction-scoped PostgreSQL advisory lock.
+
+**Why:** Autoscale replicas do not share the default in-memory adapter or JavaScript
+locks. A kick can otherwise miss a socket on another replica or race with a remote
+room join that commits after socket enumeration.
+
+**How to apply:** Store remotely filterable identities in `socket.data`; use adapter-
+backed `fetchSockets()` for revocation, and preserve the advisory-lock pairing when
+changing either the socket admission or kick transaction.
 
 ## Socket event
 `player:kicked` is in `ServerToClientEvents`. The server emits to the whole game room;

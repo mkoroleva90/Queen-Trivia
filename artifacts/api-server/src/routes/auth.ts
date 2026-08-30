@@ -1,6 +1,6 @@
 
 import { Router, type IRouter } from "express";
-import { and, eq, gt, ne, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { db, gamesTable, removedParticipantsTable } from "@workspace/db";
 import {
   VerifyAccessCodeBody,
@@ -37,20 +37,13 @@ router.post("/auth/verify", authRateLimit, async (req, res): Promise<void> => {
 
   if (matchingGames.length === 1) {
     const game = matchingGames[0]!;
-    const [removalSinceCodeChange] = await db
+    const [removal] = await db
       .select({ id: removedParticipantsTable.id })
       .from(removedParticipantsTable)
-      .where(
-        game.accessCodeChangedAt == null
-          ? eq(removedParticipantsTable.gameId, game.id)
-          : and(
-              eq(removedParticipantsTable.gameId, game.id),
-              gt(removedParticipantsTable.removedAt, game.accessCodeChangedAt),
-            ),
-      )
+      .where(eq(removedParticipantsTable.gameId, game.id))
       .limit(1);
 
-    if (removalSinceCodeChange) {
+    if (removal) {
       res.json(VerifyAccessCodeResponse.parse({ valid: false, role: "none" }));
       return;
     }

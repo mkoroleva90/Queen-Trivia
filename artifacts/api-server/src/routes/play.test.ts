@@ -724,15 +724,16 @@ describe("room-code revocation — fresh session, different display name", () =>
     );
   });
 
-  it("allows a genuinely new player who supplies the rotated code", async () => {
+  it("does not let a kicked player bypass moderation with a rotated code and new identity", async () => {
     const newPlayerAgent = request.agent(app);
     const loginRes = await newPlayerAgent
       .post("/api/auth/login")
       .send({ code: ROTATED_CODE, name: "__test__kick_after_rotation" });
-    assert.equal(loginRes.status, 200, `rotated-code login failed: ${JSON.stringify(loginRes.body)}`);
-
-    const joinRes = await newPlayerAgent.post(`/api/games/${game.id}/join`);
-    assert.equal(joinRes.status, 201, `rotated-code join failed: ${JSON.stringify(joinRes.body)}`);
+    assert.equal(
+      loginRes.status,
+      403,
+      `rotated code bypassed the moderation ban: ${JSON.stringify(loginRes.body)}`,
+    );
   });
 });
 

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   db,
   gamesTable,
@@ -49,6 +49,10 @@ router.delete(
         .for("update");
 
       if (!game || game.status !== "active") return { kind: "inactive" as const };
+
+      // Serialize participant deletion with Socket.IO admission on every
+      // replica. Both paths use the same transaction-scoped advisory lock.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${gameId}, ${userId})`);
 
       const [participant] = await tx
         .select({ id: gameParticipantsTable.id, userName: usersTable.name })

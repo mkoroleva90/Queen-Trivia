@@ -1,6 +1,6 @@
 
 import { Router, type IRouter } from "express";
-import { and, eq, gt, ne, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import {
     db,
     usersTable,
@@ -59,7 +59,6 @@ const loginResult = await db.transaction(async (tx) => {
     const matchedGames = await tx
         .select({
             id: gamesTable.id,
-            accessCodeChangedAt: gamesTable.accessCodeChangedAt,
         })
         .from(gamesTable)
         .where(and(
@@ -75,22 +74,17 @@ const loginResult = await db.transaction(async (tx) => {
     if (matchedGames.length !== 1) return { kind: "invalid" as const };
     const matchedGame = matchedGames[0]!;
 
-    const [removalSinceCodeChange] = await tx
+    const [removal] = await tx
         .select({ id: removedParticipantsTable.id })
         .from(removedParticipantsTable)
-        .where(
-            matchedGame.accessCodeChangedAt == null
-                ? eq(removedParticipantsTable.gameId, matchedGame.id)
-                : and(
-                    eq(removedParticipantsTable.gameId, matchedGame.id),
-                    gt(removedParticipantsTable.removedAt, matchedGame.accessCodeChangedAt),
-                ),
-        )
+        .where(eq(removedParticipantsTable.gameId, matchedGame.id))
         .limit(1);
 
-    // Never recreate a grant for a revoked code, including for a session that
-    // was opened before the kick.
-    if (removalSinceCodeChange) return { kind: "revoked" as const };
+    // Anonymous users have no stable identity that can survive cleared storage
+    // or a renamed profile. Once moderation removes someone, shared-code
+    // admissions stay closed for this game; rotating the code must not erase
+    // that revocation and let the same person return as a new user row.
+    if (removal) return { kind: "revoked" as const };
 
     if (sessionUserId) {
         const [existingUser] = await tx

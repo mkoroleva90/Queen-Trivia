@@ -12,3 +12,4 @@ export * from "./contentReports";
 export * from "./removedParticipants";
 export * from "./adminAuthProviders";
 export * from "./rateLimitHits";
+export * from "./socketIoAttachments";

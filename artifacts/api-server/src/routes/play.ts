@@ -1,7 +1,7 @@
 
 import { Router, type IRouter } from "express";
 import { rateLimit } from "express-rate-limit";
-import { eq, and, desc, asc, gt, or, sql } from "drizzle-orm";
+import { eq, and, desc, asc, or, sql } from "drizzle-orm";
 import {
  db,
  gamesTable,
@@ -92,19 +92,12 @@ router.post("/games/:gameId/join", requireUser, async (req, res): Promise<void> 
             .limit(1);
         if (!grant) return { kind: "missing-grant" as const };
 
-        const [removalSinceCodeChange] = await tx
+        const [removal] = await tx
             .select({ id: removedParticipantsTable.id })
             .from(removedParticipantsTable)
-            .where(
-                game.accessCodeChangedAt == null
-                    ? eq(removedParticipantsTable.gameId, game.id)
-                    : and(
-                        eq(removedParticipantsTable.gameId, game.id),
-                        gt(removedParticipantsTable.removedAt, game.accessCodeChangedAt),
-                    ),
-            )
+            .where(eq(removedParticipantsTable.gameId, game.id))
             .limit(1);
-        if (removalSinceCodeChange) return { kind: "removed" as const };
+        if (removal) return { kind: "removed" as const };
 
         const [removedByIdentity] = await tx
             .select({ id: removedParticipantsTable.id })

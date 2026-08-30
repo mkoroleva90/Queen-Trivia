@@ -26,7 +26,7 @@ const {
     adminAccountId?: number | null;
     adminEmail?: string | null;
     exceptSessionId?: string;
-  }) => void;
+  }) => Promise<void>;
   revokePlayerFromGame: (gameId: number, userId: number) => Promise<void>;
   safeEmit: (
     room: string,
@@ -130,7 +130,9 @@ async function waitFor(
 
 describe("Socket.IO host game-room ownership", () => {
   let httpServer: import("node:http").Server;
+  let revocationServer: import("node:http").Server;
   let ioServer: import("socket.io").Server;
+  let revocationIoServer: import("socket.io").Server;
   let port: number;
   let ownGameId: number;
   let foreignGameId: number;
@@ -228,6 +230,14 @@ describe("Socket.IO host game-room ownership", () => {
     assert.equal(emailOnlySession.status, 200);
     const emailOnlyCookie = emailOnlySession.headers["set-cookie"]![0]!.split(";")[0]!;
     emailOnlySocket = await connect(port, emailOnlyCookie);
+
+    // Initialize a second Socket.IO node after all clients connect to the first.
+    // Exported revocation calls now originate here, forcing fetchSockets,
+    // disconnect, leave, and emits through the shared PostgreSQL adapter.
+    revocationServer = createServer(app);
+    revocationIoServer = initSocket(revocationServer);
+    await listen(revocationServer);
+    await new Promise((resolve) => setTimeout(resolve, 100));
   });
 
   after(async () => {
@@ -236,6 +246,8 @@ describe("Socket.IO host game-room ownership", () => {
     legacySocket?.disconnect();
     playerSocket?.disconnect();
     emailOnlySocket?.disconnect();
+    await new Promise<void>((resolve) => revocationIoServer.close(() => resolve()));
+    await new Promise<void>((resolve) => revocationServer.close(() => resolve()));
     await new Promise<void>((resolve) => ioServer.close(() => resolve()));
     await new Promise<void>((resolve) => httpServer.close(() => resolve()));
     await pool.query("DELETE FROM games WHERE id = ANY($1)", [[ownGameId, foreignGameId]]);
@@ -328,29 +340,29 @@ describe("Socket.IO host game-room ownership", () => {
     );
   });
 
-  it("disconnects revoked host sockets while preserving an explicitly retained session", async () => {
+  it("disconnects host sockets on another replica while preserving a retained session", async () => {
     const serverSocket = ioServer.sockets.sockets.get(ownerSocket.id);
     assert.ok(serverSocket, "owner socket should still be connected");
     const sessionId = (serverSocket.request as import("express").Request).sessionID;
 
-    revokeAdminSockets({
+    await revokeAdminSockets({
       adminAccountId: ownerAdminId,
       exceptSessionId: sessionId,
     });
     assert.equal(ownerSocket.connected, true, "the retained current session must stay connected");
 
-    revokeAdminSockets({ adminEmail: ownerEmail });
+    await revokeAdminSockets({ adminEmail: ownerEmail });
     const emailOnlyDisconnected = await waitFor(() => emailOnlySocket.disconnected);
     assert.equal(emailOnlyDisconnected, true, "email-only migration sessions must be revoked");
     assert.equal(legacySocket.connected, true, "identity-free code sessions must remain connected");
 
-    revokeAdminSockets({ adminAccountId: ownerAdminId });
+    await revokeAdminSockets({ adminAccountId: ownerAdminId });
     const disconnected = await waitFor(() => ownerSocket.disconnected);
     assert.equal(disconnected, true, "revoked sessions must lose their active socket");
     assert.equal(foreignSocket.connected, true, "other hosts must remain connected");
   });
 
-  it("forcibly removes a kicked player from the live game room", async () => {
+  it("forcibly removes a kicked player from a live room on another replica", async () => {
     playerSocket.emit("game:join", ownGameId);
     const joined = await waitFor(() =>
       ioServer.sockets.adapter.rooms.get(`game:${ownGameId}`)?.has(playerSocket.id) ?? false,

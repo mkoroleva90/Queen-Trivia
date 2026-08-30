@@ -1,10 +1,11 @@
 
 import { Server as SocketIOServer } from "socket.io";
+import { createAdapter } from "@socket.io/postgres-adapter";
 import type { Server as HTTPServer } from "node:http";
 import type { Request, Response } from "express";
 import type { NextFunction } from "express";
-import { eq, and } from "drizzle-orm";
-import { db, gameParticipantsTable, gamesTable } from "@workspace/db";
+import { eq, and, sql } from "drizzle-orm";
+import { db, gameParticipantsTable, gamesTable, pool } from "@workspace/db";
 import { logger } from "./logger.ts";
 import { sessionMiddleware } from "./session.ts";
 import { corsOrigin, isOriginAllowed } from "./cors.ts";
@@ -35,6 +36,7 @@ export function initSocket(server: HTTPServer): IO {
     },
     transports: ["polling", "websocket"],
   });
+  io.adapter(createAdapter(pool));
 
   io.use((socket, next) => {
     sessionMiddleware(
@@ -67,6 +69,9 @@ export function initSocket(server: HTTPServer): IO {
     const req = socket.request as Request;
     socket.data.userId = req.session.userId;
     socket.data.isAdmin = req.session.isAdmin === true;
+    socket.data.adminAccountId = req.session.adminAccountId;
+    socket.data.adminEmail = req.session.adminEmail;
+    socket.data.sessionId = req.sessionID;
 
     const recentGameJoinAt: number[] = [];
     const pendingGameJoins = new Set<number>();
@@ -163,35 +168,40 @@ export function initSocket(server: HTTPServer): IO {
         return;
       }
 
-      // Non-admin: verify the caller is a participant of this game.
+      // Non-admin: serialize the final membership check and room admission with
+      // the kick transaction across every replica. Without the PostgreSQL
+      // advisory lock, a remote kick could enumerate sockets just before this
+      // handler joins the room using a stale participant lookup.
       try {
         if (revokedPlayerGameKeys.has(playerGameKey(gameId, req.session.userId!))) {
           logger.debug({ socketId: socket.id, gameId }, "game:join rejected: player was removed");
           return;
         }
-        const [participant] = await db
-          .select({ id: gameParticipantsTable.id })
-          .from(gameParticipantsTable)
-          .where(
-            and(
-              eq(gameParticipantsTable.gameId, gameId),
-              eq(gameParticipantsTable.userId, req.session.userId!),
-            ),
-          )
-          .limit(1);
-        if (!participant) {
-          logger.debug({ socketId: socket.id, gameId }, "game:join rejected: not a participant");
-          return;
-        }
-        // The participant can be removed while the lookup is in flight.
-        // Serialize this final revocation check and room admission with the
-        // kick path so a join cannot commit after the player was revoked.
         await withPlayerGameLock(playerGameKey(gameId, req.session.userId!), async () => {
           if (revokedPlayerGameKeys.has(playerGameKey(gameId, req.session.userId!))) {
             logger.debug({ socketId: socket.id, gameId }, "game:join rejected: player was removed during lookup");
             return;
           }
-          await socket.join(`game:${gameId}`);
+          await db.transaction(async (tx) => {
+            await tx.execute(
+              sql`SELECT pg_advisory_xact_lock(${gameId}, ${req.session.userId!})`,
+            );
+            const [participant] = await tx
+              .select({ id: gameParticipantsTable.id })
+              .from(gameParticipantsTable)
+              .where(
+                and(
+                  eq(gameParticipantsTable.gameId, gameId),
+                  eq(gameParticipantsTable.userId, req.session.userId!),
+                ),
+              )
+              .limit(1);
+            if (!participant) {
+              logger.debug({ socketId: socket.id, gameId }, "game:join rejected: not a participant");
+              return;
+            }
+            await socket.join(`game:${gameId}`);
+          });
         });
       } catch (err) {
         logger.error({ err, socketId: socket.id, gameId }, "game:join participant check failed");
@@ -250,26 +260,34 @@ export async function revokePlayerFromGame(gameId: number, userId: number): Prom
  * session-store row alone cannot remove an already joined socket from private
  * game and lobby rooms.
  */
-export function revokeAdminSockets(options: {
+export async function revokeAdminSockets(options: {
   adminAccountId?: number | null;
   adminEmail?: string | null;
   exceptSessionId?: string;
-}): void {
-  if (!io) return;
+}): Promise<void> {
+  const activeIo = io;
+  if (!activeIo) return;
 
-  for (const socket of io.sockets.sockets.values()) {
-    const req = socket.request as Request;
-    if (
-      (
-        (options.adminAccountId != null
-          && req.session?.adminAccountId === options.adminAccountId)
-        || (options.adminEmail != null
-          && req.session?.adminEmail === options.adminEmail)
-      )
-      && req.sessionID !== options.exceptSessionId
-    ) {
-      socket.disconnect(true);
+  try {
+    // With the PostgreSQL adapter this includes RemoteSocket instances from
+    // every autoscale replica, not only sockets in the current process.
+    const sockets = await activeIo.fetchSockets();
+    for (const socket of sockets) {
+      if (
+        (
+          (options.adminAccountId != null
+            && socket.data.adminAccountId === options.adminAccountId)
+          || (options.adminEmail != null
+            && socket.data.adminEmail === options.adminEmail)
+        )
+        && socket.data.sessionId !== options.exceptSessionId
+      ) {
+        socket.disconnect(true);
+      }
     }
+  } catch (err) {
+    logger.error({ err, ...options }, "Failed to revoke host sockets");
+    throw err;
   }
 }
 

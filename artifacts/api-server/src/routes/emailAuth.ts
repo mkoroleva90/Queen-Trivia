@@ -324,7 +324,7 @@ router.post(
       adminAccountId: account.id,
       adminEmail: account.email,
     });
-    revokeAdminSockets({
+    await revokeAdminSockets({
       adminAccountId: account.id,
       adminEmail: account.email,
     });
@@ -459,7 +459,7 @@ router.post(
       adminAccountId: account.id,
       adminEmail: account.email,
     });
-    revokeAdminSockets({
+    await revokeAdminSockets({
       adminAccountId: account.id,
       adminEmail: account.email,
     });
@@ -516,25 +516,25 @@ router.post(
 
     const newHash = await bcrypt.hash(parsed.data.newPassword, 12);
 
-    // Revoke other browser sessions before changing the password. If the
-    // password update fails, sessions are safely logged out rather than
-    // leaving stolen sessions authorized after a successful password update.
-    await invalidateAdminSessions({
-      adminAccountId: account.id,
-      adminEmail: account.email,
-      exceptSessionId: req.sessionID,
-    });
-    revokeAdminSockets({
-      adminAccountId: account.id,
-      adminEmail: account.email,
-      exceptSessionId: req.sessionID,
-    });
-
     const passwordChangedAt = new Date();
     await db
       .update(adminAccountsTable)
       .set({ passwordHash: newHash, passwordChangedAt })
       .where(eq(adminAccountsTable.id, adminAccountId));
+
+    // Revoke every other browser and Socket.IO session after the new password
+    // timestamp is durable. Old mobile tokens now fail closed even if they
+    // reconnect while distributed socket revocation is in flight.
+    await invalidateAdminSessions({
+      adminAccountId: account.id,
+      adminEmail: account.email,
+      exceptSessionId: req.sessionID,
+    });
+    await revokeAdminSockets({
+      adminAccountId: account.id,
+      adminEmail: account.email,
+      exceptSessionId: req.sessionID,
+    });
 
     // Issue a fresh mobile token with iat guaranteed to be after passwordChangedAt
     // (by +1 ms) so it always passes the revocation check in injectMobileSession,
@@ -606,7 +606,7 @@ router.delete(
       adminAccountId,
       adminEmail: email,
     });
-    revokeAdminSockets({
+    await revokeAdminSockets({
       adminAccountId,
       adminEmail: email,
     });
@@ -648,7 +648,7 @@ router.delete(
       adminAccountId,
       adminEmail: req.session.adminEmail,
     });
-    revokeAdminSockets({
+    await revokeAdminSockets({
       adminAccountId,
       adminEmail: req.session.adminEmail,
     });
