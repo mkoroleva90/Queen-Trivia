@@ -23,6 +23,9 @@ export const gamesTable = pgTable("games", {
   .notNull()
   .default("waiting"),
  accessCode: text("access_code").unique(),
+  // Set only when a host changes the room code. A removal newer than this
+  // timestamp revokes new admissions until the next code rotation.
+  accessCodeChangedAt: timestamp("access_code_changed_at", { withTimezone: true }),
  brief: text("brief"),
  createdAt: timestamp("created_at", { withTimezone: true })
   .notNull()

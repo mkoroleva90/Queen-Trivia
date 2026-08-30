@@ -1,7 +1,13 @@
 
 import { Router, type IRouter } from "express";
-import { and, eq, ne } from "drizzle-orm";
-import { db, usersTable, gamesTable, gameAccessGrantsTable } from "@workspace/db";
+import { and, eq, gt, ne, sql } from "drizzle-orm";
+import {
+    db,
+    usersTable,
+    gamesTable,
+    gameAccessGrantsTable,
+    removedParticipantsTable,
+} from "@workspace/db";
 import { toJsonSafe } from "../lib/serialize.ts";
 import { triviaJoinRateLimit } from "../middleware/authRateLimit.ts";
 import { generateMobileToken } from "../lib/mobileAuth.ts";
@@ -21,6 +27,7 @@ if (!parsed.success) {
     return;
 }
 const code = parsed.data.code.trim();
+const normalizedCode = code.toUpperCase();
 const name = typeof parsed.data.name === "string" ? parsed.data.name.trim() : "";
 
 if (!code) {
@@ -28,72 +35,115 @@ if (!code) {
     return;
 }
 
-
-// Per-game access codes: a code tied to a specific (non-completed) game
-const [matchedGame] = await db
-    .select({ id: gamesTable.id })
-    .from(gamesTable)
-    .where(and(eq(gamesTable.accessCode, code.toUpperCase()), ne(gamesTable.status, "completed")))
-    .limit(1);
-
-if (!matchedGame) {
-    res.status(401).json({ error: "Invalid access code" });
-    return;
-}
-
-
-// ── Already-logged-in path: grant this room without regenerating ──────────
-if (req.session.userId) {
-    const [existingUser] = await db
-        .select()
-        .from(usersTable)
-        .where(eq(usersTable.id, req.session.userId));
-
-    if (!existingUser) {
-        res.status(401).json({ error: "Session user not found" });
-        return;
-    }
-
-    await db
-        .insert(gameAccessGrantsTable)
-        .values({ gameId: matchedGame.id, userId: existingUser.id })
-        .onConflictDoNothing();
-
-    req.session.save((err) => {
-        if (err) {
-            res.status(500).json({ error: "Failed to save session" });
-            return;
-        }
-        const mobileToken = generateMobileToken(req.session.userId!);
-        res.json(toJsonSafe({ id: existingUser.id, name: existingUser.name, gameId: matchedGame.id, mobileToken }));
-    });
-    return;
-}
-
 // ── Fresh login path: name is required ──
-if (!name) {
+if (!req.session.userId && !name) {
     res.status(400).json({ error: "Name and access code are required" });
     return;
 }
-if (name.length > 50) {
+if (!req.session.userId && name.length > 50) {
     res.status(400).json({ error: "Name must be 50 characters or fewer" });
     return;
 }
 
 // Content filter: block slurs/hate speech in display names before saving.
-if (containsBannedContent(name)) {
+if (!req.session.userId && containsBannedContent(name)) {
     logFlaggedContent('player_name');
     res.status(422).json({ error: COPY.contentFilter.playerName, code: "content_filtered" });
     return;
 }
 
-// Always create a new user row — name is a display label, not an identity key.
-// Reusing an existing row by name would let any caller impersonate another
-// player just by knowing their display name.
-const [user] = await db.insert(usersTable).values({ name }).returning();
-await db
-    .insert(gameAccessGrantsTable)
-    .values({ gameId: matchedGame.id, userId: user!.id });
+const sessionUserId = req.session.userId;
+const loginResult = await db.transaction(async (tx) => {
+    // Lock the game row so a kick or room-code rotation cannot interleave
+    // between code validation and writing the durable grant.
+    const matchedGames = await tx
+        .select({
+            id: gamesTable.id,
+            accessCodeChangedAt: gamesTable.accessCodeChangedAt,
+        })
+        .from(gamesTable)
+        .where(and(
+            sql`upper(${gamesTable.accessCode}) = ${normalizedCode}`,
+            ne(gamesTable.status, "completed"),
+        ))
+        .limit(2)
+        .for("update");
+
+    // Legacy rows may differ only by case even though new writes are
+    // normalized. Never choose an arbitrary game when the folded code is
+    // ambiguous.
+    if (matchedGames.length !== 1) return { kind: "invalid" as const };
+    const matchedGame = matchedGames[0]!;
+
+    const [removalSinceCodeChange] = await tx
+        .select({ id: removedParticipantsTable.id })
+        .from(removedParticipantsTable)
+        .where(
+            matchedGame.accessCodeChangedAt == null
+                ? eq(removedParticipantsTable.gameId, matchedGame.id)
+                : and(
+                    eq(removedParticipantsTable.gameId, matchedGame.id),
+                    gt(removedParticipantsTable.removedAt, matchedGame.accessCodeChangedAt),
+                ),
+        )
+        .limit(1);
+
+    // Never recreate a grant for a revoked code, including for a session that
+    // was opened before the kick.
+    if (removalSinceCodeChange) return { kind: "revoked" as const };
+
+    if (sessionUserId) {
+        const [existingUser] = await tx
+            .select()
+            .from(usersTable)
+            .where(eq(usersTable.id, sessionUserId));
+        if (!existingUser) return { kind: "missing-user" as const };
+
+        await tx
+            .insert(gameAccessGrantsTable)
+            .values({ gameId: matchedGame.id, userId: existingUser.id })
+            .onConflictDoNothing();
+        return { kind: "existing" as const, gameId: matchedGame.id, user: existingUser };
+    }
+
+    // Always create a new user row — name is a display label, not an identity
+    // key. Reusing by name would let callers impersonate another player.
+    const [user] = await tx.insert(usersTable).values({ name }).returning();
+    await tx
+        .insert(gameAccessGrantsTable)
+        .values({ gameId: matchedGame.id, userId: user!.id });
+    return { kind: "fresh" as const, gameId: matchedGame.id, user: user! };
+});
+
+if (loginResult.kind === "invalid") {
+    res.status(401).json({ error: "Invalid access code" });
+    return;
+}
+if (loginResult.kind === "revoked") {
+    res.status(403).json({ error: COPY.kick.rejoinBlocked });
+    return;
+}
+if (loginResult.kind === "missing-user") {
+    res.status(401).json({ error: "Session user not found" });
+    return;
+}
+
+if (loginResult.kind === "existing") {
+    req.session.save((err) => {
+        if (err) {
+            res.status(500).json({ error: "Failed to save session" });
+            return;
+        }
+        const mobileToken = generateMobileToken(loginResult.user.id);
+        res.json(toJsonSafe({
+            id: loginResult.user.id,
+            name: loginResult.user.name,
+            gameId: loginResult.gameId,
+            mobileToken,
+        }));
+    });
+    return;
+}
 
  // Regenerate the session ID on login to prevent session fixation attacks.
  req.session.regenerate((err) => {
@@ -101,12 +151,17 @@ await db
          res.status(500).json({ error: "Failed to establish session" });
          return;
      }
-     req.session.userId = user!.id;
-     req.session.userName = user!.name;
+      req.session.userId = loginResult.user.id;
+      req.session.userName = loginResult.user.name;
      req.session.isAdmin = false;
 
-      const mobileToken = generateMobileToken(user!.id);
-     res.json(toJsonSafe({ id: user!.id, name: user!.name, gameId: matchedGame.id, mobileToken }));
+       const mobileToken = generateMobileToken(loginResult.user.id);
+      res.json(toJsonSafe({
+          id: loginResult.user.id,
+          name: loginResult.user.name,
+          gameId: loginResult.gameId,
+          mobileToken,
+      }));
  });
 });
 

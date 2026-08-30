@@ -551,9 +551,14 @@ describe("DELETE /api/games/:gameId/participants/:userId — kick + rejoin block
     assert.equal(kickRes.body.ok, true);
   });
 
-  it("removed_participants row exists in the database after kick, with display_name stored", async () => {
-    const row = await pool.query<{ id: number; display_name: string | null }>(
-      `SELECT id, display_name FROM removed_participants WHERE game_id = $1 AND user_id = $2`,
+  it("removed_participants row stores the removed identity", async () => {
+    const row = await pool.query<{
+      id: number;
+      display_name: string | null;
+    }>(
+      `SELECT id, display_name
+       FROM removed_participants
+       WHERE game_id = $1 AND user_id = $2`,
       [game.id, playerId],
     );
     assert.equal(
@@ -568,19 +573,13 @@ describe("DELETE /api/games/:gameId/participants/:userId — kick + rejoin block
     );
   });
 
-  it("kicked player is rejected with 403 when attempting to rejoin (same session)", async () => {
-    // playerAgent already holds the session cookie with the original userId.
-    // The login route's "already logged in" path restores the same player
-    // identity and refreshes the durable room-code grant.
+  it("kicked player cannot recreate a grant or rejoin from the same session", async () => {
+    // The old room code is revoked for every grant write, even when the caller
+    // still has the original browser session.
     const reloginRes = await playerAgent
       .post("/api/auth/login")
       .send({ code: ACCESS_CODE });
-    assert.equal(reloginRes.status, 200, `session restore failed: ${JSON.stringify(reloginRes.body)}`);
-    assert.equal(
-      reloginRes.body.id,
-      playerId,
-      "session restore must return the original userId, not create a new user",
-    );
+    assert.equal(reloginRes.status, 403, `expected revoked login: ${JSON.stringify(reloginRes.body)}`);
 
     const rejoinRes = await playerAgent.post(`/api/games/${game.id}/join`);
     assert.equal(
@@ -591,20 +590,23 @@ describe("DELETE /api/games/:gameId/participants/:userId — kick + rejoin block
   });
 });
 
-// ─── Suite 5: name-based rejoin block ────────────────────────────────────────
+// ─── Suite 5: fresh-identity rejoin block ────────────────────────────────────
 //
 // Simulates a kicked player returning with a fresh identity (cleared storage /
-// new device / incognito) but reusing the same display name.  The join route
-// must reject them via the display-name check even though their new userId has
-// no removed_participants row.
+// new device / incognito) and a different display name. The code used at kick
+// time must no longer create a user or grant, and grants issued to unjoined
+// alternate sessions before the kick must be revoked.
 
-describe("name-based rejoin block — fresh session, same display name", () => {
+describe("room-code revocation — fresh session, different display name", () => {
   let game: TestGame;
   let originalPlayerId: number;
-  let freshPlayerAgent: ReturnType<typeof request.agent>;
+  let preAuthorizedAgent: ReturnType<typeof request.agent>;
   let adminAgent2: ReturnType<typeof request.agent>;
   const ACCESS_CODE = "TKICK2";
-  const SHARED_NAME = "__test__kick_by_name";
+  const ROTATED_CODE = "TKICK3";
+  const ORIGINAL_NAME = "__test__kick_original";
+  const DIFFERENT_NAME = "__test__kick_different_name";
+  const PREAUTHORIZED_NAME = "__test__kick_preauthorized";
 
   before(async () => {
     ({ game } = await seedGameWithQuestions(ACCESS_CODE, 1));
@@ -613,12 +615,24 @@ describe("name-based rejoin block — fresh session, same display name", () => {
     const originalAgent = request.agent(app);
     const loginRes = await originalAgent
       .post("/api/auth/login")
-      .send({ code: ACCESS_CODE, name: SHARED_NAME });
+      .send({ code: ACCESS_CODE, name: ORIGINAL_NAME });
     assert.equal(loginRes.status, 200, `original player login failed: ${JSON.stringify(loginRes.body)}`);
     originalPlayerId = loginRes.body.id;
 
     const joinRes = await originalAgent.post(`/api/games/${game.id}/join`);
     assert.equal(joinRes.status, 201, `original player join failed: ${JSON.stringify(joinRes.body)}`);
+
+    // Obtain a second identity and room-code grant before the kick without
+    // joining. The kick must revoke this dormant grant as well.
+    preAuthorizedAgent = request.agent(app);
+    const preAuthorizedLogin = await preAuthorizedAgent
+      .post("/api/auth/login")
+      .send({ code: ACCESS_CODE, name: PREAUTHORIZED_NAME });
+    assert.equal(
+      preAuthorizedLogin.status,
+      200,
+      `pre-authorized login failed: ${JSON.stringify(preAuthorizedLogin.body)}`,
+    );
 
     // Admin kicks the original player.
     adminAgent2 = request.agent(app);
@@ -629,21 +643,120 @@ describe("name-based rejoin block — fresh session, same display name", () => {
       `/api/games/${game.id}/participants/${originalPlayerId}`,
     );
     assert.equal(kickRes.status, 200, `kick failed: ${JSON.stringify(kickRes.body)}`);
+  });
 
-    // ── Fresh player: brand-new session (no cookie), same display name ──────
-    // This simulates the player clearing their storage or using a new device.
-    // A new user row will be created, giving them a different userId.
-    freshPlayerAgent = request.agent(app);
+  after(async () => {
+    await cleanupGame(game.id);
+  });
+
+  it("rejects a fresh login using the revoked code and a different display name", async () => {
+    const freshPlayerAgent = request.agent(app);
     const freshLoginRes = await freshPlayerAgent
       .post("/api/auth/login")
-      .send({ code: ACCESS_CODE, name: SHARED_NAME });
-    assert.equal(freshLoginRes.status, 200, `fresh player login failed: ${JSON.stringify(freshLoginRes.body)}`);
+      .send({ code: ACCESS_CODE, name: DIFFERENT_NAME });
 
-    // The fresh session must have a different userId than the original.
-    assert.notEqual(
-      freshLoginRes.body.id,
-      originalPlayerId,
-      "fresh login must create a new user row, not reuse the original userId",
+    assert.equal(
+      freshLoginRes.status,
+      403,
+      `expected 403 for revoked room code but got ${freshLoginRes.status}: ${JSON.stringify(freshLoginRes.body)}`,
+    );
+  });
+
+  it("does not let an existing session recreate a grant with the revoked code", async () => {
+    const reloginRes = await preAuthorizedAgent
+      .post("/api/auth/login")
+      .send({ code: ACCESS_CODE });
+    assert.equal(
+      reloginRes.status,
+      403,
+      `expected 403 for existing-session revoked login but got ${reloginRes.status}: ${JSON.stringify(reloginRes.body)}`,
+    );
+  });
+
+  it("does not reopen admissions when the host resubmits the unchanged code", async () => {
+    const unchangedRes = await adminAgent2
+      .patch(`/api/games/${game.id}`)
+      .send({ accessCode: ACCESS_CODE });
+    assert.equal(unchangedRes.status, 200);
+
+    const freshAgent = request.agent(app);
+    const loginRes = await freshAgent
+      .post("/api/auth/login")
+      .send({ code: ACCESS_CODE, name: "__test__kick_unchanged_code" });
+    assert.equal(loginRes.status, 403, `unchanged code reopened admissions: ${JSON.stringify(loginRes.body)}`);
+  });
+
+  it("keeps the pre-kick alternate session blocked after the host rotates the code", async () => {
+    // Hold the same game-row lock used by kick, start the PATCH while it is
+    // blocked, then make the removal newer before releasing the lock. The
+    // rotation timestamp must be generated only after PATCH acquires the lock.
+    const blocker = await pool.connect();
+    try {
+      await blocker.query("BEGIN");
+      await blocker.query("SELECT id FROM games WHERE id = $1 FOR UPDATE", [game.id]);
+
+      const rotatePromise = adminAgent2
+        .patch(`/api/games/${game.id}`)
+        .send({ accessCode: ROTATED_CODE })
+        .then((response) => response);
+
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      await blocker.query(
+        "UPDATE removed_participants SET removed_at = clock_timestamp() WHERE game_id = $1",
+        [game.id],
+      );
+      await blocker.query("COMMIT");
+
+      const rotateRes = await rotatePromise;
+      assert.equal(rotateRes.status, 200, `code rotation failed: ${JSON.stringify(rotateRes.body)}`);
+    } catch (error) {
+      await blocker.query("ROLLBACK");
+      throw error;
+    } finally {
+      blocker.release();
+    }
+
+    const joinRes = await preAuthorizedAgent.post(`/api/games/${game.id}/join`);
+    assert.equal(
+      joinRes.status,
+      403,
+      `expected 403 for revoked pre-kick grant but got ${joinRes.status}: ${JSON.stringify(joinRes.body)}`,
+    );
+  });
+
+  it("allows a genuinely new player who supplies the rotated code", async () => {
+    const newPlayerAgent = request.agent(app);
+    const loginRes = await newPlayerAgent
+      .post("/api/auth/login")
+      .send({ code: ROTATED_CODE, name: "__test__kick_after_rotation" });
+    assert.equal(loginRes.status, 200, `rotated-code login failed: ${JSON.stringify(loginRes.body)}`);
+
+    const joinRes = await newPlayerAgent.post(`/api/games/${game.id}/join`);
+    assert.equal(joinRes.status, 201, `rotated-code join failed: ${JSON.stringify(joinRes.body)}`);
+  });
+});
+
+describe("room-code revocation — legacy mixed-case code", () => {
+  let game: TestGame;
+  let playerId: number;
+  const STORED_CODE = "TkLegacy";
+  const VERIFY_IP = `2001:db8::${crypto.randomBytes(4).toString("hex")}`;
+
+  before(async () => {
+    ({ game } = await seedGameWithQuestions(STORED_CODE, 1));
+    const playerAgent = request.agent(app);
+    const loginRes = await playerAgent
+      .post("/api/auth/login")
+      .send({ code: STORED_CODE.toLowerCase(), name: "__test__legacy_case_original" });
+    assert.equal(loginRes.status, 200, `legacy login failed: ${JSON.stringify(loginRes.body)}`);
+    playerId = loginRes.body.id;
+    assert.equal((await playerAgent.post(`/api/games/${game.id}/join`)).status, 201);
+
+    const adminAgent = request.agent(app);
+    assert.equal((await adminAgent.post("/api/test-set-admin-session")).status, 200);
+    assert.equal(
+      (await adminAgent.delete(`/api/games/${game.id}/participants/${playerId}`)).status,
+      200,
     );
   });
 
@@ -651,13 +764,51 @@ describe("name-based rejoin block — fresh session, same display name", () => {
     await cleanupGame(game.id);
   });
 
-  it("fresh-session player with the same name is rejected with 403 on join", async () => {
-    const rejoinRes = await freshPlayerAgent.post(`/api/games/${game.id}/join`);
-    assert.equal(
-      rejoinRes.status,
-      403,
-      `expected 403 for name-based rejoin block but got ${rejoinRes.status}: ${JSON.stringify(rejoinRes.body)}`,
-    );
+  it("blocks the revoked legacy code regardless of input case", async () => {
+    const verifyRes = await request(app)
+      .post("/api/auth/verify")
+      .set("X-Forwarded-For", VERIFY_IP)
+      .send({ code: STORED_CODE.toUpperCase() });
+    assert.equal(verifyRes.status, 200);
+    assert.equal(verifyRes.body.valid, false);
+
+    const freshAgent = request.agent(app);
+    const loginRes = await freshAgent
+      .post("/api/auth/login")
+      .send({ code: STORED_CODE.toUpperCase(), name: "__test__legacy_case_different" });
+    assert.equal(loginRes.status, 403, `expected mixed-case code revocation: ${JSON.stringify(loginRes.body)}`);
+  });
+});
+
+describe("legacy case-folded room-code collisions", () => {
+  let firstGame: TestGame;
+  let secondGame: TestGame;
+  const FIRST_CODE = "TCaseCollision";
+  const SECOND_CODE = "TCASECOLLISION";
+  const VERIFY_IP = `2001:db8::${crypto.randomBytes(4).toString("hex")}`;
+
+  before(async () => {
+    ({ game: firstGame } = await seedGameWithQuestions(FIRST_CODE, 1));
+    ({ game: secondGame } = await seedGameWithQuestions(SECOND_CODE, 1));
+  });
+
+  after(async () => {
+    await cleanupGame(firstGame.id);
+    await cleanupGame(secondGame.id);
+  });
+
+  it("fails closed instead of authorizing an arbitrary matching game", async () => {
+    const verifyRes = await request(app)
+      .post("/api/auth/verify")
+      .set("X-Forwarded-For", VERIFY_IP)
+      .send({ code: SECOND_CODE.toLowerCase() });
+    assert.equal(verifyRes.status, 200);
+    assert.equal(verifyRes.body.valid, false);
+
+    const loginRes = await request(app)
+      .post("/api/auth/login")
+      .send({ code: SECOND_CODE.toLowerCase(), name: "__test__case_collision" });
+    assert.equal(loginRes.status, 401);
   });
 });
 

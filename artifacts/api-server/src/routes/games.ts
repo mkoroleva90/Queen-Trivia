@@ -349,18 +349,38 @@ router.patch("/games/:gameId", requireAdmin, async (req, res): Promise<void> => 
      return;
  }
 
- // Normalize custom room codes to uppercase — players enter codes uppercased.
- const updates = parsed.data.accessCode !== undefined
-     ? { ...parsed.data, accessCode: parsed.data.accessCode.trim().toUpperCase() }
-     : parsed.data;
-
  let game;
  try {
-  [game] = await db
-      .update(gamesTable)
-      .set(updates)
-      .where(eq(gamesTable.id, params.data.gameId))
-      .returning();
+  game = await db.transaction(async (tx) => {
+      // Serialize room-code rotation with login, join, and kick. Generate the
+      // recovery timestamp only after this lock is acquired so a rotation
+      // queued behind a kick always reopens admissions for the new code.
+      const [lockedGame] = await tx
+          .select({ accessCode: gamesTable.accessCode })
+          .from(gamesTable)
+          .where(eq(gamesTable.id, params.data.gameId))
+          .for("update");
+      if (!lockedGame) return undefined;
+
+      let updates = parsed.data;
+      if (parsed.data.accessCode !== undefined) {
+          const normalizedAccessCode = parsed.data.accessCode.trim().toUpperCase();
+          const codeActuallyChanged =
+              lockedGame.accessCode?.toUpperCase() !== normalizedAccessCode;
+          updates = {
+              ...parsed.data,
+              accessCode: normalizedAccessCode,
+              ...(codeActuallyChanged ? { accessCodeChangedAt: new Date() } : {}),
+          };
+      }
+
+      const [updatedGame] = await tx
+          .update(gamesTable)
+          .set(updates)
+          .where(eq(gamesTable.id, params.data.gameId))
+          .returning();
+      return updatedGame;
+  });
  } catch (err) {
   // Unique-constraint violation: another game already uses this room code.
   // Drizzle may wrap the pg error, so check the cause chain too.

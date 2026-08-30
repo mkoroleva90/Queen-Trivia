@@ -29,7 +29,7 @@ causing it to not recognize new columns for INSERT operations.
 `CREATE INDEX` statement in a migration SQL file only — not in the Drizzle schema file.
 
 ## Identifier choice
-Player removal blocks by two factors (both checked on join):
+Player removal blocks by two identity factors (both checked on join):
 1. `userId` — catches the same browser session after the original kick.
 2. Display name (case-insensitive, `lower()` SQL comparison) — catches a player
    who cleared storage or switched devices and rejoins under the same name.
@@ -38,8 +38,18 @@ Player removal blocks by two factors (both checked on join):
 `users` table via `innerJoin` in the kick route). Migration:
 `lib/db/migrations/0004_removed_participants_display_name.sql`.
 
-Residual gap: a player who uses a completely different display name on a fresh device
-is not blocked. Accepted; device fingerprinting would be needed for stronger enforcement.
+## Room-code revocation after a kick
+A kick closes new admissions under the room code that was current at removal time.
+Existing participants may reconnect, but admitting any new identity requires the host
+to change the shared room code. Resubmitting the same code must not reopen admissions.
+
+**Why:** Anonymous display names are mutable, so user ID and name checks cannot stop
+a kicked player from returning as a fresh identity. The shared room code is the only
+stable authorization capability the server can revoke.
+
+**How to apply:** Treat kick, new admission, and code rotation as one serialized
+authorization boundary. Historical case-folded code collisions must fail closed
+rather than selecting an arbitrary game.
 
 ## Socket event
 `player:kicked` is in `ServerToClientEvents`. The server emits to the whole game room;

@@ -1,7 +1,7 @@
 
 import { Router, type IRouter } from "express";
-import { and, eq, ne } from "drizzle-orm";
-import { db, gamesTable } from "@workspace/db";
+import { and, eq, gt, ne, sql } from "drizzle-orm";
+import { db, gamesTable, removedParticipantsTable } from "@workspace/db";
 import {
   VerifyAccessCodeBody,
   VerifyAccessCodeResponse,
@@ -24,34 +24,43 @@ router.post("/auth/verify", authRateLimit, async (req, res): Promise<void> => {
 
   const code = parsed.data.code.trim();
 
-  // Per-game access codes: match a non-completed game's code (case-insensitive)
-  const [game] = await db
+  // Per-game access codes: match a non-completed game's code case-insensitively,
+  // including legacy rows that were stored before normalization.
+  const matchingGames = await db
     .select()
     .from(gamesTable)
     .where(and(
-      eq(gamesTable.accessCode, code.toUpperCase()),
+      sql`upper(${gamesTable.accessCode}) = ${code.toUpperCase()}`,
       ne(gamesTable.status, "completed"),
     ))
-    .limit(1);
+    .limit(2);
 
-  // Fallback: exact-case match (for codes set before normalisation)
-  const [gameFallback] = !game
-    ? await db
-        .select()
-        .from(gamesTable)
-        .where(and(eq(gamesTable.accessCode, code), ne(gamesTable.status, "completed")))
-        .limit(1)
-    : [undefined];
+  if (matchingGames.length === 1) {
+    const game = matchingGames[0]!;
+    const [removalSinceCodeChange] = await db
+      .select({ id: removedParticipantsTable.id })
+      .from(removedParticipantsTable)
+      .where(
+        game.accessCodeChangedAt == null
+          ? eq(removedParticipantsTable.gameId, game.id)
+          : and(
+              eq(removedParticipantsTable.gameId, game.id),
+              gt(removedParticipantsTable.removedAt, game.accessCodeChangedAt),
+            ),
+      )
+      .limit(1);
 
-  const matched = game ?? gameFallback;
+    if (removalSinceCodeChange) {
+      res.json(VerifyAccessCodeResponse.parse({ valid: false, role: "none" }));
+      return;
+    }
 
-  if (matched) {
     res.json(
       VerifyAccessCodeResponse.parse({
         valid: true,
         role: "player",
-        gameId: matched.id,
-        gameTopic: matched.topic,
+        gameId: game.id,
+        gameTopic: game.topic,
       }),
     );
     return;

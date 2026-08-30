@@ -5,6 +5,7 @@ import {
   gamesTable,
   gameParticipantsTable,
   usersTable,
+  gameAccessGrantsTable,
   removedParticipantsTable,
 } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
@@ -38,52 +39,65 @@ router.delete(
     // Verify the requesting admin owns this game.
     if (!(await assertGameOwnership(req, res, gameId))) return;
 
-    // Confirm the player is actually a participant and fetch their display name
-    // so we can store it in removed_participants for the name-based rejoin block.
-    const [participant] = await db
-      .select({ id: gameParticipantsTable.id, userName: usersTable.name })
-      .from(gameParticipantsTable)
-      .innerJoin(usersTable, eq(gameParticipantsTable.userId, usersTable.id))
-      .where(
-        and(
-          eq(gameParticipantsTable.gameId, gameId),
-          eq(gameParticipantsTable.userId, userId),
-        ),
-      );
+    const outcome = await db.transaction(async (tx) => {
+      // Serialize the full moderation action with joins, room-code logins, and
+      // room-code rotation by locking the game row first.
+      const [game] = await tx
+        .select({ status: gamesTable.status })
+        .from(gamesTable)
+        .where(eq(gamesTable.id, gameId))
+        .for("update");
 
-    if (!participant) {
-      res.status(404).json({ error: "Player is not a participant of this game" });
-      return;
-    }
+      if (!game || game.status !== "active") return { kind: "inactive" as const };
 
-    // Verify the game exists and is still active (can only kick from live games).
-    const [game] = await db
-      .select({ status: gamesTable.status })
-      .from(gamesTable)
-      .where(eq(gamesTable.id, gameId));
+      const [participant] = await tx
+        .select({ id: gameParticipantsTable.id, userName: usersTable.name })
+        .from(gameParticipantsTable)
+        .innerJoin(usersTable, eq(gameParticipantsTable.userId, usersTable.id))
+        .where(
+          and(
+            eq(gameParticipantsTable.gameId, gameId),
+            eq(gameParticipantsTable.userId, userId),
+          ),
+        );
 
-    if (!game || game.status !== "active") {
+      if (!participant) return { kind: "missing-participant" as const };
+
+      await tx
+        .insert(removedParticipantsTable)
+        .values({
+          gameId,
+          userId,
+          displayName: participant.userName,
+        })
+        .onConflictDoNothing();
+
+      // Existing participants remain authorized by their participant rows.
+      // Clearing all grants also closes alternate sessions opened pre-kick.
+      await tx
+        .delete(gameAccessGrantsTable)
+        .where(eq(gameAccessGrantsTable.gameId, gameId));
+
+      await tx
+        .delete(gameParticipantsTable)
+        .where(
+          and(
+            eq(gameParticipantsTable.gameId, gameId),
+            eq(gameParticipantsTable.userId, userId),
+          ),
+        );
+
+      return { kind: "removed" as const };
+    });
+
+    if (outcome.kind === "inactive") {
       res.status(409).json({ error: "Players can only be removed from active games" });
       return;
     }
-
-    // Record removal first (idempotent via ON CONFLICT DO NOTHING).
-    // Store the player's display name so that even a fresh-session rejoin
-    // with the same name is caught by the secondary block in the join route.
-    await db
-      .insert(removedParticipantsTable)
-      .values({ gameId, userId, displayName: participant.userName })
-      .onConflictDoNothing();
-
-    // Remove from the live leaderboard / answered-by list.
-    await db
-      .delete(gameParticipantsTable)
-      .where(
-        and(
-          eq(gameParticipantsTable.gameId, gameId),
-          eq(gameParticipantsTable.userId, userId),
-        ),
-      );
+    if (outcome.kind === "missing-participant") {
+      res.status(404).json({ error: "Player is not a participant of this game" });
+      return;
+    }
 
     // Revoke the kicked player's existing room memberships before notifying
     // everyone else. The direct event lets the official client update its UI,

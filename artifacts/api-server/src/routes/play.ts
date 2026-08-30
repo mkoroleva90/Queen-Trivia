@@ -1,7 +1,7 @@
 
 import { Router, type IRouter } from "express";
 import { rateLimit } from "express-rate-limit";
-import { eq, and, desc, asc, sql } from "drizzle-orm";
+import { eq, and, desc, asc, gt, or, sql } from "drizzle-orm";
 import {
  db,
  gamesTable,
@@ -55,101 +55,95 @@ router.post("/games/:gameId/join", requireUser, async (req, res): Promise<void> 
         return;
     }
 
-
     const sessionUserId = req.session.userId!;
-    const [game] = await db
-        .select()
-        .from(gamesTable)
-        .where(eq(gamesTable.id, params.data.gameId));
+    const outcome = await db.transaction(async (tx) => {
+        // Serialize join with kick and room-code login/rotation. Whichever
+        // operation locks the game first commits a complete authorization
+        // decision before the next one proceeds.
+        const [game] = await tx
+            .select()
+            .from(gamesTable)
+            .where(eq(gamesTable.id, params.data.gameId))
+            .for("update");
+        if (!game) return { kind: "missing-game" as const };
 
-    if (!game) {
+        const [user] = await tx
+            .select()
+            .from(usersTable)
+            .where(eq(usersTable.id, sessionUserId));
+        if (!user) return { kind: "missing-user" as const };
+
+        const [existing] = await tx
+            .select()
+            .from(gameParticipantsTable)
+            .where(and(
+                eq(gameParticipantsTable.gameId, game.id),
+                eq(gameParticipantsTable.userId, user.id),
+            ));
+        if (existing) return { kind: "joined" as const, participant: existing };
+
+        const [grant] = await tx
+            .select({ id: gameAccessGrantsTable.id })
+            .from(gameAccessGrantsTable)
+            .where(and(
+                eq(gameAccessGrantsTable.gameId, game.id),
+                eq(gameAccessGrantsTable.userId, user.id),
+            ))
+            .limit(1);
+        if (!grant) return { kind: "missing-grant" as const };
+
+        const [removalSinceCodeChange] = await tx
+            .select({ id: removedParticipantsTable.id })
+            .from(removedParticipantsTable)
+            .where(
+                game.accessCodeChangedAt == null
+                    ? eq(removedParticipantsTable.gameId, game.id)
+                    : and(
+                        eq(removedParticipantsTable.gameId, game.id),
+                        gt(removedParticipantsTable.removedAt, game.accessCodeChangedAt),
+                    ),
+            )
+            .limit(1);
+        if (removalSinceCodeChange) return { kind: "removed" as const };
+
+        const [removedByIdentity] = await tx
+            .select({ id: removedParticipantsTable.id })
+            .from(removedParticipantsTable)
+            .where(and(
+                eq(removedParticipantsTable.gameId, game.id),
+                or(
+                    eq(removedParticipantsTable.userId, user.id),
+                    sql`lower(${removedParticipantsTable.displayName}) = lower(${user.name})`,
+                ),
+            ))
+            .limit(1);
+        if (removedByIdentity) return { kind: "removed" as const };
+
+        const [participant] = await tx
+            .insert(gameParticipantsTable)
+            .values({ gameId: game.id, userId: user.id })
+            .returning();
+        return { kind: "joined" as const, participant: participant! };
+    });
+
+    if (outcome.kind === "missing-game") {
         res.status(404).json({ error: "Game not found" });
         return;
     }
-
-    const [user] = await db
-        .select()
-        .from(usersTable)
-        .where(eq(usersTable.id, sessionUserId));
-
-    if (!user) {
+    if (outcome.kind === "missing-user") {
         res.status(404).json({ error: "User not found" });
         return;
     }
-
-    const [grant] = await db
-        .select({ id: gameAccessGrantsTable.id })
-        .from(gameAccessGrantsTable)
-        .where(
-            and(
-                eq(gameAccessGrantsTable.gameId, params.data.gameId),
-                eq(gameAccessGrantsTable.userId, sessionUserId),
-            ),
-        )
-        .limit(1);
-    if (!grant) {
+    if (outcome.kind === "missing-grant") {
         res.status(403).json({ error: "Enter this game's access code before joining" });
         return;
     }
- const [removedByUserId] = await db
-     .select({ id: removedParticipantsTable.id })
-     .from(removedParticipantsTable)
-     .where(
-      and(
-       eq(removedParticipantsTable.gameId, game.id),
-       eq(removedParticipantsTable.userId, user.id),
-      ),
-     );
+    if (outcome.kind === "removed") {
+        res.status(403).json({ error: COPY.kick.rejoinBlocked });
+        return;
+    }
 
- if (removedByUserId) {
-     res.status(403).json({ error: COPY.kick.rejoinBlocked });
-     return;
- }
-
- const [removedByName] = await db
-     .select({ id: removedParticipantsTable.id })
-     .from(removedParticipantsTable)
-     .where(
-      and(
-       eq(removedParticipantsTable.gameId, game.id),
-       sql`lower(${removedParticipantsTable.displayName}) = lower(${user.name})`,
-      ),
-     );
-
- if (removedByName) {
-     res.status(403).json({ error: COPY.kick.rejoinBlocked });
-     return;
- }
-
-
- let [participant] = await db
-     .insert(gameParticipantsTable)
-     .values({ gameId: game.id, userId: user.id })
-     .onConflictDoNothing({
-         target: [gameParticipantsTable.gameId, gameParticipantsTable.userId],
-     })
-     .returning();
-
- if (!participant) {
-     [participant] = await db
-         .select()
-         .from(gameParticipantsTable)
-         .where(
-             and(
-                 eq(gameParticipantsTable.gameId, game.id),
-                 eq(gameParticipantsTable.userId, user.id),
-             ),
-         )
-         .limit(1);
- }
-
- if (!participant) {
-     res.status(500).json({ error: "Unable to create game participant" });
-     return;
- }
-
-
- res.status(201).json(JoinGameResponse.parse(toJsonSafe(participant)));
+    res.status(201).json(JoinGameResponse.parse(toJsonSafe(outcome.participant)));
 });
 
 
