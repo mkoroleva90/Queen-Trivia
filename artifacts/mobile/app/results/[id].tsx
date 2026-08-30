@@ -21,9 +21,9 @@ import {
 } from '@workspace/api-client-react';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
-import { useAuth } from '@/context/AuthContext';
+import { PLAYER_TOKEN_KEY, useAuth } from '@/context/AuthContext';
 import { API_BASE_URL } from '@/lib/apiBase';
-import * as SecureStore from 'expo-secure-store';
+import { getItem } from '@/lib/storage';
 import { ADMIN_TOKEN_KEY } from '@/context/AdminAuthContext';
 import { COPY, buildShareText } from '@workspace/copy';
 import { ReportModal } from '@/components/ReportModal';
@@ -119,7 +119,7 @@ export default function ResultsScreen() {
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    SecureStore.getItemAsync(ADMIN_TOKEN_KEY)
+    getItem(ADMIN_TOKEN_KEY)
       .then((token) => setIsAdmin(!!token))
       .catch(() => setIsAdmin(false));
   }, []);
@@ -127,7 +127,10 @@ export default function ResultsScreen() {
   const { data: results, isLoading, isError, refetch } = useQuery<GameResults>({
     queryKey: ['game-results', gameId],
     queryFn: async () => {
-      const r = await fetch(`${baseUrl}/api/games/${gameId}/results`);
+      const token = await getItem(PLAYER_TOKEN_KEY).catch(() => null);
+      const r = await fetch(`${baseUrl}/api/games/${gameId}/results`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (!r.ok) throw new Error('Failed to load results');
       return r.json() as Promise<GameResults>;
     },
@@ -147,7 +150,7 @@ export default function ResultsScreen() {
   const { data: questionStats = [] } = useQuery<QuestionStat[]>({
     queryKey: ['game-question-stats', gameId],
     queryFn: async () => {
-      const token = await SecureStore.getItemAsync(ADMIN_TOKEN_KEY).catch(() => null);
+      const token = await getItem(ADMIN_TOKEN_KEY).catch(() => null);
       const r = await fetch(`${baseUrl}/api/games/${gameId}/questions/stats`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });

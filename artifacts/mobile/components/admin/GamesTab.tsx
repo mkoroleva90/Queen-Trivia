@@ -313,6 +313,7 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
               onPress={(e) => {
                 if (renamingId === game.id || codeEditId === game.id) { e.stopPropagation(); return; }
                 if (game.status === 'active') { router.push(`/admin/live/${game.id}`); return; }
+                if (game.status === 'completed') { router.push(`/admin/results/${game.id}`); return; }
                 router.push(`/admin/${game.id}`);
               }}
             >
