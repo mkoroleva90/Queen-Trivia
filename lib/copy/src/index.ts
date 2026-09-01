@@ -164,6 +164,8 @@ export const COPY = {
     seeResultsBtn:      'See results →',
     /** Shown when the host has answered every question. */
     allAnsweredMsg:     "You've answered every question! End the game when your players are done.",
+    /** Shown in place of the answer form when the server already has the host's answer for the current question (e.g. the screen reloaded mid-game). */
+    alreadyAnsweredMsg: 'You already answered this question — your saved answer counts.',
     /** Heading of the play-along toggle shown on every go-live screen (web and mobile). */
     playAlongLabel:     'Play along',
     /** Description beneath the play-along toggle heading. */

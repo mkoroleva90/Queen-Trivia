@@ -90,6 +90,10 @@ export default function AdminLiveScreen() {
   const [hostFeedback, setHostFeedback] = useState<{ isCorrect: boolean; pointsEarned: number; totalScore: number; feedback?: string } | null>(null);
   // Answer submitted to API but not yet acknowledged by host via "Next" press.
   const [pendingAnswer, setPendingAnswer] = useState<string | null>(null);
+  // Set when the server reports the host already answered the released question
+  // (409 with existingAnswer — e.g. the screen reloaded mid-game). Renders the
+  // answered block with a working advance control.
+  const [alreadyAnswered, setAlreadyAnswered] = useState<{ questionId: number; answer: string } | null>(null);
 
   const { data: games, isLoading: gamesLoading, isError: gamesError } = useListGames();
   const game = games?.find((g) => g.id === gameId);
@@ -286,9 +290,19 @@ export default function AdminLiveScreen() {
         body: JSON.stringify({ questionId, userAnswer: answer }),
       });
       if (r.status === 409) {
-        // Already answered — adopt existing answer and advance without feedback.
+        // 409 covers two distinct server responses — see /host-answer in play.ts.
         const body = await r.json().catch(() => null) as { existingAnswer?: string } | null;
-        setHostAnswers((prev) => ({ ...prev, [questionId]: body?.existingAnswer ?? '' }));
+        const existingAnswer = body?.existingAnswer;
+        if (existingAnswer !== undefined) {
+          // Already answered (e.g. the screen reloaded mid-game) — adopt the
+          // stored answer and show the answered block so the host can advance.
+          setHostAnswers((prev) => ({ ...prev, [questionId]: existingAnswer }));
+          setAlreadyAnswered({ questionId, answer: existingAnswer });
+        } else {
+          // Not the released question — refetch the game so currentPlayingQ
+          // resyncs to the server's currentQuestionId.
+          void qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
+        }
         return;
       }
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -483,11 +497,31 @@ export default function AdminLiveScreen() {
                     </View>
                   )}
 
+                  {/* Already-answered block — the server has this answer; keep the host moving */}
+                  {!hostFeedback && alreadyAnswered?.questionId === currentPlayingQ.id && (
+                    <View style={[s.feedbackBlock, { backgroundColor: colors.accent + '18', borderColor: colors.accent + '55' }]}>
+                      <Text style={[s.feedbackTitle, { color: colors.accent }]}>
+                        {COPY.hostPlayAlong.alreadyAnsweredMsg}
+                      </Text>
+                      <Text style={[s.feedbackPts, { color: colors.mutedForeground }]}>
+                        {COPY.results.yourAnswer}: {alreadyAnswered.answer}
+                      </Text>
+                      <Pressable
+                        style={[s.choiceBtn, { borderColor: colors.accent, backgroundColor: colors.accent + '22', marginTop: 4 }]}
+                        onPress={() => void releaseNextQuestion()}
+                      >
+                        <Text style={[s.choiceText, { color: colors.accent, textAlign: 'center' }]}>
+                          {unansweredForHost.length > 0 ? COPY.hostPlayAlong.nextQuestionBtn : COPY.hostPlayAlong.seeResultsBtn}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  )}
+
                   {!!answerError && (
                     <Text style={[s.qText, { color: colors.destructive }]}>{answerError}</Text>
                   )}
 
-                  {!hostFeedback && hostCanSkip && (
+                  {!hostFeedback && alreadyAnswered?.questionId !== currentPlayingQ.id && hostCanSkip && (
                     <Pressable onPress={() => setHostSkippedIds((prev) => new Set([...prev, currentPlayingQ.id]))}>
                       <Text style={[s.playMeta, { color: colors.mutedForeground, textAlign: 'center', paddingVertical: 4 }]}>
                         {COPY.hostPlayAlong.skipBtn}

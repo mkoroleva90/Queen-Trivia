@@ -12,13 +12,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import * as SecureStore from 'expo-secure-store';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { getListGameQuestionsQueryKey, useListGameQuestions } from '@workspace/api-client-react';
 import { ADMIN_TOKEN_KEY } from '@/context/AdminAuthContext';
 import { useColors } from '@/hooks/useColors';
 import { API_BASE_URL } from '@/lib/apiBase';
+import { getItem } from '@/lib/storage';
 import type { PendingAnswerReview } from '@workspace/api-client-react';
 
 type Participant = {
@@ -89,7 +89,7 @@ function formatCorrectAnswer(questionType: string, correctAnswer: string): strin
 }
 
 async function fetchWithAdminToken(url: string) {
-  const token = await SecureStore.getItemAsync(ADMIN_TOKEN_KEY).catch(() => null);
+  const token = await getItem(ADMIN_TOKEN_KEY).catch(() => null);
   const r = await fetch(url, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
@@ -167,7 +167,7 @@ export default function AdminResultsScreen() {
   const handleExport = async () => {
     setExporting(true);
     try {
-      const token = await SecureStore.getItemAsync(ADMIN_TOKEN_KEY).catch(() => null);
+      const token = await getItem(ADMIN_TOKEN_KEY).catch(() => null);
       const r = await fetch(`${baseUrl}/api/games/${gameId}/results/export.csv`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -194,7 +194,7 @@ export default function AdminResultsScreen() {
     if (reviewingAnswerId !== null) return;
     setReviewingAnswerId(review.id);
     try {
-      const token = await SecureStore.getItemAsync(ADMIN_TOKEN_KEY).catch(() => null);
+      const token = await getItem(ADMIN_TOKEN_KEY).catch(() => null);
       const response = await fetch(`${baseUrl}/api/games/${gameId}/answers/${review.id}/review`, {
         method: 'POST',
         headers: {

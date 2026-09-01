@@ -3402,6 +3402,10 @@ function LiveGameView({
   const [submittingHostAnswer, setSubmittingHostAnswer] = useState(false);
   // Ids of questions the host has deferred (local only — no server POST).
   const [hostSkippedIds, setHostSkippedIds] = useState<Set<number>>(new Set());
+  // Set when the server reports the host already answered the released question
+  // (409 with existingAnswer — e.g. a reload lost local state). Renders the
+  // answered panel with a working advance control instead of the answer card.
+  const [alreadyAnswered, setAlreadyAnswered] = useState<{ questionId: number; answer: string } | null>(null);
 
   // Calls the host-answer API and returns the result. Does NOT update hostAnswers
   // on success — that is done by HostPlayAlongCard's onNext callback so the
@@ -3426,10 +3430,18 @@ function LiveGameView({
           feedback: data.feedback,
         };
       } else if (res.status === 409) {
-        // Already answered in a previous session — adopt existing answer and advance.
+        // 409 covers two distinct server responses — see /host-answer in play.ts.
         const body = await res.json().catch(() => ({})) as { existingAnswer?: string };
-        if (body.existingAnswer !== undefined) {
-          setHostAnswers((prev) => ({ ...prev, [questionId]: body.existingAnswer! }));
+        const existingAnswer = body.existingAnswer;
+        if (existingAnswer !== undefined) {
+          // Already answered (e.g. a reload lost local state) — adopt the stored
+          // answer and show the answered panel so the host can still advance.
+          setHostAnswers((prev) => ({ ...prev, [questionId]: existingAnswer }));
+          setAlreadyAnswered({ questionId, answer: existingAnswer });
+        } else {
+          // Not the released question — refetch the game so currentPlayingQ
+          // resyncs to the server's currentQuestionId.
+          queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
         }
         return null;
       }
@@ -3449,6 +3461,7 @@ function LiveGameView({
     setCorrectCount({});
     setHostAnswers({});
     setHostSkippedIds(new Set());
+    setAlreadyAnswered(null);
   }, [activeGame?.id]);
   useEffect(() => {
     const releasedIndex = questions.findIndex((question) => question.id === activeGame?.currentQuestionId);
@@ -3456,9 +3469,13 @@ function LiveGameView({
   }, [activeGame?.currentQuestionId, questions]);
   const currentQ = questions[Math.min(qIndex, Math.max(questions.length - 1, 0))];
 
-  // Playing-host navigation: "next unanswered, non-deferred" — mirrors player screen logic.
+  // The playing host must answer the question the server has actually released
+  // (/host-answer rejects any other id with a 409), so select it directly by
+  // currentQuestionId rather than the locally-monitored qIndex, which can drift.
   const unansweredForHost = questions.filter((q) => hostAnswers[q.id] === undefined);
-  const currentPlayingQ = activeGame?.hostPlaysAlong ? currentQ : undefined;
+  const currentPlayingQ = activeGame?.hostPlaysAlong
+    ? questions.find((q) => q.id === activeGame.currentQuestionId)
+    : undefined;
   const hostCanSkip = unansweredForHost.length > 1;
   // Question shown in the card header (playing host sees their unanswered q; monitor sees qIndex q).
   const displayQ = (activeGame?.hostPlaysAlong && currentPlayingQ) ? currentPlayingQ : currentQ;
@@ -3744,6 +3761,24 @@ function LiveGameView({
             {/* ── Playing-host answer card ── */}
             {activeGame.hostPlaysAlong && (
               currentPlayingQ ? (
+                alreadyAnswered?.questionId === currentPlayingQ.id ? (
+                  /* Server already has the host's answer for this question —
+                     show the answered state and keep the advance control working. */
+                  <div className="mt-4 pt-4 border-t border-[#1b2740] space-y-4">
+                    <div className="rounded-xl border border-[#ffe500]/40 bg-[#ffe500]/[.06] px-4 py-4">
+                      <p className="font-extrabold text-sm text-[#ffe500]">{COPY.hostPlayAlong.alreadyAnsweredMsg}</p>
+                      <p className="text-[13px] text-[#9aa6bc] mt-1">{COPY.results.yourAnswer}: {alreadyAnswered.answer}</p>
+                      <button
+                        onClick={() => void advanceQuestion()}
+                        className="w-full mt-3 text-[13px] font-extrabold text-[#08130c] bg-[#ffe500] rounded-[10px] px-5 py-3 hover:brightness-110 transition"
+                      >
+                        {unansweredForHost.length > 0
+                          ? COPY.hostPlayAlong.nextQuestionBtn
+                          : COPY.hostPlayAlong.seeResultsBtn}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
                 <HostPlayAlongCard
                   key={currentPlayingQ.id}
                   question={currentPlayingQ}
@@ -3757,6 +3792,7 @@ function LiveGameView({
                   canSkip={hostCanSkip}
                   onSkip={() => setHostSkippedIds((prev) => new Set([...prev, currentPlayingQ.id]))}
                 />
+                )
               ) : (
                 <p className="text-sm text-[#9aa6bc] pt-4 text-center">{COPY.hostPlayAlong.allAnsweredMsg}</p>
               )
