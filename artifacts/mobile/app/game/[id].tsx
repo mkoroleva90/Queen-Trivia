@@ -95,6 +95,57 @@ function getSafeImageUrl(imageUrl: string | null | undefined): string | null {
   }
 }
 
+export function QuizCompleteModal({
+  visible,
+  onDismiss,
+}: {
+  visible: boolean;
+  onDismiss: () => void;
+}) {
+  const colors = useColors();
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onDismiss}
+      statusBarTranslucent
+    >
+      <View style={quizCompleteStyles.overlay}>
+        <View
+          accessibilityViewIsModal
+          accessibilityRole="alert"
+          style={[
+            quizCompleteStyles.card,
+            { backgroundColor: colors.card, borderColor: colors.secondary },
+          ]}
+        >
+          <View style={[quizCompleteStyles.icon, { backgroundColor: colors.secondary + '22' }]}>
+            <Ionicons name="flag" size={30} color={colors.secondary} />
+          </View>
+          <Text style={[quizCompleteStyles.title, { color: colors.foreground }]}>
+            Quiz complete!
+          </Text>
+          <Text style={[quizCompleteStyles.message, { color: colors.mutedForeground }]}>
+            You&apos;ve reached the end of the game and answered all the questions in this quiz.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onDismiss}
+            style={({ pressed }) => [
+              quizCompleteStyles.button,
+              { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 },
+            ]}
+          >
+            <Text style={quizCompleteStyles.buttonText}>Got it</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 // ─── Multiple Choice ──────────────────────────────────────────────────────────
 
 export function MultipleChoiceQ({
@@ -684,6 +735,8 @@ export default function GamePlayScreen() {
   const [skipConfirm, setSkipConfirm] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [kicked, setKicked] = useState(false);
+  const [completionModalVisible, setCompletionModalVisible] = useState(false);
+  const completionAlertShownRef = useRef(false);
 
   const { data: game } = useGetGame(gameId, {
     query: { enabled: !!gameId, queryKey: getGetGameQueryKey(gameId), refetchInterval: 10000 },
@@ -758,6 +811,10 @@ export default function GamePlayScreen() {
           setLockedAnswer(answer);
           Haptics.notificationAsync(res.isCorrect ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error);
           queryClient.invalidateQueries({ queryKey: getListGameParticipantsQueryKey(gameId) });
+          if (isLastQuestion && !completionAlertShownRef.current) {
+            completionAlertShownRef.current = true;
+            setCompletionModalVisible(true);
+          }
         },
         onError: (err: unknown) => {
           const status = err && typeof err === 'object' && 'status' in err ? (err as { status: number }).status : 0;
@@ -997,9 +1054,64 @@ export default function GamePlayScreen() {
         questionId={current?.id}
         onClose={() => setReportOpen(false)}
       />
+      <QuizCompleteModal
+        visible={completionModalVisible}
+        onDismiss={() => setCompletionModalVisible(false)}
+      />
     </View>
   );
 }
+
+const quizCompleteStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,.72)',
+    padding: 24,
+  },
+  card: {
+    width: '100%',
+    maxWidth: 360,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderRadius: 24,
+    padding: 24,
+    gap: 14,
+  },
+  icon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '900',
+    fontFamily: 'Manrope_800ExtraBold',
+    textAlign: 'center',
+  },
+  message: {
+    fontSize: 15,
+    fontWeight: '500',
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  button: {
+    width: '100%',
+    minHeight: 50,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+  },
+  buttonText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+});
 
 const kickedStyles = StyleSheet.create({
   container: { alignItems: 'center', justifyContent: 'center', padding: 32 },

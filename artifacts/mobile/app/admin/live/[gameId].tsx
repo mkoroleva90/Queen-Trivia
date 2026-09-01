@@ -40,6 +40,7 @@ import {
   ImageRecognitionQ,
   ImageHotspotQ,
   MatchingQ,
+  QuizCompleteModal,
 } from '../../game/[id]';
 
 type AnswerCounts = Record<number, number>; // questionId → total submitted
@@ -88,6 +89,8 @@ export default function AdminLiveScreen() {
   const [answerError, setAnswerError] = useState('');
   const [hostSkippedIds, setHostSkippedIds] = useState<Set<number>>(new Set());
   const [hostFeedback, setHostFeedback] = useState<{ isCorrect: boolean; pointsEarned: number; totalScore: number; feedback?: string } | null>(null);
+  const [completionModalVisible, setCompletionModalVisible] = useState(false);
+  const completionAlertShownRef = useRef(false);
   // Answer submitted to API but not yet acknowledged by host via "Next" press.
   const [pendingAnswer, setPendingAnswer] = useState<string | null>(null);
   // Set when the server reports the host already answered the released question
@@ -277,6 +280,7 @@ export default function AdminLiveScreen() {
    *  stays visible until host presses "Next" (advanceToNext). */
   const submitHostAnswer = async (questionId: number, answer: string): Promise<void> => {
     if (!currentPlayingQ || submittingAnswer) return;
+    const isLastQuestion = currentPlayingQ.id === sortedQs[sortedQs.length - 1]?.id;
     setSubmittingAnswer(true);
     setAnswerError('');
     try {
@@ -315,6 +319,10 @@ export default function AdminLiveScreen() {
         totalScore: data.totalScore ?? 0,
         feedback: data.feedback,
       });
+      if (isLastQuestion && !completionAlertShownRef.current) {
+        completionAlertShownRef.current = true;
+        setCompletionModalVisible(true);
+      }
       void refetchParticipants();
     } catch {
       setAnswerError('Could not submit your answer — please retry');
@@ -689,6 +697,10 @@ export default function AdminLiveScreen() {
           )}
         </Pressable>
       </View>
+      <QuizCompleteModal
+        visible={completionModalVisible}
+        onDismiss={() => setCompletionModalVisible(false)}
+      />
     </View>
   );
 }
