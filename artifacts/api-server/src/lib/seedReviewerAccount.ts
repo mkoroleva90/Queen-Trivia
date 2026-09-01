@@ -11,8 +11,8 @@ import { logger } from "./logger.ts";
 const REVIEWER_EMAIL = "reviewer@queen-trivia.com";
 const REVIEWER_DISPLAY_NAME = "App Store Reviewer";
 const DEMO_GAME_TOPIC = "Queen Trivia Demo";
-const DEMO_ACCESS_CODE = "QTDEMO";
-const DEMO_ACCESS_CODE_FALLBACK = "QTDEMO2";
+const DEMO_ACCESS_CODE = "QTDEMO00";
+const DEMO_ACCESS_CODE_FALLBACK = "QTDEMO02";
 
 // Distinct from the bootstrapAccessCodes lock (727_461_001).
 const SEED_LOCK_KEY = 727_461_002;
@@ -80,7 +80,7 @@ async function insertDemoGame(
   if (takenCode) {
     logger.info(
       { preferred: DEMO_ACCESS_CODE, using: accessCode },
-      "QTDEMO is already taken — using fallback access code.",
+      "Preferred reviewer demo code is already taken — using fallback access code.",
     );
   }
 

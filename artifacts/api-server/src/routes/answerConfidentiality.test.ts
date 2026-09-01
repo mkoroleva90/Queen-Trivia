@@ -37,7 +37,7 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
   let accessCode: string;
 
   before(async () => {
-    accessCode = `Q${String(Date.now()).slice(-5)}`;
+    accessCode = `Q${String(Date.now()).slice(-7)}`;
     const game = await pool.query<{ id: number }>(
       `INSERT INTO games (topic, difficulty, question_count, status, access_code, created_by_admin)
        VALUES ('Confidentiality test', 'easy', 2, 'active', $1, true)
@@ -102,7 +102,7 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
   });
 
   it("does not expose active-game correctness or score oracles to players", async () => {
-    const code = `I${String(Date.now()).slice(-5)}`;
+    const code = `I${String(Date.now()).slice(-7)}`;
     const firstName = `__test__integrity_first_${Date.now()}`;
     const probeName = `__test__integrity_probe_${Date.now()}`;
     const unjoinedName = `__test__integrity_unjoined_${Date.now()}`;
@@ -225,7 +225,7 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
   });
 
   it("releases only the current question, without matching or ordering solutions", async () => {
-    const code = `R${String(Date.now()).slice(-5)}`;
+    const code = `R${String(Date.now()).slice(-7)}`;
     let redactionGameId: number | undefined;
     let playerName: string | undefined;
     try {
@@ -311,7 +311,7 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
         `INSERT INTO games (topic, difficulty, question_count, status, access_code, created_by_admin, host_plays_along, host_user_id)
          VALUES ('Host release test', 'easy', 2, 'active', $1, true, true, $2)
          RETURNING id`,
-        [`H${String(Date.now()).slice(-5)}`, hostUserId],
+        [`H${String(Date.now()).slice(-7)}`, hostUserId],
       );
       hostGameId = game.rows[0]!.id;
       const questions = await pool.query<{ id: number }>(

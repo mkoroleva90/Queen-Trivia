@@ -7,6 +7,7 @@ import {
   VerifyAccessCodeResponse,
 } from "@workspace/api-zod";
 import { authRateLimit } from "../middleware/authRateLimit.ts";
+import { MIN_GAME_ACCESS_CODE_LENGTH } from "../lib/accessCodeValidation.ts";
 
 
 const router: IRouter = Router();
@@ -23,6 +24,10 @@ router.post("/auth/verify", authRateLimit, async (req, res): Promise<void> => {
   }
 
   const code = parsed.data.code.trim();
+  if (code.length < MIN_GAME_ACCESS_CODE_LENGTH) {
+    res.json(VerifyAccessCodeResponse.parse({ valid: false, role: "none" }));
+    return;
+  }
 
   // Per-game access codes: match a non-completed game's code case-insensitively,
   // including legacy rows that were stored before normalization.

@@ -6,10 +6,17 @@
  *   passwords so the code cannot be brute-forced regardless of length.
  *
  * Per-game access codes are managed on the game record itself and validated
- * by the game creation/update routes (4–6 alphanumeric characters).
+ * by the game creation/update routes (8–12 alphanumeric characters).
  */
 
 // ── Admin code ────────────────────────────────────────────────────────────────
+
+/** Minimum entropy boundary for host-selected player room codes. */
+export const MIN_GAME_ACCESS_CODE_LENGTH = 8;
+export const MAX_GAME_ACCESS_CODE_LENGTH = 12;
+export const GAME_ACCESS_CODE_PATTERN = /^[A-Za-z0-9]{8,12}$/;
+export const INVALID_GAME_ACCESS_CODE_MESSAGE =
+  "Join code must be 8\u201312 characters using only letters A\u2013Z and numbers 0\u20139, with no spaces.";
 
 /** Top common passwords / base words to reject (normalised: lower-case, no spaces). */
 const COMMON_PASSWORDS = new Set([

@@ -78,6 +78,15 @@ describe("body size cap", () => {
 // response when validation fails — before any database interaction.
 
 describe("POST /api/auth/login — Zod validation", () => {
+  it("rejects low-entropy legacy room codes before database lookup", async () => {
+    const res = await request(app)
+      .post("/api/auth/login")
+      .send({ code: "0000", name: "Alice" });
+
+    assert.equal(res.status, 400);
+    assert.equal(res.body.code, "invalid_access_code");
+  });
+
   it("returns 400 JSON for a completely empty body", async () => {
     const res = await request(app)
       .post("/api/auth/login")

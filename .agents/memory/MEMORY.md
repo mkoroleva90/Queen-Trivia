@@ -10,7 +10,7 @@
 - [Metro imageSize crash on Node.js 24](metro-imagsize-node24.md) — image-size@1.x crashes in Metro worker threads on Node 24+; fixed via patches/metro@0.83.3.patch (pnpm committed patch).
 - [Admin code source of truth](admin-auth-code-source.md) — /api/admin/login checks ADMIN_ACCESS_KEY env before the DB code; the two can disagree. Socket singleton: one hook cleanup disconnects all.
 - [Live tally seeding](live-tally-seeding.md) — seed+socket live counts must use the synchronous ref store in lib/live-tally; React-state flags misroute transition events and double-count.
-- [Access code security model](access-code-security.md) — trivia 4–6 chars / case-insensitive; admin 12–64 chars / bcrypt hashed / never returned to client; bootstrap auto-migrates plain text.
+- [Access code security model](access-code-security.md) — game codes are 8–12 chars and replica-rate-limited; admin codes are 12–64 chars, hashed, and never returned.
 - [Game access authorization](game-access-authorization.md) — only server-side room-code grants or participation authorize a player to see or join a game.
 - [Tenant aggregate isolation](tenant-aggregate-isolation.md) — host metrics must be derived through owned-game joins, never global player or answer totals.
 - [Content filter](content-filter.md) — naughty-words list, collapse-3+-to-2 normalization (not to-1 or Niger false-positives), 4 server enforcement points, client surfacing pattern.

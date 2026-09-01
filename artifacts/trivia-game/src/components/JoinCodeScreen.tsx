@@ -4,7 +4,7 @@ import { Check, Copy, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 
 /** Matches the server's CUSTOM_ACCESS_CODE_PATTERN (after uppercasing). */
-const JOIN_CODE_PATTERN = /^[A-Z0-9]{4,12}$/;
+const JOIN_CODE_PATTERN = /^[A-Z0-9]{8,12}$/;
 
 type Props = {
   /** The game's current (auto-assigned) join code — always pre-filled. */

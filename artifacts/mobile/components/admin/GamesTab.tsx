@@ -166,7 +166,7 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
 
   const handleCodeSave = async (game: Game) => {
     const code = codeText.trim().toUpperCase();
-    if (!/^[A-Z0-9]{4,12}$/.test(code)) {
+    if (!/^[A-Z0-9]{8,12}$/.test(code)) {
       setCodeError(COPY.joinCode.invalidError);
       return;
     }

@@ -31,6 +31,10 @@ import { requireUser } from "../middleware/requireUser.ts";
 import { generateTriviaCode } from "../lib/bootstrapAccessCodes.ts";
 import { checkGameCreationLimit } from "../lib/usageLimits.ts";
 import { containsBannedContent, logFlaggedContent } from "../lib/contentFilter.ts";
+import {
+ GAME_ACCESS_CODE_PATTERN,
+ INVALID_GAME_ACCESS_CODE_MESSAGE,
+} from "../lib/accessCodeValidation.ts";
 import { COPY } from "@workspace/copy";
 
 
@@ -167,12 +171,8 @@ function randomAccessCode(): string {
  return generateTriviaCode(10);
 }
 
-// Host-chosen custom join codes: 4–12 characters, letters and digits only
-// (case-insensitive input; uppercased before storing). Applies only to newly
-// entered codes — existing games are never re-validated.
-const CUSTOM_ACCESS_CODE_PATTERN = /^[A-Za-z0-9]{4,12}$/;
-const INVALID_ACCESS_CODE_MESSAGE =
- "Join code must be 4\u201312 characters using only letters A\u2013Z and numbers 0\u20139, with no spaces.";
+// Host-chosen custom join codes are case-insensitive and uppercased before
+// storage. Existing weak codes are also refused at player admission.
 
 router.post("/games", requireAdmin, async (req, res): Promise<void> => {
  const parsed = CreateGameBody.safeParse(req.body);
@@ -203,8 +203,8 @@ router.post("/games", requireAdmin, async (req, res): Promise<void> => {
  if (rawAccessCode !== undefined && rawAccessCode !== null && rawAccessCode !== "") {
   // Validate the raw value (no trimming) so create matches PATCH, whose
   // generated body schema rejects surrounding whitespace outright.
-  if (typeof rawAccessCode !== "string" || !CUSTOM_ACCESS_CODE_PATTERN.test(rawAccessCode)) {
-   res.status(400).json({ error: INVALID_ACCESS_CODE_MESSAGE, code: "invalid_access_code" });
+  if (typeof rawAccessCode !== "string" || !GAME_ACCESS_CODE_PATTERN.test(rawAccessCode)) {
+   res.status(400).json({ error: INVALID_GAME_ACCESS_CODE_MESSAGE, code: "invalid_access_code" });
    return;
   }
   const candidate = rawAccessCode.toUpperCase();
@@ -261,7 +261,7 @@ router.get("/games/code-available", requireAdmin, async (req, res): Promise<void
   return;
  }
  const code = rawCode.trim().toUpperCase();
- if (!CUSTOM_ACCESS_CODE_PATTERN.test(rawCode.trim())) {
+ if (!GAME_ACCESS_CODE_PATTERN.test(rawCode.trim())) {
   // Format is invalid — can never be stored, so mark as unavailable
   res.json({ available: false, reason: "format" });
   return;
@@ -333,11 +333,10 @@ router.patch("/games/:gameId", requireAdmin, async (req, res): Promise<void> => 
      return;
  }
 
- // Newly entered custom room codes must match the shared rule: 4–12 chars,
- // A–Z / 0–9 only (the generated body schema allows 4+, so enforce here too).
+ // Newly entered custom room codes must match the shared 8–12 character rule.
  if (parsed.data.accessCode !== undefined
-     && !CUSTOM_ACCESS_CODE_PATTERN.test(parsed.data.accessCode.trim())) {
-     res.status(400).json({ error: INVALID_ACCESS_CODE_MESSAGE, code: "invalid_access_code" });
+     && !GAME_ACCESS_CODE_PATTERN.test(parsed.data.accessCode.trim())) {
+     res.status(400).json({ error: INVALID_GAME_ACCESS_CODE_MESSAGE, code: "invalid_access_code" });
      return;
  }
 

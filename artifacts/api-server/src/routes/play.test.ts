@@ -143,7 +143,7 @@ async function cleanupGame(gameId: number): Promise<void> {
 
 describe("POST /api/games/:gameId/join — idempotency", () => {
   let game: TestGame;
-  const ACCESS_CODE = "TJOIN1";
+  const ACCESS_CODE = "TJOIN100";
   const PLAYER_NAME = "__test__join_idempotency";
 
   before(async () => {
@@ -243,8 +243,8 @@ describe("player game-data authorization", () => {
   let otherGame: TestGame;
   let playerAgent: ReturnType<typeof request.agent>;
   let playerUserId: number;
-  const JOINED_CODE = "TISOL1";
-  const OTHER_CODE = "TISOL2";
+  const JOINED_CODE = "TISOL100";
+  const OTHER_CODE = "TISOL200";
 
   before(async () => {
     ({ game: joinedGame } = await seedGameWithQuestions(JOINED_CODE, 1));
@@ -316,7 +316,7 @@ describe("player game-data authorization", () => {
 describe("mid-game re-entry — answered questions preserved", () => {
   let game: TestGame;
   let questions: TestQuestion[];
-  const ACCESS_CODE = "TREENT1";
+  const ACCESS_CODE = "TREENT100";
   const PLAYER_NAME = "__test__reentry";
 
   before(async () => {
@@ -431,7 +431,7 @@ describe("mid-game re-entry — answered questions preserved", () => {
 
 describe("POST /api/auth/login — active session returns existing user", () => {
   let game: TestGame;
-  const ACCESS_CODE = "TSESS1";
+  const ACCESS_CODE = "TSESS100";
   const PLAYER_NAME = "__test__session_restore";
 
   before(async () => {
@@ -466,7 +466,7 @@ describe("POST /api/auth/login — active session returns existing user", () => 
   it("prior answers are accessible after session-based re-entry", async () => {
     const agent = request.agent(app);
     const { game: miniGame, questions: [question] } = await seedGameWithQuestions(
-      `P${String(Date.now()).slice(-5)}`,
+      `P${String(Date.now()).slice(-7)}`,
       1,
     );
 
@@ -525,7 +525,7 @@ describe("DELETE /api/games/:gameId/participants/:userId — kick + rejoin block
   // Agents are shared across tests so session cookies persist between steps.
   let playerAgent: ReturnType<typeof request.agent>;
   let adminAgent: ReturnType<typeof request.agent>;
-  const ACCESS_CODE = "TKICK1";
+  const ACCESS_CODE = "TKICK100";
   const PLAYER_NAME = "__test__kick_block";
 
   before(async () => {
@@ -619,8 +619,8 @@ describe("room-code revocation — fresh session, different display name", () =>
   let originalPlayerId: number;
   let preAuthorizedAgent: ReturnType<typeof request.agent>;
   let adminAgent2: ReturnType<typeof request.agent>;
-  const ACCESS_CODE = "TKICK2";
-  const ROTATED_CODE = "TKICK3";
+  const ACCESS_CODE = "TKICK200";
+  const ROTATED_CODE = "TKICK300";
   const ORIGINAL_NAME = "__test__kick_original";
   const DIFFERENT_NAME = "__test__kick_different_name";
   const PREAUTHORIZED_NAME = "__test__kick_preauthorized";
@@ -835,7 +835,7 @@ describe("legacy case-folded room-code collisions", () => {
 describe("POST /api/games/:gameId/answers — short-response grading", () => {
   let game: TestGame;
   let question: TestQuestion;
-  const ACCESS_CODE = "TSHORT1";
+  const ACCESS_CODE = "TSHORT10";
   const REVIEWER_EMAIL = "short-response-reviewer@example.invalid";
 
   before(async () => {
@@ -1001,9 +1001,9 @@ describe("POST /api/games/:gameId/host-answer — concurrency", () => {
        )
        VALUES ($1, 'easy', 1, 'active', $2, TRUE, TRUE, $3)
        RETURNING id`,
-      ["Concurrent host answer", "THOSTC", hostUserId],
+      ["Concurrent host answer", "THOSTC00", hostUserId],
     );
-    game = { id: gameRes.rows[0]!.id, accessCode: "THOSTC" };
+    game = { id: gameRes.rows[0]!.id, accessCode: "THOSTC00" };
 
     const questionRes = await pool.query<{ id: number }>(
       `INSERT INTO questions (

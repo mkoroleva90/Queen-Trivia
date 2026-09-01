@@ -14,6 +14,10 @@ import { generateMobileToken } from "../lib/mobileAuth.ts";
 import { containsBannedContent, logFlaggedContent } from "../lib/contentFilter.ts";
 import { COPY } from "@workspace/copy";
 import { PlayerLoginBody } from "@workspace/api-zod";
+import {
+    INVALID_GAME_ACCESS_CODE_MESSAGE,
+    MIN_GAME_ACCESS_CODE_LENGTH,
+} from "../lib/accessCodeValidation.ts";
 
 
 const router: IRouter = Router();
@@ -32,6 +36,13 @@ const name = typeof parsed.data.name === "string" ? parsed.data.name.trim() : ""
 
 if (!code) {
     res.status(400).json({ error: "Access code is required" });
+    return;
+}
+if (code.length < MIN_GAME_ACCESS_CODE_LENGTH) {
+    res.status(400).json({
+        error: INVALID_GAME_ACCESS_CODE_MESSAGE,
+        code: "invalid_access_code",
+    });
     return;
 }
 

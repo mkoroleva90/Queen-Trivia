@@ -654,7 +654,7 @@ components:
           type: string
           enum: [waiting, active, completed]
         brief: { type: ["string", "null"], maxLength: 2000 }
-        accessCode: { type: string, minLength: 4, maxLength: 12, pattern: "^[A-Za-z0-9]+$" }
+        accessCode: { type: string, minLength: 8, maxLength: 12, pattern: "^[A-Za-z0-9]+$" }
         hostPlaysAlong: { type: boolean }
     Game:
       type: object

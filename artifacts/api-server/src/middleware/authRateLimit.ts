@@ -80,6 +80,11 @@ export const triviaJoinRateLimit = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many join attempts from this network. Please wait a minute and try again." },
   skipSuccessfulRequests: true,
+  store: new PgRateLimitStore(),
+  // Namespace keys because the shared store also backs the strict auth and
+  // reports limiters. Persisting this counter keeps the boundary consistent
+  // across API replicas and restarts.
+  keyGenerator: (req) => `trivia-join:${ipKeyGenerator(req.ip ?? "0.0.0.0")}`,
   skip: (req) => isDev && isLoopback(req),
 });
 
