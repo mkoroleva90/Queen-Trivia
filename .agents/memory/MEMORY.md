@@ -24,3 +24,4 @@
 - [Expo Launch App Store state](expo-launch-app-state.md) — guided submission can retain a stale App Store record; compare Launch IDs with app.json/eas.json before changing bundle identifiers.
 - [API eval worker flags](api-eval-worker-flags.md) — avoid `node --input-type=module` for one-off scripts importing the built API; Pino workers inherit the flag and crash.
 - [Live gameplay confidentiality](live-gameplay-confidentiality.md) — active players may see identities and their own score, never correctness aggregates, peer scores, or score-ranked ordering.
+- [Decoder module compatibility](decoder-module-compatibility.md) — patched decoder releases are ESM-only, while React Navigation’s query-string dependency still requires CommonJS.

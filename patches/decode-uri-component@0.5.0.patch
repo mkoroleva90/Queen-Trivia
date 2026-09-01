@@ -1,0 +1,26 @@
+diff --git a/package.json b/package.json
+index 8d01f06..bebb5dd 100644
+--- a/package.json
++++ b/package.json
+@@ -10,7 +10,6 @@
+ 		"email": "sam.verschueren@gmail.com",
+ 		"url": "github.com/SamVerschueren"
+ 	},
+-	"type": "module",
+ 	"exports": {
+ 		"types": "./index.d.ts",
+ 		"default": "./index.js"
+diff --git a/index.js b/index.js
+index 501f80d..6a3f662 100644
+--- a/index.js
++++ b/index.js
+@@ -160,2 +160,2 @@
+-export default function decodeUriComponent(encodedURI) {
++module.exports = function decodeUriComponent(encodedURI) {
+ 	if (typeof encodedURI !== 'string') {
+@@ -169,4 +169,4 @@
+ 		// Fallback to a more advanced decoder
+ 		return customDecodeURIComponent(encodedURI);
+ 	}
+-}
++};
