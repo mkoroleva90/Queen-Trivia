@@ -434,7 +434,7 @@ paths:
     get:
       operationId: listGameParticipants
       tags: [play]
-      summary: Leaderboard - participants with scores, sorted descending
+      summary: Participants; scores are included for hosts and completed games
       parameters:
         - name: gameId
           in: path
@@ -442,7 +442,7 @@ paths:
           schema: { type: integer }
       responses:
         "200":
-          description: Participants with names and scores
+          description: Participants with names; scores are omitted from active games for players
           content:
             application/json:
               schema:
@@ -885,13 +885,15 @@ components:
         joinedAt: { type: string }
     ParticipantWithUser:
       type: object
-      required: [id, gameId, userId, userName, totalScore, joinedAt]
+      required: [id, gameId, userId, userName, joinedAt]
       properties:
         id: { type: integer }
         gameId: { type: integer }
         userId: { type: integer }
         userName: { type: string }
-        totalScore: { type: integer }
+        totalScore:
+          type: integer
+          description: Present for hosts and after the game is completed.
         joinedAt: { type: string }
     AnswerInput:
       type: object

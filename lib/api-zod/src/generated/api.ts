@@ -468,7 +468,7 @@ export const JoinGameResponse = zod.object({
 
 
 /**
- * @summary Leaderboard - participants with scores, sorted descending
+ * @summary Participants; scores are included for hosts and completed games
  */
 export const ListGameParticipantsParams = zod.object({
   "gameId": zod.coerce.number()
@@ -479,7 +479,7 @@ export const ListGameParticipantsResponseItem = zod.object({
   "gameId": zod.number(),
   "userId": zod.number(),
   "userName": zod.string(),
-  "totalScore": zod.number(),
+  "totalScore": zod.number().optional().describe('Present for hosts and after the game is completed.'),
   "joinedAt": zod.string()
 })
 export const ListGameParticipantsResponse = zod.array(ListGameParticipantsResponseItem)

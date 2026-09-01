@@ -11,6 +11,7 @@ export interface ParticipantWithUser {
   gameId: number;
   userId: number;
   userName: string;
-  totalScore: number;
+  /** Present for hosts and after the game is completed. */
+  totalScore?: number;
   joinedAt: string;
 }

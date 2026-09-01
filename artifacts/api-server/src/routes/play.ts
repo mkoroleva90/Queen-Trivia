@@ -152,7 +152,18 @@ router.get("/games/:gameId/participants", requireAuth, async (req, res): Promise
 
  if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
- const participantRows = await db
+ const [game] = await db
+     .select({ status: gamesTable.status })
+     .from(gamesTable)
+     .where(eq(gamesTable.id, params.data.gameId))
+     .limit(1);
+ if (!game) {
+     res.status(404).json({ error: "Game not found" });
+     return;
+ }
+
+ const scoresVisible = req.session.isAdmin === true || game.status === "completed";
+ const participantQuery = db
      .select({
          id: gameParticipantsTable.id,
          gameId: gameParticipantsTable.gameId,
@@ -163,18 +174,26 @@ router.get("/games/:gameId/participants", requireAuth, async (req, res): Promise
      })
      .from(gameParticipantsTable)
      .innerJoin(usersTable, eq(gameParticipantsTable.userId, usersTable.id))
-     .where(eq(gameParticipantsTable.gameId, params.data.gameId))
-     .orderBy(
+     .where(eq(gameParticipantsTable.gameId, params.data.gameId));
+ const participantRows = scoresVisible
+     ? await participantQuery.orderBy(
          desc(gameParticipantsTable.totalScore),
          asc(gameParticipantsTable.joinedAt),
-     );
+     )
+     : await participantQuery.orderBy(asc(gameParticipantsTable.joinedAt));
 
  const seenUsers = new Set<number>();
- const rows = participantRows.filter((row) => {
-     if (seenUsers.has(row.userId)) return false;
-     seenUsers.add(row.userId);
-     return true;
- });
+ const rows = participantRows
+     .filter((row) => {
+         if (seenUsers.has(row.userId)) return false;
+         seenUsers.add(row.userId);
+         return true;
+     })
+     .map((row) => {
+         if (scoresVisible) return row;
+         const { totalScore: _totalScore, ...safeRow } = row;
+         return safeRow;
+     });
 
  res.json(ListGameParticipantsResponse.parse(toJsonSafe(rows)));
 });
@@ -386,7 +405,7 @@ db.select({ name: usersTable.name })
 
 router.get(
  "/games/:gameId/questions/:questionId/answers",
- requireUser,
+ requireAuth,
  async (req, res): Promise<void> => {
   const gameId = parseInt(String(req.params.gameId ?? ""), 10);
   const questionId = parseInt(String(req.params.questionId ?? ""), 10);
@@ -413,7 +432,21 @@ router.get(
       }
   }
 
-  const [question] = await db
+   const [game] = await db
+       .select({ status: gamesTable.status })
+       .from(gamesTable)
+       .where(eq(gamesTable.id, gameId))
+       .limit(1);
+   if (!game) {
+       res.status(404).json({ error: "Game not found" });
+       return;
+   }
+   if (req.session.isAdmin !== true && game.status !== "completed") {
+       res.status(409).json({ error: "Answer statistics are available after the game is completed" });
+       return;
+   }
+
+   const [question] = await db
       .select({ id: questionsTable.id })
       .from(questionsTable)
       .where(

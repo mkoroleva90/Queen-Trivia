@@ -279,11 +279,28 @@ describe("player game-data authorization", () => {
     });
   }
 
-  it("allows results for the joined game but redacts its access code", async () => {
-    const res = await playerAgent.get(`/api/games/${joinedGame.id}/results`);
-    assert.equal(res.status, 200, `expected 200 but got ${res.status}: ${JSON.stringify(res.body)}`);
-    assert.equal(res.body.game.accessCode, null);
-    assert.equal(JSON.stringify(res.body).includes(JOINED_CODE), false, "must not expose the joined game's access code");
+  it("withholds live results, then allows completed results with a redacted access code", async () => {
+    const activeRes = await playerAgent.get(`/api/games/${joinedGame.id}/results`);
+    assert.equal(
+      activeRes.status,
+      409,
+      `expected 409 but got ${activeRes.status}: ${JSON.stringify(activeRes.body)}`,
+    );
+    assert.equal(activeRes.body.participants, undefined);
+
+    await pool.query("UPDATE games SET status = 'completed' WHERE id = $1", [joinedGame.id]);
+    const completedRes = await playerAgent.get(`/api/games/${joinedGame.id}/results`);
+    assert.equal(
+      completedRes.status,
+      200,
+      `expected 200 but got ${completedRes.status}: ${JSON.stringify(completedRes.body)}`,
+    );
+    assert.equal(completedRes.body.game.accessCode, null);
+    assert.equal(
+      JSON.stringify(completedRes.body).includes(JOINED_CODE),
+      false,
+      "must not expose the joined game's access code",
+    );
   });
 
   it("rejects a player's own answer history for an unjoined game", async () => {

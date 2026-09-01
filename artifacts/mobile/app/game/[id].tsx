@@ -27,7 +27,6 @@ import {
   getListGameQuestionsQueryKey,
   getListUserAnswersQueryKey,
   useGetGame,
-  useListGameParticipants,
   useListGameQuestions,
   useListUserAnswers,
   useSubmitAnswer,
@@ -673,10 +672,6 @@ export default function GamePlayScreen() {
   const { data: myAnswers } = useListUserAnswers(gameId, userId, {
     query: { enabled: !!gameId && !!userId, queryKey: getListUserAnswersQueryKey(gameId, userId), refetchInterval: 5000 },
   });
-  const { data: participants } = useListGameParticipants(gameId, {
-    query: { enabled: !!gameId, queryKey: getListGameParticipantsQueryKey(gameId), refetchInterval: 8000 },
-  });
-
   const submitAnswer = useSubmitAnswer();
 
   useGameSocket(gameId || null, {
@@ -702,7 +697,8 @@ export default function GamePlayScreen() {
   const awaitingHost = !current || (answeredIds.has(current.id) && !feedback);
   const isLastQuestion = !!current && current.orderIndex === total - 1;
   const canSkip = false;
-  const myScore = participants?.find((p) => p.userId === userId)?.totalScore ?? 0;
+  const scoreFromAnswers = (myAnswers ?? []).reduce((sum, answer) => sum + answer.pointsEarned, 0);
+  const myScore = Math.max(scoreFromAnswers, feedback?.totalScore ?? 0);
 
   useEffect(() => {
     if (current?.id) {

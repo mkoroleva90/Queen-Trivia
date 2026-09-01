@@ -1491,7 +1491,7 @@ export const getListGameParticipantsUrl = (gameId: number,) => {
 }
 
 /**
- * @summary Leaderboard - participants with scores, sorted descending
+ * @summary Participants; scores are included for hosts and completed games
  */
 export const listGameParticipants = async (gameId: number, options?: RequestInit): Promise<ParticipantWithUser[]> => {
 
@@ -1538,7 +1538,7 @@ export type ListGameParticipantsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Leaderboard - participants with scores, sorted descending
+ * @summary Participants; scores are included for hosts and completed games
  */
 
 export function useListGameParticipants<TData = Awaited<ReturnType<typeof listGameParticipants>>, TError = ErrorType<unknown>>(

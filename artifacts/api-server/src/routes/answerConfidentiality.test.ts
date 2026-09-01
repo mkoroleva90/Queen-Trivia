@@ -101,6 +101,129 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
     }
   });
 
+  it("does not expose active-game correctness or score oracles to players", async () => {
+    const code = `I${String(Date.now()).slice(-5)}`;
+    const firstName = `__test__integrity_first_${Date.now()}`;
+    const probeName = `__test__integrity_probe_${Date.now()}`;
+    const unjoinedName = `__test__integrity_unjoined_${Date.now()}`;
+    let integrityGameId: number | undefined;
+    try {
+      const game = await pool.query<{ id: number }>(
+        `INSERT INTO games (topic, difficulty, question_count, status, access_code, created_by_admin)
+         VALUES ('Integrity oracle test', 'easy', 1, 'active', $1, true)
+         RETURNING id`,
+        [code],
+      );
+      integrityGameId = game.rows[0]!.id;
+      const question = await pool.query<{ id: number }>(
+        `INSERT INTO questions
+           (game_id, question_text, question_type, correct_answer, points, order_index)
+         VALUES ($1, 'True?', 'true_false', 'true', 10, 0)
+         RETURNING id`,
+        [integrityGameId],
+      );
+      const integrityQuestionId = question.rows[0]!.id;
+      await pool.query(
+        "UPDATE games SET current_question_id = $1 WHERE id = $2",
+        [integrityQuestionId, integrityGameId],
+      );
+
+      const unauthenticatedStats = await request(app).get(
+        `/api/games/${integrityGameId}/questions/${integrityQuestionId}/answers`,
+      );
+      assert.equal(unauthenticatedStats.status, 401);
+      const unauthenticatedResults = await request(app).get(`/api/games/${integrityGameId}/results`);
+      assert.equal(unauthenticatedResults.status, 401);
+
+      const firstPlayer = request.agent(app);
+      const probePlayer = request.agent(app);
+      const unjoinedPlayer = request.agent(app);
+      assert.equal((await firstPlayer.post("/api/auth/login").send({ code, name: firstName })).status, 200);
+      assert.equal((await firstPlayer.post(`/api/games/${integrityGameId}/join`)).status, 201);
+      assert.equal((await probePlayer.post("/api/auth/login").send({ code, name: probeName })).status, 200);
+      assert.equal((await probePlayer.post(`/api/games/${integrityGameId}/join`)).status, 201);
+      assert.equal(
+        (await unjoinedPlayer.post("/api/auth/login").send({ code, name: unjoinedName })).status,
+        200,
+      );
+      assert.equal(
+        (await unjoinedPlayer.get(
+          `/api/games/${integrityGameId}/questions/${integrityQuestionId}/answers`,
+        )).status,
+        403,
+      );
+      assert.equal(
+        (await unjoinedPlayer.get(`/api/games/${integrityGameId}/results`)).status,
+        403,
+      );
+
+      assert.equal(
+        (await firstPlayer
+          .post(`/api/games/${integrityGameId}/answers`)
+          .send({ questionId: integrityQuestionId, userAnswer: "false" })).status,
+        201,
+      );
+      assert.equal(
+        (await probePlayer
+          .post(`/api/games/${integrityGameId}/answers`)
+          .send({ questionId: integrityQuestionId, userAnswer: "true" })).status,
+        201,
+      );
+
+      const activeStats = await firstPlayer.get(
+        `/api/games/${integrityGameId}/questions/${integrityQuestionId}/answers`,
+      );
+      assert.equal(activeStats.status, 409, JSON.stringify(activeStats.body));
+      assert.equal(activeStats.body.correctCount, undefined);
+      assert.equal(activeStats.body.totalAnswered, undefined);
+
+      const activeResults = await firstPlayer.get(`/api/games/${integrityGameId}/results`);
+      assert.equal(activeResults.status, 409, JSON.stringify(activeResults.body));
+      assert.equal(activeResults.body.participants, undefined);
+
+      const activeParticipants = await firstPlayer.get(`/api/games/${integrityGameId}/participants`);
+      assert.equal(activeParticipants.status, 200, JSON.stringify(activeParticipants.body));
+      assert.equal(activeParticipants.body[0].userName, firstName, "player ordering must not reveal live scores");
+      assert.equal(activeParticipants.body[1].userName, probeName);
+      assert.ok(
+        activeParticipants.body.every((participant: Record<string, unknown>) => participant.totalScore === undefined),
+        "active player participant data must omit every score",
+      );
+
+      const admin = request.agent(app);
+      assert.equal((await admin.post("/api/test-set-confidentiality-admin-session")).status, 200);
+      const hostStats = await admin.get(
+        `/api/games/${integrityGameId}/questions/${integrityQuestionId}/answers`,
+      );
+      assert.equal(hostStats.status, 200, JSON.stringify(hostStats.body));
+      assert.deepEqual(hostStats.body, { totalAnswered: 2, correctCount: 1 });
+      const hostParticipants = await admin.get(`/api/games/${integrityGameId}/participants`);
+      assert.equal(hostParticipants.status, 200, JSON.stringify(hostParticipants.body));
+      assert.equal(hostParticipants.body[0].userName, probeName);
+      assert.equal(hostParticipants.body[0].totalScore, 10);
+
+      await pool.query("UPDATE games SET status = 'completed' WHERE id = $1", [integrityGameId]);
+
+      const completedStats = await firstPlayer.get(
+        `/api/games/${integrityGameId}/questions/${integrityQuestionId}/answers`,
+      );
+      assert.equal(completedStats.status, 200, JSON.stringify(completedStats.body));
+      assert.deepEqual(completedStats.body, { totalAnswered: 2, correctCount: 1 });
+      const completedResults = await firstPlayer.get(`/api/games/${integrityGameId}/results`);
+      assert.equal(completedResults.status, 200, JSON.stringify(completedResults.body));
+      assert.equal(completedResults.body.participants[0].correctCount, 1);
+      const completedParticipants = await firstPlayer.get(`/api/games/${integrityGameId}/participants`);
+      assert.equal(completedParticipants.status, 200, JSON.stringify(completedParticipants.body));
+      assert.equal(completedParticipants.body[0].totalScore, 10);
+    } finally {
+      if (integrityGameId) await pool.query("DELETE FROM games WHERE id = $1", [integrityGameId]);
+      await pool.query(
+        "DELETE FROM users WHERE name = ANY($1::text[])",
+        [[firstName, probeName, unjoinedName]],
+      );
+    }
+  });
+
   it("releases only the current question, without matching or ordering solutions", async () => {
     const code = `R${String(Date.now()).slice(-5)}`;
     let redactionGameId: number | undefined;

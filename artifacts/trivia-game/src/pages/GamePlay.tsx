@@ -81,11 +81,6 @@ type Feedback = {
   feedback?: string;       // AI feedback for short_response
 };
 
-type QuestionStats = {
-  totalAnswered: number;
-  correctCount: number;
-};
-
 function isSafeFactCheckUrl(value: string | null | undefined): value is string {
   return typeof value === "string"
     && /^https?:\/\/[^/\s?#]+(?:[/?#][^\s]*)?$/i.test(value);
@@ -1340,15 +1335,6 @@ export default function GamePlay() {
     query: { enabled: !!gameId, queryKey: getListGameParticipantsQueryKey(gameId), refetchInterval: 5000 },
   });
 
-  // Stats query for answered question (moved from FeedbackOverlay, same logic)
-  const { data: questionStats } = useQuery<QuestionStats>({
-    queryKey: ["question-stats", gameId, feedback?.questionId],
-    queryFn: () =>
-      fetch(`/api/games/${gameId}/questions/${feedback!.questionId}/answers`).then((r) => r.json()),
-    enabled: !!feedback,
-    refetchInterval: 3000,
-  });
-
   const submitAnswer = useSubmitAnswer();
 
   const sorted = useMemo(
@@ -1368,11 +1354,14 @@ export default function GamePlay() {
   const canSkip          = false;
 
   const sortedParticipants = useMemo(
-    () => [...(participants ?? [])].sort((a, b) => b.totalScore - a.totalScore),
+    () => [...(participants ?? [])].sort((a, b) => (b.totalScore ?? 0) - (a.totalScore ?? 0)),
     [participants],
   );
-  const myScore = participants?.find((p) => p.userId === userId)?.totalScore ?? 0;
-  const myRank  = sortedParticipants.findIndex((p) => p.userId === userId) + 1;
+  const scoreFromAnswers = (myAnswers ?? []).reduce((sum, answer) => sum + answer.pointsEarned, 0);
+  const myScore = Math.max(scoreFromAnswers, feedback?.totalScore ?? 0);
+  const myRank = game?.status === "completed"
+    ? sortedParticipants.findIndex((p) => p.userId === userId) + 1
+    : 0;
 
   // Reset timer when question changes
   useEffect(() => {
@@ -1675,14 +1664,6 @@ export default function GamePlay() {
                           <span className="text-sm font-semibold" style={{ color: "#ffe500" }}>
                             {COPY.gameplay.feedbackTotalLabel} {feedback.totalScore}
                           </span>
-                          {questionStats && (
-                            <>
-                              <span style={{ color: "#475569" }}>·</span>
-                              <span className="text-sm text-muted-foreground">
-                                {questionStats.correctCount}/{questionStats.totalAnswered} got it right
-                              </span>
-                            </>
-                          )}
                           {isSafeFactCheckUrl(feedback.factCheckUrl) && (
                             <>
                               <span style={{ color: "#475569" }}>·</span>
@@ -1886,7 +1867,9 @@ export default function GamePlay() {
                         }}
                       >
                         <span className="w-5 text-center text-xs font-bold tabular-nums text-muted-foreground shrink-0">
-                          {i === 0
+                          {p.totalScore == null
+                            ? "•"
+                            : i === 0
                             ? <Crown className="h-3.5 w-3.5 text-accent mx-auto" />
                             : <span className="text-xs">{i + 1}</span>}
                         </span>
@@ -1898,7 +1881,7 @@ export default function GamePlay() {
                           className="font-bold tabular-nums text-sm shrink-0"
                           style={{ color: isMe ? "#ffe500" : "#a3aec2" }}
                         >
-                          {p.totalScore}
+                          {p.totalScore ?? "—"}
                         </span>
                       </motion.div>
                     );

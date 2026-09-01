@@ -30,6 +30,10 @@ router.get("/games/:gameId/results", requireAuth, async (req, res): Promise<void
 
  const [game] = await db.select().from(gamesTable).where(eq(gamesTable.id, gameId));
  if (!game) { res.status(404).json({ error: "Game not found" }); return; }
+ if (req.session.isAdmin !== true && game.status !== "completed") {
+  res.status(409).json({ error: "Results are available after the game is completed" });
+  return;
+ }
 
  // Participants ordered by score desc
   const participantRows = await db
