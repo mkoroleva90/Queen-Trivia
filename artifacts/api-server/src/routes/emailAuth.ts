@@ -51,6 +51,18 @@ function appBaseUrl(req: import("express").Request): string {
   return `${proto}://${req.headers.host}`;
 }
 
+function requireJsonBody(
+  req: import("express").Request,
+  res: import("express").Response,
+  next: import("express").NextFunction,
+): void {
+  if (req.is("application/json") !== "application/json") {
+    res.status(415).json({ error: "Authentication requests must use JSON." });
+    return;
+  }
+  next();
+}
+
 // ── routes ───────────────────────────────────────────────────────────────────
 
 // POST /api/auth/email/register
@@ -167,6 +179,7 @@ router.post(
 router.post(
   "/auth/email/login",
   authRateLimit,
+  requireJsonBody,
   async (req, res): Promise<void> => {
     const parsed = EmailLoginBody.safeParse(req.body);
     if (!parsed.success) {
