@@ -16,6 +16,13 @@ const path = require('path');
 const STATIC_ROOT = path.resolve(__dirname, '..', 'static-build');
 const STATIC_ROOT_PREFIX = `${STATIC_ROOT}${path.sep}`;
 const TEMPLATE_PATH = path.resolve(__dirname, 'templates', 'landing-page.html');
+
+const IOS_MANIFEST_PATH = path.join(STATIC_ROOT, 'ios', 'manifest.json');
+const ANDROID_MANIFEST_PATH = path.join(
+  STATIC_ROOT,
+  'android',
+  'manifest.json',
+);
 const basePath = (process.env.BASE_PATH || '/').replace(/\/+$/, '');
 
 const MIME_TYPES = {
@@ -71,10 +78,9 @@ function serveManifest(platform, res) {
     return;
   }
 
+  // The platform check above limits this selection to these two fixed paths.
   const manifestPath =
-    platform === 'ios'
-      ? path.join(STATIC_ROOT, 'ios', 'manifest.json')
-      : path.join(STATIC_ROOT, 'android', 'manifest.json');
+    platform === 'ios' ? IOS_MANIFEST_PATH : ANDROID_MANIFEST_PATH;
 
   if (!fs.existsSync(manifestPath)) {
     res.writeHead(404, { 'content-type': 'application/json' });
@@ -111,10 +117,17 @@ function serveLandingPage(req, res, landingPageTemplate, appName) {
 }
 
 function serveStaticFile(urlPath, res) {
-  const safePath = path.normalize(urlPath).replace(/^(\.\.(\/|\\|$))+/, '');
-  const filePath = path.join(STATIC_ROOT, safePath);
+  const normalizedPath = path.normalize(urlPath);
+  const relativePath = normalizedPath.replace(/^[/\\]+/, '');
+  const filePath = path.resolve(STATIC_ROOT, relativePath);
+  const relativeToRoot = path.relative(STATIC_ROOT, filePath);
+  const isOutsideStaticRoot =
+    (filePath !== STATIC_ROOT && !filePath.startsWith(STATIC_ROOT_PREFIX)) ||
+    relativeToRoot === '..' ||
+    relativeToRoot.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativeToRoot);
 
-  if (filePath !== STATIC_ROOT && !filePath.startsWith(STATIC_ROOT_PREFIX)) {
+  if (isOutsideStaticRoot) {
     res.writeHead(403);
     res.end('Forbidden');
     return;
