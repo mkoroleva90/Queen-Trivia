@@ -127,6 +127,7 @@ router.post(
 router.post(
   "/auth/email/verify",
   authRateLimit,
+  requireJsonBody,
   async (req, res): Promise<void> => {
     const parsed = EmailVerifyBody.safeParse(req.body);
     if (!parsed.success) {

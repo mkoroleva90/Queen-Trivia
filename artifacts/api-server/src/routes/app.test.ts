@@ -72,6 +72,37 @@ describe("body size cap", () => {
   });
 });
 
+// ── Browser session-establishment boundaries ────────────────────────────────
+//
+// Email verification establishes an authenticated admin session, so it must
+// not accept a cross-site form submission or a cross-site JSON request.
+
+describe("POST /api/auth/email/verify — login CSRF protection", () => {
+  it("rejects URL-encoded form submissions before token processing", async () => {
+    const res = await request(app)
+      .post("/api/auth/email/verify")
+      .type("form")
+      .send({ token: "attacker-controlled-token" });
+
+    assert.equal(res.status, 415);
+    assert.equal(res.body.error, "Authentication requests must use JSON.");
+  });
+
+  it("rejects cross-site JSON requests before token processing", async () => {
+    const res = await request(app)
+      .post("/api/auth/email/verify")
+      .set("Origin", "https://attacker.example")
+      .set("Sec-Fetch-Site", "cross-site")
+      .send({ token: "attacker-controlled-token" });
+
+    assert.equal(res.status, 403);
+    assert.equal(
+      res.body.error,
+      "Cross-site authentication requests are not allowed.",
+    );
+  });
+});
+
 // ── Zod validation on POST /api/auth/login (400) ─────────────────────────────
 //
 // session.ts calls PlayerLoginBody.safeParse(req.body) and returns a 400 JSON

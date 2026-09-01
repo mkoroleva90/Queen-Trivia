@@ -53,6 +53,7 @@ app.use(cors({ origin: corsOrigin, credentials: true }));
 // the authentication routes separately require JSON bodies.
 const browserSessionAuthPaths = new Set([
   "/api/auth/email/login",
+  "/api/auth/email/verify",
   "/api/auth/sso/google",
   "/api/auth/sso/apple",
 ]);
