@@ -71,6 +71,7 @@ The server must keep game data and participant activity within the correct game/
 **Required guarantees:**
 - Player reads of game details, questions, participants, lists, and results MUST require participation or another explicit game authorization; a missing `adminAccountId` MUST not mean super-admin for player sessions.
 - Player-facing responses MUST never include active-game access codes or correct answers unless explicitly intended after completion.
+- Live player-visible statistics and score deltas MUST not reveal whether a probe answer was correct before the player has committed their answer; pre-completion correctness aggregates MUST be withheld or delayed.
 - Host reads and writes MUST be scoped to `ownerAdminId`.
 - Platform aggregate endpoints MUST scope results to the requesting host unless the data is intentionally public.
 - Socket.IO room admission MUST enforce player membership and host ownership before joining, kick operations MUST evict already-connected unauthorized sockets across replicas, and account security revocation MUST evict stale host sockets across replicas.
