@@ -50,6 +50,28 @@ function isFiniteNumber(value: unknown): value is number {
     return typeof value === "number" && Number.isFinite(value);
 }
 
+const WIKIMEDIA_IMAGE_HOSTNAME = "upload.wikimedia.org";
+const WIKIMEDIA_IMAGE_PATH_PREFIX = "/wikipedia/commons/";
+
+function isAllowedImageUrl(value: unknown): value is string {
+    if (typeof value !== "string" || !value) return false;
+    try {
+        const url = new URL(value);
+        return url.protocol === "https:"
+            && url.hostname === WIKIMEDIA_IMAGE_HOSTNAME
+            && url.port === ""
+            && !url.username
+            && !url.password
+            && url.pathname.startsWith(WIKIMEDIA_IMAGE_PATH_PREFIX);
+    } catch {
+        return false;
+    }
+}
+
+function safePlayerImageUrl(value: string | null): string | null {
+    return value === null || isAllowedImageUrl(value) ? value : null;
+}
+
 function displayOrder(items: string[], seed: string): string[] {
     if (items.length < 2) return [...items];
     const secret = process.env.SESSION_SECRET;
@@ -272,12 +294,20 @@ router.get("/games/:gameId/questions", requireAuth, async (req, res): Promise<vo
 
     const decoded = questions.map(decodeQuestionFields);
     const isAdmin = req.session.isAdmin === true;
+    // Never pass legacy or otherwise invalid image URLs to player clients.
+    // Admins still receive the stored value so they can repair old questions.
+    const playerSafeQuestions = decoded.map((question) => ({
+        ...question,
+        imageUrl: safePlayerImageUrl(question.imageUrl),
+    }));
     // Players receive only the question the host has released. Waiting games
     // have no released question; completed games safely reveal the full review.
-    const visibleQuestions = isAdmin || game.status === "completed"
+    const visibleQuestions = isAdmin
         ? decoded
+        : game.status === "completed"
+            ? playerSafeQuestions
         : game.status === "active" && game.currentQuestionId != null
-            ? decoded.filter((question) => question.id === game.currentQuestionId)
+            ? playerSafeQuestions.filter((question) => question.id === game.currentQuestionId)
             : [];
     const response = isAdmin || game.status === "completed"
         ? visibleQuestions
@@ -301,6 +331,11 @@ router.post("/games/:gameId/questions", requireAdmin, async (req, res): Promise<
      res.status(400).json({ error: parsed.error.message });
      return;
 }
+
+ if (parsed.data.imageUrl !== undefined && parsed.data.imageUrl !== null && !isAllowedImageUrl(parsed.data.imageUrl)) {
+     res.status(400).json({ error: "imageUrl must be a HTTPS Wikimedia Commons image URL" });
+     return;
+ }
 
 
 const [game] = await db
@@ -373,6 +408,11 @@ router.patch("/questions/:questionId", requireAdmin, async (req, res): Promise<v
      res.status(400).json({ error: parsed.error.message });
      return;
  }
+
+  if (parsed.data.imageUrl !== undefined && parsed.data.imageUrl !== null && !isAllowedImageUrl(parsed.data.imageUrl)) {
+      res.status(400).json({ error: "imageUrl must be a HTTPS Wikimedia Commons image URL" });
+      return;
+  }
 
  // Resolve the question's parent game so we can enforce ownership before mutating.
   const [existing] = await db

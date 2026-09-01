@@ -135,6 +135,26 @@ function getImageAttribution(options: unknown): { creditLine: string; licenseNam
     : null;
 }
 
+function getSafeImageUrl(imageUrl: string | null | undefined): string | null {
+  if (!imageUrl) return null;
+  try {
+    const url = new URL(imageUrl);
+    if (
+      url.protocol !== "https:"
+      || url.hostname !== "upload.wikimedia.org"
+      || url.port
+      || url.username
+      || url.password
+      || !url.pathname.startsWith("/wikipedia/commons/")
+    ) {
+      return null;
+    }
+    return imageUrl;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Shared styled button ─────────────────────────────────────────────────────
 export function ActionBtn({
   onClick, disabled = false, pending = false, pendingLabel, bg, color, children,
@@ -680,16 +700,17 @@ export function ImageQuestion({
 }) {
   const [val, setVal] = useState("");
   const imageAttribution = getImageAttribution(question.options);
+  const imageUrl = getSafeImageUrl(question.imageUrl);
   useEffect(() => { setVal(""); }, [question.id]);
   return (
     <div className="flex flex-col gap-4">
-      {question.imageUrl && (
+      {imageUrl && (
         <motion.div
           initial={{ opacity: 0, scale: 0.97 }}
           animate={{ opacity: 1, scale: 1 }}
           className="overflow-hidden rounded-xl border border-border/50 bg-background/60"
         >
-          <img src={question.imageUrl} alt="Identify this"
+          <img src={imageUrl} alt="Identify this"
             className="w-full max-h-80 object-contain" />
           {imageAttribution && (
             <p className="px-3 pb-2 pt-1 text-[11px] leading-snug text-muted-foreground">
@@ -741,6 +762,7 @@ export function ImageHotspotQuestion({
   feedbackResult: FeedbackResult | null;
 }) {
   const [tap, setTap] = useState<{ x: number; y: number } | null>(null);
+  const imageUrl = getSafeImageUrl(question.imageUrl);
   useEffect(() => { setTap(null); }, [question.id]);
 
   const answered   = !!feedbackResult;
@@ -755,7 +777,7 @@ export function ImageHotspotQuestion({
     setTap({ x: parseFloat(x.toFixed(2)), y: parseFloat(y.toFixed(2)) });
   };
 
-  if (!question.imageUrl) return null;
+  if (!imageUrl) return null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -770,7 +792,7 @@ export function ImageHotspotQuestion({
         onClick={handleClick}
       >
         <img
-          src={question.imageUrl}
+          src={imageUrl}
           alt="Tap the correct location"
           className="w-full block"
           style={{ maxHeight: 320, objectFit: "contain", display: "block" }}
@@ -1347,6 +1369,7 @@ export default function GamePlay() {
   );
 
   const current          = sorted[0];
+  const currentImageUrl  = getSafeImageUrl(current?.imageUrl);
   const answeredCount    = (myAnswers ?? []).length;
   const total            = game?.questionCount ?? 0;
   const awaitingHost     = !current || (answeredIds.has(current.id) && !feedback);
@@ -1617,9 +1640,9 @@ export default function GamePlay() {
                   </h2>
 
                   {/* Image (if present) */}
-                  {current.imageUrl && current.questionType !== "image_recognition" && current.questionType !== "image_hotspot" && (
+                  {currentImageUrl && current.questionType !== "image_recognition" && current.questionType !== "image_hotspot" && (
                     <div className="overflow-hidden rounded-xl border border-border/50 bg-background/60">
-                      <img src={current.imageUrl} alt="" className="w-full max-h-60 object-contain" />
+                      <img src={currentImageUrl} alt="" className="w-full max-h-60 object-contain" />
                     </div>
                   )}
 

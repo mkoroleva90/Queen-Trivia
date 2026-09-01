@@ -75,6 +75,26 @@ function getImageAttribution(options: unknown): { creditLine: string; licenseNam
     : null;
 }
 
+function getSafeImageUrl(imageUrl: string | null | undefined): string | null {
+  if (!imageUrl) return null;
+  try {
+    const url = new URL(imageUrl);
+    if (
+      url.protocol !== "https:"
+      || url.hostname !== "upload.wikimedia.org"
+      || url.port
+      || url.username
+      || url.password
+      || !url.pathname.startsWith("/wikipedia/commons/")
+    ) {
+      return null;
+    }
+    return imageUrl;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Multiple Choice ──────────────────────────────────────────────────────────
 
 export function MultipleChoiceQ({
@@ -402,13 +422,14 @@ export function ImageRecognitionQ({
   const [answer, setAnswer] = useState(lockedAnswer ?? '');
   const answered = !!lockedAnswer;
   const imageAttribution = getImageAttribution(question.options);
+  const imageUrl = getSafeImageUrl(question.imageUrl);
 
   return (
     <View style={styles.writeInContainer}>
-      {question.imageUrl ? (
+      {imageUrl ? (
         <View style={{ width: '100%', overflow: 'hidden', borderRadius: 14 }}>
           <Image
-            source={{ uri: question.imageUrl }}
+            source={{ uri: imageUrl }}
             style={{ width: '100%', height: 180 }}
             resizeMode="cover"
           />
@@ -462,6 +483,7 @@ export function ImageHotspotQ({
   const [pin, setPin] = useState<{ x: number; y: number } | null>(null);
   const imgSize = useRef({ w: 0, h: 0 });
   const answered = !!lockedAnswer;
+  const imageUrl = getSafeImageUrl(question.imageUrl);
 
   const lockedPin = answered
     ? (() => {
@@ -492,8 +514,8 @@ export function ImageHotspotQ({
           imgSize.current = { w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height };
         }}
       >
-        {question.imageUrl ? (
-          <Image source={{ uri: question.imageUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        {imageUrl ? (
+          <Image source={{ uri: imageUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
         ) : (
           <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.muted, alignItems: 'center', justifyContent: 'center' }]}>
             <Ionicons name="image-outline" size={40} color={colors.mutedForeground} />
