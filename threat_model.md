@@ -99,6 +99,7 @@ Auth, player join, answer submission, Gemini, OpenTDB, and reports endpoints hav
 - AI generation and import operations MUST remain authenticated, rate-limited, and usage-metered with an atomic per-account reservation or concurrency control.
 - Socket.IO events that trigger database work MUST have bounded rate/concurrency and disconnect or backpressure abusive clients.
 - Request bodies, uploaded/static content, and external calls MUST have bounded size/time.
+- Public static/update servers MUST reject malformed request metadata such as an invalid Host authority without allowing an uncaught exception to terminate the process.
 
 ### Repudiation
 
