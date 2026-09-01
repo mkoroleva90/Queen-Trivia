@@ -12,6 +12,7 @@ export { initSocket, revokeAdminSockets, revokePlayerFromGame, safeEmit } from "
 // Export for integration tests: the router is mounted at /api before the
 // global error handler, so test routes added to it will have 500-handling.
 export { globalErrorHandler, router };
+export { reserveAiUsage } from "./lib/usageLimits.ts";
 
 
 const app: Express = express();
@@ -105,4 +106,3 @@ app.use("/api", router);
 app.use(globalErrorHandler);
 
 export default app;
-

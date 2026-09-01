@@ -22,7 +22,7 @@ import {
 } from "../services/geminiApi.ts";
 import { logger } from "../lib/logger.ts";
 import { assertGameOwnership } from "../lib/assertGameOwnership.ts";
-import { checkAiUsageLimit, recordAiUsage } from "../lib/usageLimits.ts";
+import { reserveAiUsage } from "../lib/usageLimits.ts";
 import {
   anyContainsBannedContent,
   extractOptionTexts,
@@ -103,8 +103,12 @@ router.post(
 
         if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
-        // Per-host AI usage limit (enforcement gated by ENFORCE_FREE_TIER_LIMITS env var).
-        const limitError = await checkAiUsageLimit(req.session.adminAccountId);
+        const limitError = await reserveAiUsage(
+            req.session.adminAccountId,
+            game.id,
+            "generate_bulk",
+            body.data.amount,
+        );
         if (limitError) {
             res.status(429).json({ error: limitError });
             return;
@@ -194,9 +198,6 @@ router.post(
         await db.insert(questionsTable).values(toInsert);
         await syncQuestionCount(game.id);
 
-        // Record AI usage (non-fatal)
-        await recordAiUsage(req.session.adminAccountId, game.id, "generate_bulk", questions.length);
-
         const distinctTypes = new Set(questions.map((q) => q.questionType));
         // The standard mix only permits two types, so low variety is expected there.
         if (body.data.amount >= 5 && distinctTypes.size < 3 && body.data.mode !== "standard") {
@@ -244,9 +245,6 @@ router.post(
 
         if (!await assertGameOwnership(req, res, gameId)) return;
 
-        const limitError = await checkAiUsageLimit(req.session.adminAccountId);
-        if (limitError) { res.status(429).json({ error: limitError }); return; }
-
         const validTypes = ["multiple_choice", "true_false", "write_in"];
         const validDiffs = ["easy", "medium", "hard"];
         const questionType = (req.body.questionType ?? "multiple_choice") as string;
@@ -269,6 +267,14 @@ router.post(
 
         const points = difficulty === "easy" ? 5 : difficulty === "hard" ? 15 : 10;
 
+        const limitError = await reserveAiUsage(
+            req.session.adminAccountId,
+            gameId,
+            "generate_preview",
+            1,
+        );
+        if (limitError) { res.status(429).json({ error: limitError }); return; }
+
         const result = await regenerateSingleQuestion({
             topic: game.topic,
             difficulty: difficulty as "easy" | "medium" | "hard",
@@ -283,9 +289,6 @@ router.post(
             geminiErrorResponse(res, result.error);
             return;
         }
-
-        // Record usage after success (non-fatal)
-        await recordAiUsage(req.session.adminAccountId, gameId, "generate_preview", 1);
 
         res.json({
             questionType: result.question.questionType,
@@ -344,9 +347,6 @@ router.post(
 
         if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
-        const limitError = await checkAiUsageLimit(req.session.adminAccountId);
-        if (limitError) { res.status(429).json({ error: limitError }); return; }
-
         const difficulty =
             body.data.difficulty ?? (game.difficulty as "easy" | "medium" | "hard") ?? "medium";
 
@@ -363,6 +363,14 @@ router.post(
             .map((q) => q.questionText)
             .filter((t): t is string => typeof t === "string" && t.length > 0);
 
+        const limitError = await reserveAiUsage(
+            req.session.adminAccountId,
+            params.data.gameId,
+            "regenerate",
+            1,
+        );
+        if (limitError) { res.status(429).json({ error: limitError }); return; }
+
         const result = await regenerateSingleQuestion({
             topic: game.topic,
             difficulty,
@@ -377,8 +385,6 @@ router.post(
             geminiErrorResponse(res, result.error);
             return;
         }
-
-        await recordAiUsage(req.session.adminAccountId, params.data.gameId, "regenerate", 1);
 
         res.json({
             questionType: result.question.questionType,
@@ -406,9 +412,6 @@ router.post(
 
         if (!await assertGameOwnership(req, res, params.data.gameId)) return;
 
-        const limitError = await checkAiUsageLimit(req.session.adminAccountId);
-        if (limitError) { res.status(429).json({ error: limitError }); return; }
-
         const [question] = await db
             .select()
             .from(questionsTable)
@@ -427,6 +430,14 @@ router.post(
         const choices =
             (question.options as { choices?: string[] } | null)?.choices ?? [];
 
+        const limitError = await reserveAiUsage(
+            req.session.adminAccountId,
+            params.data.gameId,
+            "enhance",
+            1,
+        );
+        if (limitError) { res.status(429).json({ error: limitError }); return; }
+
         const result = await enhanceQuestion({
             questionType: question.questionType,
             questionText: question.questionText,
@@ -440,8 +451,6 @@ router.post(
             geminiErrorResponse(res, result.error);
             return;
         }
-
-        await recordAiUsage(req.session.adminAccountId, params.data.gameId, "enhance", 1);
 
         res.json({
             improvedQuestionText: result.data.improvedQuestionText,

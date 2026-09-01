@@ -15,7 +15,7 @@ import {
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { opentdbRateLimit } from "../middleware/providerRateLimit.ts";
 import { assertGameOwnership } from "../lib/assertGameOwnership.ts";
-import { checkAiUsageLimit, recordAiUsage } from "../lib/usageLimits.ts";
+import { reserveAiUsage } from "../lib/usageLimits.ts";
 
 
 const router: IRouter = Router();
@@ -132,7 +132,12 @@ await db.insert(questionsTable).values(toInsert);
       return;
   }
 
-  const limitError = await checkAiUsageLimit(req.session.adminAccountId);
+  const limitError = await reserveAiUsage(
+      req.session.adminAccountId,
+      game.id,
+      "generate_bulk",
+      body.data.amount,
+  );
   if (limitError) {
       res.status(429).json({ error: limitError });
       return;
@@ -192,8 +197,6 @@ await db.insert(questionsTable).values(toInsert);
 
   await db.insert(questionsTable).values(toInsert);
   await syncQuestionCount(game.id);
-  await recordAiUsage(req.session.adminAccountId, game.id, "generate_bulk", supplemented.aiDelivered);
-
   res.json(
       ImportOpenTdbQuestionsResponse.parse({
           imported: supplemented.questions.length,

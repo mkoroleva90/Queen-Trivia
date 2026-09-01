@@ -25,3 +25,4 @@
 - [API eval worker flags](api-eval-worker-flags.md) — avoid `node --input-type=module` for one-off scripts importing the built API; Pino workers inherit the flag and crash.
 - [Live gameplay confidentiality](live-gameplay-confidentiality.md) — active players may see identities and their own score, never correctness aggregates, peer scores, or score-ranked ordering.
 - [Decoder module compatibility](decoder-module-compatibility.md) — patched decoder releases are ESM-only, while React Navigation’s query-string dependency still requires CommonJS.
+- [Provider abuse controls](provider-abuse-controls.md) — reserve AI usage atomically before provider calls; provider throttles must be shared, account-scoped, and fail closed.

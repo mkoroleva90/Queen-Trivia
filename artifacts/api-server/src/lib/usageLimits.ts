@@ -103,70 +103,69 @@ export async function checkGameCreationLimit(
   return null;
 }
 
-// ── AI usage limit ─────────────────────────────────────────────────────────────
+// ── AI usage reservation ───────────────────────────────────────────────────────
 
 /**
- * Check whether the host may perform another AI action this month.
- * Returns null if allowed, or a friendly error message string if blocked.
- * Always returns null when enforcement is off.
+ * Atomically reserve and record an AI action before any provider work begins.
+ *
+ * The transaction-scoped advisory lock serializes reservations for one host
+ * across every API replica. This prevents concurrent requests from observing
+ * the same pre-limit count and all starting expensive provider operations.
+ *
+ * Returns null when reserved, or a friendly error message when blocked.
+ * Metering still occurs when enforcement is disabled and for pro accounts.
+ * Database errors intentionally propagate so provider work fails closed when
+ * a durable reservation cannot be created.
  */
-export async function checkAiUsageLimit(
-  adminAccountId: number | null | undefined,
-): Promise<string | null> {
-  if (!enforcementEnabled()) return null;
-  if (adminAccountId == null) return null;
-
-  const plan = await getAdminPlan(adminAccountId);
-  if (plan === "pro") return null;
-
-  const limit = freeTierAiActionsPerMonth();
-  const since = startOfCurrentMonth();
-
-  const [row] = await db
-    .select({ value: count() })
-    .from(aiUsageLogTable)
-    .where(
-      and(
-        eq(aiUsageLogTable.adminAccountId, adminAccountId),
-        gte(aiUsageLogTable.createdAt, since),
-      ),
-    );
-
-  const used = row?.value ?? 0;
-  if (used >= limit) {
-    return (
-      `Monthly limit reached: you've used ${used} of ${limit} AI generation actions this month. ` +
-      `Your limit resets on ${resetDateString()}.`
-    );
-  }
-  return null;
-}
-
-// ── Usage recording ────────────────────────────────────────────────────────────
-
-/**
- * Record one AI usage event.  Called after every successful Gemini operation,
- * regardless of whether enforcement is on.  Errors are swallowed so logging
- * never blocks the response.
- */
-export async function recordAiUsage(
+export async function reserveAiUsage(
   adminAccountId: number | null | undefined,
   gameId: number | null | undefined,
   action: "generate_bulk" | "generate_preview" | "regenerate" | "enhance" | "fact_check",
   questionCount = 1,
-): Promise<void> {
-  if (adminAccountId == null) return; // legacy session — nothing to record
-  try {
-    await db.insert(aiUsageLogTable).values({
+): Promise<string | null> {
+  if (adminAccountId == null) return null; // legacy session — nothing to record
+
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${adminAccountId})`);
+
+    if (enforcementEnabled()) {
+      const [account] = await tx
+        .select({ plan: adminAccountsTable.plan })
+        .from(adminAccountsTable)
+        .where(eq(adminAccountsTable.id, adminAccountId))
+        .limit(1);
+
+      if ((account?.plan ?? "free") !== "pro") {
+        const limit = freeTierAiActionsPerMonth();
+        const since = startOfCurrentMonth();
+        const [row] = await tx
+          .select({ value: count() })
+          .from(aiUsageLogTable)
+          .where(
+            and(
+              eq(aiUsageLogTable.adminAccountId, adminAccountId),
+              gte(aiUsageLogTable.createdAt, since),
+            ),
+          );
+
+        const used = row?.value ?? 0;
+        if (used >= limit) {
+          return (
+            `Monthly limit reached: you've used ${used} of ${limit} AI generation actions this month. ` +
+            `Your limit resets on ${resetDateString()}.`
+          );
+        }
+      }
+    }
+
+    await tx.insert(aiUsageLogTable).values({
       adminAccountId,
       gameId: gameId ?? null,
       action,
       questionCount,
     });
-  } catch (err) {
-    // Non-fatal — never block the response for a logging failure
-    console.error("[usageLimits] recordAiUsage failed:", err);
-  }
+    return null;
+  });
 }
 
 // ── Aggregate helpers for owner dashboard ─────────────────────────────────────

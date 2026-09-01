@@ -122,6 +122,8 @@ export class PgRollingRateLimitStore {
 export class PgRateLimitStore implements Store {
   private windowMs: number = 60_000;
 
+  constructor(private readonly failOpen = true) {}
+
   /** Called by express-rate-limit when the middleware is initialised. */
   init(options: Options): void {
     this.windowMs = options.windowMs;
@@ -163,8 +165,11 @@ export class PgRateLimitStore implements Store {
         });
 
       return { totalHits: result.rows[0]!.hits, resetTime };
-    } catch {
-      // Fail open: allow the request if the store is unavailable.
+    } catch (error) {
+      if (!this.failOpen) {
+        throw error;
+      }
+      // Low-risk callers may fail open when the shared store is unavailable.
       return { totalHits: 1, resetTime };
     }
   }
