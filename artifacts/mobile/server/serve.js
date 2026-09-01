@@ -14,6 +14,7 @@ const fs = require('fs');
 const path = require('path');
 
 const STATIC_ROOT = path.resolve(__dirname, '..', 'static-build');
+const STATIC_ROOT_PREFIX = `${STATIC_ROOT}${path.sep}`;
 const TEMPLATE_PATH = path.resolve(__dirname, 'templates', 'landing-page.html');
 const basePath = (process.env.BASE_PATH || '/').replace(/\/+$/, '');
 
@@ -70,7 +71,10 @@ function serveManifest(platform, res) {
     return;
   }
 
-  const manifestPath = path.join(STATIC_ROOT, platform, 'manifest.json');
+  const manifestPath =
+    platform === 'ios'
+      ? path.join(STATIC_ROOT, 'ios', 'manifest.json')
+      : path.join(STATIC_ROOT, 'android', 'manifest.json');
 
   if (!fs.existsSync(manifestPath)) {
     res.writeHead(404, { 'content-type': 'application/json' });
@@ -110,7 +114,7 @@ function serveStaticFile(urlPath, res) {
   const safePath = path.normalize(urlPath).replace(/^(\.\.(\/|\\|$))+/, '');
   const filePath = path.join(STATIC_ROOT, safePath);
 
-  if (!filePath.startsWith(STATIC_ROOT)) {
+  if (filePath !== STATIC_ROOT && !filePath.startsWith(STATIC_ROOT_PREFIX)) {
     res.writeHead(403);
     res.end('Forbidden');
     return;
