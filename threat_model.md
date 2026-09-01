@@ -48,9 +48,10 @@ Host registration is open to visitors with a valid email address. Accounts remai
 - Cookies MUST be httpOnly, Secure in production, and SameSite constrained.
 - SSO tokens MUST verify signature, issuer, audience, expiry, and subject.
 - Player and host session types MUST not be confused when applying authorization.
-- Per-game access codes MUST use a CSPRNG and MUST never appear in player responses.
+- Per-game access codes MUST use a CSPRNG, have sufficient entropy even when host-customized, and MUST never appear in player responses.
 - Password-reset, password-change, and account-deletion actions MUST revoke prior host sessions/tokens and every connected replica's sockets.
 - Password-reset codes MUST have sufficient entropy and failed attempts MUST be bounded per account as well as per source.
+- Browser login endpoints that establish sessions MUST reject cross-site form submissions using an anti-CSRF mechanism or equivalent origin/fetch-metadata policy.
 
 ### Tampering
 
@@ -90,12 +91,12 @@ Host routes use `requireAdmin`, player routes use `requireUser`, and shared read
 
 ### Denial of Service
 
-Auth, player join, answer submission, Gemini, OpenTDB, and reports endpoints have rate limits. Public reports use a PostgreSQL-backed store, and Socket.IO game joins have per-socket request/concurrency limits. External service calls are bounded where supported and target fixed provider origins. Rate-limit stores currently fail open if PostgreSQL is unavailable, so outage behavior must not expose a practical brute-force or provider-abuse path.
+Auth, player join, answer submission, Gemini, OpenTDB, and reports endpoints have rate limits. Public reports use a PostgreSQL-backed store, and Socket.IO game joins have per-socket request/concurrency limits. External service calls are bounded where supported and target fixed provider origins. Rate-limit stores currently fail open if PostgreSQL is unavailable, so outage behavior must not expose a practical brute-force or provider-abuse path. Gemini free-tier enforcement is enabled in production, but its check and usage recording are separate from provider work and must not permit concurrent requests to bypass the per-account monthly cap.
 
 **Required guarantees:**
 - Password, reset-code, and SSO endpoints MUST resist distributed brute force and abuse.
 - Auth and reset-code limits MUST persist across restarts and replicas, and reset attempts MUST be bound to the target account.
-- AI generation and import operations MUST remain authenticated, rate-limited, and usage-metered.
+- AI generation and import operations MUST remain authenticated, rate-limited, and usage-metered with an atomic per-account reservation or concurrency control.
 - Socket.IO events that trigger database work MUST have bounded rate/concurrency and disconnect or backpressure abusive clients.
 - Request bodies, uploaded/static content, and external calls MUST have bounded size/time.
 
