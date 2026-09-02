@@ -358,8 +358,6 @@ export const CreateQuestionParams = zod.object({
 
 export const createQuestionBodyOrderIndexMin = 0;
 
-export const createQuestionBodyImageUrlRegExp = new RegExp('^https://upload\\.wikimedia\\.org/wikipedia/commons/[^\\s?#]+(?:[?#][^\\s]*)?$');
-
 export const createQuestionBodyFactCheckUrlRegExp = new RegExp('^https?://[^/\\s?#]+(?:[/?#][^\\s]*)?$');
 
 
@@ -368,7 +366,7 @@ export const CreateQuestionBody = zod.object({
   "questionType": zod.enum(['multiple_choice', 'write_in', 'matching', 'image_recognition', 'true_false', 'multi_select', 'ordering', 'slider', 'image_hotspot', 'short_response']),
   "correctAnswer": zod.string().min(1),
   "options": zod.record(zod.string(), zod.unknown()).nullish(),
-  "imageUrl": zod.string().regex(createQuestionBodyImageUrlRegExp).nullish(),
+  "imageUrl": zod.string().nullish(),
   "points": zod.number().min(1),
   "orderIndex": zod.number().min(createQuestionBodyOrderIndexMin),
   "source": zod.string().nullish(),
@@ -406,8 +404,6 @@ export const UpdateQuestionParams = zod.object({
 
 export const updateQuestionBodyOrderIndexMin = 0;
 
-export const updateQuestionBodyImageUrlRegExp = new RegExp('^https://upload\\.wikimedia\\.org/wikipedia/commons/[^\\s?#]+(?:[?#][^\\s]*)?$');
-
 export const updateQuestionBodyFactCheckUrlRegExp = new RegExp('^https?://[^/\\s?#]+(?:[/?#][^\\s]*)?$');
 
 
@@ -416,7 +412,7 @@ export const UpdateQuestionBody = zod.object({
   "questionType": zod.enum(['multiple_choice', 'write_in', 'matching', 'image_recognition', 'true_false', 'multi_select', 'ordering', 'slider', 'image_hotspot', 'short_response']).optional(),
   "correctAnswer": zod.string().min(1).optional(),
   "options": zod.record(zod.string(), zod.unknown()).nullish(),
-  "imageUrl": zod.string().regex(updateQuestionBodyImageUrlRegExp).nullish(),
+  "imageUrl": zod.string().nullish(),
   "points": zod.number().min(1).optional(),
   "orderIndex": zod.number().min(updateQuestionBodyOrderIndexMin).optional(),
   "source": zod.string().nullish(),

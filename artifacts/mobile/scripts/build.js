@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const net = require('net');
 const { spawn } = require('child_process');
 const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
@@ -114,9 +115,34 @@ function clearMetroCache() {
   console.log('Cache cleared');
 }
 
-async function checkMetroHealth() {
+function findAvailablePort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.unref();
+    server.on('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      const port = typeof address === 'object' && address ? address.port : null;
+      server.close((error) => {
+        if (error) {
+          reject(error);
+        } else if (!port) {
+          reject(new Error('Could not allocate a Metro port'));
+        } else {
+          resolve(port);
+        }
+      });
+    });
+  });
+}
+
+function getMetroUrl(port, pathname) {
+  return new URL(pathname, `http://127.0.0.1:${port}`);
+}
+
+async function checkMetroHealth(port) {
   try {
-    const response = await fetch('http://localhost:8081/status', {
+    const response = await fetch(getMetroUrl(port, '/status'), {
       signal: AbortSignal.timeout(5000),
     });
     return response.ok;
@@ -129,17 +155,12 @@ function getExpoPublicReplId() {
   return process.env.REPL_ID || process.env.EXPO_PUBLIC_REPL_ID;
 }
 
-async function startMetro(expoPublicDomain, expoPublicReplId) {
-  const isRunning = await checkMetroHealth();
-  if (isRunning) {
-    console.log('Metro already running');
-    return;
-  }
-
-  console.log('Starting Metro...');
+async function startMetro(expoPublicDomain, expoPublicReplId, port) {
+  console.log(`Starting Metro on port ${port}...`);
   console.log(`Setting EXPO_PUBLIC_DOMAIN=${expoPublicDomain}`);
   const env = {
     ...process.env,
+    CI: '1',
     EXPO_PUBLIC_DOMAIN: expoPublicDomain,
     EXPO_PUBLIC_REPL_ID: expoPublicReplId,
   };
@@ -150,7 +171,16 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
 
   metroProcess = spawn(
     'pnpm',
-    ['exec', 'expo', 'start', '--no-dev', '--minify', '--localhost'],
+    [
+      'exec',
+      'expo',
+      'start',
+      '--no-dev',
+      '--minify',
+      '--localhost',
+      '--port',
+      String(port),
+    ],
     {
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: false,
@@ -175,7 +205,7 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
   for (let i = 0; i < 60; i++) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    const healthy = await checkMetroHealth();
+    const healthy = await checkMetroHealth(port);
     if (healthy) {
       console.log('Metro ready');
       return;
@@ -222,7 +252,7 @@ async function downloadFile(url, outputPath) {
   }
 }
 
-async function downloadBundle(platform, timestamp) {
+async function downloadBundle(platform, timestamp, metroPort) {
   const entryPath = path.resolve(
     projectRoot,
     'node_modules',
@@ -230,7 +260,7 @@ async function downloadBundle(platform, timestamp) {
     'entry',
   );
   const bundlePath = path.relative(workspaceRoot, entryPath);
-  const url = new URL(`http://localhost:8081/${bundlePath}.bundle`);
+  const url = getMetroUrl(metroPort, `/${bundlePath}.bundle`);
   url.searchParams.set('platform', platform);
   url.searchParams.set('dev', 'false');
   url.searchParams.set('hot', 'false');
@@ -252,13 +282,13 @@ async function downloadBundle(platform, timestamp) {
   console.log(`${platform} bundle ready`);
 }
 
-async function downloadManifest(platform) {
+async function downloadManifest(platform, metroPort) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 300_000);
 
   try {
     console.log(`Fetching ${platform} manifest...`);
-    const response = await fetch('http://localhost:8081/manifest', {
+    const response = await fetch(getMetroUrl(metroPort, '/manifest'), {
       headers: { 'expo-platform': platform },
       signal: controller.signal,
     });
@@ -282,19 +312,19 @@ async function downloadManifest(platform) {
   }
 }
 
-async function downloadBundlesAndManifests(timestamp) {
+async function downloadBundlesAndManifests(timestamp, metroPort) {
   console.log('Downloading bundles and manifests...');
   console.log('This may take several minutes for production builds...');
 
   try {
     // Bundles are sequential — Metro can't handle both platforms simultaneously
     // without stalling. Manifests are cheap and run in parallel after.
-    await downloadBundle('ios', timestamp);
-    await downloadBundle('android', timestamp);
+    await downloadBundle('ios', timestamp, metroPort);
+    await downloadBundle('android', timestamp, metroPort);
 
     const [iosManifest, androidManifest] = await Promise.all([
-      downloadManifest('ios'),
-      downloadManifest('android'),
+      downloadManifest('ios', metroPort),
+      downloadManifest('android', metroPort),
     ]);
 
     console.log('All downloads completed successfully');
@@ -304,7 +334,7 @@ async function downloadBundlesAndManifests(timestamp) {
   }
 }
 
-function extractAssets(timestamp) {
+function extractAssets(timestamp, metroPort) {
   const staticBuild = path.join(projectRoot, 'static-build');
   const bundles = {
     ios: fs.readFileSync(
@@ -342,7 +372,7 @@ function extractAssets(timestamp) {
       const originalPath = match[1];
       const filename = match[3] + '.' + match[4];
 
-      const tempUrl = new URL(`http://localhost:8081${originalPath}`);
+      const tempUrl = getMetroUrl(metroPort, originalPath);
       const unstablePath = tempUrl.searchParams.get('unstable_path');
 
       if (!unstablePath) {
@@ -374,7 +404,7 @@ function extractAssets(timestamp) {
   return Array.from(assetsMap.values());
 }
 
-async function downloadAssets(assets, timestamp) {
+async function downloadAssets(assets, timestamp, metroPort) {
   if (assets.length === 0) {
     return 0;
   }
@@ -384,7 +414,7 @@ async function downloadAssets(assets, timestamp) {
   const failures = [];
 
   const downloadPromises = assets.map(async (asset) => {
-    const tempUrl = new URL(`http://localhost:8081${asset.originalPath}`);
+    const tempUrl = getMetroUrl(metroPort, asset.originalPath);
     const unstablePath = tempUrl.searchParams.get('unstable_path');
 
     if (!unstablePath) {
@@ -440,7 +470,7 @@ async function downloadAssets(assets, timestamp) {
   return successCount;
 }
 
-function updateBundleUrls(timestamp, baseUrl) {
+function updateBundleUrls(timestamp, baseUrl, metroPort) {
   const updateForPlatform = (platform) => {
     const bundlePath = path.join(
       projectRoot,
@@ -457,7 +487,7 @@ function updateBundleUrls(timestamp, baseUrl) {
     bundle = bundle.replace(
       /httpServerLocation:"(\/[^"]+)"/g,
       (_match, capturedPath) => {
-        const tempUrl = new URL(`http://localhost:8081${capturedPath}`);
+        const tempUrl = getMetroUrl(metroPort, capturedPath);
         const unstablePath = tempUrl.searchParams.get('unstable_path');
 
         if (!unstablePath) {
@@ -530,14 +560,15 @@ async function main() {
   const expoPublicReplId = getExpoPublicReplId();
   const baseUrl = `https://${domain}`;
   const timestamp = `${Date.now()}-${process.pid}`;
+  const metroPort = await findAvailablePort();
 
   prepareDirectories(timestamp);
   clearMetroCache();
 
-  await startMetro(domain, expoPublicReplId);
+  await startMetro(domain, expoPublicReplId, metroPort);
 
   const downloadTimeout = 600000;
-  const downloadPromise = downloadBundlesAndManifests(timestamp);
+  const downloadPromise = downloadBundlesAndManifests(timestamp, metroPort);
   const timeoutPromise = new Promise((_, reject) => {
     setTimeout(() => {
       reject(
@@ -552,7 +583,7 @@ async function main() {
   const manifests = await Promise.race([downloadPromise, timeoutPromise]);
 
   console.log('Processing assets...');
-  const assets = extractAssets(timestamp);
+  const assets = extractAssets(timestamp, metroPort);
   console.log('Found', assets.length, 'unique asset(s)');
 
   const assetsByHash = new Map();
@@ -563,10 +594,10 @@ async function main() {
     });
   }
 
-  const assetCount = await downloadAssets(assets, timestamp);
+  const assetCount = await downloadAssets(assets, timestamp, metroPort);
 
   if (assetCount > 0) {
-    updateBundleUrls(timestamp, baseUrl);
+    updateBundleUrls(timestamp, baseUrl, metroPort);
   }
 
   console.log('Updating manifests and creating landing page...');
