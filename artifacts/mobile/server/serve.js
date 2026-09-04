@@ -150,7 +150,17 @@ const landingPageTemplate = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
 const appName = getAppName();
 
 const server = http.createServer((req, res) => {
-  const url = new URL(req.url || '/', `http://${req.headers.host}`);
+  let url;
+  try {
+    // Routing only depends on the request target. Never use the untrusted Host
+    // header as the URL base: parser-accepted malformed authorities can make
+    // the WHATWG URL constructor throw and terminate the server process.
+    url = new URL(req.url || '/', 'http://localhost');
+  } catch {
+    res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
+    res.end('Bad Request');
+    return;
+  }
   let pathname = url.pathname;
 
   if (basePath && pathname.startsWith(basePath)) {
@@ -179,5 +189,7 @@ const server = http.createServer((req, res) => {
 
 const port = parseInt(process.env.PORT || '3000', 10);
 server.listen(port, '0.0.0.0', () => {
-  console.log(`Serving static Expo build on port ${port}`);
+  const address = server.address();
+  const listeningPort = typeof address === 'object' && address ? address.port : port;
+  console.log(`Serving static Expo build on port ${listeningPort}`);
 });
