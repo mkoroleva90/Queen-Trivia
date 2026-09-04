@@ -106,6 +106,10 @@ function redactPlayerQuestion<T extends {
 
     if (!options) return safeQuestion;
 
+    // Alternate answers are grading data for write-in and image-recognition
+    // questions. They must never be included in an active player's payload.
+    delete options.alternateAnswers;
+
     if (safeQuestion.questionType === "ordering") {
         const items = options.items;
         if (Array.isArray(items) && items.every((item): item is string => typeof item === "string")) {

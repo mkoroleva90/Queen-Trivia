@@ -230,8 +230,8 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
     let playerName: string | undefined;
     try {
       const game = await pool.query<{ id: number }>(
-        `INSERT INTO games (topic, difficulty, question_count, status, access_code, created_by_admin)
-         VALUES ('Question redaction test', 'easy', 2, 'active', $1, true)
+         `INSERT INTO games (topic, difficulty, question_count, status, access_code, created_by_admin)
+          VALUES ('Question redaction test', 'easy', 3, 'active', $1, true)
          RETURNING id`,
         [code],
       );
@@ -239,9 +239,10 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
       const questions = await pool.query<{ id: number }>(
         `INSERT INTO questions
           (game_id, question_text, question_type, correct_answer, options, points, order_index)
-         VALUES
-          ($1, 'Match them', 'matching', 'A:1|B:2|C:3', $2::jsonb, 10, 0),
-          ($1, 'Put in order', 'ordering', 'first|second|third', $3::jsonb, 10, 1)
+          VALUES
+           ($1, 'Match them', 'matching', 'A:1|B:2|C:3', $2::jsonb, 10, 0),
+           ($1, 'Put in order', 'ordering', 'first|second|third', $3::jsonb, 10, 1),
+           ($1, 'Name the city', 'write_in', 'Paris', $4::jsonb, 10, 2)
          RETURNING id`,
         [
           redactionGameId,
@@ -251,10 +252,15 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
             { left: "C", right: "3" },
           ] }),
           JSON.stringify({ items: ["first", "second", "third"] }),
+           JSON.stringify({
+             alternateAnswers: ["City of Paris", "Paris, France"],
+             presentationHint: "European capital",
+           }),
         ],
       );
       const matchingId = questions.rows[0]!.id;
       const orderingId = questions.rows[1]!.id;
+      const writeInId = questions.rows[2]!.id;
       await pool.query(
         "UPDATE games SET current_question_id = $1 WHERE id = $2",
         [matchingId, redactionGameId],
@@ -292,6 +298,24 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
       const ordering = await agent.get(`/api/games/${redactionGameId}/questions`);
       assert.equal(ordering.body[0].correctAnswer, undefined);
       assert.notDeepEqual(ordering.body[0].options.items, ["first", "second", "third"]);
+
+      await pool.query(
+        "UPDATE games SET current_question_id = $1 WHERE id = $2",
+        [writeInId, redactionGameId],
+      );
+      const writeIn = await agent.get(`/api/games/${redactionGameId}/questions`);
+      assert.equal(writeIn.status, 200, JSON.stringify(writeIn.body));
+      assert.equal(writeIn.body[0].correctAnswer, undefined);
+      assert.equal(
+        writeIn.body[0].options.alternateAnswers,
+        undefined,
+        "active players must not receive accepted alternate answers",
+      );
+      assert.equal(
+        writeIn.body[0].options.presentationHint,
+        "European capital",
+        "redaction should preserve non-grading presentation metadata",
+      );
     } finally {
       if (redactionGameId) await pool.query("DELETE FROM games WHERE id = $1", [redactionGameId]);
       if (playerName) await pool.query("DELETE FROM users WHERE name = $1", [playerName]);
