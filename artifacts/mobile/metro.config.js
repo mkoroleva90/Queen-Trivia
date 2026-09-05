@@ -6,9 +6,16 @@ const workspaceRoot = path.resolve(projectRoot, '../..');
 
 const config = getDefaultConfig(projectRoot);
 
-// Required for pnpm monorepos: let Metro watch & resolve packages from the
-// workspace root so symlinked workspace packages are found correctly.
-config.watchFolders = [workspaceRoot];
+// Keep pnpm's shared dependency tree and the mobile app's workspace packages
+// visible to Metro without watching volatile workspace directories (such as
+// temporary skill folders) that may disappear while Metro is crawling them.
+config.watchFolders = [
+  path.resolve(workspaceRoot, 'node_modules'),
+  path.resolve(workspaceRoot, 'lib/api-client-react'),
+  path.resolve(workspaceRoot, 'lib/copy'),
+  path.resolve(workspaceRoot, 'lib/live-tally'),
+  path.resolve(workspaceRoot, 'lib/socket-contract'),
+];
 
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
