@@ -296,15 +296,32 @@ if (containsBannedContent(parsed.data.userAnswer)) {
         const alternates = opts?.alternateAnswers ?? [];
 
 
-const { isCorrect, pointsEarned, feedback, needsReview } = await gradeAnswer(
-    question.questionType,
-    parsed.data.userAnswer,
-    decodeHtml(question.correctAnswer),
-    question.points,
-    alternates,
-    question.options as Record<string, unknown> | null,
-    decodeHtml(question.questionText),
-);
+// Empty userAnswer = explicit skip — record as zero without calling gradeAnswer.
+// Mirrors the host-answer route: avoids a wasted AI call for short_response
+// questions (and a spurious needs_review); the answer is still stored with
+// isCorrect=false so the player cannot answer the question again.
+let isCorrect: boolean;
+let pointsEarned: number;
+let feedback: string | undefined;
+let needsReview = false;
+if (parsed.data.userAnswer === "") {
+    isCorrect = false;
+    pointsEarned = 0;
+} else {
+    const grade = await gradeAnswer(
+        question.questionType,
+        parsed.data.userAnswer,
+        decodeHtml(question.correctAnswer),
+        question.points,
+        alternates,
+        question.options as Record<string, unknown> | null,
+        decodeHtml(question.questionText),
+    );
+    isCorrect = grade.isCorrect;
+    pointsEarned = grade.pointsEarned;
+    feedback = grade.feedback;
+    needsReview = grade.needsReview ?? false;
+}
 
 
 const result = await db.transaction(async (tx) => {
