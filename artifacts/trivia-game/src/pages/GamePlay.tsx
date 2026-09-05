@@ -1374,7 +1374,9 @@ export default function GamePlay() {
   const total            = game?.questionCount ?? 0;
   const awaitingHost     = !current || (answeredIds.has(current.id) && !feedback);
   const isLastQuestion   = !!current && current.orderIndex === total - 1;
-  const canSkip          = false;
+  // Players only ever hold the released question, so a skip cannot defer it —
+  // it records a blank (zero-point) answer so the player can move on.
+  const canSkip          = !!current && !isLastQuestion;
 
   const sortedParticipants = useMemo(
     () => [...(participants ?? [])].sort((a, b) => (b.totalScore ?? 0) - (a.totalScore ?? 0)),
@@ -1391,8 +1393,8 @@ export default function GamePlay() {
     if (current?.id) questionStartRef.current = Date.now();
   }, [current?.id]);
 
-  const handleSubmit = (question: Question, userAnswer: string) => {
-    if (!userAnswer.trim() || submitAnswer.isPending) return;
+  const handleSubmit = (question: Question, userAnswer: string, isSkip = false) => {
+    if ((!isSkip && !userAnswer.trim()) || submitAnswer.isPending) return;
     const timeTaken = ((Date.now() - questionStartRef.current) / 1000).toFixed(1);
 
     submitAnswer.mutate(
@@ -1436,10 +1438,12 @@ export default function GamePlay() {
   };
 
   const renderQuestion = (q: Question) => {
-    const fr: FeedbackResult | null = feedback?.questionId === q.id
+    // A skipped question has no answer to reveal inline — just lock it.
+    const skipped = feedback?.questionId === q.id && lockedAnswer === "";
+    const fr: FeedbackResult | null = feedback?.questionId === q.id && !skipped
       ? { isCorrect: feedback.isCorrect, lockedAnswer: lockedAnswer ?? "", correctAnswer: feedback.correctAnswer }
       : null;
-    const sub = { question: q, disabled: submitAnswer.isPending };
+    const sub = { question: q, disabled: submitAnswer.isPending || skipped };
     switch (q.questionType) {
       case "multiple_choice":
         return <MultipleChoiceQuestion {...sub} onSubmit={(a) => handleSubmit(q, a)} feedbackResult={fr} />;
@@ -1676,7 +1680,9 @@ export default function GamePlay() {
                             className="font-extrabold text-sm"
                             style={{ color: feedback.isCorrect ? "#00ddff" : "#ff0080" }}
                           >
-                            {feedback.isCorrect ? COPY.gameplay.feedbackCorrect : COPY.gameplay.feedbackWrong}{" "}
+                            {lockedAnswer === ""
+                              ? COPY.results.unanswered
+                              : feedback.isCorrect ? COPY.gameplay.feedbackCorrect : COPY.gameplay.feedbackWrong}{" "}
                             {feedback.pointsEarned > 0 ? `+${feedback.pointsEarned}` : "0"} pts
                           </span>
                           <span style={{ color: "#475569" }}>·</span>
@@ -1847,7 +1853,10 @@ export default function GamePlay() {
                   </button>
                   <button
                     onClick={() => {
-                      if (current) setSkippedIds((prev) => new Set([...prev, current.id]));
+                      if (current) {
+                        setSkippedIds((prev) => new Set([...prev, current.id]));
+                        handleSubmit(current, "", true);
+                      }
                       setSkipConfirm(false);
                     }}
                     className="flex-1 py-2.5 rounded-xl text-sm font-bold transition hover:brightness-110"

@@ -681,7 +681,7 @@ export function MatchingQ({
 
 // ─── Feedback Overlay ─────────────────────────────────────────────────────────
 
-function FeedbackCard({ feedback, onNext, isLast }: { feedback: Feedback; onNext: () => void; isLast: boolean }) {
+function FeedbackCard({ feedback, onNext, isLast, skipped = false }: { feedback: Feedback; onNext: () => void; isLast: boolean; skipped?: boolean }) {
   const colors = useColors();
   return (
     <View style={[styles.feedbackCard, { backgroundColor: feedback.isCorrect ? 'rgba(0,221,255,.12)' : 'rgba(255,0,128,.12)', borderColor: feedback.isCorrect ? colors.secondary : colors.primary }]}>
@@ -693,7 +693,9 @@ function FeedbackCard({ feedback, onNext, isLast }: { feedback: Feedback; onNext
         />
         <View>
           <Text style={[styles.feedbackTitle, { color: feedback.isCorrect ? colors.secondary : colors.primary }]}>
-            {feedback.isCorrect ? COPY.gameplay.feedbackCorrect : COPY.gameplay.feedbackWrong}
+            {skipped
+              ? COPY.results.unanswered
+              : feedback.isCorrect ? COPY.gameplay.feedbackCorrect : COPY.gameplay.feedbackWrong}
           </Text>
           <Text style={[styles.feedbackPoints, { color: colors.foreground }]}>
             +{feedback.pointsEarned} pts · {feedback.timeTaken}s
@@ -771,7 +773,11 @@ export default function GamePlayScreen() {
   const total = game?.questionCount ?? 0;
   const awaitingHost = !current || (answeredIds.has(current.id) && !feedback);
   const isLastQuestion = !!current && current.orderIndex === total - 1;
-  const canSkip = false;
+  // Players only ever hold the released question, so a skip cannot defer it —
+  // it records a blank (zero-point) answer so the player can move on.
+  const canSkip = !!current && !isLastQuestion;
+  // A skipped question has no answer to lock the components with — disable them explicitly.
+  const questionDisabled = submitAnswer.isPending || (!!feedback && lockedAnswer === '');
   const scoreFromAnswers = (myAnswers ?? []).reduce((sum, answer) => sum + answer.pointsEarned, 0);
   const myScore = Math.max(scoreFromAnswers, feedback?.totalScore ?? 0);
 
@@ -790,8 +796,8 @@ export default function GamePlayScreen() {
     }
   }, [game?.status, current, answeredCount, total, gameId, router]);
 
-  const handleSubmit = (answer: string) => {
-    if (!current || !answer.trim() || submitAnswer.isPending) return;
+  const handleSubmit = (answer: string, isSkip = false) => {
+    if (!current || (!isSkip && !answer.trim()) || submitAnswer.isPending) return;
     const timeTaken = ((Date.now() - questionStartRef.current) / 1000).toFixed(1);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -952,7 +958,10 @@ export default function GamePlayScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => {
-                  if (current) setSkippedIds((prev) => new Set([...prev, current.id]));
+                  if (current) {
+                    setSkippedIds((prev) => new Set([...prev, current.id]));
+                    handleSubmit('', true);
+                  }
                   setSkipConfirm(false);
                 }}
                 style={styles.skipDialogBtnConfirm}
@@ -997,34 +1006,34 @@ export default function GamePlayScreen() {
             {/* Question renderer */}
             <View style={styles.questionBody}>
               {current.questionType === 'multiple_choice' && (
-                <MultipleChoiceQ question={current} onSubmit={handleSubmit} disabled={submitAnswer.isPending} lockedAnswer={lockedAnswer} feedback={feedback} />
+                <MultipleChoiceQ question={current} onSubmit={handleSubmit} disabled={questionDisabled} lockedAnswer={lockedAnswer} feedback={feedback} />
               )}
               {current.questionType === 'multi_select' && (
-                <MultiSelectQ question={current} onSubmit={handleSubmit} disabled={submitAnswer.isPending} lockedAnswer={lockedAnswer} />
+                <MultiSelectQ question={current} onSubmit={handleSubmit} disabled={questionDisabled} lockedAnswer={lockedAnswer} />
               )}
               {current.questionType === 'true_false' && (
-                <TrueFalseQ onSubmit={handleSubmit} disabled={submitAnswer.isPending} lockedAnswer={lockedAnswer} />
+                <TrueFalseQ onSubmit={handleSubmit} disabled={questionDisabled} lockedAnswer={lockedAnswer} />
               )}
               {(current.questionType === 'write_in') && (
-                <WriteInQ onSubmit={handleSubmit} disabled={submitAnswer.isPending} lockedAnswer={lockedAnswer} />
+                <WriteInQ onSubmit={handleSubmit} disabled={questionDisabled} lockedAnswer={lockedAnswer} />
               )}
               {current.questionType === 'short_response' && (
-                <WriteInQ onSubmit={handleSubmit} disabled={submitAnswer.isPending} lockedAnswer={lockedAnswer} multiline />
+                <WriteInQ onSubmit={handleSubmit} disabled={questionDisabled} lockedAnswer={lockedAnswer} multiline />
               )}
               {current.questionType === 'ordering' && (
-                <OrderingQ question={current} onSubmit={handleSubmit} disabled={submitAnswer.isPending} lockedAnswer={lockedAnswer} />
+                <OrderingQ question={current} onSubmit={handleSubmit} disabled={questionDisabled} lockedAnswer={lockedAnswer} />
               )}
               {current.questionType === 'slider' && (
-                <SliderQ question={current} onSubmit={handleSubmit} disabled={submitAnswer.isPending} lockedAnswer={lockedAnswer} />
+                <SliderQ question={current} onSubmit={handleSubmit} disabled={questionDisabled} lockedAnswer={lockedAnswer} />
               )}
               {current.questionType === 'image_hotspot' && (
-                <ImageHotspotQ question={current} onSubmit={handleSubmit} disabled={submitAnswer.isPending} lockedAnswer={lockedAnswer} />
+                <ImageHotspotQ question={current} onSubmit={handleSubmit} disabled={questionDisabled} lockedAnswer={lockedAnswer} />
               )}
               {current.questionType === 'image_recognition' && (
-                <ImageRecognitionQ question={current} onSubmit={handleSubmit} disabled={submitAnswer.isPending} lockedAnswer={lockedAnswer} />
+                <ImageRecognitionQ question={current} onSubmit={handleSubmit} disabled={questionDisabled} lockedAnswer={lockedAnswer} />
               )}
               {current.questionType === 'matching' && (
-                <MatchingQ question={current} onSubmit={handleSubmit} disabled={submitAnswer.isPending} lockedAnswer={lockedAnswer} />
+                <MatchingQ question={current} onSubmit={handleSubmit} disabled={questionDisabled} lockedAnswer={lockedAnswer} />
               )}
             </View>
 
@@ -1042,7 +1051,7 @@ export default function GamePlayScreen() {
 
             {/* Feedback */}
             {feedback && (
-              <FeedbackCard feedback={feedback} onNext={handleNext} isLast={isLastQuestion} />
+              <FeedbackCard feedback={feedback} onNext={handleNext} isLast={isLastQuestion} skipped={lockedAnswer === ''} />
             )}
           </>
         )}
