@@ -193,9 +193,11 @@ export function HostPlayAlongCard({
                   result.isCorrect ? "text-[#00ddff]" : "text-[#ff5aa8]"
                 }`}
               >
-                {result.isCorrect
-                  ? COPY.gameplay.feedbackCorrect
-                  : COPY.gameplay.feedbackWrong}
+                {localAnswer === ""
+                  ? COPY.results.unanswered
+                  : result.isCorrect
+                    ? COPY.gameplay.feedbackCorrect
+                    : COPY.gameplay.feedbackWrong}
               </p>
               <p className="text-[12px] text-[#9aa6bc] mt-0.5">
                 +{result.pointsEarned} pts · total {result.totalScore}
@@ -224,7 +226,7 @@ export function HostPlayAlongCard({
       {/* ── Skip affordance — only before answering ── */}
       {!answered && canSkip && (
         <button
-          onClick={onSkip}
+          onClick={() => { onSkip(); void handleSubmit(""); }}
           className="w-full text-center text-xs font-semibold text-[#66728a] hover:text-[#9aa6bc] py-1 transition"
         >
           {COPY.hostPlayAlong.skipBtn}

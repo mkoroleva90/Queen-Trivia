@@ -156,7 +156,7 @@ export const COPY = {
    * own game.  Both platforms must use these keys so wording stays in sync.
    */
   hostPlayAlong: {
-    /** Button that defers the current question to the end of the queue (no answer recorded). */
+    /** Button that skips the current question — records a zero-point blank answer so the host can move on. */
     skipBtn:            'Skip for now',
     /** CTA shown after answering when there are more questions to go. */
     nextQuestionBtn:    'Next question →',

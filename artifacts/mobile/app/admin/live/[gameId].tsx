@@ -502,7 +502,9 @@ export default function AdminLiveScreen() {
                   {hostFeedback && (
                     <View style={[s.feedbackBlock, { backgroundColor: hostFeedback.isCorrect ? '#00ddff18' : '#ff008018', borderColor: hostFeedback.isCorrect ? '#00ddff55' : '#ff008055' }]}>
                       <Text style={[s.feedbackTitle, { color: hostFeedback.isCorrect ? '#00ddff' : '#ff5aa8' }]}>
-                        {hostFeedback.isCorrect ? COPY.gameplay.feedbackCorrect : COPY.gameplay.feedbackWrong}
+                        {pendingAnswer === ''
+                          ? COPY.results.unanswered
+                          : hostFeedback.isCorrect ? COPY.gameplay.feedbackCorrect : COPY.gameplay.feedbackWrong}
                       </Text>
                       <Text style={[s.feedbackPts, { color: colors.mutedForeground }]}>
                         +{hostFeedback.pointsEarned} pts · total {hostFeedback.totalScore}
@@ -546,7 +548,13 @@ export default function AdminLiveScreen() {
                   )}
 
                   {!hostFeedback && alreadyAnswered?.questionId !== currentPlayingQ.id && hostCanSkip && (
-                    <Pressable onPress={() => setHostSkippedIds((prev) => new Set([...prev, currentPlayingQ.id]))}>
+                    <Pressable
+                      disabled={submittingAnswer}
+                      onPress={() => {
+                        setHostSkippedIds((prev) => new Set([...prev, currentPlayingQ.id]));
+                        void submitHostAnswer(currentPlayingQ.id, '');
+                      }}
+                    >
                       <Text style={[s.playMeta, { color: colors.mutedForeground, textAlign: 'center', paddingVertical: 4 }]}>
                         {COPY.hostPlayAlong.skipBtn}
                       </Text>
