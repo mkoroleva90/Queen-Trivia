@@ -162,6 +162,8 @@ export const COPY = {
     nextQuestionBtn:    'Next question →',
     /** CTA shown after answering the last question. */
     seeResultsBtn:      'See results →',
+    /** Primary CTA on the last question — ends the game instead of releasing a next question (web and mobile). */
+    endGameBtn:         'End game',
     /** Shown when the host has answered every question. */
     allAnsweredMsg:     "You've answered every question! End the game when your players are done.",
     /** Shown in place of the answer form when the server already has the host's answer for the current question (e.g. the screen reloaded mid-game). */

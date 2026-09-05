@@ -3482,9 +3482,17 @@ function LiveGameView({
   const displayQNum = activeGame?.hostPlaysAlong
     ? (currentPlayingQ ? questions.findIndex((q) => q.id === currentPlayingQ.id) + 1 : 0)
     : (questions.length ? qIndex + 1 : 0);
+  // The released question is the last one by orderIndex — there is nothing left
+  // to advance to, so the primary action ends the game instead.
+  const isOnLastQuestion =
+    questions.length > 0 && activeGame?.currentQuestionId === questions[questions.length - 1].id;
 
   const advanceQuestion = async () => {
     if (!activeGame) return;
+    if (isOnLastQuestion) {
+      endGame(activeGame.id);
+      return;
+    }
     try {
       const response = await fetch(`/api/games/${activeGame.id}/advance-question`, {
         method: "POST",
@@ -3492,6 +3500,11 @@ function LiveGameView({
       });
       if (!response.ok) {
         const body = await response.json().catch(() => null) as { error?: string } | null;
+        // Server reports no next question (409) — treat as end of game.
+        if (response.status === 409 && body?.error?.includes("no next question")) {
+          endGame(activeGame.id);
+          return;
+        }
         throw new Error(body?.error ?? "Could not release the next question");
       }
       const { currentQuestionId } = await response.json() as { currentQuestionId: number };
@@ -3772,9 +3785,9 @@ function LiveGameView({
                         onClick={() => void advanceQuestion()}
                         className="w-full mt-3 text-[13px] font-extrabold text-[#08130c] bg-[#ffe500] rounded-[10px] px-5 py-3 hover:brightness-110 transition"
                       >
-                        {unansweredForHost.length > 0
-                          ? COPY.hostPlayAlong.nextQuestionBtn
-                          : COPY.hostPlayAlong.seeResultsBtn}
+                        {isOnLastQuestion
+                          ? COPY.hostPlayAlong.endGameBtn
+                          : COPY.hostPlayAlong.nextQuestionBtn}
                       </button>
                     </div>
                   </div>
@@ -3784,7 +3797,7 @@ function LiveGameView({
                   question={currentPlayingQ}
                   onSubmit={submitHostAnswer}
                   submitting={submittingHostAnswer}
-                  hasMore={unansweredForHost.length > 1}
+                  hasMore={!isOnLastQuestion}
                   onNext={(questionId, answer) => {
                     setHostAnswers((prev) => ({ ...prev, [questionId]: answer }));
                      void advanceQuestion();
@@ -3819,11 +3832,11 @@ function LiveGameView({
               🔒 Lock
             </button>
             <button
-              disabled={qIndex >= questions.length - 1}
+              disabled={!isOnLastQuestion && qIndex >= questions.length - 1}
                onClick={() => void advanceQuestion()}
               className="ml-auto text-[13px] font-extrabold text-[#08130c] bg-[#ff0080] rounded-[10px] px-5 py-3 shadow-[0_8px_22px_-6px_rgba(255,0,128,.6)] disabled:opacity-40 hover:brightness-110 transition"
             >
-              Next question ›
+              {isOnLastQuestion ? COPY.hostPlayAlong.endGameBtn : "Next question ›"}
             </button>
           </div>
           )}

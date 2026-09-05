@@ -216,7 +216,7 @@ export function HostPlayAlongCard({
           >
             {hasMore
               ? COPY.hostPlayAlong.nextQuestionBtn
-              : COPY.hostPlayAlong.seeResultsBtn}
+              : COPY.hostPlayAlong.endGameBtn}
           </ActionBtn>
         </div>
       )}

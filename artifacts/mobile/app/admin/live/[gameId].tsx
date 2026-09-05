@@ -261,14 +261,30 @@ export default function AdminLiveScreen() {
     ? sortedQs.find((question) => question.id === game?.currentQuestionId)
     : undefined;
   const hostCanSkip = unansweredForHost.length > 1;
+  // The released question is the last one by orderIndex — there is nothing left
+  // to advance to, so the primary action ends the game instead.
+  const isOnLastQuestion =
+    sortedQs.length > 0 && game?.currentQuestionId === sortedQs[sortedQs.length - 1].id;
 
   const releaseNextQuestion = async () => {
+    if (isOnLastQuestion) {
+      await handleEndGame();
+      return;
+    }
     try {
       const token = await getItem(ADMIN_TOKEN_KEY).catch(() => null);
       const response = await fetch(`${baseUrl}/api/games/${gameId}/advance-question`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
+      if (response.status === 409) {
+        const body = await response.json().catch(() => null) as { error?: string } | null;
+        // Server reports no next question — treat as end of game.
+        if (body?.error?.includes('no next question')) {
+          await handleEndGame();
+          return;
+        }
+      }
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       await qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
     } catch {
@@ -499,7 +515,7 @@ export default function AdminLiveScreen() {
                         onPress={advanceToNext}
                       >
                         <Text style={[s.choiceText, { color: hostFeedback.isCorrect ? '#00ddff' : colors.foreground, textAlign: 'center' }]}>
-                          {unansweredForHost.length > 1 ? COPY.hostPlayAlong.nextQuestionBtn : COPY.hostPlayAlong.seeResultsBtn}
+                          {isOnLastQuestion ? COPY.hostPlayAlong.endGameBtn : COPY.hostPlayAlong.nextQuestionBtn}
                         </Text>
                       </Pressable>
                     </View>
@@ -519,7 +535,7 @@ export default function AdminLiveScreen() {
                         onPress={() => void releaseNextQuestion()}
                       >
                         <Text style={[s.choiceText, { color: colors.accent, textAlign: 'center' }]}>
-                          {unansweredForHost.length > 0 ? COPY.hostPlayAlong.nextQuestionBtn : COPY.hostPlayAlong.seeResultsBtn}
+                          {isOnLastQuestion ? COPY.hostPlayAlong.endGameBtn : COPY.hostPlayAlong.nextQuestionBtn}
                         </Text>
                       </Pressable>
                     </View>
@@ -556,7 +572,7 @@ export default function AdminLiveScreen() {
               onPress={() => void releaseNextQuestion()}
             >
               <Text style={[s.choiceText, { color: colors.primary, textAlign: 'center' }]}>
-                Release next question
+                {isOnLastQuestion ? COPY.hostPlayAlong.endGameBtn : 'Release next question'}
               </Text>
             </Pressable>
             <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>ANSWER PROGRESS</Text>
