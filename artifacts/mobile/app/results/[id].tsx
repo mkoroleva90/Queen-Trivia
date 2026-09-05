@@ -378,10 +378,10 @@ export default function ResultsScreen() {
 
             {expandBreakdown && sortedQuestions.map((q, i) => {
               const myAns = answerMap.get(q.id);
-              const status = !myAns ? 'unanswered' : myAns.isCorrect ? 'correct' : myAns.pointsEarned > 0 ? 'partial' : 'wrong';
-              const missed = status === 'wrong' || status === 'partial' || status === 'unanswered';
-              const statusIcon = { correct: 'checkmark-circle', partial: 'remove-circle', wrong: 'close-circle', unanswered: 'ellipse-outline' }[status];
-              const statusColor = { correct: '#22c55e', partial: '#f59e0b', wrong: '#ef4444', unanswered: colors.muted }[status];
+              const status = !myAns ? 'unanswered' : myAns.userAnswer === '' ? 'skipped' : myAns.isCorrect ? 'correct' : myAns.pointsEarned > 0 ? 'partial' : 'wrong';
+              const missed = status === 'wrong' || status === 'partial' || status === 'unanswered' || status === 'skipped';
+              const statusIcon = { correct: 'checkmark-circle', partial: 'remove-circle', wrong: 'close-circle', unanswered: 'ellipse-outline', skipped: 'play-skip-forward-circle' }[status];
+              const statusColor = { correct: '#22c55e', partial: '#f59e0b', wrong: '#ef4444', unanswered: colors.muted, skipped: colors.mutedForeground }[status];
               const correctAnswer = myAns?.correctAnswer ?? q.correctAnswer;
 
               return (
@@ -415,7 +415,7 @@ export default function ResultsScreen() {
                   {/* ── Answer detail — always show the correct answer ── */}
                   {(missed || !!correctAnswer) && (
                     <View style={styles.qAnswerDetail}>
-                      {myAns && (
+                      {myAns && status !== 'skipped' && (
                         <View style={styles.qAnswerRow}>
                           <Text style={[styles.qAnswerLabel, { color: 'rgba(248,113,113,.7)' }]}>{COPY.results.yourAnswer}</Text>
                           <Text style={[styles.qAnswerValue, { color: 'rgba(248,113,113,.55)', textDecorationLine: 'line-through' }]}>
@@ -434,6 +434,11 @@ export default function ResultsScreen() {
                       {status === 'unanswered' && (
                         <Text style={[styles.qUnanswered, { color: colors.mutedForeground }]}>
                           {COPY.results.unanswered}
+                        </Text>
+                      )}
+                      {status === 'skipped' && (
+                        <Text style={[styles.qUnanswered, { color: colors.mutedForeground }]}>
+                          {COPY.results.skipped}
                         </Text>
                       )}
                     </View>

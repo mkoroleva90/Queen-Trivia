@@ -512,6 +512,8 @@ export const COPY = {
     correctAnswer: 'Correct answer',
     /** Shown in place of an answer detail when the player skipped a question. */
     unanswered:    "You didn't answer this question.",
+    /** Status label shown in the per-question breakdown when the player skipped a question (blank answer recorded). */
+    skipped:       'Skipped',
     /**
      * Primary footer action button.
      * Web: "Play again" (navigates to lobby).

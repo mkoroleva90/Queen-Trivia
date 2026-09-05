@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   XCircle,
   Minus,
+  SkipForward,
   Share2,
   BarChart3,
   Flag,
@@ -407,12 +408,14 @@ export default function Results() {
                         const stat  = statsMap.get(q.id);
                         const status = !myAns
                           ? "unanswered"
+                          : myAns.userAnswer === ""
+                            ? "skipped"
                           : myAns.isCorrect
                             ? "correct"
                             : myAns.pointsEarned > 0
                               ? "partial"
                               : "wrong";
-                        const missed = status === "wrong" || status === "partial" || status === "unanswered";
+                        const missed = status === "wrong" || status === "partial" || status === "unanswered" || status === "skipped";
                         const correctAnswer = myAns?.correctAnswer ?? q.correctAnswer;
 
                         return (
@@ -442,13 +445,14 @@ export default function Results() {
                                 {status === "partial"    && <Minus        className="h-5 w-5 text-amber-400"   />}
                                 {status === "wrong"      && <XCircle      className="h-5 w-5 text-red-500"     />}
                                 {status === "unanswered" && <span className="text-xs text-muted-foreground">—</span>}
+                                {status === "skipped"    && <SkipForward  className="h-5 w-5 text-muted-foreground" />}
                               </div>
                             </div>
 
                             {/* ── Answer detail — only for missed / unanswered ── */}
                             {missed && (
                               <div className="pb-3.5 space-y-1.5" style={{ paddingLeft: 17 + 24 + 12 /* border + Q-num col + gap */ }}>
-                                {myAns && (
+                                {myAns && status !== "skipped" && (
                                   <div className="flex items-baseline gap-2 flex-wrap">
                                     <span className="text-[10px] font-bold uppercase tracking-widest text-red-400/70 shrink-0">
                                       {COPY.results.yourAnswer}
@@ -471,6 +475,11 @@ export default function Results() {
                                 {status === "unanswered" && (
                                   <p className="text-[11px] text-muted-foreground italic">
                                     {COPY.results.unanswered}
+                                  </p>
+                                )}
+                                {status === "skipped" && (
+                                  <p className="text-[11px] text-muted-foreground italic">
+                                    {COPY.results.skipped}
                                   </p>
                                 )}
                               </div>
