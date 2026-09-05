@@ -5,7 +5,7 @@ Trivia Night is a multiplayer pub-quiz web application. Players join live games 
 
 - **Stack:** Node.js 24 / TypeScript, Express 5, PostgreSQL + Drizzle ORM, Socket.IO, React frontend (Vite), pnpm workspaces.
 - **Auth model:** Open self-service host registration (`POST /api/auth/email/register`) — any visitor with a valid email address can create a host account. The account is inactive until the email verification link is clicked. The shared admin access-code login path (`POST /api/admin/login`) is removed (410). Players authenticate via per-game access codes only.
-- **Deployment:** Publicly deployed at `https://mktrivia.com` (autoscale, Replit-managed TLS). Mobile Expo update server is deployed at `/mobile/`.
+- **Deployment:** Publicly deployed at `https://www.queen-trivia.com` (also `https://queen-trivia.com` and the Replit app URL; autoscale, Replit-managed TLS). Mobile Expo update server is deployed at `/mobile/`.
 
 ## Assets
 
