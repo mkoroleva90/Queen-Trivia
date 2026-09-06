@@ -3402,8 +3402,12 @@ function LiveGameView({
   // Play-along: track answers the host has submitted for the current game.
   const [hostAnswers, setHostAnswers] = useState<Record<number, string>>({});
   const [submittingHostAnswer, setSubmittingHostAnswer] = useState(false);
-  // Ids of questions the host has deferred (local only — no server POST).
+  // Ids of questions the host has deferred this session (HostPlayAlongCard posts
+  // the blank answer itself).
   const [hostSkippedIds, setHostSkippedIds] = useState<Set<number>>(new Set());
+  // Answers and feedback the host submitted this session, keyed by question id,
+  // so a question viewed again renders locked with the feedback shown then.
+  const [hostResultById, setHostResultById] = useState<Record<number, { answer: string; result: HostAnswerResult }>>({});
   // Set when the server reports the host already answered the released question
   // (409 with existingAnswer — e.g. a reload lost local state). Renders the
   // answered panel with a working advance control instead of the answer card.
@@ -3413,8 +3417,7 @@ function LiveGameView({
   const [nextPromptDismissed, setNextPromptDismissed] = useState(false);
 
   // Calls the host-answer API and returns the result. Does NOT update hostAnswers
-  // on success — that is done by HostPlayAlongCard's onNext callback so the
-  // feedback card stays visible until the host acknowledges it.
+  // itself — HostPlayAlongCard reports the result through onAnswered.
   const submitHostAnswer = async (questionId: number, answer: string): Promise<HostAnswerResult | null> => {
     if (!activeGame || submittingHostAnswer) return null;
     setSubmittingHostAnswer(true);
@@ -3427,7 +3430,7 @@ function LiveGameView({
       });
       if (res.ok) {
         const data = await res.json().catch(() => ({})) as { isCorrect?: boolean; pointsEarned?: number; totalScore?: number; feedback?: string };
-        // hostAnswers NOT updated here — done by onNext in HostPlayAlongCard.
+        // hostAnswers NOT updated here — done by HostPlayAlongCard's onAnswered callback.
         return {
           isCorrect: data.isCorrect ?? false,
           pointsEarned: data.pointsEarned ?? 0,
@@ -3466,6 +3469,7 @@ function LiveGameView({
     setCorrectCount({});
     setHostAnswers({});
     setHostSkippedIds(new Set());
+    setHostResultById({});
     setAlreadyAnswered(null);
   }, [activeGame?.id]);
   // Index of the question the server has released (-1 until one is). The view
@@ -3500,6 +3504,14 @@ function LiveGameView({
   const displayQNum = activeGame?.hostPlaysAlong && !isViewingEarlier
     ? (currentPlayingQ ? questions.findIndex((q) => q.id === currentPlayingQ.id) + 1 : 0)
     : (questions.length ? qIndex + 1 : 0);
+  // Host & play: what the host has on record for the VIEWED question. A blank
+  // recorded on the released question is its "Unanswered" feedback; on an
+  // earlier question it means skipped, which stays answerable.
+  const viewedAnswer = displayQ ? hostAnswers[displayQ.id] : undefined;
+  const viewedStored = displayQ ? hostResultById[displayQ.id] : undefined;
+  const viewedSeed = viewedStored && (viewedStored.answer !== "" || !isViewingEarlier) ? viewedStored : null;
+  const viewedSkipped = !viewedSeed && viewedAnswer === "";
+  const viewedKnownOnly = !viewedSeed && viewedAnswer !== undefined && viewedAnswer !== "";
   // The released question is the last one by orderIndex — there is nothing left
   // to advance to, so the primary action ends the game instead.
   const isOnLastQuestion =
@@ -3649,7 +3661,9 @@ function LiveGameView({
   // control is available.
   const nextDisabled = !isOnLastQuestion && qIndex >= questions.length - 1;
   const nextPromptReady = activeGame.hostPlaysAlong
-    ? currentPlayingQ !== undefined && alreadyAnswered?.questionId === currentPlayingQ.id
+    ? currentPlayingQ !== undefined
+      && hostAnswers[currentPlayingQ.id] !== undefined
+      && hostResultById[currentPlayingQ.id] === undefined
     : !nextDisabled;
 
   return (
@@ -3832,63 +3846,64 @@ function LiveGameView({
               </div>
             )}
 
-            {/* ── Looking back (Host & play): the earlier question is read-only, with the host's recorded answer ── */}
-            {activeGame.hostPlaysAlong && isViewingEarlier && displayQ && (
-              <div className="mt-4 pt-4 border-t border-[#1b2740]">
-                <div className="rounded-xl border border-[#1b2740] bg-white/[.03] px-4 py-4">
-                  <p className="text-[13px] text-[#9aa6bc]">
-                    {hostAnswers[displayQ.id]
-                      ? `${COPY.results.yourAnswer}: ${hostAnswers[displayQ.id]}`
-                      : COPY.results.unanswered}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* ── Playing-host answer card — stays tied to the released question; kept mounted
-                   (just hidden) while looking back so an in-progress answer or feedback survives ── */}
-            <div className={isViewingEarlier ? "hidden" : undefined}>
+            {/* ── Playing-host answer card — follows the VIEWED question. Answered → locked with
+                   its feedback; skipped → answerable again; only the released question can
+                   advance the game. ── */}
             {activeGame.hostPlaysAlong && (
-              currentPlayingQ ? (
-                alreadyAnswered?.questionId === currentPlayingQ.id ? (
-                  /* Server already has the host's answer for this question —
-                     show the answered state and keep the advance control working. */
+              currentPlayingQ && displayQ ? (
+                viewedKnownOnly ? (
+                  /* Server already has the host's answer for this question (no
+                     feedback to show) — show it; only the released question keeps
+                     the advance control. */
                   <div className="mt-4 pt-4 border-t border-[#1b2740] space-y-4">
                     <div className="rounded-xl border border-[#ffe500]/40 bg-[#ffe500]/[.06] px-4 py-4">
                       <p className="font-extrabold text-sm text-[#ffe500]">{COPY.hostPlayAlong.alreadyAnsweredMsg}</p>
-                      <p className="text-[13px] text-[#9aa6bc] mt-1">{COPY.results.yourAnswer}: {alreadyAnswered.answer}</p>
-                      {/* Small reopen control — the advance action itself lives in the popup */}
-                      <button
-                        type="button"
-                        onClick={() => setNextPromptDismissed(false)}
-                        className="mt-3 text-xs font-bold text-[#ff5aa8] bg-[#ff0080]/10 border border-[#ff0080]/40 rounded-[10px] px-3.5 py-2 hover:brightness-110 transition"
-                      >
-                        {isOnLastQuestion
-                          ? COPY.hostPlayAlong.endGameBtn
-                          : COPY.hostPlayAlong.nextQuestionBtn}
-                      </button>
+                      <p className="text-[13px] text-[#9aa6bc] mt-1">{COPY.results.yourAnswer}: {viewedAnswer}</p>
+                      {!isViewingEarlier && (
+                        /* Small reopen control — the advance action itself lives in the popup */
+                        <button
+                          type="button"
+                          onClick={() => setNextPromptDismissed(false)}
+                          className="mt-3 text-xs font-bold text-[#ff5aa8] bg-[#ff0080]/10 border border-[#ff0080]/40 rounded-[10px] px-3.5 py-2 hover:brightness-110 transition"
+                        >
+                          {isOnLastQuestion
+                            ? COPY.hostPlayAlong.endGameBtn
+                            : COPY.hostPlayAlong.nextQuestionBtn}
+                        </button>
+                      )}
                     </div>
                   </div>
                 ) : (
-                <HostPlayAlongCard
-                  key={currentPlayingQ.id}
-                  question={currentPlayingQ}
-                  onSubmit={submitHostAnswer}
-                  submitting={submittingHostAnswer}
-                  hasMore={!isOnLastQuestion}
-                  onNext={(questionId, answer) => {
-                    setHostAnswers((prev) => ({ ...prev, [questionId]: answer }));
-                     void advanceQuestion();
-                  }}
-                  canSkip={hostCanSkip}
-                  onSkip={() => setHostSkippedIds((prev) => new Set([...prev, currentPlayingQ.id]))}
-                />
+                  <>
+                    {viewedSkipped && (
+                      /* Came back to a skipped question — it can still be answered */
+                      <p className="mt-4 text-xs font-semibold text-[#ffe500]">{COPY.gameplay.skippedEarlier}</p>
+                    )}
+                    <HostPlayAlongCard
+                      key={displayQ.id}
+                      question={displayQ}
+                      onSubmit={submitHostAnswer}
+                      submitting={submittingHostAnswer}
+                      hasMore={!isOnLastQuestion}
+                      onNext={(questionId, answer) => {
+                        setHostAnswers((prev) => ({ ...prev, [questionId]: answer }));
+                        void advanceQuestion();
+                      }}
+                      canSkip={hostCanSkip && !isViewingEarlier}
+                      onSkip={() => setHostSkippedIds((prev) => new Set([...prev, displayQ.id]))}
+                      storedAnswer={viewedSeed}
+                      onAnswered={(questionId, answer, result) => {
+                        setHostResultById((prev) => ({ ...prev, [questionId]: { answer, result } }));
+                        setHostAnswers((prev) => ({ ...prev, [questionId]: answer }));
+                      }}
+                      canAdvance={!isViewingEarlier}
+                    />
+                  </>
                 )
               ) : (
                 <p className="text-sm text-[#9aa6bc] pt-4 text-center">{COPY.hostPlayAlong.allAnsweredMsg}</p>
               )
             )}
-            </div>
           </div>
 
           {/* transport bar — hidden when host is playing along */}

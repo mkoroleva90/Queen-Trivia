@@ -54,6 +54,18 @@ interface HostPlayAlongCardProps {
   canSkip: boolean;
   /** Called when the host defers (skips) this question without answering. */
   onSkip: () => void;
+  /**
+   * The answer and result the host already submitted for this question this
+   * session, so a question viewed again renders locked with its feedback.
+   */
+  storedAnswer?: { answer: string; result: HostAnswerResult } | null;
+  /** Called after every successful submit so the parent can keep results per question. */
+  onAnswered?: (questionId: number, answer: string, result: HostAnswerResult) => void;
+  /**
+   * True when this card shows the released question. Only then does answering
+   * open the next-question popup, and only then is the small reopen button shown.
+   */
+  canAdvance?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -66,19 +78,24 @@ export function HostPlayAlongCard({
   onNext,
   canSkip,
   onSkip,
+  storedAnswer = null,
+  onAnswered,
+  canAdvance = true,
 }: HostPlayAlongCardProps) {
-  // Local state: reset when question changes (parent also keys this component on question.id)
-  const [localAnswer, setLocalAnswer] = useState<string | null>(null);
-  const [result, setResult] = useState<HostAnswerResult | null>(null);
+  // Local state: seeded from the parent's stored answer when a question is viewed
+  // again, and reset when question changes (parent also keys this component on question.id)
+  const [localAnswer, setLocalAnswer] = useState<string | null>(storedAnswer?.answer ?? null);
+  const [result, setResult] = useState<HostAnswerResult | null>(storedAnswer?.result ?? null);
   // "Ready for the next question?" popup — opens with the feedback card;
-  // "Not yet" hides it until the host reopens it or the question changes.
-  const [nextPromptDismissed, setNextPromptDismissed] = useState(false);
+  // "Not yet" hides it until the host reopens it or the question changes. An
+  // answer restored from the parent was acknowledged already, so it stays closed.
+  const [nextPromptDismissed, setNextPromptDismissed] = useState(storedAnswer !== null);
 
   useEffect(() => {
-    setLocalAnswer(null);
-    setResult(null);
-    setNextPromptDismissed(false);
-  }, [question.id]);
+    setLocalAnswer(storedAnswer?.answer ?? null);
+    setResult(storedAnswer?.result ?? null);
+    setNextPromptDismissed(storedAnswer !== null);
+  }, [question.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const answered = result !== null;
 
@@ -88,6 +105,7 @@ export function HostPlayAlongCard({
     if (r) {
       setLocalAnswer(answer);
       setResult(r);
+      onAnswered?.(question.id, answer, r);
     }
   };
 
@@ -215,22 +233,25 @@ export function HostPlayAlongCard({
             </p>
           )}
 
-          {/* Small reopen control — the advance action itself lives in the popup */}
-          <button
-            type="button"
-            onClick={() => setNextPromptDismissed(false)}
-            className="text-xs font-bold text-[#ff5aa8] bg-[#ff0080]/10 border border-[#ff0080]/40 rounded-[10px] px-3.5 py-2 hover:brightness-110 transition"
-          >
-            {hasMore
-              ? COPY.hostPlayAlong.nextQuestionBtn
-              : COPY.hostPlayAlong.endGameBtn}
-          </button>
+          {/* Small reopen control — the advance action itself lives in the popup,
+              and only the released question can advance the game */}
+          {canAdvance && (
+            <button
+              type="button"
+              onClick={() => setNextPromptDismissed(false)}
+              className="text-xs font-bold text-[#ff5aa8] bg-[#ff0080]/10 border border-[#ff0080]/40 rounded-[10px] px-3.5 py-2 hover:brightness-110 transition"
+            >
+              {hasMore
+                ? COPY.hostPlayAlong.nextQuestionBtn
+                : COPY.hostPlayAlong.endGameBtn}
+            </button>
+          )}
         </div>
       )}
 
       {/* ── "Ready for the next question?" popup — same trigger as the old inline advance control ── */}
       <NextQuestionPrompt
-        open={answered && localAnswer !== null && !nextPromptDismissed}
+        open={canAdvance && answered && localAnswer !== null && !nextPromptDismissed}
         onDismiss={() => setNextPromptDismissed(true)}
         onConfirm={() => {
           setNextPromptDismissed(true);

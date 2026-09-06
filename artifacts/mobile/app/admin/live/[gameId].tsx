@@ -89,11 +89,11 @@ export default function AdminLiveScreen() {
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
   const [answerError, setAnswerError] = useState('');
   const [hostSkippedIds, setHostSkippedIds] = useState<Set<number>>(new Set());
-  const [hostFeedback, setHostFeedback] = useState<{ isCorrect: boolean; pointsEarned: number; totalScore: number; feedback?: string } | null>(null);
+  // Answers and feedback the host submitted this session, keyed by question id,
+  // so a question viewed again renders locked with the feedback shown then.
+  const [hostResultById, setHostResultById] = useState<Record<number, { answer: string; result: { isCorrect: boolean; pointsEarned: number; totalScore: number; feedback?: string } }>>({});
   const [completionModalVisible, setCompletionModalVisible] = useState(false);
   const completionAlertShownRef = useRef(false);
-  // Answer submitted to API but not yet acknowledged by host via "Next" press.
-  const [pendingAnswer, setPendingAnswer] = useState<string | null>(null);
   // Set when the server reports the host already answered the released question
   // (409 with existingAnswer — e.g. the screen reloaded mid-game). Renders the
   // answered block with a working advance control.
@@ -290,6 +290,20 @@ export default function AdminLiveScreen() {
   const isViewingEarlier = releasedIndex >= 0 && qIndex < releasedIndex;
   const canGoBack = releasedIndex >= 0 && qIndex > 0;
   const viewedQ: Question | undefined = sortedQs[qIndex];
+  const isViewingReleased = !!currentPlayingQ && !!viewedQ && viewedQ.id === currentPlayingQ.id;
+  // Host & play: what the host has on record for the VIEWED question. A blank
+  // recorded on the released question is its "Unanswered" feedback; on an
+  // earlier question it means skipped, which stays answerable.
+  const viewedAnswer = viewedQ ? hostAnswers[viewedQ.id] : undefined;
+  const viewedStored = viewedQ ? hostResultById[viewedQ.id] : undefined;
+  const viewedResult = viewedStored && (viewedStored.answer !== '' || isViewingReleased) ? viewedStored : null;
+  const hostFeedback = viewedResult?.result ?? null;
+  const pendingAnswer = viewedResult?.answer ?? null;
+  const viewedSkipped = !viewedResult && viewedAnswer === '';
+  const viewedKnownOnly = !viewedResult && viewedAnswer !== undefined && viewedAnswer !== '';
+  // The RELEASED question's record drives the next-question popup.
+  const releasedResult = currentPlayingQ ? hostResultById[currentPlayingQ.id] : undefined;
+  const releasedAnswer = currentPlayingQ ? hostAnswers[currentPlayingQ.id] : undefined;
 
   const releaseNextQuestion = async () => {
     if (isOnLastQuestion) {
@@ -352,15 +366,17 @@ export default function AdminLiveScreen() {
       }
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json().catch(() => ({})) as { isCorrect?: boolean; pointsEarned?: number; totalScore?: number; feedback?: string };
-      // Don't update hostAnswers yet — done by advanceToNext so feedback stays visible.
-      setPendingAnswer(answer);
-      setHostFeedback({
+      // Record the answer and its feedback for this question right away; the
+      // feedback stays on record so it still shows if the host looks back.
+      const result = {
         isCorrect: data.isCorrect ?? false,
         pointsEarned: data.pointsEarned ?? 0,
         totalScore: data.totalScore ?? 0,
         feedback: data.feedback,
-      });
-      if (isLastQuestion && !completionAlertShownRef.current) {
+      };
+      setHostResultById((prev) => ({ ...prev, [questionId]: { answer, result } }));
+      setHostAnswers((prev) => ({ ...prev, [questionId]: answer }));
+      if (isLastQuestion && questionId === currentPlayingQ.id && !completionAlertShownRef.current) {
         completionAlertShownRef.current = true;
         setCompletionModalVisible(true);
       }
@@ -374,11 +390,8 @@ export default function AdminLiveScreen() {
 
   /** Called when the host presses "Next question" or "See results" after seeing feedback. */
   const advanceToNext = () => {
-    if (currentPlayingQ && pendingAnswer !== null) {
-      setHostAnswers((prev) => ({ ...prev, [currentPlayingQ.id]: pendingAnswer }));
-    }
-    setPendingAnswer(null);
-    setHostFeedback(null);
+    // The answer was recorded on submit, and the feedback stays on record so it
+    // still shows if the host looks back at this question.
     void releaseNextQuestion();
   };
 
@@ -389,8 +402,8 @@ export default function AdminLiveScreen() {
   const nextPromptAction: (() => void) | null = (() => {
     if (!playAlong) return () => void releaseNextQuestion();
     if (!currentPlayingQ) return null;
-    if (hostFeedback) return advanceToNext;
-    if (alreadyAnswered?.questionId === currentPlayingQ.id) return () => void releaseNextQuestion();
+    if (releasedResult) return advanceToNext;
+    if (releasedAnswer !== undefined) return () => void releaseNextQuestion();
     return null;
   })();
   // Wait for the completion modal so two modals never stack on the last question.
@@ -398,7 +411,9 @@ export default function AdminLiveScreen() {
 
   /** Renders the appropriate player question component for the playing host. */
   const renderHostQuestion = (q: Question) => {
-    const lockedAnswer = pendingAnswer ?? (hostAnswers[q.id] ?? null);
+    // A recorded blank (a skip) does not lock the question — it stays answerable.
+    const recorded = hostAnswers[q.id];
+    const lockedAnswer = pendingAnswer ?? (recorded !== undefined && recorded !== '' ? recorded : null);
     const isLocked = lockedAnswer !== null;
     // Pass feedback to components that use it for correct/wrong coloring.
     const feedbackForComp = hostFeedback && isLocked ? {
@@ -504,7 +519,7 @@ export default function AdminLiveScreen() {
         {/* ── Host play-along question card ── */}
         {playAlong && (
           <>
-            {currentPlayingQ ? (
+            {currentPlayingQ && viewedQ ? (
               <>
                 <View style={s.viewNav}>
                   <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>
@@ -540,29 +555,22 @@ export default function AdminLiveScreen() {
                     </Pressable>
                   </View>
                 )}
-                {/* Looking back: the earlier question is read-only, with the host's recorded answer */}
-                {isViewingEarlier && viewedQ && (
-                  <View style={[s.qCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <Text style={[s.playMeta, { color: colors.mutedForeground }]}>{viewedQ.points} pts</Text>
-                    <Text style={[s.playQText, { color: colors.foreground }]}>{viewedQ.questionText}</Text>
-                    <Text style={[s.feedbackPts, { color: colors.mutedForeground }]}>
-                      {hostAnswers[viewedQ.id]
-                        ? `${COPY.results.yourAnswer}: ${hostAnswers[viewedQ.id]}`
-                        : COPY.results.unanswered}
-                    </Text>
-                  </View>
-                )}
-                {/* The answer card stays tied to the released question; kept mounted (just hidden)
-                    while looking back so an in-progress answer or feedback survives */}
-                <View style={[s.qCard, { backgroundColor: colors.card, borderColor: colors.primary + '66' }, isViewingEarlier && s.hiddenWhileViewing]}>
+                {/* The answer card follows the VIEWED question. Answered → locked with its
+                    feedback; skipped → answerable again; only the released question can
+                    advance the game. */}
+                <View style={[s.qCard, { backgroundColor: colors.card, borderColor: isViewingReleased ? colors.primary + '66' : colors.border }]}>
                   <Text style={[s.playMeta, { color: colors.mutedForeground }]}>
-                    {currentPlayingQ.points} pts
+                    {viewedQ.points} pts
                   </Text>
-                  <Text style={[s.playQText, { color: colors.foreground }]}>{currentPlayingQ.questionText}</Text>
+                  {viewedSkipped && (
+                    /* Came back to a skipped question — it can still be answered */
+                    <Text style={[s.playMeta, { color: colors.accent }]}>{COPY.gameplay.skippedEarlier}</Text>
+                  )}
+                  <Text style={[s.playQText, { color: colors.foreground }]}>{viewedQ.questionText}</Text>
 
-                  {renderHostQuestion(currentPlayingQ)}
+                  {renderHostQuestion(viewedQ)}
 
-                  {/* Feedback block — visible after submission, until host presses Next */}
+                  {/* Feedback block — the result shown at submission; the reopen control only on the released question */}
                   {hostFeedback && (
                     <View style={[s.feedbackBlock, { backgroundColor: hostFeedback.isCorrect ? '#00ddff18' : '#ff008018', borderColor: hostFeedback.isCorrect ? '#00ddff55' : '#ff008055' }]}>
                       <Text style={[s.feedbackTitle, { color: hostFeedback.isCorrect ? '#00ddff' : '#ff5aa8' }]}>
@@ -576,36 +584,40 @@ export default function AdminLiveScreen() {
                       {!!hostFeedback.feedback && (
                         <Text style={[s.feedbackText, { color: colors.mutedForeground }]}>{hostFeedback.feedback}</Text>
                       )}
-                      {/* Small reopen control — the advance action itself lives in the popup */}
-                      <Pressable
-                        style={[s.reopenBtn, { borderColor: hostFeedback.isCorrect ? '#00ddff' : colors.border, backgroundColor: hostFeedback.isCorrect ? '#00ddff22' : colors.card }]}
-                        onPress={() => setNextPromptDismissed(false)}
-                      >
-                        <Text style={[s.reopenBtnText, { color: hostFeedback.isCorrect ? '#00ddff' : colors.foreground }]}>
-                          {isOnLastQuestion ? COPY.hostPlayAlong.endGameBtn : COPY.hostPlayAlong.nextQuestionBtn}
-                        </Text>
-                      </Pressable>
+                      {isViewingReleased && (
+                        /* Small reopen control — the advance action itself lives in the popup */
+                        <Pressable
+                          style={[s.reopenBtn, { borderColor: hostFeedback.isCorrect ? '#00ddff' : colors.border, backgroundColor: hostFeedback.isCorrect ? '#00ddff22' : colors.card }]}
+                          onPress={() => setNextPromptDismissed(false)}
+                        >
+                          <Text style={[s.reopenBtnText, { color: hostFeedback.isCorrect ? '#00ddff' : colors.foreground }]}>
+                            {isOnLastQuestion ? COPY.hostPlayAlong.endGameBtn : COPY.hostPlayAlong.nextQuestionBtn}
+                          </Text>
+                        </Pressable>
+                      )}
                     </View>
                   )}
 
-                  {/* Already-answered block — the server has this answer; keep the host moving */}
-                  {!hostFeedback && alreadyAnswered?.questionId === currentPlayingQ.id && (
+                  {/* Already-answered block — the server has this answer (no feedback to show) */}
+                  {viewedKnownOnly && (
                     <View style={[s.feedbackBlock, { backgroundColor: colors.accent + '18', borderColor: colors.accent + '55' }]}>
                       <Text style={[s.feedbackTitle, { color: colors.accent }]}>
                         {COPY.hostPlayAlong.alreadyAnsweredMsg}
                       </Text>
                       <Text style={[s.feedbackPts, { color: colors.mutedForeground }]}>
-                        {COPY.results.yourAnswer}: {alreadyAnswered.answer}
+                        {COPY.results.yourAnswer}: {viewedAnswer}
                       </Text>
-                      {/* Small reopen control — the advance action itself lives in the popup */}
-                      <Pressable
-                        style={[s.reopenBtn, { borderColor: colors.accent, backgroundColor: colors.accent + '22' }]}
-                        onPress={() => setNextPromptDismissed(false)}
-                      >
-                        <Text style={[s.reopenBtnText, { color: colors.accent }]}>
-                          {isOnLastQuestion ? COPY.hostPlayAlong.endGameBtn : COPY.hostPlayAlong.nextQuestionBtn}
-                        </Text>
-                      </Pressable>
+                      {isViewingReleased && (
+                        /* Small reopen control — the advance action itself lives in the popup */
+                        <Pressable
+                          style={[s.reopenBtn, { borderColor: colors.accent, backgroundColor: colors.accent + '22' }]}
+                          onPress={() => setNextPromptDismissed(false)}
+                        >
+                          <Text style={[s.reopenBtnText, { color: colors.accent }]}>
+                            {isOnLastQuestion ? COPY.hostPlayAlong.endGameBtn : COPY.hostPlayAlong.nextQuestionBtn}
+                          </Text>
+                        </Pressable>
+                      )}
                     </View>
                   )}
 
@@ -613,7 +625,7 @@ export default function AdminLiveScreen() {
                     <Text style={[s.qText, { color: colors.destructive }]}>{answerError}</Text>
                   )}
 
-                  {!hostFeedback && alreadyAnswered?.questionId !== currentPlayingQ.id && hostCanSkip && (
+                  {isViewingReleased && !hostFeedback && !viewedKnownOnly && hostCanSkip && (
                     <Pressable
                       disabled={submittingAnswer}
                       onPress={() => {
@@ -909,5 +921,4 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     viewBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
     viewBannerText: { flex: 1, fontSize: 12, fontFamily: 'Manrope_600SemiBold' },
     viewBannerLink: { fontSize: 12, fontFamily: 'Manrope_700Bold', textDecorationLine: 'underline' },
-    hiddenWhileViewing: { display: 'none' },
   });

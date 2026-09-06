@@ -183,8 +183,8 @@ export const COPY = {
     nextPromptDismiss:  'Not yet',
     /** Banner on the host's live screen while they look back at a question that is not the released one (web and mobile). */
     viewingEarlier:     'Viewing an earlier question',
-    /** Link in that banner — jumps the view back to the released question. */
-    backToCurrent:      'Back to current',
+    /** Link in that banner — jumps the view back to the released question. Same wording as gameplay.backToCurrent. */
+    backToCurrent:      'Back to current question',
     /** Screen-reader label for the chevron that steps the view back one question (host live screen and player screen). */
     viewBackLabel:      'Back',
     /** Screen-reader label for the chevron that steps the view forward, up to the released question (host live screen and player screen). */
