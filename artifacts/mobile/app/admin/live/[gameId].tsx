@@ -101,6 +101,10 @@ export default function AdminLiveScreen() {
   // "Ready for the next question?" popup — opens the moment the advance control
   // becomes available; "Not yet" hides it until the released question changes.
   const [nextPromptDismissed, setNextPromptDismissed] = useState(false);
+  // Locally-monitored question index (mirrors qIndex on web). It follows the
+  // released question, but Back/Forward may move it to an earlier question
+  // without touching what the server released.
+  const [qIndex, setQIndex] = useState(0);
 
   const { data: games, isLoading: gamesLoading, isError: gamesError } = useListGames();
   const game = games?.find((g) => g.id === gameId);
@@ -206,6 +210,13 @@ export default function AdminLiveScreen() {
   const sortedQs: Question[] = [...(questions ?? [])].sort(
     (a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0),
   );
+  // Index of the question the server has released (-1 until one is). The
+  // effect depends on the raw query data because sortedQs is rebuilt on
+  // every render.
+  const releasedIndex = sortedQs.findIndex((q) => q.id === game?.currentQuestionId);
+  useEffect(() => {
+    if (releasedIndex >= 0) setQIndex(releasedIndex);
+  }, [game?.currentQuestionId, questions]);
 
   // Real-time answer tracking via Socket.IO.
   // Before the persisted seed resolves, events go into a ref buffer so they
@@ -273,6 +284,12 @@ export default function AdminLiveScreen() {
   // to advance to, so the primary action ends the game instead.
   const isOnLastQuestion =
     sortedQs.length > 0 && game?.currentQuestionId === sortedQs[sortedQs.length - 1].id;
+  // View-only navigation: Back/Forward move qIndex between the first question
+  // and the released one. They never call advance-question, never change
+  // currentQuestionId, and never submit an answer.
+  const isViewingEarlier = releasedIndex >= 0 && qIndex < releasedIndex;
+  const canGoBack = releasedIndex >= 0 && qIndex > 0;
+  const viewedQ: Question | undefined = sortedQs[qIndex];
 
   const releaseNextQuestion = async () => {
     if (isOnLastQuestion) {
@@ -489,10 +506,55 @@ export default function AdminLiveScreen() {
           <>
             {currentPlayingQ ? (
               <>
-                <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>
-                  YOUR QUESTION — {sortedQs.findIndex((q) => q.id === currentPlayingQ.id) + 1}/{sortedQs.length}
-                </Text>
-                <View style={[s.qCard, { backgroundColor: colors.card, borderColor: colors.primary + '66' }]}>
+                <View style={s.viewNav}>
+                  <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>
+                    YOUR QUESTION — {isViewingEarlier ? qIndex + 1 : sortedQs.findIndex((q) => q.id === currentPlayingQ.id) + 1}/{sortedQs.length}
+                  </Text>
+                  {/* View-only Back / Forward — look at earlier questions without touching the released one */}
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={COPY.hostPlayAlong.viewBackLabel}
+                    disabled={!canGoBack}
+                    onPress={() => setQIndex((i) => Math.max(0, i - 1))}
+                    hitSlop={8}
+                    style={[s.viewNavBtn, { borderColor: colors.border, opacity: canGoBack ? 1 : 0.3 }]}
+                  >
+                    <Ionicons name="chevron-back" size={16} color={colors.foreground} />
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={COPY.hostPlayAlong.viewForwardLabel}
+                    disabled={!isViewingEarlier}
+                    onPress={() => setQIndex((i) => Math.min(releasedIndex, i + 1))}
+                    hitSlop={8}
+                    style={[s.viewNavBtn, { borderColor: colors.border, opacity: isViewingEarlier ? 1 : 0.3 }]}
+                  >
+                    <Ionicons name="chevron-forward" size={16} color={colors.foreground} />
+                  </Pressable>
+                </View>
+                {isViewingEarlier && (
+                  <View style={[s.viewBanner, { backgroundColor: colors.accent + '18', borderColor: colors.accent + '55' }]}>
+                    <Text style={[s.viewBannerText, { color: colors.accent }]}>{COPY.hostPlayAlong.viewingEarlier}</Text>
+                    <Pressable accessibilityRole="button" onPress={() => setQIndex(releasedIndex)} hitSlop={8}>
+                      <Text style={[s.viewBannerLink, { color: colors.accent }]}>{COPY.hostPlayAlong.backToCurrent}</Text>
+                    </Pressable>
+                  </View>
+                )}
+                {/* Looking back: the earlier question is read-only, with the host's recorded answer */}
+                {isViewingEarlier && viewedQ && (
+                  <View style={[s.qCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <Text style={[s.playMeta, { color: colors.mutedForeground }]}>{viewedQ.points} pts</Text>
+                    <Text style={[s.playQText, { color: colors.foreground }]}>{viewedQ.questionText}</Text>
+                    <Text style={[s.feedbackPts, { color: colors.mutedForeground }]}>
+                      {hostAnswers[viewedQ.id]
+                        ? `${COPY.results.yourAnswer}: ${hostAnswers[viewedQ.id]}`
+                        : COPY.results.unanswered}
+                    </Text>
+                  </View>
+                )}
+                {/* The answer card stays tied to the released question; kept mounted (just hidden)
+                    while looking back so an in-progress answer or feedback survives */}
+                <View style={[s.qCard, { backgroundColor: colors.card, borderColor: colors.primary + '66' }, isViewingEarlier && s.hiddenWhileViewing]}>
                   <Text style={[s.playMeta, { color: colors.mutedForeground }]}>
                     {currentPlayingQ.points} pts
                   </Text>
@@ -841,4 +903,11 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     nextPromptBtnText: { color: '#ffffff', fontSize: 15, fontWeight: '800' },
     nextPromptDismissBtn: { width: '100%', minHeight: 46, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
     nextPromptDismissText: { fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
+    // View-only Back / Forward beside the question indicator, and the looking-back banner
+    viewNav: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    viewNavBtn: { width: 28, height: 28, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+    viewBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
+    viewBannerText: { flex: 1, fontSize: 12, fontFamily: 'Manrope_600SemiBold' },
+    viewBannerLink: { fontSize: 12, fontFamily: 'Manrope_700Bold', textDecorationLine: 'underline' },
+    hiddenWhileViewing: { display: 'none' },
   });

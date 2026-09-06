@@ -181,6 +181,14 @@ export const COPY = {
     nextPromptTitle:    'Ready for the next question?',
     /** Secondary button on that popup — closes it without advancing; the host can reopen it from the small next-question button in the question card. */
     nextPromptDismiss:  'Not yet',
+    /** Banner on the host's live screen while they look back at a question that is not the released one (web and mobile). */
+    viewingEarlier:     'Viewing an earlier question',
+    /** Link in that banner — jumps the view back to the released question. */
+    backToCurrent:      'Back to current',
+    /** Screen-reader label for the chevron that steps the host's view back one question. */
+    viewBackLabel:      'Back',
+    /** Screen-reader label for the chevron that steps the host's view forward, up to the released question. */
+    viewForwardLabel:   'Forward',
   },
 
   /**

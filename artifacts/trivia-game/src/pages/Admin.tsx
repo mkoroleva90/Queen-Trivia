@@ -126,6 +126,7 @@ HelpCircle,
 LogOut,
 Crown,
 AlertTriangle,
+ChevronLeft,
 ChevronRight,
 Trophy,
 CheckCircle2,
@@ -3467,8 +3468,11 @@ function LiveGameView({
     setHostSkippedIds(new Set());
     setAlreadyAnswered(null);
   }, [activeGame?.id]);
+  // Index of the question the server has released (-1 until one is). The view
+  // index (qIndex) follows it, but Back/Forward may move qIndex to an earlier
+  // question without touching what the server released.
+  const releasedIndex = questions.findIndex((question) => question.id === activeGame?.currentQuestionId);
   useEffect(() => {
-    const releasedIndex = questions.findIndex((question) => question.id === activeGame?.currentQuestionId);
     if (releasedIndex >= 0) setQIndex(releasedIndex);
   }, [activeGame?.currentQuestionId, questions]);
   // A newly released question gets a fresh popup.
@@ -3485,9 +3489,15 @@ function LiveGameView({
     ? questions.find((q) => q.id === activeGame.currentQuestionId)
     : undefined;
   const hostCanSkip = unansweredForHost.length > 1;
-  // Question shown in the card header (playing host sees their unanswered q; monitor sees qIndex q).
-  const displayQ = (activeGame?.hostPlaysAlong && currentPlayingQ) ? currentPlayingQ : currentQ;
-  const displayQNum = activeGame?.hostPlaysAlong
+  // View-only navigation: Back/Forward move qIndex between the first question
+  // and the released one. They never call advance-question, never change
+  // currentQuestionId, and never submit an answer.
+  const isViewingEarlier = releasedIndex >= 0 && qIndex < releasedIndex;
+  const canGoBack = releasedIndex >= 0 && qIndex > 0;
+  // Question shown in the card header (playing host sees their unanswered q; monitor sees qIndex q;
+  // while looking back, both see the qIndex q).
+  const displayQ = (activeGame?.hostPlaysAlong && currentPlayingQ && !isViewingEarlier) ? currentPlayingQ : currentQ;
+  const displayQNum = activeGame?.hostPlaysAlong && !isViewingEarlier
     ? (currentPlayingQ ? questions.findIndex((q) => q.id === currentPlayingQ.id) + 1 : 0)
     : (questions.length ? qIndex + 1 : 0);
   // The released question is the last one by orderIndex — there is nothing left
@@ -3732,6 +3742,25 @@ function LiveGameView({
               <span className="text-[10px] font-bold tracking-[.22em] text-[#66728a]">
                 QUESTION {displayQNum} / {questions.length || "?"}
               </span>
+              {/* View-only Back / Forward — look at earlier questions without touching the released one */}
+              <button
+                type="button"
+                aria-label={COPY.hostPlayAlong.viewBackLabel}
+                disabled={!canGoBack}
+                onClick={() => setQIndex((i) => Math.max(0, i - 1))}
+                className="h-6 w-6 flex items-center justify-center rounded-md border border-[#1b2740] bg-white/[.04] text-[#9aa6bc] disabled:opacity-30 hover:brightness-125 transition"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                aria-label={COPY.hostPlayAlong.viewForwardLabel}
+                disabled={!isViewingEarlier}
+                onClick={() => setQIndex((i) => Math.min(releasedIndex, i + 1))}
+                className="h-6 w-6 flex items-center justify-center rounded-md border border-[#1b2740] bg-white/[.04] text-[#9aa6bc] disabled:opacity-30 hover:brightness-125 transition"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
               {displayQ?.points != null && (
                 <span className="px-2 py-[3px] rounded-md bg-[#ffe500]/10 border border-[#ffe500]/25 text-[9px] font-bold tracking-[.1em] text-[#ffe500]">
                   {displayQ.points} PTS
@@ -3747,6 +3776,19 @@ function LiveGameView({
                 </div>
               </div>
             </div>
+
+            {isViewingEarlier && (
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-[#ffe500]/40 bg-[#ffe500]/[.06] px-3 py-2">
+                <span className="text-[12px] font-semibold text-[#ffe500]">{COPY.hostPlayAlong.viewingEarlier}</span>
+                <button
+                  type="button"
+                  onClick={() => setQIndex(releasedIndex)}
+                  className="text-[12px] font-bold text-[#ffe500] underline underline-offset-2 hover:brightness-110 transition"
+                >
+                  {COPY.hostPlayAlong.backToCurrent}
+                </button>
+              </div>
+            )}
 
             <h2 className="text-xl sm:text-2xl font-extrabold text-[#eef2f8] leading-snug my-5 tracking-tight">
               {displayQ?.questionText || "Waiting for game to start…"}
@@ -3790,7 +3832,22 @@ function LiveGameView({
               </div>
             )}
 
-            {/* ── Playing-host answer card ── */}
+            {/* ── Looking back (Host & play): the earlier question is read-only, with the host's recorded answer ── */}
+            {activeGame.hostPlaysAlong && isViewingEarlier && displayQ && (
+              <div className="mt-4 pt-4 border-t border-[#1b2740]">
+                <div className="rounded-xl border border-[#1b2740] bg-white/[.03] px-4 py-4">
+                  <p className="text-[13px] text-[#9aa6bc]">
+                    {hostAnswers[displayQ.id]
+                      ? `${COPY.results.yourAnswer}: ${hostAnswers[displayQ.id]}`
+                      : COPY.results.unanswered}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* ── Playing-host answer card — stays tied to the released question; kept mounted
+                   (just hidden) while looking back so an in-progress answer or feedback survives ── */}
+            <div className={isViewingEarlier ? "hidden" : undefined}>
             {activeGame.hostPlaysAlong && (
               currentPlayingQ ? (
                 alreadyAnswered?.questionId === currentPlayingQ.id ? (
@@ -3831,17 +3888,12 @@ function LiveGameView({
                 <p className="text-sm text-[#9aa6bc] pt-4 text-center">{COPY.hostPlayAlong.allAnsweredMsg}</p>
               )
             )}
+            </div>
           </div>
 
           {/* transport bar — hidden when host is playing along */}
           {!activeGame.hostPlaysAlong && (
           <div className="flex flex-wrap items-center gap-2 bg-[#0f1724] border border-[#1b2740] rounded-2xl px-3.5 py-3">
-            <button
-               disabled
-              className="text-xs font-bold text-[#9aa6bc] bg-white/[.04] border border-[#1b2740] rounded-[10px] px-3.5 py-2.5 disabled:opacity-40 hover:brightness-110 transition"
-            >
-              ‹ Prev
-            </button>
             {/* TODO: pause / reveal / lock need host-control endpoints — not in the API yet */}
             <button disabled title="Coming soon — needs a host-control endpoint" className="text-xs font-bold text-[#ffe500] bg-[#ffe500]/10 border border-[#ffe500]/30 rounded-[10px] px-3.5 py-2.5 opacity-50 cursor-not-allowed">
               ⏸ Pause timer
