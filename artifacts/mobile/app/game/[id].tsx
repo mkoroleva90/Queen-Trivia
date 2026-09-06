@@ -44,7 +44,7 @@ type Feedback = {
   isCorrect: boolean;
   pointsEarned: number;
   totalScore: number;
-  timeTaken: string;
+  timeTaken?: string; // absent when a previously answered question is viewed again
   correctAnswer?: string;
   feedback?: string;
 };
@@ -698,7 +698,7 @@ function FeedbackCard({ feedback, onNext, isLast, skipped = false }: { feedback:
               : feedback.isCorrect ? COPY.gameplay.feedbackCorrect : COPY.gameplay.feedbackWrong}
           </Text>
           <Text style={[styles.feedbackPoints, { color: colors.foreground }]}>
-            +{feedback.pointsEarned} pts · {feedback.timeTaken}s
+            +{feedback.pointsEarned} pts{feedback.timeTaken !== undefined ? ` · ${feedback.timeTaken}s` : ''}
           </Text>
         </View>
         <Text style={[styles.feedbackScore, { color: colors.accent }]}>{feedback.totalScore}</Text>
@@ -731,8 +731,16 @@ export default function GamePlayScreen() {
   const queryClient = useQueryClient();
   const questionStartRef = useRef(Date.now());
 
-  const [feedback, setFeedback] = useState<Feedback | null>(null);
-  const [lockedAnswer, setLockedAnswer] = useState<string | null>(null);
+  // Feedback and locked answers are keyed by question id so moving between
+  // released questions never leaks one question's result into another.
+  // feedbackById holds this session's results until "Next" dismisses them;
+  // lockedAnswerById keeps every answer submitted this session.
+  const [feedbackById, setFeedbackById] = useState<Record<number, Feedback>>({});
+  const [lockedAnswerById, setLockedAnswerById] = useState<Record<number, string>>({});
+  // Which released question the player is looking at. Only trusted while it
+  // belongs to the current release, so a new release snaps the view to the
+  // newest question with no stale frame.
+  const [view, setView] = useState<{ releasedId: number; index: number } | null>(null);
   const [skippedIds, setSkippedIds] = useState<Set<number>>(new Set());
   const [skipConfirm, setSkipConfirm] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -767,27 +775,56 @@ export default function GamePlayScreen() {
     () => [...(questions ?? [])].sort((a, b) => a.orderIndex - b.orderIndex),
     [questions],
   );
-  const answeredIds = useMemo(() => new Set((myAnswers ?? []).map((a) => a.questionId)), [myAnswers]);
-  const current = sorted[0];
+  // The server's answer row per question; a userAnswer of '' is a skip.
+  const answerById = useMemo(() => new Map((myAnswers ?? []).map((a) => [a.questionId, a] as const)), [myAnswers]);
+  // The server sends every question released so far; the newest is the released one.
+  const released = sorted[sorted.length - 1];
+  const releasedIndex = sorted.length - 1;
+  // viewIndex defaults to the released question and snaps back to it whenever
+  // a new question is released (a stale `view` belongs to an older release).
+  const viewIndex = released && view?.releasedId === released.id ? view.index : releasedIndex;
+  const current = sorted[viewIndex];
+  const isViewingReleased = !!current && !!released && current.id === released.id;
+  const isViewingEarlier = !!current && !!released && viewIndex < releasedIndex;
+  const canGoBack = !!released && viewIndex > 0;
   const answeredCount = (myAnswers ?? []).length;
   const total = game?.questionCount ?? 0;
-  const awaitingHost = !current || (answeredIds.has(current.id) && !feedback);
-  const isLastQuestion = !!current && current.orderIndex === total - 1;
-  // Players only ever hold the released question, so a skip cannot defer it —
-  // it records a blank (zero-point) answer so the player can move on.
-  const canSkip = !!current && !isLastQuestion;
-  // A skipped question has no answer to lock the components with — disable them explicitly.
-  const questionDisabled = submitAnswer.isPending || (!!feedback && lockedAnswer === '');
+  // What the player has on record for the viewed question: this session's
+  // submission first, then the server's answer row. '' is a skip.
+  const sessionAnswer = current ? lockedAnswerById[current.id] : undefined;
+  const answerRow = current ? answerById.get(current.id) : undefined;
+  const viewAnswer = sessionAnswer ?? answerRow?.userAnswer;
+  const viewSkipped = viewAnswer === '';
+  const viewAnsweredReal = viewAnswer !== undefined && viewAnswer !== '';
+  const feedback = current ? feedbackById[current.id] ?? null : null;
+  // Locked while this session's feedback is showing, or while viewing a real answer again.
+  const lockedAnswer = feedback ? (sessionAnswer ?? null) : viewAnsweredReal ? (viewAnswer as string) : null;
+  const releasedAnswer = released ? lockedAnswerById[released.id] ?? answerById.get(released.id)?.userAnswer : undefined;
+  const releasedUnanswered = !!released && releasedAnswer === undefined;
+  const awaitingHost = !current || (isViewingReleased && viewAnswer !== undefined && !feedback);
+  const isLastQuestion = !!released && released.orderIndex === total - 1;
+  // A skip cannot defer the released question — it records a blank (zero-point)
+  // answer; the player can come back to it with Back once the host moves on.
+  const canSkip = !!released && !isLastQuestion;
+  // A skipped question has no answer to lock the components with — disable them
+  // explicitly; a real answer on record is locked too.
+  const questionDisabled = submitAnswer.isPending || (!!feedback && lockedAnswer === '') || viewAnsweredReal;
   const scoreFromAnswers = (myAnswers ?? []).reduce((sum, answer) => sum + answer.pointsEarned, 0);
   const myScore = Math.max(scoreFromAnswers, feedback?.totalScore ?? 0);
+  // Viewing an answered question again: rebuild the correct/wrong feedback from
+  // the server's answer row. It never carries the correct answer.
+  const viewFeedback: Feedback | null = feedback ?? (viewAnsweredReal && answerRow && answerRow.userAnswer !== ''
+    ? { isCorrect: answerRow.isCorrect, pointsEarned: answerRow.pointsEarned, totalScore: scoreFromAnswers }
+    : null);
+  const isReviewingAnswer = !feedback && viewFeedback !== null;
 
+  // Start the timer when the VIEWED question becomes answerable (unanswered or
+  // a skip the player came back to), not when the host releases a new one.
+  // Feedback and locked answers are keyed by id, so nothing is reset here.
+  const currentAnswerable = !!current && !feedback && !viewAnsweredReal;
   useEffect(() => {
-    if (current?.id) {
-      questionStartRef.current = Date.now();
-      setFeedback(null);
-      setLockedAnswer(null);
-    }
-  }, [current?.id]);
+    if (current?.id && currentAnswerable) questionStartRef.current = Date.now();
+  }, [current?.id, currentAnswerable]);
 
   // Navigate to results if game is completed and all answered
   useEffect(() => {
@@ -806,40 +843,60 @@ export default function GamePlayScreen() {
       {
         onSuccess: (res) => {
           const r = res as typeof res & { correctAnswer?: string; feedback?: string };
-          setFeedback({
+          const result: Feedback = {
             isCorrect: res.isCorrect,
             pointsEarned: res.pointsEarned,
             totalScore: res.totalScore,
             timeTaken,
             correctAnswer: r.correctAnswer,
             feedback: r.feedback,
-          });
-          setLockedAnswer(answer);
+          };
+          setFeedbackById((prev) => ({ ...prev, [current.id]: result }));
+          setLockedAnswerById((prev) => ({ ...prev, [current.id]: answer }));
           Haptics.notificationAsync(res.isCorrect ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error);
           queryClient.invalidateQueries({ queryKey: getListGameParticipantsQueryKey(gameId) });
-          if (isLastQuestion && !completionAlertShownRef.current) {
+          // Refresh the answer rows too, so a replaced skip and the score update at once.
+          queryClient.invalidateQueries({ queryKey: getListUserAnswersQueryKey(gameId, userId) });
+          if (isLastQuestion && current.id === released?.id && !completionAlertShownRef.current) {
             completionAlertShownRef.current = true;
             setCompletionModalVisible(true);
           }
         },
         onError: (err: unknown) => {
           const status = err && typeof err === 'object' && 'status' in err ? (err as { status: number }).status : 0;
-          if (status === 409) { handleNext(); return; }
+          if (status === 409) {
+            // Already answered, or not released: resync and tell the player instead of moving on.
+            queryClient.invalidateQueries({ queryKey: getListUserAnswersQueryKey(gameId, userId) });
+            queryClient.invalidateQueries({ queryKey: getListGameQuestionsQueryKey(gameId) });
+            Alert.alert(COPY.gameplay.submitErrorTitle, COPY.gameplay.submitErrorBody);
+            return;
+          }
           const errData = err && typeof err === 'object' && 'data' in err ? (err as { data: unknown }).data : null;
           const apiMsg = errData && typeof errData === 'object' && 'error' in errData ? String((errData as { error: unknown }).error) : null;
           const errCode = errData && typeof errData === 'object' && 'code' in errData ? String((errData as { code: unknown }).code) : null;
           if (errCode === 'content_filtered' && apiMsg) {
             Alert.alert('Answer not submitted', apiMsg);
+            return;
           }
+          Alert.alert(COPY.gameplay.submitErrorTitle, COPY.gameplay.submitErrorBody);
         },
       },
     );
   };
 
   const handleNext = () => {
+    // Dismiss this question's feedback (its locked answer stays), refresh the
+    // answer rows, and step forward when looking at an earlier question.
     queryClient.invalidateQueries({ queryKey: getListUserAnswersQueryKey(gameId, userId) });
-    setFeedback(null);
-    setLockedAnswer(null);
+    if (current) {
+      const dismissedId = current.id;
+      setFeedbackById((prev) => {
+        const rest = { ...prev };
+        delete rest[dismissedId];
+        return rest;
+      });
+    }
+    if (released && isViewingEarlier) setView({ releasedId: released.id, index: viewIndex + 1 });
   };
 
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
@@ -978,6 +1035,49 @@ export default function GamePlayScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {/* Question nav — "Q3 of 10" with Back/Forward through the questions released so far.
+            Shown while waiting too, so the player can look back at earlier questions. */}
+        {current && total > 0 && (
+          <View style={styles.questionMeta}>
+            <View style={styles.questionNav}>
+              <Text style={[styles.questionNum, { color: colors.mutedForeground }]}>
+                {COPY.gameplay.questionIndicator(viewIndex + 1, total)}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={COPY.hostPlayAlong.viewBackLabel}
+                disabled={!canGoBack}
+                onPress={() => released && setView({ releasedId: released.id, index: viewIndex - 1 })}
+                hitSlop={8}
+                style={[styles.navBtn, { opacity: canGoBack ? 1 : 0.3 }]}
+              >
+                <Ionicons name="chevron-back" size={16} color={colors.foreground} />
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={COPY.hostPlayAlong.viewForwardLabel}
+                disabled={!isViewingEarlier}
+                onPress={() => released && setView({ releasedId: released.id, index: viewIndex + 1 })}
+                hitSlop={8}
+                style={[styles.navBtn, { opacity: isViewingEarlier ? 1 : 0.3 }]}
+              >
+                <Ionicons name="chevron-forward" size={16} color={colors.foreground} />
+              </Pressable>
+            </View>
+            <Text style={[styles.questionType, { color: colors.mutedForeground }]}>
+              {current.points} pts
+            </Text>
+          </View>
+        )}
+        {isViewingEarlier && releasedUnanswered && (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => released && setView({ releasedId: released.id, index: releasedIndex })}
+            hitSlop={8}
+          >
+            <Text style={[styles.backToCurrent, { color: colors.accent }]}>{COPY.gameplay.backToCurrent}</Text>
+          </Pressable>
+        )}
         {awaitingHost ? (
           /* The host controls when the next question is released. */
           <View style={styles.doneState}>
@@ -989,15 +1089,12 @@ export default function GamePlayScreen() {
           </View>
         ) : (
           <>
-            {/* Question header */}
-            <View style={styles.questionMeta}>
-              <Text style={[styles.questionNum, { color: colors.mutedForeground }]}>
-                Q{sorted.indexOf(current) + 1}
+            {/* Came back to a skipped question — it can still be answered */}
+            {viewSkipped && !feedback && (
+              <Text style={[styles.skippedLabel, { color: colors.accent }]}>
+                {COPY.gameplay.skippedEarlier}
               </Text>
-              <Text style={[styles.questionType, { color: colors.mutedForeground }]}>
-                {current.points} pts
-              </Text>
-            </View>
+            )}
 
             <Text style={[styles.questionText, { color: colors.foreground }]}>
               {current.questionText}
@@ -1006,7 +1103,7 @@ export default function GamePlayScreen() {
             {/* Question renderer */}
             <View style={styles.questionBody}>
               {current.questionType === 'multiple_choice' && (
-                <MultipleChoiceQ question={current} onSubmit={handleSubmit} disabled={questionDisabled} lockedAnswer={lockedAnswer} feedback={feedback} />
+                <MultipleChoiceQ question={current} onSubmit={handleSubmit} disabled={questionDisabled} lockedAnswer={lockedAnswer} feedback={viewFeedback} />
               )}
               {current.questionType === 'multi_select' && (
                 <MultiSelectQ question={current} onSubmit={handleSubmit} disabled={questionDisabled} lockedAnswer={lockedAnswer} />
@@ -1037,8 +1134,8 @@ export default function GamePlayScreen() {
               )}
             </View>
 
-            {/* Skip button — shown when unanswered and more questions remain */}
-            {!feedback && !lockedAnswer && canSkip && (
+            {/* Skip button — only on the released question, while it is still unanswered */}
+            {isViewingReleased && !feedback && viewAnswer === undefined && canSkip && (
               <TouchableOpacity
                 onPress={() => setSkipConfirm(true)}
                 style={styles.skipBtn}
@@ -1049,9 +1146,16 @@ export default function GamePlayScreen() {
               </TouchableOpacity>
             )}
 
+            {/* Viewing an earlier answer again — show what the player submitted */}
+            {isReviewingAnswer && !!viewAnswer && (
+              <Text style={[styles.yourAnswer, { color: colors.mutedForeground }]}>
+                {COPY.results.yourAnswer}: {viewAnswer}
+              </Text>
+            )}
+
             {/* Feedback */}
-            {feedback && (
-              <FeedbackCard feedback={feedback} onNext={handleNext} isLast={isLastQuestion} skipped={lockedAnswer === ''} />
+            {viewFeedback && (
+              <FeedbackCard feedback={viewFeedback} onNext={handleNext} isLast={isLastQuestion && isViewingReleased} skipped={lockedAnswer === ''} />
             )}
           </>
         )}
@@ -1143,6 +1247,12 @@ const styles = StyleSheet.create({
   questionMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   questionNum: { fontSize: 11, fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase' },
   questionType: { fontSize: 11, fontWeight: '600', textTransform: 'capitalize' },
+  // Back/Forward through released questions, and the labels that go with them
+  questionNav: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  navBtn: { width: 28, height: 28, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,.12)', alignItems: 'center', justifyContent: 'center' },
+  backToCurrent: { fontSize: 12, fontWeight: '700', textDecorationLine: 'underline', alignSelf: 'flex-start' },
+  skippedLabel: { fontSize: 12, fontWeight: '600' },
+  yourAnswer: { fontSize: 13, textAlign: 'center' },
   questionText: { fontSize: 22, fontWeight: '800', lineHeight: 30, letterSpacing: -0.4, fontFamily: 'Manrope_800ExtraBold' },
   questionBody: { gap: 10 },
   hint: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' },

@@ -35,6 +35,8 @@ import {
   X,
   Gamepad2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Flag,
   Ban,
 } from "lucide-react";
@@ -73,7 +75,7 @@ type Feedback = {
   isCorrect: boolean;
   pointsEarned: number;
   totalScore: number;
-  timeTaken: string;
+  timeTaken?: string; // absent when a previously answered question is viewed again
   questionId: number;
   questionType: string;
   factCheckUrl?: string | null;
@@ -1315,11 +1317,19 @@ export default function GamePlay() {
   const queryClient = useQueryClient();
 
   // ── Existing state ──
-  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  // Feedback and locked answers are keyed by question id so moving between
+  // released questions never leaks one question's result into another.
+  // feedbackById holds this session's results until "Next" dismisses them;
+  // lockedAnswerById keeps every answer submitted this session.
+  const [feedbackById, setFeedbackById] = useState<Record<number, Feedback>>({});
   const questionStartRef = useRef<number>(Date.now());
 
   // ── New display state (UI only) ──
-  const [lockedAnswer, setLockedAnswer] = useState<string | null>(null);
+  const [lockedAnswerById, setLockedAnswerById] = useState<Record<number, string>>({});
+  // Which released question the player is looking at. Only trusted while it
+  // belongs to the current release, so a new release snaps the view to the
+  // newest question with no stale frame.
+  const [view, setView] = useState<{ releasedId: number; index: number } | null>(null);
 
   // ── Skip (defer) state — client-side only, no server submission ──
   const [skippedIds, setSkippedIds] = useState<Set<number>>(new Set());
@@ -1363,20 +1373,42 @@ export default function GamePlay() {
     () => [...(questions ?? [])].sort((a, b) => a.orderIndex - b.orderIndex),
     [questions],
   );
-  const answeredIds = useMemo(
-    () => new Set((myAnswers ?? []).map((a) => a.questionId)),
+  // The server's answer row per question; a userAnswer of "" is a skip.
+  const answerById = useMemo(
+    () => new Map((myAnswers ?? []).map((a) => [a.questionId, a] as const)),
     [myAnswers],
   );
 
-  const current          = sorted[0];
+  // The server sends every question released so far; the newest is the released one.
+  const released         = sorted[sorted.length - 1];
+  const releasedIndex    = sorted.length - 1;
+  // viewIndex defaults to the released question and snaps back to it whenever
+  // a new question is released (a stale `view` belongs to an older release).
+  const viewIndex        = released && view?.releasedId === released.id ? view.index : releasedIndex;
+  const current          = sorted[viewIndex];
+  const isViewingReleased = !!current && !!released && current.id === released.id;
+  const isViewingEarlier = !!current && !!released && viewIndex < releasedIndex;
+  const canGoBack        = !!released && viewIndex > 0;
   const currentImageUrl  = getSafeImageUrl(current?.imageUrl);
   const answeredCount    = (myAnswers ?? []).length;
   const total            = game?.questionCount ?? 0;
-  const awaitingHost     = !current || (answeredIds.has(current.id) && !feedback);
-  const isLastQuestion   = !!current && current.orderIndex === total - 1;
-  // Players only ever hold the released question, so a skip cannot defer it —
-  // it records a blank (zero-point) answer so the player can move on.
-  const canSkip          = !!current && !isLastQuestion;
+  // What the player has on record for the viewed question: this session's
+  // submission first, then the server's answer row. "" is a skip.
+  const sessionAnswer    = current ? lockedAnswerById[current.id] : undefined;
+  const answerRow        = current ? answerById.get(current.id) : undefined;
+  const viewAnswer       = sessionAnswer ?? answerRow?.userAnswer;
+  const viewSkipped      = viewAnswer === "";
+  const viewAnsweredReal = viewAnswer !== undefined && viewAnswer !== "";
+  const feedback         = current ? feedbackById[current.id] ?? null : null;
+  // Locked while this session's feedback is showing, or while viewing a real answer again.
+  const lockedAnswer     = feedback ? (sessionAnswer ?? null) : viewAnsweredReal ? (viewAnswer as string) : null;
+  const releasedAnswer   = released ? lockedAnswerById[released.id] ?? answerById.get(released.id)?.userAnswer : undefined;
+  const releasedUnanswered = !!released && releasedAnswer === undefined;
+  const awaitingHost     = !current || (isViewingReleased && viewAnswer !== undefined && !feedback);
+  const isLastQuestion   = !!released && released.orderIndex === total - 1;
+  // A skip cannot defer the released question — it records a blank (zero-point)
+  // answer; the player can come back to it with Back once the host moves on.
+  const canSkip          = !!released && !isLastQuestion;
 
   const sortedParticipants = useMemo(
     () => [...(participants ?? [])].sort((a, b) => (b.totalScore ?? 0) - (a.totalScore ?? 0)),
@@ -1387,11 +1419,26 @@ export default function GamePlay() {
   const myRank = game?.status === "completed"
     ? sortedParticipants.findIndex((p) => p.userId === userId) + 1
     : 0;
+  // Viewing an answered question again: rebuild the correct/wrong feedback from
+  // the server's answer row. It never carries the correct answer.
+  const viewFeedback: Feedback | null = feedback ?? (current && viewAnsweredReal && answerRow && answerRow.userAnswer !== ""
+    ? {
+        isCorrect: answerRow.isCorrect,
+        pointsEarned: answerRow.pointsEarned,
+        totalScore: scoreFromAnswers,
+        questionId: current.id,
+        questionType: current.questionType,
+        factCheckUrl: current.factCheckUrl ?? null,
+      }
+    : null);
+  const isReviewingAnswer = !feedback && viewFeedback !== null;
 
-  // Reset timer when question changes
+  // Start the timer when the VIEWED question becomes answerable (unanswered or
+  // a skip the player came back to), not when the host releases a new one.
+  const currentAnswerable = !!current && !feedback && !viewAnsweredReal;
   useEffect(() => {
-    if (current?.id) questionStartRef.current = Date.now();
-  }, [current?.id]);
+    if (current?.id && currentAnswerable) questionStartRef.current = Date.now();
+  }, [current?.id, currentAnswerable]);
 
   const handleSubmit = (question: Question, userAnswer: string, isSkip = false) => {
     if ((!isSkip && !userAnswer.trim()) || submitAnswer.isPending) return;
@@ -1401,7 +1448,7 @@ export default function GamePlay() {
       { gameId, data: { questionId: question.id, userAnswer } },
       {
         onSuccess: (res) => {
-          setFeedback({
+          const result: Feedback = {
             isCorrect: res.isCorrect,
             pointsEarned: res.pointsEarned,
             totalScore: res.totalScore,
@@ -1411,13 +1458,22 @@ export default function GamePlay() {
             factCheckUrl: question.factCheckUrl ?? null,
             correctAnswer: (res as typeof res & { correctAnswer?: string }).correctAnswer,
             feedback: (res as typeof res & { feedback?: string }).feedback,
-          });
-          setLockedAnswer(userAnswer); // store for inline reveal
+          };
+          setFeedbackById((prev) => ({ ...prev, [question.id]: result }));
+          setLockedAnswerById((prev) => ({ ...prev, [question.id]: userAnswer })); // store for inline reveal
           queryClient.invalidateQueries({ queryKey: getListGameParticipantsQueryKey(gameId) });
+          // Refresh the answer rows too, so a replaced skip and the score update at once.
+          queryClient.invalidateQueries({ queryKey: getListUserAnswersQueryKey(gameId, userId) });
         },
         onError: (err: unknown) => {
           const status = err && typeof err === "object" && "status" in err ? (err as { status: number }).status : 0;
-          if (status === 409) { nextQuestion(); return; }
+          if (status === 409) {
+            // Already answered, or not released: resync and tell the player instead of moving on.
+            queryClient.invalidateQueries({ queryKey: getListUserAnswersQueryKey(gameId, userId) });
+            queryClient.invalidateQueries({ queryKey: getListGameQuestionsQueryKey(gameId) });
+            toast({ variant: "destructive", title: COPY.gameplay.submitErrorTitle, description: COPY.gameplay.submitErrorBody });
+            return;
+          }
           const errData = err && typeof err === "object" && "data" in err ? (err as { data: unknown }).data : null;
           const apiMsg = errData && typeof errData === "object" && "error" in errData ? String((errData as { error: unknown }).error) : null;
           const errCode = errData && typeof errData === "object" && "code" in errData ? String((errData as { code: unknown }).code) : null;
@@ -1425,25 +1481,35 @@ export default function GamePlay() {
             toast({ variant: "destructive", title: apiMsg });
             return;
           }
-          toast({ variant: "destructive", title: "Could not submit answer", description: "Please try again." });
+          toast({ variant: "destructive", title: COPY.gameplay.submitErrorTitle, description: COPY.gameplay.submitErrorBody });
         },
       },
     );
   };
 
   const nextQuestion = () => {
-    setFeedback(null);
-    setLockedAnswer(null);
+    // Dismiss this question's feedback (its locked answer stays), refresh the
+    // answer rows, and step forward when looking at an earlier question.
+    if (current) {
+      const dismissedId = current.id;
+      setFeedbackById((prev) => {
+        const rest = { ...prev };
+        delete rest[dismissedId];
+        return rest;
+      });
+    }
     queryClient.invalidateQueries({ queryKey: getListUserAnswersQueryKey(gameId, userId) });
+    if (released && isViewingEarlier) setView({ releasedId: released.id, index: viewIndex + 1 });
   };
 
   const renderQuestion = (q: Question) => {
     // A skipped question has no answer to reveal inline — just lock it.
     const skipped = feedback?.questionId === q.id && lockedAnswer === "";
-    const fr: FeedbackResult | null = feedback?.questionId === q.id && !skipped
-      ? { isCorrect: feedback.isCorrect, lockedAnswer: lockedAnswer ?? "", correctAnswer: feedback.correctAnswer }
+    const fr: FeedbackResult | null = viewFeedback?.questionId === q.id && !skipped && lockedAnswer !== null
+      ? { isCorrect: viewFeedback.isCorrect, lockedAnswer, correctAnswer: viewFeedback.correctAnswer }
       : null;
-    const sub = { question: q, disabled: submitAnswer.isPending || skipped };
+    // Locked while feedback shows, and whenever a real answer is on record.
+    const sub = { question: q, disabled: submitAnswer.isPending || skipped || viewAnsweredReal };
     switch (q.questionType) {
       case "multiple_choice":
         return <MultipleChoiceQuestion {...sub} onSubmit={(a) => handleSubmit(q, a)} feedbackResult={fr} />;
@@ -1577,6 +1643,61 @@ export default function GamePlay() {
               </div>
             )}
 
+            {/* Question nav — "Q3 of 10" with Back/Forward through the questions released so far.
+                Shown while waiting too, so the player can look back at earlier questions. */}
+            {current && total > 0 && game?.status !== "completed" && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span
+                  className="font-bold uppercase"
+                  style={{ fontSize: 10, letterSpacing: ".12em", color: "#a3aec2" }}
+                >
+                  {COPY.gameplay.questionIndicator(viewIndex + 1, total)}
+                </span>
+                <button
+                  type="button"
+                  aria-label={COPY.hostPlayAlong.viewBackLabel}
+                  disabled={!canGoBack}
+                  onClick={() => released && setView({ releasedId: released.id, index: viewIndex - 1 })}
+                  className="h-6 w-6 flex items-center justify-center rounded-md cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition hover:brightness-125"
+                  style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.12)", color: "#a3aec2" }}
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  aria-label={COPY.hostPlayAlong.viewForwardLabel}
+                  disabled={!isViewingEarlier}
+                  onClick={() => released && setView({ releasedId: released.id, index: viewIndex + 1 })}
+                  className="h-6 w-6 flex items-center justify-center rounded-md cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition hover:brightness-125"
+                  style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.12)", color: "#a3aec2" }}
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+                <span
+                  className="font-bold uppercase"
+                  style={{
+                    fontSize: 10, letterSpacing: ".12em",
+                    background: "rgba(255,229,0,.10)",
+                    color: "#ffe500",
+                    border: "1px solid rgba(255,229,0,.3)",
+                    borderRadius: 8, padding: "5px 10px",
+                  }}
+                >
+                  {current.points} PTS
+                </span>
+                {isViewingEarlier && releasedUnanswered && (
+                  <button
+                    type="button"
+                    onClick={() => released && setView({ releasedId: released.id, index: releasedIndex })}
+                    className="ml-auto text-xs font-semibold underline underline-offset-2 transition hover:opacity-70"
+                    style={{ color: "#ffe500", background: "none", border: "none", cursor: "pointer" }}
+                  >
+                    {COPY.gameplay.backToCurrent}
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* AnimatePresence wrapper */}
             <AnimatePresence mode="wait">
               {total === 0 ? (
@@ -1602,21 +1723,12 @@ export default function GamePlay() {
                   transition={{ type: "spring", stiffness: 280, damping: 26 }}
                   className="space-y-5"
                 >
-                  {/* Points chip */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span
-                      className="font-bold uppercase"
-                      style={{
-                        fontSize: 10, letterSpacing: ".12em",
-                        background: "rgba(255,229,0,.10)",
-                        color: "#ffe500",
-                        border: "1px solid rgba(255,229,0,.3)",
-                        borderRadius: 8, padding: "5px 10px",
-                      }}
-                    >
-                      {current.points} PTS
-                    </span>
-                  </div>
+                  {/* Came back to a skipped question — it can still be answered */}
+                  {viewSkipped && !feedback && (
+                    <p className="text-xs font-semibold" style={{ color: "#ffe500" }}>
+                      {COPY.gameplay.skippedEarlier}
+                    </p>
+                  )}
 
                   {/* Question text */}
                   <h2
@@ -1636,8 +1748,8 @@ export default function GamePlay() {
                   {/* Answer choices */}
                   {renderQuestion(current)}
 
-                  {/* Skip button — shown when unanswered and more questions remain */}
-                  {!feedback && !lockedAnswer && canSkip && (
+                  {/* Skip button — only on the released question, while it is still unanswered */}
+                  {isViewingReleased && !feedback && viewAnswer === undefined && canSkip && (
                     <button
                       onClick={() => setSkipConfirm(true)}
                       className="w-full text-center text-xs font-semibold transition hover:opacity-70"
@@ -1649,7 +1761,7 @@ export default function GamePlay() {
 
                   {/* Hint / feedback footer */}
                   <AnimatePresence mode="wait">
-                    {feedback ? (
+                    {viewFeedback ? (
                       <motion.div
                         key="feedback"
                         initial={{ opacity: 0, y: 8 }}
@@ -1657,30 +1769,41 @@ export default function GamePlay() {
                         exit={{ opacity: 0 }}
                         className="space-y-3 pt-2"
                       >
+                        {/* Viewing an earlier answer again — show what the player submitted */}
+                        {isReviewingAnswer && viewAnswer && (
+                          <p className="text-center text-sm" style={{ color: "#a3aec2" }}>
+                            {COPY.results.yourAnswer}: {viewAnswer}
+                          </p>
+                        )}
+
                         {/* Compact stats row */}
                         <div className="flex items-center justify-center gap-3 flex-wrap">
                           <span
                             className="font-extrabold text-sm"
-                            style={{ color: feedback.isCorrect ? "#00ddff" : "#ff0080" }}
+                            style={{ color: viewFeedback.isCorrect ? "#00ddff" : "#ff0080" }}
                           >
                             {lockedAnswer === ""
                               ? COPY.results.unanswered
-                              : feedback.isCorrect ? COPY.gameplay.feedbackCorrect : COPY.gameplay.feedbackWrong}{" "}
-                            {feedback.pointsEarned > 0 ? `+${feedback.pointsEarned}` : "0"} pts
+                              : viewFeedback.isCorrect ? COPY.gameplay.feedbackCorrect : COPY.gameplay.feedbackWrong}{" "}
+                            {viewFeedback.pointsEarned > 0 ? `+${viewFeedback.pointsEarned}` : "0"} pts
                           </span>
-                          <span style={{ color: "#475569" }}>·</span>
-                          <span className="text-sm text-muted-foreground">
-                            {feedback.timeTaken}{COPY.gameplay.feedbackSecondsSuffix}
-                          </span>
+                          {viewFeedback.timeTaken !== undefined && (
+                            <>
+                              <span style={{ color: "#475569" }}>·</span>
+                              <span className="text-sm text-muted-foreground">
+                                {viewFeedback.timeTaken}{COPY.gameplay.feedbackSecondsSuffix}
+                              </span>
+                            </>
+                          )}
                           <span style={{ color: "#475569" }}>·</span>
                           <span className="text-sm font-semibold" style={{ color: "#ffe500" }}>
-                            {COPY.gameplay.feedbackTotalLabel} {feedback.totalScore}
+                            {COPY.gameplay.feedbackTotalLabel} {viewFeedback.totalScore}
                           </span>
-                          {isSafeFactCheckUrl(feedback.factCheckUrl) && (
+                          {isSafeFactCheckUrl(viewFeedback.factCheckUrl) && (
                             <>
                               <span style={{ color: "#475569" }}>·</span>
                               <a
-                                href={feedback.factCheckUrl}
+                                href={viewFeedback.factCheckUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-xs text-muted-foreground hover:text-secondary underline underline-offset-2"
@@ -1692,12 +1815,12 @@ export default function GamePlay() {
                         </div>
 
                         {/* AI feedback for short_response (or any type that returns it) */}
-                        {feedback.feedback && (
+                        {viewFeedback.feedback && (
                           <p
                             className="text-center text-sm italic"
                             style={{ color: "rgba(255,255,255,.7)" }}
                           >
-                            {feedback.feedback}
+                            {viewFeedback.feedback}
                           </p>
                         )}
 

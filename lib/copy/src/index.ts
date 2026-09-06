@@ -185,9 +185,9 @@ export const COPY = {
     viewingEarlier:     'Viewing an earlier question',
     /** Link in that banner — jumps the view back to the released question. */
     backToCurrent:      'Back to current',
-    /** Screen-reader label for the chevron that steps the host's view back one question. */
+    /** Screen-reader label for the chevron that steps the view back one question (host live screen and player screen). */
     viewBackLabel:      'Back',
-    /** Screen-reader label for the chevron that steps the host's view forward, up to the released question. */
+    /** Screen-reader label for the chevron that steps the view forward, up to the released question (host live screen and player screen). */
     viewForwardLabel:   'Forward',
   },
 
@@ -410,11 +410,26 @@ export const COPY = {
     /** Title of the player skip-confirmation dialog. */
     skipDialogTitle:  'Skip this question?',
     /** Body of the player skip-confirmation dialog. */
-    skipDialogBody:   'This question will move to the end. You can come back and answer it after the others.',
+    skipDialogBody:   'You can come back and answer it with the Back button while the game is live.',
     /** Cancel action in the player skip dialog. */
     skipDialogGoBack:    'Go back',
     /** Confirm action in the player skip dialog. */
     skipDialogConfirm:   'Skip for now',
+
+    // ── Moving between released questions ─────────────────────────────────
+    /**
+     * "Q3 of 10" indicator beside the Back/Forward chevrons on the player
+     * screen (web and mobile). n is 1-based; total is the game's question count.
+     */
+    questionIndicator: (n: number, total: number) => `Q${n} of ${total}`,
+    /** Label above a previously skipped question the player has come back to; it is answerable again. */
+    skippedEarlier:    'You skipped this earlier — you can still answer it',
+    /** Link shown while looking back at an earlier question when the released one is still unanswered. */
+    backToCurrent:     'Back to current question',
+    /** Title of the error shown when an answer cannot be submitted (toast on web, alert on mobile). */
+    submitErrorTitle:  'Could not submit answer',
+    /** Body of that error. */
+    submitErrorBody:   'Please try again.',
   },
 
   /**
