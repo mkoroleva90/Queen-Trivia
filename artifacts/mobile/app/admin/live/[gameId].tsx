@@ -455,26 +455,6 @@ export default function AdminLiveScreen() {
         </View>
       </View>
 
-      {/* Stats bar */}
-      <View style={[s.statsBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={s.statItem}>
-          <Text style={[s.statNum, { color: colors.secondary }]}>{totalPlayers}</Text>
-          <Text style={[s.statLabel, { color: colors.mutedForeground }]}>Players</Text>
-        </View>
-        <View style={[s.statDivider, { backgroundColor: colors.border }]} />
-        <View style={s.statItem}>
-          <Text style={[s.statNum, { color: colors.accent }]}>
-            {Object.values(answerCounts).reduce((a, b) => a + b, 0)}
-          </Text>
-          <Text style={[s.statLabel, { color: colors.mutedForeground }]}>Answers</Text>
-        </View>
-        <View style={[s.statDivider, { backgroundColor: colors.border }]} />
-        <View style={s.statItem}>
-          <Text style={[s.statNum, { color: colors.primary }]}>{sortedQs.length}</Text>
-          <Text style={[s.statLabel, { color: colors.mutedForeground }]}>Questions</Text>
-        </View>
-      </View>
-
       {/* Question answer tracking */}
       <ScrollView
         contentContainerStyle={s.list}
@@ -678,7 +658,6 @@ export default function AdminLiveScreen() {
         {/* Players */}
         {(participants?.length ?? 0) > 0 && (
           <>
-            <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>PLAYERS IN GAME</Text>
             {participants!.map((p) => (
               <TouchableOpacity
                 key={p.id}
@@ -740,11 +719,6 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     headerTitle: { flex: 1, fontSize: 18, fontFamily: 'Manrope_700Bold' },
     codeChip: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4 },
     codeText: { fontSize: 13, fontFamily: 'Manrope_700Bold', letterSpacing: 2 },
-    statsBar: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 12, borderRadius: 14, borderWidth: 1, padding: 16 },
-    statItem: { flex: 1, alignItems: 'center', gap: 2 },
-    statNum: { fontSize: 24, fontFamily: 'Manrope_800ExtraBold' },
-    statLabel: { fontSize: 11, fontFamily: 'Manrope_600SemiBold', textTransform: 'uppercase', letterSpacing: 1 },
-    statDivider: { width: 1, marginVertical: 4 },
     list: { paddingHorizontal: 16, gap: 10 },
     sectionLabel: { fontSize: 11, fontFamily: 'Manrope_700Bold', letterSpacing: 2, textTransform: 'uppercase', marginTop: 8, marginBottom: 4 },
     emptyText: { fontSize: 14, textAlign: 'center' },

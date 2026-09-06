@@ -3659,7 +3659,7 @@ function LiveGameView({
         </div>
       )}
 
-      {/* ── Topbar: LIVE badge · title · room chip · players · end ── */}
+      {/* ── Topbar: LIVE badge · title · room chip · end ── */}
       <div className="flex flex-wrap items-center gap-3 pb-4 border-b border-[#16223a]">
         <div className="flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-full bg-[#ff0080]/15 border border-[#ff0080]/40">
           <span className="h-[7px] w-[7px] rounded-full bg-[#ff0080] animate-pulse" />
@@ -3667,9 +3667,6 @@ function LiveGameView({
         </div>
         <h1 className="text-lg font-extrabold text-[#eef2f8] truncate">{activeGame.topic}</h1>
         <div className="ml-auto flex items-center gap-3">
-          <div className="text-xs font-semibold text-[#9aa6bc]">
-            <span className="text-[#eef2f8] font-extrabold">{parts.length}</span> players
-          </div>
           <button
             onClick={() => endGame(activeGame.id)}
             className="text-xs font-bold text-[#ff6b6b] bg-[#ff6b6b]/10 border border-[#ff6b6b]/30 rounded-lg px-3.5 py-2 hover:brightness-110 transition"
