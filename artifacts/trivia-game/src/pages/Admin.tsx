@@ -3708,11 +3708,6 @@ function LiveGameView({
               <span className="text-[10px] font-bold tracking-[.22em] text-[#66728a]">
                 QUESTION {displayQNum} / {questions.length || "?"}
               </span>
-              {displayQ?.questionType && (
-                <span className="px-2 py-[3px] rounded-md bg-[#00ddff]/10 border border-[#00ddff]/25 text-[9px] font-bold tracking-[.1em] text-[#5be9ff] uppercase">
-                  {displayQ.questionType}
-                </span>
-              )}
               {displayQ?.points != null && (
                 <span className="px-2 py-[3px] rounded-md bg-[#ffe500]/10 border border-[#ffe500]/25 text-[9px] font-bold tracking-[.1em] text-[#ffe500]">
                   {displayQ.points} PTS

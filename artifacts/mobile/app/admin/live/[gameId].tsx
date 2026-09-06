@@ -492,7 +492,7 @@ export default function AdminLiveScreen() {
                 </Text>
                 <View style={[s.qCard, { backgroundColor: colors.card, borderColor: colors.primary + '66' }]}>
                   <Text style={[s.playMeta, { color: colors.mutedForeground }]}>
-                    {currentPlayingQ.questionType.replace(/_/g, ' ')} · {currentPlayingQ.points} pts
+                    {currentPlayingQ.points} pts
                   </Text>
                   <Text style={[s.playQText, { color: colors.foreground }]}>{currentPlayingQ.questionText}</Text>
 

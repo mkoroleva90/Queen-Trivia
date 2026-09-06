@@ -1499,11 +1499,6 @@ export default function GamePlay() {
     );
   }
 
-  // ── Question category label ──
-  const categoryLabel = current
-    ? current.questionType.replace(/_/g, " ").toUpperCase()
-    : null;
-
   return (
     <div className="min-h-[100dvh]">
       <div className="mx-auto max-w-6xl">
@@ -1607,20 +1602,8 @@ export default function GamePlay() {
                   transition={{ type: "spring", stiffness: 280, damping: 26 }}
                   className="space-y-5"
                 >
-                  {/* Category + points chips */}
+                  {/* Points chip */}
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span
-                      className="font-bold uppercase"
-                      style={{
-                        fontSize: 10, letterSpacing: ".12em",
-                        background: "rgba(0,221,255,.12)",
-                        color: "#00ddff",
-                        border: "1px solid rgba(0,221,255,.3)",
-                        borderRadius: 8, padding: "5px 10px",
-                      }}
-                    >
-                      {categoryLabel}
-                    </span>
                     <span
                       className="font-bold uppercase"
                       style={{

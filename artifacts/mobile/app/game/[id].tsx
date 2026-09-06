@@ -995,7 +995,7 @@ export default function GamePlayScreen() {
                 Q{sorted.indexOf(current) + 1}
               </Text>
               <Text style={[styles.questionType, { color: colors.mutedForeground }]}>
-                {current.questionType.replace(/_/g, ' ')}  ·  {current.points} pts
+                {current.points} pts
               </Text>
             </View>
 
