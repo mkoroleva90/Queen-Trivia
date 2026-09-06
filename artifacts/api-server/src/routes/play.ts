@@ -261,7 +261,17 @@ if (!question || question.gameId !== params.data.gameId) {
     return;
 }
 
-if (game.currentQuestionId !== question.id) {
+// Release gating: the host releases questions in orderIndex order, so the
+// released question and every earlier one are open; later ones stay locked.
+const releasedId = game.currentQuestionId;
+const [released] = releasedId == null
+    ? []
+    : await db
+        .select({ orderIndex: questionsTable.orderIndex })
+        .from(questionsTable)
+        .where(eq(questionsTable.id, releasedId));
+
+if (!released || question.orderIndex > released.orderIndex) {
     res.status(409).json({ error: "This question has not been released by the host" });
     return;
 }
@@ -279,7 +289,11 @@ const [already] = await db
     );
 
 
-if (already) {
+// A recorded skip (blank answer) may be replaced once by a real answer. A real
+// answer, or a blank on top of a blank, keeps the existing 409.
+const skipToReplace = already && already.userAnswer === "" && parsed.data.userAnswer !== "" ? already : null;
+
+if (already && !skipToReplace) {
     res.status(409).json({ error: "Question already answered" });
     return;
 }
@@ -325,25 +339,43 @@ if (parsed.data.userAnswer === "") {
 
 
 const result = await db.transaction(async (tx) => {
-    const [answer] = await tx
-        .insert(answersTable)
-        .values({
-            userId: sessionUserId,
-            gameId: question.gameId,
-            questionId: question.id,
-            userAnswer: parsed.data.userAnswer,
-            isCorrect,
-            pointsEarned,
-            gradingStatus: needsReview ? "needs_review" : "graded",
-        })
-        .onConflictDoNothing({
-            target: [
-                answersTable.userId,
-                answersTable.gameId,
-                answersTable.questionId,
-            ],
-        })
-        .returning();
+    const [answer] = skipToReplace
+        // Replace the skip in place. The userAnswer = '' condition lets a
+        // concurrent replacement win only once; the loser sees no row.
+        ? await tx
+            .update(answersTable)
+            .set({
+                userAnswer: parsed.data.userAnswer,
+                isCorrect,
+                pointsEarned,
+                gradingStatus: needsReview ? "needs_review" : "graded",
+            })
+            .where(
+                and(
+                    eq(answersTable.id, skipToReplace.id),
+                    eq(answersTable.userAnswer, ""),
+                ),
+            )
+            .returning()
+        : await tx
+            .insert(answersTable)
+            .values({
+                userId: sessionUserId,
+                gameId: question.gameId,
+                questionId: question.id,
+                userAnswer: parsed.data.userAnswer,
+                isCorrect,
+                pointsEarned,
+                gradingStatus: needsReview ? "needs_review" : "graded",
+            })
+            .onConflictDoNothing({
+                target: [
+                    answersTable.userId,
+                    answersTable.gameId,
+                    answersTable.questionId,
+                ],
+            })
+            .returning();
 
     if (!answer) return { kind: "duplicate" as const };
 
@@ -805,7 +837,16 @@ router.post(
             res.status(404).json({ error: "Question not found in this game" });
             return;
         }
-        if (game.currentQuestionId !== question.id) {
+        // Release gating: the host releases questions in orderIndex order, so the
+        // released question and every earlier one are open; later ones stay locked.
+        const releasedId = game.currentQuestionId;
+        const [released] = releasedId == null
+            ? []
+            : await db
+                .select({ orderIndex: questionsTable.orderIndex })
+                .from(questionsTable)
+                .where(eq(questionsTable.id, releasedId));
+        if (!released || question.orderIndex > released.orderIndex) {
             res.status(409).json({ error: "This question has not been released by the host" });
             return;
         }
@@ -822,7 +863,11 @@ router.post(
                 ),
             );
 
-        if (existing) {
+        // A recorded skip (blank answer) may be replaced once by a real answer. A
+        // real answer, or a blank on top of a blank, keeps the existing 409.
+        const skipToReplace = existing && existing.userAnswer === "" && parsed.data.userAnswer !== "" ? existing : null;
+
+        if (existing && !skipToReplace) {
             // Return the stored answer so the client can seed its local state
             // and show the already-answered UI without further retries.
             res.status(409).json({ error: "You already answered this question", existingAnswer: existing.userAnswer });
@@ -859,25 +904,43 @@ router.post(
         }
 
         const result = await db.transaction(async (tx) => {
-            const [answer] = await tx
-                .insert(answersTable)
-                .values({
-                    userId: hostUserId,
-                    gameId: question.gameId,
-                    questionId: question.id,
-                    userAnswer: parsed.data.userAnswer,
-                    isCorrect,
-                    pointsEarned,
-                    gradingStatus: needsReview ? "needs_review" : "graded",
-                })
-                .onConflictDoNothing({
-                    target: [
-                        answersTable.userId,
-                        answersTable.gameId,
-                        answersTable.questionId,
-                    ],
-                })
-                .returning();
+            const [answer] = skipToReplace
+                // Replace the skip in place. The userAnswer = '' condition lets a
+                // concurrent replacement win only once; the loser sees no row.
+                ? await tx
+                    .update(answersTable)
+                    .set({
+                        userAnswer: parsed.data.userAnswer,
+                        isCorrect,
+                        pointsEarned,
+                        gradingStatus: needsReview ? "needs_review" : "graded",
+                    })
+                    .where(
+                        and(
+                            eq(answersTable.id, skipToReplace.id),
+                            eq(answersTable.userAnswer, ""),
+                        ),
+                    )
+                    .returning()
+                : await tx
+                    .insert(answersTable)
+                    .values({
+                        userId: hostUserId,
+                        gameId: question.gameId,
+                        questionId: question.id,
+                        userAnswer: parsed.data.userAnswer,
+                        isCorrect,
+                        pointsEarned,
+                        gradingStatus: needsReview ? "needs_review" : "graded",
+                    })
+                    .onConflictDoNothing({
+                        target: [
+                            answersTable.userId,
+                            answersTable.gameId,
+                            answersTable.questionId,
+                        ],
+                    })
+                    .returning();
 
             if (!answer) {
                 const [stored] = await tx

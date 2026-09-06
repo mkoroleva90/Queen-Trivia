@@ -304,14 +304,19 @@ router.get("/games/:gameId/questions", requireAuth, async (req, res): Promise<vo
         ...question,
         imageUrl: safePlayerImageUrl(question.imageUrl),
     }));
-    // Players receive only the question the host has released. Waiting games
-    // have no released question; completed games safely reveal the full review.
+    // Players receive every question the host has released so far — the released
+    // question and everything before it by orderIndex (the list is already sorted
+    // by orderIndex) — so they can revisit a skipped question. Waiting games have
+    // no released question; completed games safely reveal the full review.
+    const releasedQuestion = game.status === "active" && game.currentQuestionId != null
+        ? questions.find((question) => question.id === game.currentQuestionId)
+        : undefined;
     const visibleQuestions = isAdmin
         ? decoded
         : game.status === "completed"
             ? playerSafeQuestions
-        : game.status === "active" && game.currentQuestionId != null
-            ? playerSafeQuestions.filter((question) => question.id === game.currentQuestionId)
+        : releasedQuestion
+            ? playerSafeQuestions.filter((question) => question.orderIndex <= releasedQuestion.orderIndex)
             : [];
     const response = isAdmin || game.status === "completed"
         ? visibleQuestions

@@ -224,7 +224,7 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
     }
   });
 
-  it("releases only the current question, without matching or ordering solutions", async () => {
+  it("lists every released question, without matching or ordering solutions", async () => {
     const code = `R${String(Date.now()).slice(-7)}`;
     let redactionGameId: number | undefined;
     let playerName: string | undefined;
@@ -296,8 +296,35 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
         [orderingId, redactionGameId],
       );
       const ordering = await agent.get(`/api/games/${redactionGameId}/questions`);
-      assert.equal(ordering.body[0].correctAnswer, undefined);
-      assert.notDeepEqual(ordering.body[0].options.items, ["first", "second", "third"]);
+      assert.deepEqual(
+        ordering.body.map((question: { id: number }) => question.id),
+        [matchingId, orderingId],
+        "every released question is listed in order; the unreleased one is not",
+      );
+      const orderingQuestion = ordering.body.find((question: { id: number }) => question.id === orderingId);
+      assert.equal(orderingQuestion.correctAnswer, undefined);
+      assert.notDeepEqual(orderingQuestion.options.items, ["first", "second", "third"]);
+
+      // An earlier released question stays answerable, and a recorded skip may
+      // be replaced exactly once by a real answer.
+      const skipEarlier = await agent
+        .post(`/api/games/${redactionGameId}/answers`)
+        .send({ questionId: matchingId, userAnswer: "" });
+      assert.equal(skipEarlier.status, 201, JSON.stringify(skipEarlier.body));
+      assert.equal(skipEarlier.body.pointsEarned, 0);
+      const replaceSkip = await agent
+        .post(`/api/games/${redactionGameId}/answers`)
+        .send({ questionId: matchingId, userAnswer: "A:1|B:2|C:3" });
+      assert.equal(replaceSkip.status, 201, JSON.stringify(replaceSkip.body));
+      assert.equal(replaceSkip.body.userAnswer, "A:1|B:2|C:3");
+      const replaceAgain = await agent
+        .post(`/api/games/${redactionGameId}/answers`)
+        .send({ questionId: matchingId, userAnswer: "A:1|B:2|C:3" });
+      assert.equal(replaceAgain.status, 409, JSON.stringify(replaceAgain.body));
+      const stillLocked = await agent
+        .post(`/api/games/${redactionGameId}/answers`)
+        .send({ questionId: writeInId, userAnswer: "Paris" });
+      assert.equal(stillLocked.status, 409, JSON.stringify(stillLocked.body));
 
       await pool.query(
         "UPDATE games SET current_question_id = $1 WHERE id = $2",
@@ -305,14 +332,21 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
       );
       const writeIn = await agent.get(`/api/games/${redactionGameId}/questions`);
       assert.equal(writeIn.status, 200, JSON.stringify(writeIn.body));
-      assert.equal(writeIn.body[0].correctAnswer, undefined);
+      assert.deepEqual(
+        writeIn.body.map((question: { id: number }) => question.id),
+        [matchingId, orderingId, writeInId],
+      );
+      for (const question of writeIn.body) {
+        assert.equal(question.correctAnswer, undefined, "no listed question may carry its answer");
+      }
+      const writeInQuestion = writeIn.body.find((question: { id: number }) => question.id === writeInId);
       assert.equal(
-        writeIn.body[0].options.alternateAnswers,
+        writeInQuestion.options.alternateAnswers,
         undefined,
         "active players must not receive accepted alternate answers",
       );
       assert.equal(
-        writeIn.body[0].options.presentationHint,
+        writeInQuestion.options.presentationHint,
         "European capital",
         "redaction should preserve non-grading presentation metadata",
       );
