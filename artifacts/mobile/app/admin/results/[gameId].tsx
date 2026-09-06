@@ -438,14 +438,6 @@ export default function AdminResultsScreen() {
                     <View style={[s.progressFill, { backgroundColor: colors.secondary, width: `${q.percentCorrect ?? 0}%` }]} />
                   </View>
                 )}
-                {q.mostChosenWrong && (
-                  <View style={s.wrongRow}>
-                    <Ionicons name="close-circle-outline" size={14} color={colors.destructive} />
-                    <Text style={[s.wrongText, { color: colors.mutedForeground }]} numberOfLines={1}>
-                      Top wrong answer: <Text style={{ color: colors.destructive, fontFamily: 'Manrope_600SemiBold' }}>{q.mostChosenWrong.answer}</Text> ({q.mostChosenWrong.count})
-                    </Text>
-                  </View>
-                )}
                 {!!correctAnswer && (
                   <View style={[s.correctRow, { borderTopColor: colors.border }]}>
                     <Text style={[s.correctLabel, { color: colors.secondary }]}>CORRECT ANSWER</Text>
@@ -519,8 +511,6 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     pctBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
     pctText: { fontSize: 12, fontFamily: 'Manrope_700Bold' },
     progressBg: { height: 4, borderRadius: 2, overflow: 'hidden' },
-    wrongRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-    wrongText: { fontSize: 12, flex: 1 },
     progressFill: { height: 4, borderRadius: 2 },
     correctRow: { borderTopWidth: 1, paddingTop: 10, gap: 3 },
     correctLabel: { fontSize: 9, fontFamily: 'Manrope_700Bold', letterSpacing: 1.5 },
