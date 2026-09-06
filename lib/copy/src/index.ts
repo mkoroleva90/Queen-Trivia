@@ -172,6 +172,15 @@ export const COPY = {
     playAlongLabel:     'Play along',
     /** Description beneath the play-along toggle heading. */
     playAlongDesc:      "Answer questions from this screen — you'll appear in the standings alongside your players",
+    /**
+     * Heading of the popup that asks the host to advance. It opens at the moment the
+     * old inline next-question control would have appeared — after answering when
+     * playing along, or as soon as the release control is available when only
+     * monitoring — and its primary button reuses nextQuestionBtn / endGameBtn (web and mobile).
+     */
+    nextPromptTitle:    'Ready for the next question?',
+    /** Secondary button on that popup — closes it without advancing; the host can reopen it from the small next-question button in the question card. */
+    nextPromptDismiss:  'Not yet',
   },
 
   /**

@@ -21,10 +21,10 @@ import {
   ShortResponseQuestion,
   SliderQuestion,
   MatchingBoard,
-  ActionBtn,
   type FeedbackResult,
 } from "@/pages/GamePlay";
 import { Check, X } from "lucide-react";
+import { NextQuestionPrompt } from "@/components/game/NextQuestionPrompt";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,10 +70,14 @@ export function HostPlayAlongCard({
   // Local state: reset when question changes (parent also keys this component on question.id)
   const [localAnswer, setLocalAnswer] = useState<string | null>(null);
   const [result, setResult] = useState<HostAnswerResult | null>(null);
+  // "Ready for the next question?" popup — opens with the feedback card;
+  // "Not yet" hides it until the host reopens it or the question changes.
+  const [nextPromptDismissed, setNextPromptDismissed] = useState(false);
 
   useEffect(() => {
     setLocalAnswer(null);
     setResult(null);
+    setNextPromptDismissed(false);
   }, [question.id]);
 
   const answered = result !== null;
@@ -211,17 +215,29 @@ export function HostPlayAlongCard({
             </p>
           )}
 
-          <ActionBtn
-            onClick={() => onNext(question.id, localAnswer!)}
-            bg={result.isCorrect ? "#00ddff" : "#1b2740"}
-            color={result.isCorrect ? "#0a0510" : "#eef2f8"}
+          {/* Small reopen control — the advance action itself lives in the popup */}
+          <button
+            type="button"
+            onClick={() => setNextPromptDismissed(false)}
+            className="text-xs font-bold text-[#ff5aa8] bg-[#ff0080]/10 border border-[#ff0080]/40 rounded-[10px] px-3.5 py-2 hover:brightness-110 transition"
           >
             {hasMore
               ? COPY.hostPlayAlong.nextQuestionBtn
               : COPY.hostPlayAlong.endGameBtn}
-          </ActionBtn>
+          </button>
         </div>
       )}
+
+      {/* ── "Ready for the next question?" popup — same trigger as the old inline advance control ── */}
+      <NextQuestionPrompt
+        open={answered && localAnswer !== null && !nextPromptDismissed}
+        onDismiss={() => setNextPromptDismissed(true)}
+        onConfirm={() => {
+          setNextPromptDismissed(true);
+          onNext(question.id, localAnswer!);
+        }}
+        isLastQuestion={!hasMore}
+      />
 
       {/* ── Skip affordance — only before answering ── */}
       {!answered && canSkip && (

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -97,9 +98,16 @@ export default function AdminLiveScreen() {
   // (409 with existingAnswer — e.g. the screen reloaded mid-game). Renders the
   // answered block with a working advance control.
   const [alreadyAnswered, setAlreadyAnswered] = useState<{ questionId: number; answer: string } | null>(null);
+  // "Ready for the next question?" popup — opens the moment the advance control
+  // becomes available; "Not yet" hides it until the released question changes.
+  const [nextPromptDismissed, setNextPromptDismissed] = useState(false);
 
   const { data: games, isLoading: gamesLoading, isError: gamesError } = useListGames();
   const game = games?.find((g) => g.id === gameId);
+  // A newly released question gets a fresh popup.
+  useEffect(() => {
+    setNextPromptDismissed(false);
+  }, [game?.currentQuestionId]);
   const { data: questions } = useListGameQuestions(gameId);
   const { data: participants, refetch: refetchParticipants } = useListGameParticipants(gameId);
   const updateGame = useUpdateGame();
@@ -357,6 +365,20 @@ export default function AdminLiveScreen() {
     void releaseNextQuestion();
   };
 
+  // The popup mirrors the old inline advance controls: after feedback
+  // (advanceToNext), when the server already holds the host's answer
+  // (releaseNextQuestion), or — for a monitoring host — whenever the release
+  // control is available. Null means there is nothing to advance right now.
+  const nextPromptAction: (() => void) | null = (() => {
+    if (!playAlong) return () => void releaseNextQuestion();
+    if (!currentPlayingQ) return null;
+    if (hostFeedback) return advanceToNext;
+    if (alreadyAnswered?.questionId === currentPlayingQ.id) return () => void releaseNextQuestion();
+    return null;
+  })();
+  // Wait for the completion modal so two modals never stack on the last question.
+  const nextPromptVisible = nextPromptAction !== null && !nextPromptDismissed && !completionModalVisible;
+
   /** Renders the appropriate player question component for the playing host. */
   const renderHostQuestion = (q: Question) => {
     const lockedAnswer = pendingAnswer ?? (hostAnswers[q.id] ?? null);
@@ -492,11 +514,12 @@ export default function AdminLiveScreen() {
                       {!!hostFeedback.feedback && (
                         <Text style={[s.feedbackText, { color: colors.mutedForeground }]}>{hostFeedback.feedback}</Text>
                       )}
+                      {/* Small reopen control — the advance action itself lives in the popup */}
                       <Pressable
-                        style={[s.choiceBtn, { borderColor: hostFeedback.isCorrect ? '#00ddff' : colors.border, backgroundColor: hostFeedback.isCorrect ? '#00ddff22' : colors.card, marginTop: 4 }]}
-                        onPress={advanceToNext}
+                        style={[s.reopenBtn, { borderColor: hostFeedback.isCorrect ? '#00ddff' : colors.border, backgroundColor: hostFeedback.isCorrect ? '#00ddff22' : colors.card }]}
+                        onPress={() => setNextPromptDismissed(false)}
                       >
-                        <Text style={[s.choiceText, { color: hostFeedback.isCorrect ? '#00ddff' : colors.foreground, textAlign: 'center' }]}>
+                        <Text style={[s.reopenBtnText, { color: hostFeedback.isCorrect ? '#00ddff' : colors.foreground }]}>
                           {isOnLastQuestion ? COPY.hostPlayAlong.endGameBtn : COPY.hostPlayAlong.nextQuestionBtn}
                         </Text>
                       </Pressable>
@@ -512,11 +535,12 @@ export default function AdminLiveScreen() {
                       <Text style={[s.feedbackPts, { color: colors.mutedForeground }]}>
                         {COPY.results.yourAnswer}: {alreadyAnswered.answer}
                       </Text>
+                      {/* Small reopen control — the advance action itself lives in the popup */}
                       <Pressable
-                        style={[s.choiceBtn, { borderColor: colors.accent, backgroundColor: colors.accent + '22', marginTop: 4 }]}
-                        onPress={() => void releaseNextQuestion()}
+                        style={[s.reopenBtn, { borderColor: colors.accent, backgroundColor: colors.accent + '22' }]}
+                        onPress={() => setNextPromptDismissed(false)}
                       >
-                        <Text style={[s.choiceText, { color: colors.accent, textAlign: 'center' }]}>
+                        <Text style={[s.reopenBtnText, { color: colors.accent }]}>
                           {isOnLastQuestion ? COPY.hostPlayAlong.endGameBtn : COPY.hostPlayAlong.nextQuestionBtn}
                         </Text>
                       </Pressable>
@@ -555,12 +579,13 @@ export default function AdminLiveScreen() {
         {/* ANSWER PROGRESS — hidden when host is playing along */}
         {!playAlong && (
           <>
+            {/* Small reopen control — the advance action itself lives in the popup */}
             <Pressable
-              style={[s.choiceBtn, { borderColor: colors.primary, backgroundColor: colors.primary + '22', marginBottom: 12 }]}
-              onPress={() => void releaseNextQuestion()}
+              style={[s.reopenBtn, { borderColor: colors.primary, backgroundColor: colors.primary + '22', marginBottom: 12 }]}
+              onPress={() => setNextPromptDismissed(false)}
             >
-              <Text style={[s.choiceText, { color: colors.primary, textAlign: 'center' }]}>
-                {isOnLastQuestion ? COPY.hostPlayAlong.endGameBtn : 'Release next question'}
+              <Text style={[s.reopenBtnText, { color: colors.primary }]}>
+                {isOnLastQuestion ? COPY.hostPlayAlong.endGameBtn : COPY.hostPlayAlong.nextQuestionBtn}
               </Text>
             </Pressable>
             <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>ANSWER PROGRESS</Text>
@@ -704,6 +729,47 @@ export default function AdminLiveScreen() {
         visible={completionModalVisible}
         onDismiss={() => setCompletionModalVisible(false)}
       />
+      {/* "Ready for the next question?" popup — same trigger as the old inline advance control */}
+      <Modal
+        visible={nextPromptVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setNextPromptDismissed(true)}
+        statusBarTranslucent
+      >
+        <View style={s.nextPromptOverlay}>
+          <View
+            accessibilityViewIsModal
+            accessibilityRole="alert"
+            style={[s.nextPromptCard, { backgroundColor: colors.card, borderColor: colors.primary }]}
+          >
+            <Text style={[s.nextPromptTitle, { color: colors.foreground }]}>
+              {COPY.hostPlayAlong.nextPromptTitle}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setNextPromptDismissed(true);
+                nextPromptAction?.();
+              }}
+              style={({ pressed }) => [s.nextPromptBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
+            >
+              <Text style={s.nextPromptBtnText}>
+                {isOnLastQuestion ? COPY.hostPlayAlong.endGameBtn : COPY.hostPlayAlong.nextQuestionBtn}
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setNextPromptDismissed(true)}
+              style={({ pressed }) => [s.nextPromptDismissBtn, { borderColor: colors.border, opacity: pressed ? 0.8 : 1 }]}
+            >
+              <Text style={[s.nextPromptDismissText, { color: colors.mutedForeground }]}>
+                {COPY.hostPlayAlong.nextPromptDismiss}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -745,8 +811,6 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     qText: { fontSize: 14, lineHeight: 20 },
     playQText: { fontSize: 16, lineHeight: 23, fontFamily: 'Manrope_700Bold' },
     playMeta: { fontSize: 12, fontFamily: 'Manrope_700Bold', alignSelf: 'stretch' },
-    choiceBtn: { borderWidth: 1, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14 },
-    choiceText: { fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
     answerInput: { borderWidth: 1, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14, fontSize: 14 },
     navBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderWidth: 1, borderRadius: 12, paddingVertical: 10 }, // kept for future use
     progressBg: { height: 4, borderRadius: 2, overflow: 'hidden' },
@@ -766,4 +830,15 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     feedbackTitle: { fontSize: 15, fontFamily: 'Manrope_800ExtraBold' },
     feedbackPts: { fontSize: 13, fontFamily: 'Manrope_600SemiBold' },
     feedbackText: { fontSize: 13, lineHeight: 18 },
+    // Small control that reopens the next-question popup (sits where the old inline advance button was)
+    reopenBtn: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, marginTop: 4 },
+    reopenBtnText: { fontSize: 12, fontFamily: 'Manrope_700Bold' },
+    // "Ready for the next question?" popup — mirrors quizCompleteStyles in app/game/[id].tsx
+    nextPromptOverlay: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,.72)', padding: 24 },
+    nextPromptCard: { width: '100%', maxWidth: 360, alignItems: 'center', borderWidth: 1.5, borderRadius: 24, padding: 24, gap: 14 },
+    nextPromptTitle: { fontSize: 24, fontWeight: '900', fontFamily: 'Manrope_800ExtraBold', textAlign: 'center' },
+    nextPromptBtn: { width: '100%', minHeight: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+    nextPromptBtnText: { color: '#ffffff', fontSize: 15, fontWeight: '800' },
+    nextPromptDismissBtn: { width: '100%', minHeight: 46, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+    nextPromptDismissText: { fontSize: 14, fontFamily: 'Manrope_600SemiBold' },
   });

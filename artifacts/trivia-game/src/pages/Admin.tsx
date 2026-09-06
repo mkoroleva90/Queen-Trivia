@@ -81,6 +81,7 @@ import { CrownMark } from "@/components/Brand";
 import { Footer } from "@/components/Footer";
 import { useGameSocket } from "../hooks/useGameSocket";
 import { HostPlayAlongCard, type HostAnswerResult } from "@/components/game/HostPlayAlongCard";
+import { NextQuestionPrompt } from "@/components/game/NextQuestionPrompt";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -3406,6 +3407,9 @@ function LiveGameView({
   // (409 with existingAnswer — e.g. a reload lost local state). Renders the
   // answered panel with a working advance control instead of the answer card.
   const [alreadyAnswered, setAlreadyAnswered] = useState<{ questionId: number; answer: string } | null>(null);
+  // "Ready for the next question?" popup — opens the moment the advance control
+  // becomes available; "Not yet" hides it until the released question changes.
+  const [nextPromptDismissed, setNextPromptDismissed] = useState(false);
 
   // Calls the host-answer API and returns the result. Does NOT update hostAnswers
   // on success — that is done by HostPlayAlongCard's onNext callback so the
@@ -3467,6 +3471,10 @@ function LiveGameView({
     const releasedIndex = questions.findIndex((question) => question.id === activeGame?.currentQuestionId);
     if (releasedIndex >= 0) setQIndex(releasedIndex);
   }, [activeGame?.currentQuestionId, questions]);
+  // A newly released question gets a fresh popup.
+  useEffect(() => {
+    setNextPromptDismissed(false);
+  }, [activeGame?.id, activeGame?.currentQuestionId]);
   const currentQ = questions[Math.min(qIndex, Math.max(questions.length - 1, 0))];
 
   // The playing host must answer the question the server has actually released
@@ -3625,9 +3633,28 @@ function LiveGameView({
   const answeredCount = answeredNames.length;
   const answeredPct = parts.length > 0 ? Math.round((answeredCount / parts.length) * 100) : 0;
   const qCorrect = currentQ ? (correctCount[currentQ.id] ?? 0) : 0;
+  // The popup mirrors the old inline advance controls: a playing host whose
+  // answer the server already holds (the feedback-card case lives inside
+  // HostPlayAlongCard), or a monitoring host whenever the transport's next
+  // control is available.
+  const nextDisabled = !isOnLastQuestion && qIndex >= questions.length - 1;
+  const nextPromptReady = activeGame.hostPlaysAlong
+    ? currentPlayingQ !== undefined && alreadyAnswered?.questionId === currentPlayingQ.id
+    : !nextDisabled;
 
   return (
     <div className="space-y-5 animate-in fade-in duration-300">
+
+      {/* ── "Ready for the next question?" popup — same trigger as the old inline advance control ── */}
+      <NextQuestionPrompt
+        open={nextPromptReady && !nextPromptDismissed}
+        onDismiss={() => setNextPromptDismissed(true)}
+        onConfirm={() => {
+          setNextPromptDismissed(true);
+          void advanceQuestion();
+        }}
+        isLastQuestion={isOnLastQuestion}
+      />
 
       {/* ── Kick confirmation overlay ── */}
       {kickTarget && (
@@ -3773,9 +3800,11 @@ function LiveGameView({
                     <div className="rounded-xl border border-[#ffe500]/40 bg-[#ffe500]/[.06] px-4 py-4">
                       <p className="font-extrabold text-sm text-[#ffe500]">{COPY.hostPlayAlong.alreadyAnsweredMsg}</p>
                       <p className="text-[13px] text-[#9aa6bc] mt-1">{COPY.results.yourAnswer}: {alreadyAnswered.answer}</p>
+                      {/* Small reopen control — the advance action itself lives in the popup */}
                       <button
-                        onClick={() => void advanceQuestion()}
-                        className="w-full mt-3 text-[13px] font-extrabold text-[#08130c] bg-[#ffe500] rounded-[10px] px-5 py-3 hover:brightness-110 transition"
+                        type="button"
+                        onClick={() => setNextPromptDismissed(false)}
+                        className="mt-3 text-xs font-bold text-[#ff5aa8] bg-[#ff0080]/10 border border-[#ff0080]/40 rounded-[10px] px-3.5 py-2 hover:brightness-110 transition"
                       >
                         {isOnLastQuestion
                           ? COPY.hostPlayAlong.endGameBtn
@@ -3823,12 +3852,14 @@ function LiveGameView({
             <button disabled title="Coming soon — needs a host-control endpoint" className="text-xs font-bold text-[#9aa6bc] bg-white/[.04] border border-[#1b2740] rounded-[10px] px-3.5 py-2.5 opacity-50 cursor-not-allowed">
               🔒 Lock
             </button>
+            {/* Small reopen control — the advance action itself lives in the popup */}
             <button
-              disabled={!isOnLastQuestion && qIndex >= questions.length - 1}
-               onClick={() => void advanceQuestion()}
-              className="ml-auto text-[13px] font-extrabold text-[#08130c] bg-[#ff0080] rounded-[10px] px-5 py-3 shadow-[0_8px_22px_-6px_rgba(255,0,128,.6)] disabled:opacity-40 hover:brightness-110 transition"
+              type="button"
+              disabled={nextDisabled}
+              onClick={() => setNextPromptDismissed(false)}
+              className="ml-auto text-xs font-bold text-[#ff5aa8] bg-[#ff0080]/10 border border-[#ff0080]/40 rounded-[10px] px-3.5 py-2.5 disabled:opacity-40 hover:brightness-110 transition"
             >
-              {isOnLastQuestion ? COPY.hostPlayAlong.endGameBtn : "Next question ›"}
+              {isOnLastQuestion ? COPY.hostPlayAlong.endGameBtn : COPY.hostPlayAlong.nextQuestionBtn}
             </button>
           </div>
           )}
