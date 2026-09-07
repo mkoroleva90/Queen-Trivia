@@ -173,10 +173,13 @@ export const COPY = {
     /** Description beneath the play-along toggle heading. */
     playAlongDesc:      "Answer questions from this screen — you'll appear in the standings alongside your players",
     /**
-     * Heading of the popup that asks the host to advance. It opens at the moment the
-     * old inline next-question control would have appeared — after answering when
-     * playing along, or as soon as the release control is available when only
-     * monitoring — and its primary button reuses nextQuestionBtn / endGameBtn (web and mobile).
+     * Heading of the advance popup when there is no answer result to show — a
+     * monitoring host, or a playing host whose answer the server holds without
+     * feedback. When the host has just answered or skipped the released question
+     * the popup shows the result instead: gameplay.feedbackCorrect /
+     * gameplay.feedbackWrong / results.skipped as the heading, the points line
+     * (gameplay.scorePtsSuffix + gameplay.feedbackTotalLabel), any AI feedback,
+     * then nextQuestionBtn / endGameBtn (web and mobile).
      */
     nextPromptTitle:    'Ready for the next question?',
     /** Secondary button on that popup — closes it without advancing; the host can reopen it from the small next-question button in the question card. */

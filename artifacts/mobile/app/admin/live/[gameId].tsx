@@ -442,6 +442,23 @@ export default function AdminLiveScreen() {
   })();
   // Wait for the completion modal so two modals never stack on the last question.
   const nextPromptVisible = nextPromptAction !== null && !nextPromptDismissed && !completionModalVisible;
+  // What the popup shows above its buttons: the released question's result when
+  // the host has just answered or skipped it (verdict, points, AI feedback), or
+  // the plain heading when there is nothing to show (monitoring host, or an
+  // answer the server holds without feedback). Same wording and colours as the
+  // inline feedback block.
+  const nextPromptResult = releasedResult?.result ?? null;
+  const nextPromptSkipped = releasedResult?.answer === '';
+  const nextPromptHeading = nextPromptResult
+    ? nextPromptSkipped
+      ? COPY.results.skipped
+      : nextPromptResult.isCorrect ? COPY.gameplay.feedbackCorrect : COPY.gameplay.feedbackWrong
+    : COPY.hostPlayAlong.nextPromptTitle;
+  const nextPromptHeadingColor = nextPromptResult
+    ? nextPromptSkipped
+      ? colors.accent
+      : nextPromptResult.isCorrect ? '#00ddff' : '#ff5aa8'
+    : colors.foreground;
 
   /** Renders the appropriate player question component for the playing host. */
   const renderHostQuestion = (q: Question) => {
@@ -849,7 +866,8 @@ export default function AdminLiveScreen() {
         visible={completionModalVisible}
         onDismiss={() => setCompletionModalVisible(false)}
       />
-      {/* "Ready for the next question?" popup — same trigger as the old inline advance control */}
+      {/* Result popup — the released question's result (or the plain heading) with the
+          advance action; same trigger as the old inline advance control */}
       <Modal
         visible={nextPromptVisible}
         transparent
@@ -863,9 +881,21 @@ export default function AdminLiveScreen() {
             accessibilityRole="alert"
             style={[s.nextPromptCard, { backgroundColor: colors.card, borderColor: colors.primary }]}
           >
-            <Text style={[s.nextPromptTitle, { color: colors.foreground }]}>
-              {COPY.hostPlayAlong.nextPromptTitle}
+            <Text style={[s.nextPromptTitle, { color: nextPromptHeadingColor }]}>
+              {nextPromptHeading}
             </Text>
+            {nextPromptResult && (
+              <>
+                {/* Points earned and running total */}
+                <Text style={[s.nextPromptPts, { color: colors.mutedForeground }]}>
+                  +{nextPromptResult.pointsEarned} {COPY.gameplay.scorePtsSuffix} · {COPY.gameplay.feedbackTotalLabel} {nextPromptResult.totalScore}
+                </Text>
+                {/* AI feedback (short-response questions) */}
+                {!!nextPromptResult.feedback && (
+                  <Text style={[s.nextPromptFeedback, { color: colors.mutedForeground }]}>{nextPromptResult.feedback}</Text>
+                )}
+              </>
+            )}
             <Pressable
               accessibilityRole="button"
               onPress={() => {
@@ -957,6 +987,8 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     nextPromptOverlay: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,.72)', padding: 24 },
     nextPromptCard: { width: '100%', maxWidth: 360, alignItems: 'center', borderWidth: 1.5, borderRadius: 24, padding: 24, gap: 14 },
     nextPromptTitle: { fontSize: 24, fontWeight: '900', fontFamily: 'Manrope_800ExtraBold', textAlign: 'center' },
+    nextPromptPts: { fontSize: 13, fontFamily: 'Manrope_600SemiBold', textAlign: 'center' },
+    nextPromptFeedback: { fontSize: 13, lineHeight: 18, textAlign: 'center' },
     nextPromptBtn: { width: '100%', minHeight: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
     nextPromptBtnText: { color: '#ffffff', fontSize: 15, fontWeight: '800' },
     nextPromptDismissBtn: { width: '100%', minHeight: 46, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },

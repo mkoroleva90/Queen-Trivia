@@ -249,7 +249,8 @@ export function HostPlayAlongCard({
         </div>
       )}
 
-      {/* ── "Ready for the next question?" popup — same trigger as the old inline advance control ── */}
+      {/* ── Result popup — opens with the feedback on the released question and carries the
+             advance action; "Not yet" leaves the inline feedback and reopen button in place ── */}
       <NextQuestionPrompt
         open={canAdvance && answered && localAnswer !== null && !nextPromptDismissed}
         onDismiss={() => setNextPromptDismissed(true)}
@@ -258,6 +259,8 @@ export function HostPlayAlongCard({
           onNext(question.id, localAnswer!);
         }}
         isLastQuestion={!hasMore}
+        result={result}
+        skipped={localAnswer === ""}
       />
 
       {/* ── Skip affordance — only before answering ── */}
