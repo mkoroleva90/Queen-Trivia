@@ -29,7 +29,7 @@ const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
   req.session.isAdmin = true;
   // Optionally bind the session to a host account, so a second admin can be
   // modelled as a non-owner of the (ownerless) test games.
-  const adminAccountId = (req.body as { adminAccountId?: unknown }).adminAccountId;
+  const adminAccountId = (req.body as { adminAccountId?: unknown } | undefined)?.adminAccountId;
   if (typeof adminAccountId === "number") {
     req.session.adminAccountId = adminAccountId;
   }
