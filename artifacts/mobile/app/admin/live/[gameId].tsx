@@ -452,7 +452,7 @@ export default function AdminLiveScreen() {
   const nextPromptHeading = nextPromptResult
     ? nextPromptSkipped
       ? COPY.results.skipped
-      : nextPromptResult.isCorrect ? COPY.gameplay.feedbackCorrect : COPY.gameplay.feedbackWrong
+      : nextPromptResult.isCorrect ? COPY.gameplay.feedbackCorrect : COPY.gameplay.feedbackWrongHeading
     : COPY.hostPlayAlong.nextPromptTitle;
   const nextPromptHeadingColor = nextPromptResult
     ? nextPromptSkipped

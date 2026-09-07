@@ -177,7 +177,7 @@ export const COPY = {
      * monitoring host, or a playing host whose answer the server holds without
      * feedback. When the host has just answered or skipped the released question
      * the popup shows the result instead: gameplay.feedbackCorrect /
-     * gameplay.feedbackWrong / results.skipped as the heading, the points line
+     * gameplay.feedbackWrongHeading / results.skipped as the heading, the points line
      * (gameplay.scorePtsSuffix + gameplay.feedbackTotalLabel), any AI feedback,
      * then nextQuestionBtn / endGameBtn (web and mobile).
      */
@@ -368,6 +368,13 @@ export const COPY = {
      *         a known structural difference flagged for review.
      */
     feedbackWrong:   'Not quite —',
+    /**
+     * Standalone-heading form of feedbackWrong, without the trailing em dash.
+     * Used as the wrong-answer heading of the host result popup on web
+     * (NextQuestionPrompt) and mobile (admin live screen). Inline feedback
+     * keeps using feedbackWrong.
+     */
+    feedbackWrongHeading: 'Not quite',
     /**
      * "Next question" navigation button text.
      * Web button has CSS `uppercase` — sentence-case value displays correctly.

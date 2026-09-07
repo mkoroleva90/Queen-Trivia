@@ -4,7 +4,7 @@
  *
  * Opens at the moment the old inline "Next question" / "End game" control
  * would have appeared. With a result it reads, top to bottom: verdict heading
- * (Correct! / Not quite — / Skipped), points earned and running total, any AI
+ * (Correct! / Not quite / Skipped), points earned and running total, any AI
  * feedback, then the advance button and "Not yet". Without a result (a
  * monitoring host, or an answer the server holds without feedback) the heading
  * is the plain "Ready for the next question?". "Not yet" (or closing the
@@ -52,7 +52,7 @@ export function NextQuestionPrompt({
       ? COPY.results.skipped
       : result.isCorrect
         ? COPY.gameplay.feedbackCorrect
-        : COPY.gameplay.feedbackWrong
+        : COPY.gameplay.feedbackWrongHeading
     : COPY.hostPlayAlong.nextPromptTitle;
   const headingColor = result
     ? skipped
