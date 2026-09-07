@@ -19,13 +19,13 @@
       "fast-uri": "4.1.4",
       "qs": "6.16.0",
       "@xmldom/xmldom": "0.9.12",
-      "@expo/plist>@xmldom/xmldom": "0.8.11",
       "ip-address": ">=10.3.1",
       "decode-uri-component": ">=0.5.0",
       "image-size": "npm:image-size-next@2.1.0",
       "browserslist": "4.28.7"
     },
     "patchedDependencies": {
+      "@expo/plist@0.4.9": "patches/@expo__plist@0.4.9.patch",
       "orval@8.22.0": "patches/orval@8.22.0.patch",
       "metro@0.83.3": "patches/metro@0.83.3.patch",
       "decode-uri-component@0.5.0": "patches/decode-uri-component@0.5.0.patch"
