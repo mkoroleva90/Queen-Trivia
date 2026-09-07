@@ -1018,4 +1018,59 @@ router.post(
 );
 
 
+// ─── Host play-along answers (seed for the live host screen) ─────────────────
+// Admin-only: lists the answers the host's player-user (game.hostUserId) has
+// on record for this game, so the live host screen can render already-answered
+// questions locked as soon as it loads. Resolves the host exactly like
+// /host-answer. The answers table stores no AI feedback, so none is returned.
+
+router.get(
+    "/games/:gameId/host-answers",
+    requireAdmin,
+    async (req, res): Promise<void> => {
+        const gameId = parseInt(String(req.params.gameId ?? ""), 10);
+        if (isNaN(gameId)) {
+            res.status(400).json({ error: "Invalid gameId" });
+            return;
+        }
+
+        if (!await assertGameOwnership(req, res, gameId)) return;
+
+        const [game] = await db
+            .select()
+            .from(gamesTable)
+            .where(eq(gamesTable.id, gameId));
+
+        if (!game) {
+            res.status(404).json({ error: "Game not found" });
+            return;
+        }
+        if (!game.hostPlaysAlong || !game.hostUserId) {
+            res.status(403).json({ error: "Play-along is not enabled for this game" });
+            return;
+        }
+
+        const hostUserId = game.hostUserId;
+
+        const rows = await db
+            .select({
+                questionId: answersTable.questionId,
+                userAnswer: answersTable.userAnswer,
+                isCorrect: answersTable.isCorrect,
+                pointsEarned: answersTable.pointsEarned,
+            })
+            .from(answersTable)
+            .where(
+                and(
+                    eq(answersTable.gameId, game.id),
+                    eq(answersTable.userId, hostUserId),
+                ),
+            )
+            .orderBy(asc(answersTable.questionId));
+
+        res.json(rows);
+    },
+);
+
+
 export default router;

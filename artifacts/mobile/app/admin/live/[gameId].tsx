@@ -94,10 +94,6 @@ export default function AdminLiveScreen() {
   const [hostResultById, setHostResultById] = useState<Record<number, { answer: string; result: { isCorrect: boolean; pointsEarned: number; totalScore: number; feedback?: string } }>>({});
   const [completionModalVisible, setCompletionModalVisible] = useState(false);
   const completionAlertShownRef = useRef(false);
-  // Set when the server reports the host already answered the released question
-  // (409 with existingAnswer — e.g. the screen reloaded mid-game). Renders the
-  // answered block with a working advance control.
-  const [alreadyAnswered, setAlreadyAnswered] = useState<{ questionId: number; answer: string } | null>(null);
   // "Ready for the next question?" popup — opens the moment the advance control
   // becomes available; "Not yet" hides it until the released question changes.
   const [nextPromptDismissed, setNextPromptDismissed] = useState(false);
@@ -280,6 +276,45 @@ export default function AdminLiveScreen() {
     ? sortedQs.find((question) => question.id === game?.currentQuestionId)
     : undefined;
   const hostCanSkip = unansweredForHost.length > 1;
+  // Host & play: seed the host's own answers from the server once, so questions
+  // answered before this screen loaded render locked straight away.
+  useEffect(() => {
+    if (!playAlong || isNaN(gameId)) return;
+    const releasedId = game?.currentQuestionId;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getItem(ADMIN_TOKEN_KEY).catch(() => null);
+        const r = await fetch(`${baseUrl}/api/games/${gameId}/host-answers`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!r.ok) return;
+        const rows = await r.json() as { questionId: number; userAnswer: string; isCorrect: boolean; pointsEarned: number; feedback?: string }[];
+        if (cancelled || rows.length === 0) return;
+        const totalScore = rows.reduce((sum, row) => sum + row.pointsEarned, 0);
+        // Answers submitted meanwhile win over the seed. Blank rows (skips) seed
+        // hostAnswers only, so they stay answerable.
+        setHostAnswers((prev) => ({
+          ...Object.fromEntries(rows.map((row): [number, string] => [row.questionId, row.userAnswer])),
+          ...prev,
+        }));
+        setHostResultById((prev) => ({
+          ...Object.fromEntries(rows
+            .filter((row) => row.userAnswer !== '')
+            .map((row): [number, { answer: string; result: { isCorrect: boolean; pointsEarned: number; totalScore: number; feedback?: string } }] => [row.questionId, {
+              answer: row.userAnswer,
+              result: { isCorrect: row.isCorrect, pointsEarned: row.pointsEarned, totalScore, feedback: row.feedback },
+            }])),
+          ...prev,
+        }));
+        // Seeded answers count as acknowledged — never pop the prompt because of them.
+        if (rows.some((row) => row.questionId === releasedId)) setNextPromptDismissed(true);
+      } catch {
+        // Fall back to discovering answers through the 409 on submit.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [gameId, playAlong, baseUrl]); // eslint-disable-line react-hooks/exhaustive-deps
   // The released question is the last one by orderIndex — there is nothing left
   // to advance to, so the primary action ends the game instead.
   const isOnLastQuestion =
@@ -353,10 +388,9 @@ export default function AdminLiveScreen() {
         const body = await r.json().catch(() => null) as { existingAnswer?: string } | null;
         const existingAnswer = body?.existingAnswer;
         if (existingAnswer !== undefined) {
-          // Already answered (e.g. the screen reloaded mid-game) — adopt the
-          // stored answer and show the answered block so the host can advance.
+          // Already answered (e.g. the seed missed it) — adopt the stored answer
+          // and show the answered block so the host can advance.
           setHostAnswers((prev) => ({ ...prev, [questionId]: existingAnswer }));
-          setAlreadyAnswered({ questionId, answer: existingAnswer });
         } else {
           // Not the released question — refetch the game so currentPlayingQ
           // resyncs to the server's currentQuestionId.
@@ -565,6 +599,18 @@ export default function AdminLiveScreen() {
                   {viewedSkipped && (
                     /* Came back to a skipped question — it can still be answered */
                     <Text style={[s.playMeta, { color: colors.accent }]}>{COPY.gameplay.skippedEarlier}</Text>
+                  )}
+                  {viewedSkipped && isViewingReleased && (
+                    /* A skip already on record for the released question (seeded on load)
+                       keeps the advance control reachable without answering first */
+                    <Pressable
+                      style={[s.reopenBtn, { borderColor: colors.primary, backgroundColor: colors.primary + '22' }]}
+                      onPress={() => setNextPromptDismissed(false)}
+                    >
+                      <Text style={[s.reopenBtnText, { color: colors.primary }]}>
+                        {isOnLastQuestion ? COPY.hostPlayAlong.endGameBtn : COPY.hostPlayAlong.nextQuestionBtn}
+                      </Text>
+                    </Pressable>
                   )}
                   <Text style={[s.playQText, { color: colors.foreground }]}>{viewedQ.questionText}</Text>
 

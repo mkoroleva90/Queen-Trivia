@@ -3408,10 +3408,6 @@ function LiveGameView({
   // Answers and feedback the host submitted this session, keyed by question id,
   // so a question viewed again renders locked with the feedback shown then.
   const [hostResultById, setHostResultById] = useState<Record<number, { answer: string; result: HostAnswerResult }>>({});
-  // Set when the server reports the host already answered the released question
-  // (409 with existingAnswer — e.g. a reload lost local state). Renders the
-  // answered panel with a working advance control instead of the answer card.
-  const [alreadyAnswered, setAlreadyAnswered] = useState<{ questionId: number; answer: string } | null>(null);
   // "Ready for the next question?" popup — opens the moment the advance control
   // becomes available; "Not yet" hides it until the released question changes.
   const [nextPromptDismissed, setNextPromptDismissed] = useState(false);
@@ -3442,10 +3438,9 @@ function LiveGameView({
         const body = await res.json().catch(() => ({})) as { existingAnswer?: string };
         const existingAnswer = body.existingAnswer;
         if (existingAnswer !== undefined) {
-          // Already answered (e.g. a reload lost local state) — adopt the stored
-          // answer and show the answered panel so the host can still advance.
+          // Already answered (e.g. the seed missed it) — adopt the stored answer
+          // and show the answered panel so the host can still advance.
           setHostAnswers((prev) => ({ ...prev, [questionId]: existingAnswer }));
-          setAlreadyAnswered({ questionId, answer: existingAnswer });
         } else {
           // Not the released question — refetch the game so currentPlayingQ
           // resyncs to the server's currentQuestionId.
@@ -3461,7 +3456,9 @@ function LiveGameView({
     }
   };
 
-  // Reset live telemetry whenever a different game goes live.
+  // Reset live telemetry whenever a different game goes live, then — in Host &
+  // play mode — seed the host's own answers from the server so questions
+  // answered before a reload render locked straight away.
   useEffect(() => {
     setQIndex(0);
     resetTallyStore(tallyStore.current);
@@ -3470,8 +3467,40 @@ function LiveGameView({
     setHostAnswers({});
     setHostSkippedIds(new Set());
     setHostResultById({});
-    setAlreadyAnswered(null);
-  }, [activeGame?.id]);
+    if (!activeGame?.hostPlaysAlong) return;
+    const gameId = activeGame.id;
+    const releasedId = activeGame.currentQuestionId;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/games/${gameId}/host-answers`, { credentials: "include" });
+        if (!res.ok) return;
+        const rows = await res.json() as { questionId: number; userAnswer: string; isCorrect: boolean; pointsEarned: number; feedback?: string }[];
+        if (cancelled || rows.length === 0) return;
+        const totalScore = rows.reduce((sum, row) => sum + row.pointsEarned, 0);
+        // Answers submitted meanwhile win over the seed. Blank rows (skips) seed
+        // hostAnswers only, so they stay answerable.
+        setHostAnswers((prev) => ({
+          ...Object.fromEntries(rows.map((row): [number, string] => [row.questionId, row.userAnswer])),
+          ...prev,
+        }));
+        setHostResultById((prev) => ({
+          ...Object.fromEntries(rows
+            .filter((row) => row.userAnswer !== "")
+            .map((row): [number, { answer: string; result: HostAnswerResult }] => [row.questionId, {
+              answer: row.userAnswer,
+              result: { isCorrect: row.isCorrect, pointsEarned: row.pointsEarned, totalScore, feedback: row.feedback },
+            }])),
+          ...prev,
+        }));
+        // Seeded answers count as acknowledged — never pop the prompt because of them.
+        if (rows.some((row) => row.questionId === releasedId)) setNextPromptDismissed(true);
+      } catch {
+        // Fall back to discovering answers through the 409 on submit.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [activeGame?.id, activeGame?.hostPlaysAlong]); // eslint-disable-line react-hooks/exhaustive-deps
   // Index of the question the server has released (-1 until one is). The view
   // index (qIndex) follows it, but Back/Forward may move qIndex to an earlier
   // question without touching what the server released.
@@ -3878,6 +3907,19 @@ function LiveGameView({
                     {viewedSkipped && (
                       /* Came back to a skipped question — it can still be answered */
                       <p className="mt-4 text-xs font-semibold text-[#ffe500]">{COPY.gameplay.skippedEarlier}</p>
+                    )}
+                    {viewedSkipped && !isViewingEarlier && (
+                      /* A skip already on record for the released question (seeded on load)
+                         keeps the advance control reachable without answering first */
+                      <button
+                        type="button"
+                        onClick={() => setNextPromptDismissed(false)}
+                        className="mt-2 text-xs font-bold text-[#ff5aa8] bg-[#ff0080]/10 border border-[#ff0080]/40 rounded-[10px] px-3.5 py-2 hover:brightness-110 transition"
+                      >
+                        {isOnLastQuestion
+                          ? COPY.hostPlayAlong.endGameBtn
+                          : COPY.hostPlayAlong.nextQuestionBtn}
+                      </button>
                     )}
                     <HostPlayAlongCard
                       key={displayQ.id}

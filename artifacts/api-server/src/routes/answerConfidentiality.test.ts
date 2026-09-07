@@ -27,6 +27,12 @@ const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 
 (router as IRouter).post("/test-set-confidentiality-admin-session", (req, res): void => {
   req.session.isAdmin = true;
+  // Optionally bind the session to a host account, so a second admin can be
+  // modelled as a non-owner of the (ownerless) test games.
+  const adminAccountId = (req.body as { adminAccountId?: unknown }).adminAccountId;
+  if (typeof adminAccountId === "number") {
+    req.session.adminAccountId = adminAccountId;
+  }
   req.session.save(() => res.json({ ok: true }));
 });
 
@@ -356,9 +362,10 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
     }
   });
 
-  it("rejects host play-along answers for an unreleased question", async () => {
+  it("rejects host play-along answers for an unreleased question and lists the host's answers to the owner only", async () => {
     let hostUserId: number | undefined;
     let hostGameId: number | undefined;
+    let otherAdminId: number | undefined;
     try {
       const host = await pool.query<{ id: number }>(
         "INSERT INTO users (name) VALUES ($1) RETURNING id",
@@ -403,9 +410,39 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
         .post(`/api/games/${hostGameId}/host-answer`)
         .send({ questionId: questions.rows[1]!.id, userAnswer: "true" });
       assert.equal(releasedAnswer.status, 201, JSON.stringify(releasedAnswer.body));
+
+      // The live host screen seeds its state from this list on load: exactly
+      // the rows the host has on record, with no answer-revealing fields.
+      const hostAnswers = await admin.get(`/api/games/${hostGameId}/host-answers`);
+      assert.equal(hostAnswers.status, 200, JSON.stringify(hostAnswers.body));
+      assert.deepEqual(hostAnswers.body, [
+        {
+          questionId: questions.rows[1]!.id,
+          userAnswer: "true",
+          isCorrect: releasedAnswer.body.isCorrect,
+          pointsEarned: releasedAnswer.body.pointsEarned,
+        },
+      ]);
+
+      // An admin with a host account that does not own this game is refused.
+      const otherAccount = await pool.query<{ id: number }>(
+        `INSERT INTO admin_accounts (email, email_verified)
+         VALUES ($1, true)
+         RETURNING id`,
+        [`__test__host_answers_other_${process.pid}_${Date.now()}@example.test`],
+      );
+      otherAdminId = otherAccount.rows[0]!.id;
+      const otherAdmin = request.agent(app);
+      assert.equal(
+        (await otherAdmin.post("/api/test-set-confidentiality-admin-session").send({ adminAccountId: otherAdminId })).status,
+        200,
+      );
+      const refused = await otherAdmin.get(`/api/games/${hostGameId}/host-answers`);
+      assert.equal(refused.status, 403, JSON.stringify(refused.body));
     } finally {
       if (hostGameId) await pool.query("DELETE FROM games WHERE id = $1", [hostGameId]);
       if (hostUserId) await pool.query("DELETE FROM users WHERE id = $1", [hostUserId]);
+      if (otherAdminId) await pool.query("DELETE FROM admin_accounts WHERE id = $1", [otherAdminId]);
     }
   });
 });
