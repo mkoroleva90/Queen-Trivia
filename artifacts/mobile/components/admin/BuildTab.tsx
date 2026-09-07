@@ -109,6 +109,21 @@ function mapJoinCodeError(err: unknown): string {
   return COPY.joinCode.invalidError;
 }
 
+/**
+ * Maps a PATCH /games/:id failure to the title field, or null when the failure
+ * belongs to the join code. The server uses the same "content_filtered" code
+ * for both fields, so a blocked title is told apart by its message — the
+ * shared COPY.contentFilter.gameTopic string, never free text.
+ * Must stay identical to the web mapping in Admin.tsx.
+ */
+function mapJoinTitleError(err: unknown): string | null {
+  const data = err && typeof err === 'object' && 'data' in err ? (err as { data: unknown }).data : null;
+  const code = data && typeof data === 'object' && 'code' in data ? String((data as { code: unknown }).code) : null;
+  const message = data && typeof data === 'object' && 'error' in data ? String((data as { error: unknown }).error) : null;
+  if (code === 'content_filtered' && message === COPY.contentFilter.gameTopic) return COPY.contentFilter.gameTopic;
+  return null;
+}
+
 function extractApiError(err: unknown, fallback: string): string {
   if (err && typeof err === 'object') {
     const data = 'data' in err ? (err as { data: unknown }).data : null;
@@ -239,6 +254,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
   const [playAlong, setPlayAlong] = useState(false);
   const [runMode, setRunMode] = useState<RunMode | null>(null);
   const [joinCodeError, setJoinCodeError] = useState<string | null>(null);
+  const [joinTitleError, setJoinTitleError] = useState<string | null>(null);
   const [showQuestionReview, setShowQuestionReview] = useState(false);
 
   // ── Questions state (for adding more after initial import)
@@ -330,25 +346,39 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
     }
   };
 
-  const handleJoinCodeSubmit = async (code: string) => {
+  const handleJoinCodeSubmit = async (code: string, title: string) => {
     if (!setupResult) return;
     setJoinCodeError(null);
-    if (code === (setupResult.game.accessCode ?? '')) {
+    setJoinTitleError(null);
+    const codeChanged = code !== (setupResult.game.accessCode ?? '');
+    const titleChanged = title !== setupResult.game.topic;
+    if (!codeChanged && !titleChanged) {
       setShowQuestionReview(false);
       setStep('review');
       return;
     }
     try {
+      // Only the changed fields go in the PATCH — an unchanged title is not
+      // re-sent, just as an unchanged code is not.
       const updated = await updateGame.mutateAsync({
         gameId: setupResult.game.id,
-        data: { accessCode: code },
+        data: {
+          ...(codeChanged ? { accessCode: code } : {}),
+          ...(titleChanged ? { topic: title } : {}),
+        },
       });
-      setSetupResult({ ...setupResult, game: { ...setupResult.game, accessCode: updated.accessCode ?? code } });
+      setSetupResult({
+        ...setupResult,
+        game: { ...setupResult.game, accessCode: updated.accessCode ?? code, topic: updated.topic },
+      });
       qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
       setShowQuestionReview(false);
       setStep('review');
     } catch (err) {
-      setJoinCodeError(mapJoinCodeError(err));
+      const titleError = mapJoinTitleError(err);
+      if (titleError) setJoinTitleError(titleError);
+      else if (!codeChanged) setJoinTitleError(COPY.admin.renameFailed);
+      else setJoinCodeError(mapJoinCodeError(err));
     }
   };
 
@@ -373,6 +403,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
     setRunMode(null);
     setBuildStage('runMode');
     setJoinCodeError(null);
+    setJoinTitleError(null);
     setShowQuestionReview(false);
     setCatOpen(false);
     setDifficultyOpen(false);
@@ -790,8 +821,10 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
               /* ── Join-code choice (after run mode, before the success screen) ── */
               <JoinCodeScreen
                 initialCode={setupResult.game.accessCode ?? ''}
+                initialTitle={setupResult.game.topic}
                 saving={updateGame.isPending}
                 error={joinCodeError}
+                titleError={joinTitleError}
                 onBack={() => setBuildStage('runMode')}
                 onSubmit={handleJoinCodeSubmit}
               />

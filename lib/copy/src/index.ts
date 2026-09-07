@@ -219,7 +219,10 @@ export const COPY = {
    * Join-code choice step — shown after the run-mode screen and before the
    * "Ready to Go!" success screen, on BOTH web and mobile. Pre-filled with the
    * game's auto-assigned code; saved via the existing PATCH /games/:id.
-   * Blocked-content errors reuse COPY.contentFilter.accessCode.
+   * Also carries a "Quiz title" field (pre-filled with the game's topic) so the
+   * host can rename the quiz in the same PATCH. Blocked-content errors reuse
+   * COPY.contentFilter.accessCode (code) and COPY.contentFilter.gameTopic
+   * (title); an empty title reuses COPY.admin.renameEmpty.
    * Wording must be identical on both platforms — always read these keys.
    */
   joinCode: {
@@ -227,6 +230,8 @@ export const COPY = {
     title:        'Choose your join code',
     /** Subtitle beneath the title. */
     subtitle:     "Players type this code to join your game. Pick something they'll remember.",
+    /** Label above the quiz-title input, shown above the code input. */
+    titleLabel:   'Quiz title',
     /** Label above the code input. */
     inputLabel:   'Player join code',
     /** Helper text beneath the input. */
@@ -495,7 +500,8 @@ export const COPY = {
       "One or more fields contain text that can't be used in a question. Please change your wording and try again.",
     /**
      * Shown when a host's game title (topic) is blocked on create or update.
-     * Displayed as a destructive toast on both platforms.
+     * Displayed as a destructive toast on both platforms, and as the
+     * field-level error under the title input on the join-code step.
      */
     gameTopic:
       "This game title can't be used. Please choose a different title.",

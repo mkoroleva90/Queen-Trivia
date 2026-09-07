@@ -10,36 +10,45 @@ const JOIN_CODE_PATTERN = /^[A-Z0-9]{8,12}$/;
 type Props = {
   /** The game's current (auto-assigned) join code — always pre-filled. */
   initialCode: string;
+  /** The game's current title (topic) — pre-fills the quiz-title field. */
+  initialTitle: string;
   /** True while the PATCH request is in flight. */
   saving: boolean;
   /** Server-side field error mapped by the parent (taken / blocked / invalid). */
   error: string | null;
+  /** Server-side field error for the title mapped by the parent (blocked / failed). */
+  titleError: string | null;
   /** Returns to the previous game-build choice without losing the draft. */
   onBack: () => void;
-  /** Called with the validated, uppercased code when the host continues. */
-  onSubmit: (code: string) => void;
+  /** Called with the validated, uppercased code and trimmed title when the host continues. */
+  onSubmit: (code: string, title: string) => void;
 };
 
 /**
  * Join-code choice step — shown after the run-mode screen and before the
- * "Ready to go live" confirmation. Saves via the existing PATCH /games/:id
- * (handled by the parent); unchanged codes just continue.
+ * "Ready to go live" confirmation. Also lets the host rename the quiz. Saves
+ * via the existing PATCH /games/:id (handled by the parent); unchanged values
+ * just continue.
  */
-export function JoinCodeScreen({ initialCode, saving, error, onBack, onSubmit }: Props) {
+export function JoinCodeScreen({ initialCode, initialTitle, saving, error, titleError, onBack, onSubmit }: Props) {
   const colors = useColors();
   const [code, setCode] = useState(initialCode);
+  const [quizTitle, setQuizTitle] = useState(initialTitle);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [localTitleError, setLocalTitleError] = useState<string | null>(null);
 
   const fieldError = localError ?? error;
+  const titleFieldError = localTitleError ?? titleError;
 
   const handleContinue = () => {
+    const title = quizTitle.trim();
     const val = code.trim().toUpperCase();
-    if (!JOIN_CODE_PATTERN.test(val)) {
-      setLocalError(COPY.joinCode.invalidError);
-      return;
-    }
-    setLocalError(null);
-    onSubmit(val);
+    const titleInvalid = title === '';
+    const codeInvalid = !JOIN_CODE_PATTERN.test(val);
+    setLocalTitleError(titleInvalid ? COPY.admin.renameEmpty : null);
+    setLocalError(codeInvalid ? COPY.joinCode.invalidError : null);
+    if (titleInvalid || codeInvalid) return;
+    onSubmit(val, title);
   };
 
   return (
@@ -59,7 +68,28 @@ export function JoinCodeScreen({ initialCode, saving, error, onBack, onSubmit }:
       <Text style={s.title}>{COPY.joinCode.title}</Text>
       <Text style={s.subtitle}>{COPY.joinCode.subtitle}</Text>
 
-      <Text style={s.inputLabel}>{COPY.joinCode.inputLabel.toUpperCase()}</Text>
+      <Text style={s.inputLabel}>{COPY.joinCode.titleLabel.toUpperCase()}</Text>
+      <TextInput
+        style={[
+          s.titleInput,
+          titleFieldError
+            ? { borderColor: colors.destructive }
+            : { borderColor: '#2b3446' },
+        ]}
+        value={quizTitle}
+        onChangeText={(t) => {
+          setQuizTitle(t);
+          setLocalTitleError(null);
+        }}
+        onSubmitEditing={handleContinue}
+        maxLength={120}
+        autoCorrect={false}
+      />
+      {titleFieldError ? (
+        <Text style={[s.helper, { color: colors.destructive }]}>{titleFieldError}</Text>
+      ) : null}
+
+      <Text style={[s.inputLabel, s.codeLabel]}>{COPY.joinCode.inputLabel.toUpperCase()}</Text>
       <TextInput
         style={[
           s.input,
@@ -111,6 +141,16 @@ const s = StyleSheet.create({
     letterSpacing: 1.3,
     color: '#6b7387',
   },
+  titleInput: {
+    backgroundColor: '#0f1420',
+    borderWidth: 1.5,
+    borderRadius: 14,
+    padding: 16,
+    fontSize: 17,
+    fontFamily: 'Manrope_700Bold',
+    color: '#ffffff',
+  },
+  codeLabel: { marginTop: 6 },
   input: {
     backgroundColor: '#0f1420',
     borderWidth: 1.5,

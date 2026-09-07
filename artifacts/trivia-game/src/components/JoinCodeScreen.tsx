@@ -9,34 +9,43 @@ const JOIN_CODE_PATTERN = /^[A-Z0-9]{8,12}$/;
 type Props = {
   /** The game's current (auto-assigned) join code — always pre-filled. */
   initialCode: string;
+  /** The game's current title (topic) — pre-fills the quiz-title field. */
+  initialTitle: string;
   /** True while the PATCH request is in flight. */
   saving: boolean;
   /** Server-side field error mapped by the parent (taken / blocked / invalid). */
   error: string | null;
-  /** Called with the validated, uppercased code when the host continues. */
-  onSubmit: (code: string) => void;
+  /** Server-side field error for the title mapped by the parent (blocked / failed). */
+  titleError: string | null;
+  /** Called with the validated, uppercased code and trimmed title when the host continues. */
+  onSubmit: (code: string, title: string) => void;
 };
 
 /**
  * Join-code choice step — shown after the run-mode screen and before the
- * "Ready to go live" confirmation. Saves via the existing PATCH /games/:id
- * (handled by the parent); unchanged codes just continue.
+ * "Ready to go live" confirmation. Also lets the host rename the quiz. Saves
+ * via the existing PATCH /games/:id (handled by the parent); unchanged values
+ * just continue.
  */
-export function JoinCodeScreen({ initialCode, saving, error, onSubmit }: Props) {
+export function JoinCodeScreen({ initialCode, initialTitle, saving, error, titleError, onSubmit }: Props) {
   const [code, setCode] = useState(initialCode);
+  const [quizTitle, setQuizTitle] = useState(initialTitle);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [localTitleError, setLocalTitleError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const fieldError = localError ?? error;
+  const titleFieldError = localTitleError ?? titleError;
 
   const handleContinue = () => {
+    const title = quizTitle.trim();
     const val = code.trim().toUpperCase();
-    if (!JOIN_CODE_PATTERN.test(val)) {
-      setLocalError(COPY.joinCode.invalidError);
-      return;
-    }
-    setLocalError(null);
-    onSubmit(val);
+    const titleInvalid = title === "";
+    const codeInvalid = !JOIN_CODE_PATTERN.test(val);
+    setLocalTitleError(titleInvalid ? COPY.admin.renameEmpty : null);
+    setLocalError(codeInvalid ? COPY.joinCode.invalidError : null);
+    if (titleInvalid || codeInvalid) return;
+    onSubmit(val, title);
   };
 
   const handleCopy = async () => {
@@ -57,8 +66,36 @@ export function JoinCodeScreen({ initialCode, saving, error, onSubmit }: Props) 
       <p className="mt-[6px] text-[15px] text-[#8b93a4]">{COPY.joinCode.subtitle}</p>
 
       <label
-        htmlFor="joinCodeStep"
+        htmlFor="joinCodeTitleStep"
         className="mt-7 block text-[11px] font-bold uppercase tracking-[0.12em] text-[#6b7387]"
+      >
+        {COPY.joinCode.titleLabel}
+      </label>
+      <input
+        id="joinCodeTitleStep"
+        type="text"
+        value={quizTitle}
+        onChange={(e) => {
+          setQuizTitle(e.target.value);
+          setLocalTitleError(null);
+        }}
+        onKeyDown={(e) => { if (e.key === "Enter") handleContinue(); }}
+        maxLength={120}
+        className={`mt-2 w-full rounded-[14px] bg-[#0f1420] px-[18px] py-4 text-lg font-bold text-white focus:outline-none ${
+          titleFieldError
+            ? "border-[1.5px] border-destructive"
+            : "border-[1.5px] border-[#2b3446] focus:border-[#f5138c]"
+        }`}
+        aria-label={COPY.joinCode.titleLabel}
+        aria-invalid={titleFieldError !== null}
+      />
+      {titleFieldError && (
+        <p className="mt-2 text-[13px] text-destructive">{titleFieldError}</p>
+      )}
+
+      <label
+        htmlFor="joinCodeStep"
+        className="mt-5 block text-[11px] font-bold uppercase tracking-[0.12em] text-[#6b7387]"
       >
         {COPY.joinCode.inputLabel}
       </label>

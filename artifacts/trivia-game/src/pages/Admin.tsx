@@ -33,6 +33,21 @@ function mapJoinCodeError(err: unknown): string {
   if (code === "code_taken" || status === 409) return COPY.joinCode.takenError;
   return COPY.joinCode.invalidError;
 }
+
+/**
+ * Maps a PATCH /games/:id failure to the title field, or null when the failure
+ * belongs to the join code. The server uses the same "content_filtered" code
+ * for both fields, so a blocked title is told apart by its message — the
+ * shared COPY.contentFilter.gameTopic string, never free text.
+ * Must stay identical to the mobile mapping in BuildTab.tsx.
+ */
+function mapJoinTitleError(err: unknown): string | null {
+  const data = err && typeof err === "object" && "data" in err ? (err as { data: unknown }).data : null;
+  const code = data && typeof data === "object" && "code" in data ? String((data as { code: unknown }).code) : null;
+  const message = data && typeof data === "object" && "error" in data ? String((data as { error: unknown }).error) : null;
+  if (code === "content_filtered" && message === COPY.contentFilter.gameTopic) return COPY.contentFilter.gameTopic;
+  return null;
+}
 import { cn } from "@/lib/utils";
 import {
  DndContext,
@@ -1690,6 +1705,7 @@ const [runMode, setRunMode] = useState<RunMode | null>(null);
 const [runModeChosen, setRunModeChosen] = useState(false);
 const [joinCodeChosen, setJoinCodeChosen] = useState(false);
 const [joinCodeError, setJoinCodeError] = useState<string | null>(null);
+const [joinTitleError, setJoinTitleError] = useState<string | null>(null);
 
 const [upgradeLimitMsg, setUpgradeLimitMsg] = useState<string | null>(null);
 const { toast } = useToast();
@@ -1885,6 +1901,7 @@ const handleReset = () => {
  setRunModeChosen(false);
  setJoinCodeChosen(false);
  setJoinCodeError(null);
+ setJoinTitleError(null);
 };
 
 if (!runModeChosen) {
@@ -1904,22 +1921,40 @@ if (created && importedCount !== null && !working && !joinCodeChosen) {
  return (
      <JoinCodeScreen
        initialCode={created.accessCode ?? ""}
+       initialTitle={created.topic}
        saving={updateGame.isPending}
        error={joinCodeError}
-       onSubmit={(code) => {
+       titleError={joinTitleError}
+       onSubmit={(code, title) => {
          setJoinCodeError(null);
-         if (code === (created.accessCode ?? "")) {
+         setJoinTitleError(null);
+         const codeChanged = code !== (created.accessCode ?? "");
+         const titleChanged = title !== created.topic;
+         if (!codeChanged && !titleChanged) {
            setJoinCodeChosen(true);
            return;
          }
+         // Only the changed fields go in the PATCH — an unchanged title is
+         // not re-sent, just as an unchanged code is not.
          updateGame.mutate(
-           { gameId: created.id, data: { accessCode: code } },
+           {
+             gameId: created.id,
+             data: {
+               ...(codeChanged ? { accessCode: code } : {}),
+               ...(titleChanged ? { topic: title } : {}),
+             },
+           },
            {
              onSuccess: () => {
-               setCreated((prev) => prev ? { ...prev, accessCode: code } : prev);
+               setCreated((prev) => prev ? { ...prev, accessCode: code, topic: title } : prev);
                setJoinCodeChosen(true);
              },
-             onError: (err: unknown) => setJoinCodeError(mapJoinCodeError(err)),
+             onError: (err: unknown) => {
+               const titleError = mapJoinTitleError(err);
+               if (titleError) setJoinTitleError(titleError);
+               else if (!codeChanged) setJoinTitleError(COPY.admin.renameFailed);
+               else setJoinCodeError(mapJoinCodeError(err));
+             },
            }
          );
        }}
