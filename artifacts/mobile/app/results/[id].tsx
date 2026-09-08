@@ -413,8 +413,8 @@ export default function ResultsScreen() {
                         })()}
                       </Text>
 
-                      {/* ── Answer detail — always show the correct answer ── */}
-                      {(missed || !!correctAnswer) && (
+                      {/* ── Answer detail — only for missed / unanswered ── */}
+                      {missed && (
                         <View style={styles.qAnswerDetail}>
                           {myAns && status !== 'skipped' && (
                             <View style={styles.qAnswerRow}>
