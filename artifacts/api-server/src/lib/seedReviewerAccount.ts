@@ -1,8 +1,10 @@
-import { eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import {
   db,
   adminAccountsTable,
+  answersTable,
+  gameParticipantsTable,
   gamesTable,
   questionsTable,
 } from "@workspace/db";
@@ -64,11 +66,12 @@ const SAMPLE_QUESTIONS: Array<{
 /**
  * Insert the demo game + questions for `ownerAdminId` inside transaction `tx`.
  * Picks DEMO_ACCESS_CODE if available, falls back to DEMO_ACCESS_CODE_FALLBACK.
+ * Returns the access code the game was created with.
  */
 async function insertDemoGame(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   ownerAdminId: number,
-): Promise<void> {
+): Promise<string> {
   // Check whether the preferred access code is already taken.
   const [takenCode] = await tx
     .select({ id: gamesTable.id })
@@ -118,20 +121,47 @@ async function insertDemoGame(
     },
     "Reviewer demo game seeded.",
   );
+
+  return accessCode;
+}
+
+/**
+ * Reset an existing demo game so it is joinable again: status back to
+ * "waiting", no released question, all prior player answers cleared and
+ * participant scores zeroed. The game keeps its existing access code.
+ */
+async function resetDemoGame(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  gameId: number,
+): Promise<void> {
+  await tx.delete(answersTable).where(eq(answersTable.gameId, gameId));
+
+  await tx
+    .update(gameParticipantsTable)
+    .set({ totalScore: 0 })
+    .where(eq(gameParticipantsTable.gameId, gameId));
+
+  await tx
+    .update(gamesTable)
+    .set({ status: "waiting", currentQuestionId: null })
+    .where(eq(gamesTable.id, gameId));
 }
 
 /**
  * Idempotent startup seed for the App Store reviewer demo account.
  *
- * Behaviour:
+ * Behaviour (runs on every server boot):
  *  - If REVIEWER_ACCOUNT_PASSWORD is not set, logs and returns immediately.
- *  - If the reviewer account already exists AND its demo game exists → no-op.
- *  - If the reviewer account already exists but its demo game is missing →
- *    creates the demo game for the existing account (self-healing).
+ *  - If the reviewer account already exists → marks it emailVerified so the
+ *    login gate never blocks the reviewer, then:
+ *      - if its demo game exists → resets it to a joinable "waiting" state,
+ *        keeping the same access code and clearing prior player answers;
+ *      - if its demo game is missing → creates it (self-healing).
  *  - Otherwise creates the account (pre-verified, no email gate), demo game,
  *    and questions — all inside a serialised transaction.
+ *  - Always logs "Reviewer demo game ready: <code>" once on success.
  *
- * Safe to run on every server startup.
+ * Idempotent and safe to run on every server startup.
  */
 export async function seedReviewerAccount(): Promise<void> {
   const password = process.env["REVIEWER_ACCOUNT_PASSWORD"];
@@ -154,17 +184,34 @@ export async function seedReviewerAccount(): Promise<void> {
         .limit(1);
 
       if (existing) {
-        // Account exists — check whether the demo game is also present.
+        // Account exists — always (re)verify the email so the login gate
+        // can never lock the reviewer out, whatever happened since last boot.
+        await tx
+          .update(adminAccountsTable)
+          .set({ emailVerified: true })
+          .where(eq(adminAccountsTable.id, existing.id));
+
+        // Check whether the demo game is also present. Match on topic so
+        // other games the reviewer may have created are left untouched.
         const [existingGame] = await tx
-          .select({ id: gamesTable.id })
+          .select({ id: gamesTable.id, accessCode: gamesTable.accessCode })
           .from(gamesTable)
-          .where(eq(gamesTable.ownerAdminId, existing.id))
+          .where(
+            and(
+              eq(gamesTable.ownerAdminId, existing.id),
+              eq(gamesTable.topic, DEMO_GAME_TOPIC),
+            ),
+          )
+          .orderBy(asc(gamesTable.id))
           .limit(1);
 
         if (existingGame) {
+          // Reset to a joinable state, keeping the same access code.
+          await resetDemoGame(tx, existingGame.id);
+          const accessCode = existingGame.accessCode ?? DEMO_ACCESS_CODE;
           logger.info(
-            { email: REVIEWER_EMAIL },
-            "Reviewer account and demo game already exist — seed skipped.",
+            { email: REVIEWER_EMAIL, gameId: existingGame.id, accessCode },
+            `Reviewer demo game ready: ${accessCode}`,
           );
           return;
         }
@@ -174,7 +221,11 @@ export async function seedReviewerAccount(): Promise<void> {
           { email: REVIEWER_EMAIL },
           "Reviewer account exists but demo game is missing — recreating game.",
         );
-        await insertDemoGame(tx, existing.id);
+        const accessCode = await insertDemoGame(tx, existing.id);
+        logger.info(
+          { email: REVIEWER_EMAIL, accessCode },
+          `Reviewer demo game ready: ${accessCode}`,
+        );
         return;
       }
 
@@ -192,11 +243,15 @@ export async function seedReviewerAccount(): Promise<void> {
         })
         .returning({ id: adminAccountsTable.id });
 
-      await insertDemoGame(tx, account!.id);
+      const accessCode = await insertDemoGame(tx, account!.id);
 
       logger.info(
         { email: REVIEWER_EMAIL },
         "Reviewer account seeded successfully.",
+      );
+      logger.info(
+        { email: REVIEWER_EMAIL, accessCode },
+        `Reviewer demo game ready: ${accessCode}`,
       );
     });
   } catch (err) {
