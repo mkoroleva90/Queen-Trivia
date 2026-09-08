@@ -126,7 +126,6 @@ Plus,
 Trash2,
 Pencil,
 Play,
-Info,
 Flag,
 ListChecks,
 X,
@@ -3389,9 +3388,6 @@ function AdminGate() {
 // NEW DESIGN COMPONENTS
 // -----------------------------------------------------------------
 
-/** localStorage key prefix for the one-time "Host & play" live-screen banner (per game). */
-const LIVE_BANNER_DISMISSED_KEY = "qt.liveBannerDismissed";
-
 const AVATAR_COLORS: [string, string][] = [
   ["#ff0080", "#ffffff"], ["#00ddff", "#062430"], ["#ffe500", "#3a2f00"],
   ["#35d07f", "#08130c"], ["#a78bfa", "#1a0f3d"], ["#ff8a4c", "#2b1200"],
@@ -3406,19 +3402,6 @@ function LiveGameView({
 }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-
-  // ── First-run reassurance banner (Host & play only, persisted per game) ──
-  const liveBannerKey = activeGame ? `${LIVE_BANNER_DISMISSED_KEY}.${activeGame.id}` : null;
-  const [liveBannerDismissedKeys, setLiveBannerDismissedKeys] = useState<Record<string, true>>({});
-  const liveBannerDismissed =
-    !liveBannerKey ||
-    liveBannerDismissedKeys[liveBannerKey] === true ||
-    (() => { try { return localStorage.getItem(liveBannerKey) === "1"; } catch { return true; } })();
-  const dismissLiveBanner = () => {
-    if (!liveBannerKey) return;
-    setLiveBannerDismissedKeys((prev) => ({ ...prev, [liveBannerKey]: true }));
-    try { localStorage.setItem(liveBannerKey, "1"); } catch { /* ignore */ }
-  };
 
   // ── Player removal (kick) state ───────────────────────────────────────────
   const [kickTarget, setKickTarget] = useState<{ userId: number; userName: string } | null>(null);
@@ -3790,27 +3773,6 @@ function LiveGameView({
           </button>
         </div>
       </div>
-
-      {/* ── First-run reassurance banner (Host & play only) ── */}
-      {activeGame.hostPlaysAlong && !liveBannerDismissed && (
-        <div
-          className="flex items-center gap-3 rounded-[14px] border border-[rgba(245,19,140,0.4)] px-4 py-[15px]"
-          style={{ background: "linear-gradient(90deg, rgba(245,19,140,0.16), rgba(25,210,237,0.10))" }}
-        >
-          <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-[rgba(245,19,140,0.25)]">
-            <Info className="h-4 w-4 text-[#f5138c]" />
-          </span>
-          <p className="flex-1 text-[15px] font-semibold text-white">{COPY.liveBanner.text}</p>
-          <button
-            type="button"
-            onClick={dismissLiveBanner}
-            aria-label="Dismiss"
-            className="text-[19px] leading-none text-[#8b93a4] hover:text-white transition"
-          >
-            ×
-          </button>
-        </div>
-      )}
 
       <div className="flex flex-col lg:flex-row gap-4 items-start">
         {/* ── LEFT: question card + transport ── */}

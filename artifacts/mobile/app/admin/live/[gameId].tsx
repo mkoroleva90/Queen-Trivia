@@ -27,7 +27,6 @@ import {
 } from '@workspace/api-client-react';
 import type { PendingAnswerReview, Question } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
-import { LiveBanner } from '@/components/admin/LiveBanner';
 import { useAdminGameSocket } from '@/hooks/useSocket';
 import { API_BASE_URL } from '@/lib/apiBase';
 import { COPY } from '@workspace/copy';
@@ -565,8 +564,6 @@ export default function AdminLiveScreen() {
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
-        {/* ── First-run reassurance banner (Host & play only) ── */}
-        {playAlong && <LiveBanner gameId={gameId} />}
         {/* ── Host play-along question card ── */}
         {playAlong && (
           <>

@@ -281,16 +281,6 @@ export const COPY = {
   },
 
   /**
-   * First-run reassurance banner on the live control screen — shown only when
-   * the host chose "Host & play", dismissible, and persisted per host so it
-   * never reappears once dismissed. Both platforms read this key.
-   */
-  liveBanner: {
-    /** Banner text. */
-    text: "Your questions appear right here once you're live.",
-  },
-
-  /**
    * Player gameplay strings — shown to players while they answer questions.
    * Both platforms must use these keys so wording stays in sync.
    *
