@@ -551,6 +551,8 @@ export const COPY = {
     headerLabel: 'Final Scores',
     /** Title of the collapsible question-breakdown section. */
     breakdown:   'Question-by-Question Breakdown',
+    /** Numbered pill at the top-left of each question card in the breakdown ("Q1", "Q2", …). */
+    questionBadge: (n: number) => `Q${n}`,
     /**
      * "Your answer" label in the per-question answer detail.
      * Both platforms apply `textTransform: 'uppercase'` via CSS / StyleSheet.

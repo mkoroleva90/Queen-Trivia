@@ -20,7 +20,6 @@ import {
   CheckCircle2,
   XCircle,
   Minus,
-  SkipForward,
   Share2,
   BarChart3,
   Flag,
@@ -402,7 +401,7 @@ export default function Results() {
                     transition={{ duration: 0.2 }}
                     className="overflow-hidden"
                   >
-                    <div className="border-t border-border/50 divide-y divide-border/30">
+                    <div className="border-t border-border/50 p-4 space-y-3">
                       {sortedQuestions.map((q, i) => {
                         const myAns = answerMap.get(q.id);
                         const stat  = statsMap.get(q.id);
@@ -417,41 +416,55 @@ export default function Results() {
                               : "wrong";
                         const missed = status === "wrong" || status === "partial" || status === "unanswered" || status === "skipped";
                         const correctAnswer = myAns?.correctAnswer ?? q.correctAnswer;
+                        // Card accent: green = right, pink = wrong (incl. partial credit), grey = no answer.
+                        const edgeColor =
+                          status === "correct" ? "#35d07f"
+                          : status === "unanswered" || status === "skipped" ? "#6b7387"
+                          : "#ff0080";
 
                         return (
                           <div
                             key={q.id}
-                            className={missed ? "border-l-[3px] border-red-500/70" : ""}
-                            style={missed ? { background: "rgba(239,68,68,.045)" } : undefined}
+                            className="rounded-2xl border p-4"
+                            style={{
+                              background: "rgba(255,255,255,.05)",
+                              borderColor: "rgba(255,255,255,.10)",
+                              borderLeftWidth: 4,
+                              borderLeftColor: edgeColor,
+                            }}
                           >
-                            {/* ── Row header ── */}
-                            <div className="flex items-start gap-3 px-5 py-3.5" style={missed ? { paddingLeft: 17 } : undefined}>
-                              <span className="text-xs font-bold text-muted-foreground mt-0.5 w-6 shrink-0">
-                                Q{i + 1}
+                            {/* ── Card header: numbered badge + status icon ── */}
+                            <div className="flex items-center justify-between gap-3">
+                              <span
+                                className="rounded-full border px-2.5 py-0.5 text-[11px] font-bold tracking-wide"
+                                style={{ color: edgeColor, backgroundColor: `${edgeColor}2e`, borderColor: `${edgeColor}59` }}
+                              >
+                                {COPY.results.questionBadge(i + 1)}
                               </span>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium leading-snug break-words">
-                                  {q.questionText}
-                                </p>
-                                <p className="text-[11px] text-muted-foreground mt-0.5">
-                                  {QUESTION_TYPE_LABELS[q.questionType] ?? q.questionType} · {q.points}pts
-                                  {stat?.percentCorrect != null && (
-                                    <> · {stat.percentCorrect}% got it right</>
-                                  )}
-                                </p>
-                              </div>
-                              <div className="shrink-0 mt-0.5">
-                                {status === "correct"    && <CheckCircle2 className="h-5 w-5 text-emerald-500" />}
-                                {status === "partial"    && <Minus        className="h-5 w-5 text-amber-400"   />}
-                                {status === "wrong"      && <XCircle      className="h-5 w-5 text-red-500"     />}
-                                {status === "unanswered" && <span className="text-xs text-muted-foreground">—</span>}
-                                {status === "skipped"    && <SkipForward  className="h-5 w-5 text-muted-foreground" />}
-                              </div>
+                              <span className="shrink-0 flex items-center" style={{ color: edgeColor }}>
+                                {status === "correct" && <CheckCircle2 className="h-5 w-5" />}
+                                {status === "partial" && <Minus        className="h-5 w-5" />}
+                                {status === "wrong"   && <XCircle      className="h-5 w-5" />}
+                                {(status === "unanswered" || status === "skipped") && (
+                                  <span className="text-lg font-bold leading-none">—</span>
+                                )}
+                              </span>
                             </div>
+
+                            {/* ── Question text ── */}
+                            <p className="mt-2 text-[15px] font-bold leading-snug break-words">
+                              {q.questionText}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground mt-1">
+                              {QUESTION_TYPE_LABELS[q.questionType] ?? q.questionType} · {q.points}pts
+                              {stat?.percentCorrect != null && (
+                                <> · {stat.percentCorrect}% got it right</>
+                              )}
+                            </p>
 
                             {/* ── Answer detail — only for missed / unanswered ── */}
                             {missed && (
-                              <div className="pb-3.5 space-y-1.5" style={{ paddingLeft: 17 + 24 + 12 /* border + Q-num col + gap */ }}>
+                              <div className="mt-3 space-y-1.5">
                                 {myAns && status !== "skipped" && (
                                   <div className="flex items-baseline gap-2 flex-wrap">
                                     <span className="text-[10px] font-bold uppercase tracking-widest text-red-400/70 shrink-0">

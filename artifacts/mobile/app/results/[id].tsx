@@ -376,76 +376,79 @@ export default function ResultsScreen() {
               <Ionicons name={expandBreakdown ? 'chevron-up' : 'chevron-down'} size={16} color={colors.mutedForeground} />
             </TouchableOpacity>
 
-            {expandBreakdown && sortedQuestions.map((q, i) => {
-              const myAns = answerMap.get(q.id);
-              const status = !myAns ? 'unanswered' : myAns.userAnswer === '' ? 'skipped' : myAns.isCorrect ? 'correct' : myAns.pointsEarned > 0 ? 'partial' : 'wrong';
-              const missed = status === 'wrong' || status === 'partial' || status === 'unanswered' || status === 'skipped';
-              const statusIcon = { correct: 'checkmark-circle', partial: 'remove-circle', wrong: 'close-circle', unanswered: 'ellipse-outline', skipped: 'play-skip-forward-circle' }[status];
-              const statusColor = { correct: '#22c55e', partial: '#f59e0b', wrong: '#ef4444', unanswered: colors.muted, skipped: colors.mutedForeground }[status];
-              const correctAnswer = myAns?.correctAnswer ?? q.correctAnswer;
+            {expandBreakdown && (
+              <View style={[styles.qList, { borderTopColor: colors.border }]}>
+                {sortedQuestions.map((q, i) => {
+                  const myAns = answerMap.get(q.id);
+                  const status = !myAns ? 'unanswered' : myAns.userAnswer === '' ? 'skipped' : myAns.isCorrect ? 'correct' : myAns.pointsEarned > 0 ? 'partial' : 'wrong';
+                  const missed = status === 'wrong' || status === 'partial' || status === 'unanswered' || status === 'skipped';
+                  // Card accent: green = right, pink = wrong (incl. partial credit), grey = no answer (rendered as a dash).
+                  const statusIcon = { correct: 'checkmark-circle', partial: 'remove-circle', wrong: 'close-circle', unanswered: null, skipped: null }[status];
+                  const statusColor = { correct: '#35d07f', partial: '#ff0080', wrong: '#ff0080', unanswered: '#6b7387', skipped: '#6b7387' }[status];
+                  const correctAnswer = myAns?.correctAnswer ?? q.correctAnswer;
 
-              return (
-                <View
-                  key={q.id}
-                  style={[
-                    styles.qRow,
-                    { borderTopColor: colors.border },
-                    missed && { backgroundColor: 'rgba(239,68,68,.04)', borderLeftWidth: 3, borderLeftColor: 'rgba(239,68,68,.65)' },
-                  ]}
-                >
-                  {/* ── Question header ── */}
-                  <View style={styles.qRowInner}>
-                    <Text style={[styles.qNum, { color: colors.mutedForeground }]}>Q{i + 1}</Text>
-                    {/* Full wrapping — no numberOfLines so nothing gets cut off on phone */}
-                    <Text style={[styles.qText, { color: colors.foreground }]}>{q.questionText}</Text>
-                    <Ionicons name={statusIcon as never} size={20} color={statusColor} style={styles.qStatusIcon} />
-                  </View>
-
-                  {/* ── Question meta: type · points · % got it right ── */}
-                  <Text style={[styles.qMeta, { color: colors.mutedForeground }]}>
-                    {QUESTION_TYPE_LABELS[q.questionType] ?? q.questionType} · {q.points} pts
-                    {(() => {
-                      const stat = statsMap.get(q.id);
-                      return stat && stat.percentCorrect !== null && stat.totalAnswered > 0
-                        ? ` · ${stat.percentCorrect}% got it right`
-                        : '';
-                    })()}
-                  </Text>
-
-                  {/* ── Answer detail — always show the correct answer ── */}
-                  {(missed || !!correctAnswer) && (
-                    <View style={styles.qAnswerDetail}>
-                      {myAns && status !== 'skipped' && (
-                        <View style={styles.qAnswerRow}>
-                          <Text style={[styles.qAnswerLabel, { color: 'rgba(248,113,113,.7)' }]}>{COPY.results.yourAnswer}</Text>
-                          <Text style={[styles.qAnswerValue, { color: 'rgba(248,113,113,.55)', textDecorationLine: 'line-through' }]}>
-                            {myAns.userAnswer}
-                          </Text>
+                  return (
+                    <View key={q.id} style={[styles.qCard, { borderLeftColor: statusColor }]}>
+                      {/* ── Card header: numbered badge + status icon ── */}
+                      <View style={styles.qCardHeader}>
+                        <View style={[styles.qBadge, { backgroundColor: `${statusColor}2e`, borderColor: `${statusColor}59` }]}>
+                          <Text style={[styles.qBadgeText, { color: statusColor }]}>{COPY.results.questionBadge(i + 1)}</Text>
                         </View>
-                      )}
-                      {!!correctAnswer && (
-                        <View style={styles.qAnswerRow}>
-                          <Text style={[styles.qAnswerLabel, { color: 'rgba(52,211,153,.8)' }]}>{COPY.results.correctAnswer}</Text>
-                          <Text style={[styles.qAnswerValue, { color: '#34d399', fontWeight: '700' }]}>
-                            {formatCorrectAnswer(q.questionType, correctAnswer)}
-                          </Text>
+                        {statusIcon
+                          ? <Ionicons name={statusIcon as never} size={20} color={statusColor} />
+                          : <Text style={[styles.qStatusDash, { color: statusColor }]}>—</Text>}
+                      </View>
+
+                      {/* ── Question text — full wrapping, no numberOfLines so nothing gets cut off on phone ── */}
+                      <Text style={[styles.qText, { color: colors.foreground }]}>{q.questionText}</Text>
+
+                      {/* ── Question meta: type · points · % got it right ── */}
+                      <Text style={[styles.qMeta, { color: colors.mutedForeground }]}>
+                        {QUESTION_TYPE_LABELS[q.questionType] ?? q.questionType} · {q.points} pts
+                        {(() => {
+                          const stat = statsMap.get(q.id);
+                          return stat && stat.percentCorrect !== null && stat.totalAnswered > 0
+                            ? ` · ${stat.percentCorrect}% got it right`
+                            : '';
+                        })()}
+                      </Text>
+
+                      {/* ── Answer detail — always show the correct answer ── */}
+                      {(missed || !!correctAnswer) && (
+                        <View style={styles.qAnswerDetail}>
+                          {myAns && status !== 'skipped' && (
+                            <View style={styles.qAnswerRow}>
+                              <Text style={[styles.qAnswerLabel, { color: 'rgba(248,113,113,.7)' }]}>{COPY.results.yourAnswer}</Text>
+                              <Text style={[styles.qAnswerValue, { color: 'rgba(248,113,113,.55)', textDecorationLine: 'line-through' }]}>
+                                {myAns.userAnswer}
+                              </Text>
+                            </View>
+                          )}
+                          {!!correctAnswer && (
+                            <View style={styles.qAnswerRow}>
+                              <Text style={[styles.qAnswerLabel, { color: 'rgba(52,211,153,.8)' }]}>{COPY.results.correctAnswer}</Text>
+                              <Text style={[styles.qAnswerValue, { color: '#34d399', fontWeight: '700' }]}>
+                                {formatCorrectAnswer(q.questionType, correctAnswer)}
+                              </Text>
+                            </View>
+                          )}
+                          {status === 'unanswered' && (
+                            <Text style={[styles.qUnanswered, { color: colors.mutedForeground }]}>
+                              {COPY.results.unanswered}
+                            </Text>
+                          )}
+                          {status === 'skipped' && (
+                            <Text style={[styles.qUnanswered, { color: colors.mutedForeground }]}>
+                              {COPY.results.skipped}
+                            </Text>
+                          )}
                         </View>
-                      )}
-                      {status === 'unanswered' && (
-                        <Text style={[styles.qUnanswered, { color: colors.mutedForeground }]}>
-                          {COPY.results.unanswered}
-                        </Text>
-                      )}
-                      {status === 'skipped' && (
-                        <Text style={[styles.qUnanswered, { color: colors.mutedForeground }]}>
-                          {COPY.results.skipped}
-                        </Text>
                       )}
                     </View>
-                  )}
-                </View>
-              );
-            })}
+                  );
+                })}
+              </View>
+            )}
           </View>
         )}
 
@@ -533,18 +536,28 @@ const styles = StyleSheet.create({
   breakdownCard: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
   breakdownHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 16 },
   breakdownTitle: { flex: 1, fontSize: 15, fontWeight: '700' },
-  qRow: { borderTopWidth: 1 },
-  // Non-expandable question header row
-  qRowInner: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 16, paddingVertical: 12 },
-  qNum: { fontSize: 11, fontWeight: '700', width: 24, paddingTop: 1 },
+  // Breakdown list: one card per question, 12px apart
+  qList: { borderTopWidth: 1, padding: 16, gap: 12 },
+  // Question card — solid slightly-lighter surface with a 4px status-coloured left edge
+  qCard: {
+    backgroundColor: 'rgba(255,255,255,.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,.10)',
+    borderLeftWidth: 4,
+    borderRadius: 16,
+    padding: 16,
+  },
+  qCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  qBadge: { borderRadius: 999, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 2 },
+  qBadgeText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
+  qStatusDash: { fontSize: 18, fontWeight: '700', lineHeight: 20 },
   // Full wrapping text — no line clamp so phone screens never truncate
-  qText: { flex: 1, fontSize: 13, fontWeight: '500', lineHeight: 19 },
-  qStatusIcon: { marginTop: 1 },
-  qMeta: { fontSize: 11, paddingLeft: 48, paddingRight: 16, paddingBottom: 10, marginTop: -4 },
+  qText: { fontSize: 15, fontWeight: '700', lineHeight: 21, marginTop: 8 },
+  qMeta: { fontSize: 11, marginTop: 4 },
   shareBtn: { height: 48, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, marginTop: 4 },
   shareBtnText: { fontSize: 14, fontWeight: '700' },
   // Answer detail shown inline for wrong / unanswered — left-indented to align with question text
-  qAnswerDetail: { paddingLeft: 48, paddingRight: 16, paddingBottom: 13, gap: 6 },
+  qAnswerDetail: { marginTop: 12, gap: 6 },
   qAnswerRow: { gap: 3 },
   qAnswerLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' },
   qAnswerValue: { fontSize: 14, fontWeight: '600', lineHeight: 20 },
