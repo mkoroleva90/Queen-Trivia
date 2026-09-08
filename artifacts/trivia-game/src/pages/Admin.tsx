@@ -2156,7 +2156,7 @@ return (
      id="customTopic"
      value={customTopic}
      onChange={(e) => setCustomTopic(e.target.value)}
-     placeholder="e.g. Harry Potter, The Office, 80s Music, Local History…"
+     placeholder={COPY.build.titlePlaceholder}
      className="h-12 text-base"
      autoFocus
      />

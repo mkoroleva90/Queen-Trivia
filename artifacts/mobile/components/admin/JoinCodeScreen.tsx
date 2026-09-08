@@ -8,7 +8,7 @@ import { useColors } from '@/hooks/useColors';
 const JOIN_CODE_PATTERN = /^[A-Z0-9]{8,12}$/;
 
 type Props = {
-  /** The game's current (auto-assigned) join code — always pre-filled. */
+  /** The game's current (auto-assigned) join code — kept when the host leaves the input blank. */
   initialCode: string;
   /** The game's current title (topic) — pre-fills the quiz-title field. */
   initialTitle: string;
@@ -32,7 +32,7 @@ type Props = {
  */
 export function JoinCodeScreen({ initialCode, initialTitle, saving, error, titleError, onBack, onSubmit }: Props) {
   const colors = useColors();
-  const [code, setCode] = useState(initialCode);
+  const [code, setCode] = useState('');
   const [quizTitle, setQuizTitle] = useState(initialTitle);
   const [localError, setLocalError] = useState<string | null>(null);
   const [localTitleError, setLocalTitleError] = useState<string | null>(null);
@@ -43,12 +43,14 @@ export function JoinCodeScreen({ initialCode, initialTitle, saving, error, title
   const handleContinue = () => {
     const title = quizTitle.trim();
     const val = code.trim().toUpperCase();
+    // Blank keeps the auto-assigned code (the parent skips the PATCH for an unchanged code).
+    const keepInitial = val === '';
     const titleInvalid = title === '';
-    const codeInvalid = !JOIN_CODE_PATTERN.test(val);
+    const codeInvalid = !keepInitial && !JOIN_CODE_PATTERN.test(val);
     setLocalTitleError(titleInvalid ? COPY.admin.renameEmpty : null);
     setLocalError(codeInvalid ? COPY.joinCode.invalidError : null);
     if (titleInvalid || codeInvalid) return;
-    onSubmit(val, title);
+    onSubmit(keepInitial ? initialCode : val, title);
   };
 
   return (
@@ -108,7 +110,7 @@ export function JoinCodeScreen({ initialCode, initialTitle, saving, error, title
         autoCorrect={false}
       />
       <Text style={[s.helper, fieldError ? { color: colors.destructive } : null]}>
-        {fieldError ?? COPY.joinCode.helper}
+        {fieldError ?? (code.trim() === '' ? COPY.joinCode.blankHelper(initialCode) : COPY.joinCode.helper)}
       </Text>
 
       <Pressable

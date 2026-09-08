@@ -912,7 +912,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                         style={[s.setupInput, { borderColor: setupError ? colors.destructive : colors.border }]}
                         value={topic}
                         onChangeText={(t) => { setTopic(t); setSetupError(''); }}
-                        placeholder="e.g. Harry Potter, The Office, 80s Music, Local History…"
+                        placeholder={COPY.build.titlePlaceholder}
                         placeholderTextColor={colors.mutedForeground}
                       />
 

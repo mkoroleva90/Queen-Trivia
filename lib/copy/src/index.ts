@@ -130,6 +130,16 @@ export const COPY = {
   },
 
   /**
+   * Create-game (build) form strings — the setup form where a host names a
+   * new quiz (web Admin.tsx create form; mobile BuildTab.tsx setup form).
+   * Both platforms must use these keys so wording stays in sync.
+   */
+  build: {
+    /** Placeholder for the quiz title / topic input, which starts blank. */
+    titlePlaceholder: 'Name your quiz',
+  },
+
+  /**
    * Admin games-list strings — host-facing labels on the games list screen
    * (web Admin.tsx GamesView and mobile GamesTab.tsx).
    * Both platforms must use these keys so wording stays in sync.
@@ -220,8 +230,9 @@ export const COPY = {
 
   /**
    * Join-code choice step — shown after the run-mode screen and before the
-   * "Ready to Go!" success screen, on BOTH web and mobile. Pre-filled with the
-   * game's auto-assigned code; saved via the existing PATCH /games/:id.
+   * "Ready to Go!" success screen, on BOTH web and mobile. The code input
+   * starts blank — leaving it blank keeps the game's auto-assigned code;
+   * a typed code is saved via the existing PATCH /games/:id.
    * Also carries a "Quiz title" field (pre-filled with the game's topic) so the
    * host can rename the quiz in the same PATCH. Blocked-content errors reuse
    * COPY.contentFilter.accessCode (code) and COPY.contentFilter.gameTopic
@@ -237,8 +248,10 @@ export const COPY = {
     titleLabel:   'Quiz title',
     /** Label above the code input. */
     inputLabel:   'Player join code',
-    /** Helper text beneath the input. */
+    /** Helper text beneath the input once the host starts typing a code. */
     helper:       '8–12 letters or numbers. No spaces.',
+    /** Helper text beneath the input while it is empty — names the auto-assigned code that will be kept. */
+    blankHelper:  (code: string) => `Leave blank to use ${code}`,
     /** Continue button. */
     continueBtn:  'Continue',
     /** Field-level error for a code that fails the 8–12 A–Z 0–9 format. */
