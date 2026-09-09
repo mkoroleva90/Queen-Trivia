@@ -18,6 +18,7 @@ A multiplayer pub-quiz web app: players enter with an access code, join live gam
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec (**broken on Node 24 — hand-patch instead, see Gotchas**)
 - `pnpm --filter @workspace/db run push` — push DB schema changes (**needs TTY — use raw SQL instead, see Gotchas**)
 - Required env: `DATABASE_URL` — Postgres connection string
+- Sign in with Apple token revocation (account deletion, App Store 5.1.1(v)): `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` (.p8 PEM), `APPLE_CLIENT_ID_IOS` (bundle ID), `APPLE_CLIENT_ID_WEB` (Services ID). Reported by `GET /api/auth/email/config-check` when missing.
 
 ## Stack
 

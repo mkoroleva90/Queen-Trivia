@@ -19,6 +19,11 @@ export const adminAuthProvidersTable = pgTable(
     provider: text("provider").notNull(),
     providerSubject: text("provider_subject").notNull(),
     providerEmail: text("provider_email"),
+    // Sign in with Apple refresh token, captured from the authorization-code
+    // exchange so the grant can be revoked when the account is deleted
+    // (App Store guideline 5.1.1(v)). Null for Google links and for Apple
+    // links created before this column existed.
+    appleRefreshToken: text("apple_refresh_token"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
