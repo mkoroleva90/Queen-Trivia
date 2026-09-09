@@ -1,8 +1,13 @@
 import { Router, type IRouter } from "express";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
-import { db, adminAccountsTable, gamesTable } from "@workspace/db";
+import { and, eq, isNotNull } from "drizzle-orm";
+import {
+  db,
+  adminAccountsTable,
+  adminAuthProvidersTable,
+  gamesTable,
+} from "@workspace/db";
 import {
   EmailRegisterBody,
   EmailLoginBody,
@@ -27,6 +32,7 @@ import {
   sendPasswordResetCodeEmail,
 } from "../lib/email.ts";
 import { logger } from "../lib/logger.ts";
+import { revokeAppleRefreshToken } from "../lib/appleTokens.ts";
 
 const router: IRouter = Router();
 
@@ -583,6 +589,17 @@ router.get("/auth/email/config-check", (req, res): void => {
   if (!emailFrom) issues.push("EMAIL_FROM is not set");
   if (!replitDomains) issues.push("REPLIT_DOMAINS is not set — email links will fall back to request host");
 
+  // Sign in with Apple token revocation (App Store guideline 5.1.1(v)).
+  for (const name of [
+    "APPLE_TEAM_ID",
+    "APPLE_KEY_ID",
+    "APPLE_PRIVATE_KEY",
+    "APPLE_CLIENT_ID_IOS",
+    "APPLE_CLIENT_ID_WEB",
+  ] as const) {
+    if (!process.env[name]) issues.push(`${name} is not set — Apple token revocation on account deletion will be skipped`);
+  }
+
   if (issues.length > 0) {
     res.status(503).json({ ok: false, issues });
     return;
@@ -634,9 +651,10 @@ router.delete(
 // DELETE /api/auth/email/account
 // User-facing account deletion for email-auth hosts (both web and mobile).
 // Requires a valid email-auth session/token (adminAccountId must be set).
-// 1. Null out owned games so they become legacy/shared games.
-// 2. Delete the account — ai_usage_log cascades automatically.
-// 3. Destroy the session / invalidate cookie.
+// 1. Revoke any Sign in with Apple grants (App Store guideline 5.1.1(v)).
+// 2. Delete provider links, then owned games.
+// 3. Delete the account — ai_usage_log cascades automatically.
+// 4. Destroy the session / invalidate cookie.
 router.delete(
   "/auth/email/account",
   requireAdmin,
@@ -647,6 +665,38 @@ router.delete(
       res.status(400).json({ error: "This endpoint requires an email-based account session." });
       return;
     }
+
+    // Revoke Apple refresh tokens first. Failures are logged and never block
+    // deletion — Apple requires a best-effort revocation, not a successful one.
+    const appleLinks = await db
+      .select({
+        id: adminAuthProvidersTable.id,
+        appleRefreshToken: adminAuthProvidersTable.appleRefreshToken,
+      })
+      .from(adminAuthProvidersTable)
+      .where(
+        and(
+          eq(adminAuthProvidersTable.adminAccountId, adminAccountId),
+          eq(adminAuthProvidersTable.provider, "apple"),
+          isNotNull(adminAuthProvidersTable.appleRefreshToken),
+        ),
+      );
+    for (const link of appleLinks) {
+      if (!link.appleRefreshToken) continue;
+      try {
+        const revoked = await revokeAppleRefreshToken(link.appleRefreshToken);
+        if (!revoked) {
+          logger.warn({ adminAccountId, linkId: link.id }, "Apple token revocation did not succeed — continuing account deletion.");
+        }
+      } catch (err) {
+        logger.warn({ err, adminAccountId, linkId: link.id }, "Apple token revocation threw — continuing account deletion.");
+      }
+    }
+
+    // Explicitly remove provider links (the FK also cascades, but be direct).
+    await db
+      .delete(adminAuthProvidersTable)
+      .where(eq(adminAuthProvidersTable.adminAccountId, adminAccountId));
 
     // Delete owned games — questions cascade via FK (ON DELETE CASCADE)
     await db

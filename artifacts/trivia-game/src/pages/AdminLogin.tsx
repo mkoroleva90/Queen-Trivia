@@ -56,7 +56,7 @@ export default function AdminLogin() {
   /** Posts an SSO ID token to the server and enters the admin area on success. */
   const submitSsoToken = async (
     endpoint: "/api/auth/sso/google" | "/api/auth/sso/apple",
-    body: { idToken: string; name?: string },
+    body: { idToken: string; name?: string; authorizationCode?: string },
   ) => {
     setSsoPending(true);
     setEmailError("");
@@ -137,12 +137,16 @@ export default function AdminLogin() {
       const result = await AppleID.auth.signIn();
       const idToken: string | undefined = result?.authorization?.id_token;
       if (!idToken) return;
+      // The one-time authorization code lets the server obtain a refresh token
+      // so the Apple grant can be revoked if the host deletes their account.
+      const authorizationCode: string | undefined = result?.authorization?.code;
       const nameParts = [result?.user?.name?.firstName, result?.user?.name?.lastName]
         .filter(Boolean)
         .join(" ");
       await submitSsoToken("/api/auth/sso/apple", {
         idToken,
         ...(nameParts ? { name: nameParts } : {}),
+        ...(authorizationCode ? { authorizationCode } : {}),
       });
     } catch (err: any) {
       // User closing the Apple popup rejects with { error: "popup_closed_by_user" } — not an error.

@@ -44,7 +44,7 @@ export default function AdminLoginScreen() {
   /** Posts an SSO ID token to the server, stores the admin token and enters the admin area. */
   const submitSsoToken = async (
     endpoint: '/api/auth/sso/google/mobile' | '/api/auth/sso/apple/mobile',
-    body: { idToken: string; name?: string },
+    body: { idToken: string; name?: string; authorizationCode?: string },
   ) => {
     const res = await fetch(`${baseUrl}${endpoint}`, {
       method: 'POST',
@@ -113,9 +113,13 @@ export default function AdminLoginScreen() {
       const nameParts = [credential.fullName?.givenName, credential.fullName?.familyName]
         .filter(Boolean)
         .join(' ');
+      // The one-time authorization code lets the server obtain a refresh token
+      // so the Apple grant can be revoked if the host deletes their account.
+      const authorizationCode = credential.authorizationCode ?? undefined;
       await submitSsoToken('/api/auth/sso/apple/mobile', {
         idToken,
         ...(nameParts ? { name: nameParts } : {}),
+        ...(authorizationCode ? { authorizationCode } : {}),
       });
     } catch (e: any) {
       if (e?.code === 'ERR_REQUEST_CANCELED') return; // user dismissed the sheet

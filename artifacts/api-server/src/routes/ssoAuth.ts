@@ -20,6 +20,11 @@ import {
   verifyAppleToken,
   type SSOIdentity,
 } from "../lib/ssoVerify.ts";
+import {
+  exchangeAppleAuthorizationCode,
+  type AppleClientPlatform,
+} from "../lib/appleTokens.ts";
+import { logger } from "../lib/logger.ts";
 
 const router: IRouter = Router();
 
@@ -184,6 +189,39 @@ async function sendMobileToken(
   res.json({ ok: true, adminToken, email: account.email });
 }
 
+// ─── Apple refresh-token capture ─────────────────────────────────────────────
+//
+// When the client sends Apple's one-time authorizationCode alongside the
+// identity token, exchange it for a refresh token and keep that token on the
+// provider link so the grant can be revoked on account deletion (App Store
+// guideline 5.1.1(v)). Any failure is logged and sign-in proceeds normally.
+
+async function captureAppleRefreshToken(
+  identity: SSOIdentity,
+  authorizationCode: unknown,
+  platform: AppleClientPlatform
+): Promise<void> {
+  if (typeof authorizationCode !== "string" || !authorizationCode.trim()) return;
+  try {
+    const refreshToken = await exchangeAppleAuthorizationCode({
+      authorizationCode: authorizationCode.trim(),
+      platform,
+    });
+    if (!refreshToken) return;
+    await db
+      .update(adminAuthProvidersTable)
+      .set({ appleRefreshToken: refreshToken })
+      .where(
+        and(
+          eq(adminAuthProvidersTable.provider, "apple"),
+          eq(adminAuthProvidersTable.providerSubject, identity.subject)
+        )
+      );
+  } catch (err) {
+    logger.warn({ err, platform }, "Could not store Apple refresh token — sign-in continues.");
+  }
+}
+
 // ─── Error forwarder ──────────────────────────────────────────────────────────
 
 function ssoError(res: Response, err: unknown): void {
@@ -245,9 +283,10 @@ router.post(
   authRateLimit,
   async (req, res): Promise<void> => {
     try {
-      const { idToken, name } = req.body as {
+      const { idToken, name, authorizationCode } = req.body as {
         idToken?: unknown;
         name?: unknown;
+        authorizationCode?: unknown;
       };
       if (typeof idToken !== "string" || !idToken) {
         res.status(400).json({ error: "idToken is required." });
@@ -261,6 +300,7 @@ router.post(
         identity.name = name.trim();
       }
       const account = await linkAndGetAccount(identity);
+      await captureAppleRefreshToken(identity, authorizationCode, "web");
       establishWebSession(req, res, account);
     } catch (err) {
       ssoError(res, err);
@@ -274,9 +314,10 @@ router.post(
   authRateLimit,
   async (req, res): Promise<void> => {
     try {
-      const { idToken, name } = req.body as {
+      const { idToken, name, authorizationCode } = req.body as {
         idToken?: unknown;
         name?: unknown;
+        authorizationCode?: unknown;
       };
       if (typeof idToken !== "string" || !idToken) {
         res.status(400).json({ error: "idToken is required." });
@@ -290,6 +331,7 @@ router.post(
         identity.name = name.trim();
       }
       const account = await linkAndGetAccount(identity);
+      await captureAppleRefreshToken(identity, authorizationCode, "ios");
       await sendMobileToken(res, account);
     } catch (err) {
       ssoError(res, err);
