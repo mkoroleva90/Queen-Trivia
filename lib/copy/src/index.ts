@@ -379,6 +379,14 @@ export const COPY = {
      */
     feedbackWrongHeading: 'Not quite',
     /**
+     * Neutral replacement for AI grader feedback. The API server substitutes
+     * this for the grader's sentence whenever that sentence would reveal the
+     * correct answer during an active game. Web and mobile render whatever
+     * `feedback` the submit-answer response carries, so both platforms show
+     * this text verbatim when the substitution happens.
+     */
+    feedbackNeutral: 'Your answer has been graded.',
+    /**
      * "Next question" navigation button text.
      * Web button has CSS `uppercase` — sentence-case value displays correctly.
      */

@@ -4,6 +4,8 @@
  */
 
 import { gradeWithAI } from "../services/geminiApi.ts";
+import { decodeHtml } from "./decodeHtml.ts";
+import { COPY } from "@workspace/copy";
 
 /**
  * Normalise a string for answer comparison:
@@ -44,6 +46,26 @@ export function surnameOf(normalizedCorrect: string): string | null {
     return parts.length >= 2 ? parts[parts.length - 1]! : null;
 }
 
+/**
+ * Server-side safeguard for AI grader feedback shown to players mid-game.
+ *
+ * If the feedback text contains the correct answer (compared case-insensitively
+ * after HTML-decoding both sides), the feedback is replaced with the neutral
+ * COPY.gameplay.feedbackNeutral string so the answer is never disclosed before
+ * the end-of-game results. Feedback that does not contain the answer is
+ * returned unchanged.
+ */
+export function redactAnswerFromFeedback(
+    feedback: string | undefined,
+    correctAnswer: string,
+): string | undefined {
+    if (!feedback) return feedback;
+    const answer = decodeHtml(correctAnswer).trim().toLowerCase();
+    if (answer.length === 0) return feedback;
+    const text = decodeHtml(feedback).toLowerCase();
+    return text.includes(answer) ? COPY.gameplay.feedbackNeutral : feedback;
+}
+
 export async function gradeAnswer(
     questionType: string,
     userAnswer: string,
@@ -70,7 +92,7 @@ export async function gradeAnswer(
             };
         }
 
-        return gradeWithAI({
+        const aiGrade = await gradeWithAI({
             questionText: questionText ?? "",
             correctAnswer,
             rubric: opts?.rubric,
@@ -78,6 +100,10 @@ export async function gradeAnswer(
             userAnswer,
             points,
         });
+        return {
+            ...aiGrade,
+            feedback: redactAnswerFromFeedback(aiGrade.feedback, correctAnswer),
+        };
     }
 
     // ── Matching: pair-by-pair partial credit ──────────────────────────────

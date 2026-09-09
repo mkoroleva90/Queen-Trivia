@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import request from "supertest";
 import pg from "pg";
 import type { IRouter } from "express";
+import { COPY } from "@workspace/copy";
 
 process.env.SESSION_SECRET = "test-secret-for-unit-tests-32chars!!";
 
@@ -359,6 +360,108 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
     } finally {
       if (redactionGameId) await pool.query("DELETE FROM games WHERE id = $1", [redactionGameId]);
       if (playerName) await pool.query("DELETE FROM users WHERE name = $1", [playerName]);
+    }
+  });
+
+  it("replaces AI grader feedback that would reveal the correct answer", async () => {
+    const code = `F${String(Date.now()).slice(-7)}`;
+    const playerName = `__test__feedback_redaction_${Date.now()}`;
+    const previousApiKey = process.env.GOOGLE_API_KEY;
+    const previousFetch = globalThis.fetch;
+    let feedbackGameId: number | undefined;
+    try {
+      const game = await pool.query<{ id: number }>(
+        `INSERT INTO games (topic, difficulty, question_count, status, access_code, created_by_admin)
+         VALUES ('Feedback redaction test', 'easy', 2, 'active', $1, true)
+         RETURNING id`,
+        [code],
+      );
+      feedbackGameId = game.rows[0]!.id;
+      const questions = await pool.query<{ id: number }>(
+        `INSERT INTO questions (game_id, question_text, question_type, correct_answer, points, order_index)
+         VALUES ($1, 'Why does the Moon always show the same face?', 'short_response', 'Tidal locking', 10, 0),
+                ($1, 'What keeps the Moon in orbit?', 'short_response', 'Gravity', 10, 1)
+         RETURNING id`,
+        [feedbackGameId],
+      );
+      const leakingQuestionId = questions.rows[0]!.id;
+      const cleanQuestionId = questions.rows[1]!.id;
+      await pool.query(
+        "UPDATE games SET current_question_id = $1 WHERE id = $2",
+        [leakingQuestionId, feedbackGameId],
+      );
+
+      // Stub the Gemini grader. The first grading call returns feedback that
+      // quotes the correct answer (upper-cased and HTML-encoded, so the
+      // safeguard's case-insensitive, HTML-decoded match is exercised); the
+      // second returns feedback that only comments on the player's answer.
+      const graderFeedback = [
+        "Not quite. The correct answer is &quot;TIDAL LOCKING&quot;, not what you wrote.",
+        "Close, but not accepted.",
+      ];
+      let graderCalls = 0;
+      process.env.GOOGLE_API_KEY = "test-key";
+      globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+        if (!url.includes("generativelanguage.googleapis.com")) {
+          return previousFetch(input, init);
+        }
+        const feedback = graderFeedback[graderCalls] ?? graderFeedback[graderFeedback.length - 1]!;
+        graderCalls++;
+        return new Response(JSON.stringify({
+          candidates: [{
+            content: {
+              parts: [{
+                text: JSON.stringify({ isCorrect: false, pointsEarned: 0, feedback }),
+              }],
+            },
+          }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      };
+
+      const agent = request.agent(app);
+      assert.equal((await agent.post("/api/auth/login").send({ code, name: playerName })).status, 200);
+      assert.equal((await agent.post(`/api/games/${feedbackGameId}/join`)).status, 201);
+
+      const leaking = await agent
+        .post(`/api/games/${feedbackGameId}/answers`)
+        .send({ questionId: leakingQuestionId, userAnswer: "The Moon spins slowly." });
+      assert.equal(leaking.status, 201, JSON.stringify(leaking.body));
+      assert.equal(graderCalls, 1, "the AI grader must have been consulted");
+      assert.equal(
+        leaking.body.feedback,
+        COPY.gameplay.feedbackNeutral,
+        "feedback containing the correct answer must be replaced with the neutral copy",
+      );
+      assert.equal(
+        JSON.stringify(leaking.body).toLowerCase().includes("tidal locking"),
+        false,
+        "active-game answer response must not disclose the correct answer via feedback",
+      );
+
+      await pool.query(
+        "UPDATE games SET current_question_id = $1 WHERE id = $2",
+        [cleanQuestionId, feedbackGameId],
+      );
+      const clean = await agent
+        .post(`/api/games/${feedbackGameId}/answers`)
+        .send({ questionId: cleanQuestionId, userAnswer: "Magnetism." });
+      assert.equal(clean.status, 201, JSON.stringify(clean.body));
+      assert.equal(graderCalls, 2, "the AI grader must have been consulted again");
+      assert.equal(
+        clean.body.feedback,
+        "Close, but not accepted.",
+        "feedback that does not reveal the answer passes through unchanged",
+      );
+    } finally {
+      globalThis.fetch = previousFetch;
+      if (previousApiKey === undefined) {
+        delete process.env.GOOGLE_API_KEY;
+      } else {
+        process.env.GOOGLE_API_KEY = previousApiKey;
+      }
+      if (feedbackGameId) await pool.query("DELETE FROM games WHERE id = $1", [feedbackGameId]);
+      await pool.query("DELETE FROM users WHERE name = $1", [playerName]);
     }
   });
 
