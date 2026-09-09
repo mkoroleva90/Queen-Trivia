@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, ne, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import {
   db,
@@ -128,12 +128,18 @@ async function insertDemoGame(
 /**
  * Reset an existing demo game so it is joinable again: status back to
  * "waiting", no released question, all prior player answers cleared and
- * participant scores zeroed. The game keeps its existing access code.
+ * participant scores zeroed.
+ *
+ * The access code is also normalised to DEMO_ACCESS_CODE when no other game
+ * holds it, else DEMO_ACCESS_CODE_FALLBACK when that is free. If both are
+ * taken by other games the existing code is left unchanged and a warning is
+ * logged. Returns the access code the game holds after the reset.
  */
 async function resetDemoGame(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   gameId: number,
-): Promise<void> {
+  currentAccessCode: string | null,
+): Promise<string | null> {
   await tx.delete(answersTable).where(eq(answersTable.gameId, gameId));
 
   await tx
@@ -141,10 +147,49 @@ async function resetDemoGame(
     .set({ totalScore: 0 })
     .where(eq(gameParticipantsTable.gameId, gameId));
 
-  await tx
-    .update(gamesTable)
-    .set({ status: "waiting", currentQuestionId: null })
-    .where(eq(gamesTable.id, gameId));
+  // Pick the canonical code unless another game already holds it.
+  let accessCode = currentAccessCode;
+  for (const candidate of [DEMO_ACCESS_CODE, DEMO_ACCESS_CODE_FALLBACK]) {
+    const [heldByOther] = await tx
+      .select({ id: gamesTable.id })
+      .from(gamesTable)
+      .where(
+        and(eq(gamesTable.accessCode, candidate), ne(gamesTable.id, gameId)),
+      )
+      .limit(1);
+    if (!heldByOther) {
+      accessCode = candidate;
+      break;
+    }
+  }
+
+  if (accessCode === currentAccessCode) {
+    if (
+      currentAccessCode !== DEMO_ACCESS_CODE &&
+      currentAccessCode !== DEMO_ACCESS_CODE_FALLBACK
+    ) {
+      logger.warn(
+        {
+          gameId,
+          accessCode: currentAccessCode,
+          preferred: DEMO_ACCESS_CODE,
+          fallback: DEMO_ACCESS_CODE_FALLBACK,
+        },
+        "Both reviewer demo access codes are held by other games — leaving the demo game's code unchanged.",
+      );
+    }
+    await tx
+      .update(gamesTable)
+      .set({ status: "waiting", currentQuestionId: null })
+      .where(eq(gamesTable.id, gameId));
+  } else {
+    await tx
+      .update(gamesTable)
+      .set({ status: "waiting", currentQuestionId: null, accessCode })
+      .where(eq(gamesTable.id, gameId));
+  }
+
+  return accessCode;
 }
 
 /**
@@ -155,7 +200,8 @@ async function resetDemoGame(
  *  - If the reviewer account already exists → marks it emailVerified so the
  *    login gate never blocks the reviewer, then:
  *      - if its demo game exists → resets it to a joinable "waiting" state,
- *        keeping the same access code and clearing prior player answers;
+ *        clears prior player answers, and normalises its access code to
+ *        DEMO_ACCESS_CODE (or the fallback) when not held by another game;
  *      - if its demo game is missing → creates it (self-healing).
  *  - Otherwise creates the account (pre-verified, no email gate), demo game,
  *    and questions — all inside a serialised transaction.
@@ -206,9 +252,12 @@ export async function seedReviewerAccount(): Promise<void> {
           .limit(1);
 
         if (existingGame) {
-          // Reset to a joinable state, keeping the same access code.
-          await resetDemoGame(tx, existingGame.id);
-          const accessCode = existingGame.accessCode ?? DEMO_ACCESS_CODE;
+          // Reset to a joinable state and normalise the access code.
+          const accessCode = await resetDemoGame(
+            tx,
+            existingGame.id,
+            existingGame.accessCode,
+          );
           logger.info(
             { email: REVIEWER_EMAIL, gameId: existingGame.id, accessCode },
             `Reviewer demo game ready: ${accessCode}`,
