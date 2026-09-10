@@ -88,13 +88,7 @@ export default function PrivacyScreen() {
           <Text style={[styles.body, { color: colors.mutedForeground }]}>
             We use the information we collect to:
           </Text>
-          {[
-            'Provide, operate, and maintain the Service',
-            'Create and manage your host account',
-            'Send account-related emails (verification, password reset)',
-            'Diagnose technical issues and improve the Service',
-            'Comply with legal obligations',
-          ].map((item) => (
+          {COPY.legal.privacy.informationUse.map((item) => (
             <View key={item} style={styles.listItem}>
               <Text style={[styles.bullet, { color: colors.mutedForeground }]}>•</Text>
               <Text style={[styles.listBody, { color: colors.mutedForeground }]}>{item}</Text>

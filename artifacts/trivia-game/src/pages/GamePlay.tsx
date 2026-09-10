@@ -667,7 +667,7 @@ export function WriteInQuestion({
       <Input
         value={val}
         onChange={(e) => setVal(e.target.value)}
-        placeholder="Type your answer…"
+        placeholder={COPY.gameplay.answerPlaceholder}
         className="h-14 text-lg"
         disabled={disabled}
         autoFocus

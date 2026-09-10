@@ -22,11 +22,11 @@ export default function Register() {
     setError("");
 
     if (password !== confirm) {
-      setError("Passwords don't match");
+      setError(COPY.hostForgotPassword.error.passwordsNoMatch);
       return;
     }
     if (password.length < 8) {
-      setError("Password must be at least 8 characters");
+      setError(COPY.hostForgotPassword.error.passwordTooShort);
       return;
     }
 

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { COPY } from '@workspace/copy';
 import {
   ActivityIndicator,
   Alert,
@@ -179,12 +180,12 @@ export default function AdminResultsScreen() {
       await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
-        await Sharing.shareAsync(fileUri, { mimeType: 'text/csv', dialogTitle: 'Export results CSV' });
+        await Sharing.shareAsync(fileUri, { mimeType: 'text/csv', dialogTitle: COPY.adminResults.exportDialogTitle });
       } else {
-        Alert.alert('Sharing unavailable', 'File sharing is not available on this device.');
+        Alert.alert(COPY.adminResults.sharingUnavailableTitle, COPY.adminResults.sharingUnavailableBody);
       }
     } catch (e) {
-      Alert.alert('Export failed', e instanceof Error ? e.message : 'Could not export results.');
+      Alert.alert(COPY.adminResults.exportFailedTitle, e instanceof Error ? e.message : COPY.adminResults.exportFailedBody);
     } finally {
       setExporting(false);
     }
@@ -207,7 +208,7 @@ export default function AdminResultsScreen() {
       await Promise.all([refetchPendingReviews(), refetchResults(), refetchStats()]);
       queryClient.invalidateQueries({ queryKey: ['live-seed-stats', gameId] });
     } catch {
-      Alert.alert('Could not save review', 'Please check your connection and try again.');
+      Alert.alert(COPY.adminResults.reviewSaveErrorTitle, COPY.adminResults.reviewSaveErrorBody);
     } finally {
       setReviewingAnswerId(null);
     }

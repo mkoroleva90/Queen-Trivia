@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { COPY } from "@workspace/copy";
 import { ArrowLeft } from "lucide-react";
 import { Footer } from "@/components/Footer";
 
@@ -37,10 +38,7 @@ export default function Support() {
               please include the following in your message so we can investigate quickly:
             </p>
             <ul className="list-disc pl-6 space-y-2">
-              <li>A brief description of what happened and what you expected to happen</li>
-              <li>The game code or topic name, if relevant</li>
-              <li>The device and browser (or app version) you were using</li>
-              <li>Any error messages you saw on screen</li>
+              {COPY.legal.support.reportChecklist.map((item) => <li key={item}>{item}</li>)}
             </ul>
           </section>
 

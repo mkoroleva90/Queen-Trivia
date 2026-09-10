@@ -143,7 +143,7 @@ export default function AdminLiveScreen() {
       qc.invalidateQueries({ queryKey: ['admin-results', gameId] });
       qc.invalidateQueries({ queryKey: ['admin-q-stats', gameId] });
     } catch {
-      Alert.alert('Could not save review', 'Please check your connection and try again.');
+      Alert.alert(COPY.adminResults.reviewSaveErrorTitle, COPY.adminResults.reviewSaveErrorBody);
     } finally {
       setReviewingAnswerId(null);
     }
@@ -361,7 +361,7 @@ export default function AdminLiveScreen() {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       await qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
     } catch {
-      setAnswerError('Could not release the next question — please retry');
+      setAnswerError(COPY.hostPlayAlong.releaseNextError);
     }
   };
 
@@ -415,7 +415,7 @@ export default function AdminLiveScreen() {
       }
       void refetchParticipants();
     } catch {
-      setAnswerError('Could not submit your answer — please retry');
+      setAnswerError(COPY.hostPlayAlong.submitAnswerError);
     } finally {
       setSubmittingAnswer(false);
     }

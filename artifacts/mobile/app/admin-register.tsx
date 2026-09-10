@@ -38,10 +38,10 @@ export default function AdminRegisterScreen() {
 
   const handleSubmit = async () => {
     const trimmedEmail = email.trim().toLowerCase();
-    if (!trimmedEmail) { setError('Enter your email address'); return; }
-    if (!password) { setError('Enter a password'); return; }
-    if (password.length < 8) { setError('Password must be at least 8 characters'); return; }
-    if (password !== confirm) { setError('Passwords do not match'); return; }
+    if (!trimmedEmail) { setError(COPY.hostLogin.error.enterEmail); return; }
+    if (!password) { setError(COPY.hostRegister.error.enterPassword); return; }
+    if (password.length < 8) { setError(COPY.hostForgotPassword.error.passwordTooShort); return; }
+    if (password !== confirm) { setError(COPY.hostForgotPassword.error.passwordsNoMatch); return; }
     setError('');
     setPending(true);
     try {

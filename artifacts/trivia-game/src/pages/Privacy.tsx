@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { COPY } from "@workspace/copy";
 import { ArrowLeft } from "lucide-react";
 
 export default function Privacy() {
@@ -53,11 +54,7 @@ export default function Privacy() {
             <h2 className="text-xl font-semibold text-white mb-3">3. How We Use Your Information</h2>
             <p className="mb-3">We use the information we collect to:</p>
             <ul className="list-disc pl-6 space-y-2">
-              <li>Provide, operate, and maintain the Service</li>
-              <li>Create and manage your host account</li>
-              <li>Send account-related emails (verification, password reset)</li>
-              <li>Diagnose technical issues and improve the Service</li>
-              <li>Comply with legal obligations</li>
+              {COPY.legal.privacy.informationUse.map((item) => <li key={item}>{item}</li>)}
             </ul>
           </section>
 

@@ -146,7 +146,7 @@ export function RoomsTab({ bottomPadding }: Props) {
       setPwConfirm('');
       setPwSuccess(json.message ?? 'Password changed successfully.');
     } catch {
-      setPwError('Connection error — please retry.');
+      setPwError(COPY.account.connectionError);
     } finally {
       setPwSaving(false);
     }
@@ -154,11 +154,11 @@ export function RoomsTab({ bottomPadding }: Props) {
 
   const handleDeleteAccount = () => {
     Alert.alert(
-      'Delete account',
-      'This will permanently delete your account and all your games. This cannot be undone.\n\nAre you sure?',
+      COPY.account.deleteAccount.confirmTitle,
+      `${COPY.account.deleteAccount.confirmBody}\n\n${COPY.account.deleteAccount.confirmQuestion}`,
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete my account', style: 'destructive', onPress: confirmDeleteAccount },
+        { text: COPY.account.deleteAccount.confirmCancel, style: 'cancel' },
+        { text: COPY.account.deleteAccount.confirmAction, style: 'destructive', onPress: confirmDeleteAccount },
       ],
     );
   };
@@ -170,13 +170,13 @@ export function RoomsTab({ bottomPadding }: Props) {
       const r = await adminFetch(`${baseUrl}/api/auth/email/account`, { method: 'DELETE' });
       if (!r.ok) {
         const body = await r.json().catch(() => ({})) as { error?: string };
-        setGlobalError(body.error ?? 'Failed to delete account. Please try again.');
+        setGlobalError(body.error ?? COPY.account.deleteAccount.failed);
         return;
       }
       await logoutAdmin();
       router.replace('/admin-login');
     } catch {
-      setGlobalError('Connection error — please retry.');
+      setGlobalError(COPY.account.connectionError);
     } finally {
       setDeleting(false);
     }

@@ -121,7 +121,7 @@ function ChangePasswordCard() {
       clear();
       setSuccess(json.message ?? "Password changed successfully.");
     } catch {
-      setError("Connection error — please retry.");
+      setError(COPY.account.connectionError);
     } finally {
       setSaving(false);
     }
@@ -208,13 +208,13 @@ function DangerZoneCard() {
       const r = await apiFetch("/api/auth/email/account", { method: "DELETE" });
       if (!r.ok) {
         const json = await r.json().catch(() => ({})) as { error?: string };
-        setError(json.error ?? "Failed to delete account. Please try again.");
+        setError(json.error ?? COPY.account.deleteAccount.failed);
         return;
       }
       await logout();
       setLocation("/");
     } catch {
-      setError("Connection error — please retry.");
+      setError(COPY.account.connectionError);
     } finally {
       setDeleting(false);
     }
@@ -244,19 +244,18 @@ function DangerZoneCard() {
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete account</AlertDialogTitle>
+              <AlertDialogTitle>{COPY.account.deleteAccount.confirmTitle}</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently delete your account and all your games. This cannot be undone.
-                Are you sure?
+                {COPY.account.deleteAccount.confirmBody} {COPY.account.deleteAccount.confirmQuestion}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel>{COPY.account.deleteAccount.confirmCancel}</AlertDialogCancel>
               <AlertDialogAction
                 onClick={handleDelete}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                Delete my account
+                {COPY.account.deleteAccount.confirmAction}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

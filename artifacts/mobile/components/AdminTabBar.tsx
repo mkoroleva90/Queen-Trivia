@@ -13,9 +13,9 @@ const TABS: {
   icon: keyof typeof Ionicons.glyphMap;
   iconActive: keyof typeof Ionicons.glyphMap;
 }[] = [
-  { id: 'games',   label: 'Games',   icon: 'game-controller-outline', iconActive: 'game-controller' },
-  { id: 'build',   label: 'Build',   icon: 'sparkles-outline',         iconActive: 'sparkles' },
-  { id: 'results', label: 'Results', icon: 'bar-chart-outline',        iconActive: 'bar-chart' },
+  { id: 'games',   label: COPY.nav.games, icon: 'game-controller-outline', iconActive: 'game-controller' },
+  { id: 'build',   label: COPY.nav.buildShort, icon: 'sparkles-outline',         iconActive: 'sparkles' },
+  { id: 'results', label: COPY.nav.results, icon: 'bar-chart-outline',        iconActive: 'bar-chart' },
   { id: 'rooms',   label: COPY.nav.rooms, icon: 'key-outline',          iconActive: 'key' },
 ];
 

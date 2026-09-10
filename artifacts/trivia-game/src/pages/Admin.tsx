@@ -586,13 +586,13 @@ function finiteFormNumber(value: string): number | null {
 
 
 export function validateForm(form: QuestionFormState): string | null {
-    if (!form.questionText.trim()) return "Question text is required";
+    if (!form.questionText.trim()) return COPY.questionEditor.validation.questionTextRequired;
     if (form.questionType === "multiple_choice") {
      const choices = form.choices.map((c) => c.trim()).filter(Boolean);
-     if (choices.length < 2) return "Add at least two choices";
-     if (!form.correctAnswer.trim()) return "Pick the correct choice";
+     if (choices.length < 2) return COPY.questionEditor.validation.addTwoChoices;
+     if (!form.correctAnswer.trim()) return COPY.questionEditor.validation.selectCorrectAnswer;
         if (!choices.includes(form.correctAnswer.trim()))
-         return "Correct answer must be one of the choices";
+         return COPY.questionEditor.validation.answerMustBeChoice;
     } else if (form.questionType === "ordering") {
         const items = form.orderingItems.map((item) => item.trim());
         if (items.length < 3) return "Add at least 3 items";
@@ -625,7 +625,7 @@ export function validateForm(form: QuestionFormState): string | null {
             return "Correct answer must be a finite number within minimum and maximum";
     } else if (form.questionType === "short_response") {
         if (!form.shortResponseRubric.trim()) return "A grading rubric is required";
-        if (!form.shortResponseAnswer.trim()) return "Correct answer is required";
+        if (!form.shortResponseAnswer.trim()) return COPY.questionEditor.specialist.shortResponse.answerError;
         if (form.shortResponseMaxWords.trim()) {
             const maxWords = Number(form.shortResponseMaxWords);
             if (!Number.isFinite(maxWords) || !Number.isInteger(maxWords) || maxWords <= 0)
@@ -633,14 +633,14 @@ export function validateForm(form: QuestionFormState): string | null {
         }
     } else if (form.questionType === "matching") {
         const pairs = form.pairs.filter((p) => p.left.trim() && p.right.trim());
-        if (pairs.length < 2) return "Add at least two complete pairs";
+        if (pairs.length < 2) return COPY.questionEditor.validation.addTwoPairs;
     } else if (form.questionType === "true_false") {
         if (form.correctAnswer !== "true" && form.correctAnswer !== "false")
          return "Pick true or false";
     } else {
-        if (!form.correctAnswer.trim()) return "Correct answer is required";
+        if (!form.correctAnswer.trim()) return COPY.questionEditor.validation.correctAnswerRequired;
         if (form.questionType === "image_recognition" && !form.imageUrl.trim())
-         return "Image URL is required";
+         return COPY.questionEditor.validation.imageUrlRequired;
     }
     return null;
 }
@@ -653,16 +653,16 @@ const TYPE_META: Record<
     QuestionType,
     { label: string; Icon: typeof CheckSquare; color: string }
 >={
-    multiple_choice: { label: "Multiple Choice", Icon: CheckSquare, color: "text-primary" },
-    true_false: { label: "True / False", Icon: ToggleLeft, color: "text-secondary" },
-    write_in: { label: "Write-In", Icon: PenLine, color: "text-accent" },
-    image_recognition: { label: "Image", Icon: ImageIcon, color: "text-orange-400" },
- matching: { label: "Matching", Icon: ArrowLeftRight, color: "text-purple-400" },
- multi_select: { label: "Multi-Select", Icon: CheckSquare, color: "text-cyan-400" },
- ordering: { label: "Ordering", Icon: ArrowLeftRight, color: "text-emerald-400" },
- slider: { label: "Slider", Icon: SlidersHorizontal, color: "text-yellow-400" },
- image_hotspot: { label: "Image Hotspot", Icon: ImageIcon, color: "text-rose-400" },
- short_response: { label: "Short Response", Icon: PenLine, color: "text-violet-400" },
+    multiple_choice: { label: COPY.questionType.multiple_choice, Icon: CheckSquare, color: "text-primary" },
+    true_false: { label: COPY.questionType.true_false, Icon: ToggleLeft, color: "text-secondary" },
+    write_in: { label: COPY.questionType.write_in, Icon: PenLine, color: "text-accent" },
+    image_recognition: { label: COPY.questionType.image_recognition, Icon: ImageIcon, color: "text-orange-400" },
+ matching: { label: COPY.questionType.matching, Icon: ArrowLeftRight, color: "text-purple-400" },
+ multi_select: { label: COPY.questionType.multi_select, Icon: CheckSquare, color: "text-cyan-400" },
+ ordering: { label: COPY.questionType.ordering, Icon: ArrowLeftRight, color: "text-emerald-400" },
+ slider: { label: COPY.questionType.slider, Icon: SlidersHorizontal, color: "text-yellow-400" },
+ image_hotspot: { label: COPY.questionType.image_hotspot, Icon: ImageIcon, color: "text-rose-400" },
+ short_response: { label: COPY.questionType.short_response, Icon: PenLine, color: "text-violet-400" },
 };
 
 
@@ -672,22 +672,7 @@ const CHOICE_LABELS = ["A", "B", "C", "D", "E", "F"];
 // ─── OpenTDB categories───────────────────────────────────────────────────────
 
 
-const OPENTDB_CATEGORIES = [
- { id: 9, name: "General Knowledge" },
- { id: 10, name: "Books" },
- { id: 11, name: "Film" },
- { id: 12, name: "Music" },
- { id: 14, name: "Television" },
- { id: 15, name: "Video Games" },
- { id: 17, name: "Science & Nature" },
- { id: 21, name: "Sports" },
- { id: 22, name: "Geography" },
- { id: 23, name: "History" },
- { id: 25, name: "Art" },
- { id: 26, name: "Celebrities" },
- { id: 27, name: "Animals" },
- { id: 28, name: "Vehicles" },
-] as const;
+const OPENTDB_CATEGORIES = COPY.openTdbCategories;
 
 
 // ─── QuestionForm─────────────────────────────────────────────────────────────
@@ -876,7 +861,7 @@ return (
      size="sm"
      onClick={() => set("choices", [...form.choices, ""])}
  >
-     <Plus className="mr-1 h-3.5 w-3.5" /> Add choice
+     <Plus className="mr-1 h-3.5 w-3.5" /> {COPY.questionEditor.addChoice}
  </Button>
 )}
 
@@ -1469,7 +1454,7 @@ return (
 </DialogTrigger>
 <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
 <DialogHeader>
- <DialogTitle>{editing ? "Edit Question" : "New Question"}</DialogTitle>
+ <DialogTitle>{editing ? COPY.questionEditor.editTitle : COPY.questionEditor.newTitle}</DialogTitle>
 </DialogHeader>
 <QuestionForm
  key={editing?.id ?? "new"}
@@ -1790,7 +1775,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       toast({ title: `${result.imported} questions imported from Open Trivia Database!` });
   } catch (err: unknown) {
       const msg =
-    err instanceof Error ? err.message : "Could not fetch questions from Open Trivia Database.";
+    err instanceof Error ? err.message : COPY.build.error.fetchOpenTdb;
       setImportError(msg);
       setImportSource("opentdb");
       toast({ variant: "destructive", title: "Import failed — add questions manually" });
@@ -1980,7 +1965,7 @@ if (created && importedCount !== null && !working) {
          {COPY.readyToGoLive.subtitle(
            created.topic,
            importedCount,
-           importSource === "gemini" ? "Gemini AI" : "Open Trivia Database",
+           importSource === "gemini" ? COPY.source.geminiAi : COPY.source.openTriviaDatabase,
          )}
        </p>
        <div className="mt-6 space-y-3 text-left">
@@ -2133,7 +2118,7 @@ return (
             <SelectValue placeholder="Select a category…" />
            </SelectTrigger>
            <SelectContent>
-      <SelectItem value="custom">Custom topic — Gemini AI generates questions</SelectItem>
+      <SelectItem value="custom">{COPY.build.customTopicOption}</SelectItem>
      <Separator className="my-1" />
      {OPENTDB_CATEGORIES.map((cat) => (
       <SelectItem key={cat.id} value={String(cat.id)}>
@@ -2142,7 +2127,7 @@ return (
      ))}
      </SelectContent>
  </Select>
-<p className="text-xs text-muted-foreground mt-1">{isCustom ? 'Gemini AI generates questions on the topic you enter below.' : 'Questions are pulled from Open Trivia Database.'}</p>
+<p className="text-xs text-muted-foreground mt-1">{isCustom ? COPY.sourceHelper.topic : COPY.sourceHelper.category}</p>
 </div>
 
  <OpenTdbQuestionMixSelector value={openTdbMode} onSelect={setOpenTdbMode} />
@@ -2635,17 +2620,17 @@ const handleGenerateMore = async () => {
 
 
  const getSourceBadge = (q: Question) => {
- if (q.aiGenerated) return { label: "AI Generated", cls: "bg-purple-500/15 text-purple-400border-purple-500/30" };
- if (q.source === "opentdb") return { label: "Open Trivia Database", cls: "bg-blue-500/15 text-blue-400border-blue-500/30" };
-  return { label: "Manual", cls: "bg-green-500/15 text-green-400 border-green-500/30" };
+ if (q.aiGenerated) return { label: COPY.source.ai, cls: "bg-purple-500/15 text-purple-400border-purple-500/30" };
+ if (q.source === "opentdb") return { label: COPY.source.openTriviaDatabase, cls: "bg-blue-500/15 text-blue-400border-blue-500/30" };
+  return { label: COPY.source.manual, cls: "bg-green-500/15 text-green-400 border-green-500/30" };
  };
 
 
  const FILTERS: { key: typeof filter; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "opentdb", label: "Open Trivia Database" },
-  { key: "ai", label: "AI Generated" },
-  { key: "manual", label: "Manual" },
+  { key: "all", label: COPY.admin.filterAll },
+  { key: "opentdb", label: COPY.source.openTriviaDatabase },
+  { key: "ai", label: COPY.source.ai },
+  { key: "manual", label: COPY.source.manual },
  ];
 
 
@@ -3311,7 +3296,7 @@ return (
     >
      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-        <DialogTitle>Edit Question</DialogTitle>
+        <DialogTitle>{COPY.questionEditor.editTitle}</DialogTitle>
         </DialogHeader>
         {editingQuestion && (
         <QuestionForm
@@ -3582,7 +3567,7 @@ function LiveGameView({
           endGame(activeGame.id);
           return;
         }
-        throw new Error(body?.error ?? "Could not release the next question");
+        throw new Error(body?.error ?? COPY.hostPlayAlong.releaseNextError);
       }
       const { currentQuestionId } = await response.json() as { currentQuestionId: number };
       const nextIndex = questions.findIndex((question) => question.id === currentQuestionId);
@@ -3591,7 +3576,7 @@ function LiveGameView({
     } catch (error) {
       toast({
         variant: "destructive",
-        title: error instanceof Error ? error.message : "Could not release the next question",
+        title: error instanceof Error ? error.message : COPY.hostPlayAlong.releaseNextError,
       });
     }
   };
@@ -4203,7 +4188,7 @@ function GamesView({
       </div>
 
       <div className="flex items-center gap-2 border-b border-[#1b2740] pb-px">
-        {([{ id: "all", label: COPY.admin.filterAll }, { id: "live", label: "Live" }, { id: "drafts", label: "Drafts" }] as const).map(f => (
+        {([{ id: "all", label: COPY.admin.filterAll }, { id: "live", label: COPY.admin.filterLive }, { id: "drafts", label: COPY.admin.filterDrafts }] as const).map(f => (
           <button
             key={f.id}
             onClick={() => setFilter(f.id)}
@@ -4249,11 +4234,11 @@ function GamesView({
               <div className="flex justify-between items-start mb-4">
                 {isLive && (
                   <div className="flex items-center gap-1.5 bg-[#ff0080]/10 text-[#ff0080] px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#ff0080] animate-pulse" /> LIVE
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#ff0080] animate-pulse" /> {COPY.status.active}
                   </div>
                 )}
-                {isDraft && <div className="bg-[#1b2740] text-[#9aa6bc] px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider">DRAFT</div>}
-                {isCompleted && <div className="bg-[#1b2740]/50 text-[#66728a] px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider">COMPLETED</div>}
+                {isDraft && <div className="bg-[#1b2740] text-[#9aa6bc] px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider">{COPY.status.waiting}</div>}
+                {isCompleted && <div className="bg-[#1b2740]/50 text-[#66728a] px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider">{COPY.status.completed}</div>}
                 
 
               </div>
@@ -4813,9 +4798,9 @@ function NewAdminDashboard() {
   };
 
   const navItems = [
-    { id: "build", label: "Build a game", icon: Wand2 },
-    { id: "games", label: "Games", icon: Gamepad2 },
-    { id: "results", label: "Results", icon: BarChart3 },
+    { id: "build", label: COPY.nav.build, icon: Wand2 },
+    { id: "games", label: COPY.nav.games, icon: Gamepad2 },
+    { id: "results", label: COPY.nav.results, icon: BarChart3 },
     { id: "rooms", label: COPY.nav.rooms, icon: Settings },
   ] as const;
 
@@ -4832,10 +4817,10 @@ function NewAdminDashboard() {
 
   // Short labels for the bottom tab bar (≤6 chars fits comfortably)
   const mobileNavLabels: Record<string, string> = {
-    games: "Games",
-    live: "Live",
-    build: "Build",
-    results: "Results",
+    games: COPY.nav.games,
+    live: COPY.nav.live,
+    build: COPY.nav.buildShort,
+    results: COPY.nav.results,
     rooms: COPY.nav.rooms,
   };
 

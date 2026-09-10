@@ -317,7 +317,7 @@ export function WriteInQ({
         ]}
         value={answered ? lockedAnswer : value}
         onChangeText={setValue}
-        placeholder={multiline ? 'Your answer...' : 'Type your answer'}
+        placeholder={multiline ? COPY.gameplay.answerPlaceholderMultiline : COPY.gameplay.answerPlaceholder}
         placeholderTextColor={colors.mutedForeground}
         editable={!answered && !disabled}
         multiline={multiline}
@@ -875,7 +875,7 @@ export default function GamePlayScreen() {
           const apiMsg = errData && typeof errData === 'object' && 'error' in errData ? String((errData as { error: unknown }).error) : null;
           const errCode = errData && typeof errData === 'object' && 'code' in errData ? String((errData as { code: unknown }).code) : null;
           if (errCode === 'content_filtered' && apiMsg) {
-            Alert.alert('Answer not submitted', apiMsg);
+            Alert.alert(COPY.gameplay.answerRejectedTitle, apiMsg);
             return;
           }
           Alert.alert(COPY.gameplay.submitErrorTitle, COPY.gameplay.submitErrorBody);

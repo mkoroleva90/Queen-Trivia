@@ -89,13 +89,7 @@ const DEFAULT_POINTS: Record<QType, number> = {
   image_recognition: 15, image_hotspot: 15, matching: 20,
 };
 
-const TYPE_LABELS: Record<QType, string> = {
-  multiple_choice: 'Multiple Choice', multi_select: 'Multi-Select',
-  true_false: 'True / False', write_in: 'Write-In',
-  short_response: 'Short Response', ordering: 'Ordering',
-  slider: 'Slider', image_recognition: 'Image', image_hotspot: 'Image Hotspot',
-  matching: 'Matching',
-};
+const TYPE_LABELS: Record<QType, string> = COPY.questionType;
 
 const TYPE_ICONS: Record<QType, string> = {
   multiple_choice: 'checkmark-circle', multi_select: 'checkbox',
@@ -301,13 +295,13 @@ function buildPayload(form: QForm, orderIndex: number) {
 }
 
 function validateForm(form: QForm): string | null {
-  if (!form.questionText.trim()) return 'Question text is required';
+  if (!form.questionText.trim()) return COPY.questionEditor.validation.questionTextRequired;
   switch (form.questionType) {
     case 'multiple_choice': {
       const choices = form.choices.map((c) => c.trim()).filter(Boolean);
-      if (choices.length < 2) return 'Add at least two choices';
-      if (!form.correctAnswer) return 'Select the correct answer';
-      if (!choices.includes(form.correctAnswer)) return 'Correct answer must be one of the choices';
+      if (choices.length < 2) return COPY.questionEditor.validation.addTwoChoices;
+      if (!form.correctAnswer) return COPY.questionEditor.validation.selectCorrectAnswer;
+      if (!choices.includes(form.correctAnswer)) return COPY.questionEditor.validation.answerMustBeChoice;
       break;
     }
     case 'multi_select': {
@@ -368,18 +362,18 @@ function validateForm(form: QForm): string | null {
     }
     case 'matching': {
       const pairs = form.pairs.filter((p) => p.left.trim() && p.right.trim());
-      if (pairs.length < 2) return 'Add at least two complete pairs';
+      if (pairs.length < 2) return COPY.questionEditor.validation.addTwoPairs;
       break;
     }
     case 'image_hotspot':
     case 'image_recognition':
-      if (!form.imageUrl.trim()) return 'Image URL is required';
-      if (form.questionType === 'image_recognition' && !form.correctAnswer.trim()) return 'Correct answer is required';
+      if (!form.imageUrl.trim()) return COPY.questionEditor.validation.imageUrlRequired;
+      if (form.questionType === 'image_recognition' && !form.correctAnswer.trim()) return COPY.questionEditor.validation.correctAnswerRequired;
       break;
     case 'true_false':
       break;
     default:
-      if (!form.correctAnswer.trim()) return 'Correct answer is required';
+      if (!form.correctAnswer.trim()) return COPY.questionEditor.validation.correctAnswerRequired;
   }
   return null;
 }
@@ -415,22 +409,7 @@ function previewToForm(p: PreviewResponse): QForm {
 
 // ─── OpenTDB categories ───────────────────────────────────────────────────────
 
-const OPENTDB_CATEGORIES = [
-  { id: 9, name: 'General Knowledge' },
-  { id: 10, name: 'Books' },
-  { id: 11, name: 'Film' },
-  { id: 12, name: 'Music' },
-  { id: 14, name: 'Television' },
-  { id: 15, name: 'Video Games' },
-  { id: 17, name: 'Science & Nature' },
-  { id: 21, name: 'Sports' },
-  { id: 22, name: 'Geography' },
-  { id: 23, name: 'History' },
-  { id: 25, name: 'Art' },
-  { id: 26, name: 'Celebrities' },
-  { id: 27, name: 'Animals' },
-  { id: 28, name: 'Vehicles' },
-] as const;
+const OPENTDB_CATEGORIES = COPY.openTdbCategories;
 
 // ─── HotspotPicker ────────────────────────────────────────────────────────────
 
@@ -540,7 +519,7 @@ function QuestionFormModal({
       const preview = await r.json() as PreviewResponse;
       setForm(previewToForm(preview));
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'AI generation failed — try again';
+      const msg = e instanceof Error ? e.message : COPY.aiGenerate.formFailed;
       if (msg.includes('Monthly limit reached')) {
         setUpgradeLimitMsg(msg);
       } else {
@@ -719,7 +698,7 @@ function QuestionFormModal({
                          hitSlop={8}
                          accessibilityLabel={form.questionType === 'multi_select'
                            ? COPY.questionEditor.specialist.multiSelect.removeChoice
-                           : 'Remove choice'}
+                           : COPY.questionEditor.removeChoice}
                        >
                         <Ionicons name="close-circle" size={18} color={colors.mutedForeground} />
                       </Pressable>
@@ -732,7 +711,7 @@ function QuestionFormModal({
                  <Text style={[s.addItemText, { color: colors.primary }]}>
                    {form.questionType === 'multi_select'
                      ? COPY.questionEditor.specialist.multiSelect.addChoice
-                     : 'Add choice'}
+                     : COPY.questionEditor.addChoice}
                  </Text>
                </Pressable>
             </>
@@ -1181,8 +1160,8 @@ function BulkGenerateModal({
   const handleGenerate = async () => {
     setError('');
     const n = parseInt(amount, 10);
-    if (isNaN(n) || n < 1 || n > 20) { setError('Enter a number between 1 and 20'); return; }
-    if (!topic.trim()) { setError('Topic is required'); return; }
+    if (isNaN(n) || n < 1 || n > 20) { setError(COPY.aiGenerate.amountRange); return; }
+    if (!topic.trim()) { setError(COPY.aiGenerate.topicRequired); return; }
     try {
       const res = await generateGemini.mutateAsync({
         gameId,
@@ -1193,8 +1172,8 @@ function BulkGenerateModal({
     } catch (e: unknown) {
       const limitMsg = extractFreeTierLimitMsg(e);
       if (limitMsg) { setUpgradeLimitMsg(limitMsg); return; }
-      const msg = e instanceof Error ? e.message : 'Generation failed';
-      setError(msg.includes('429') ? 'AI rate limit reached — wait a moment and try again.' : msg);
+      const msg = e instanceof Error ? e.message : COPY.aiGenerate.failed;
+      setError(msg.includes('429') ? COPY.aiGenerate.rateLimited : msg);
     }
   };
 
@@ -1351,7 +1330,7 @@ function ImportOpenTdbModal({
       setResult({ imported: res.imported });
       onImported(res.imported);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Import failed';
+      const msg = e instanceof Error ? e.message : COPY.aiGenerate.importFailed;
       const isNetworkError =
         e instanceof TypeError ||
         msg.toLowerCase().includes('network request failed') ||
@@ -1556,8 +1535,8 @@ function AIActionMenu({
     } catch (e: unknown) {
       const limitMsg = extractFreeTierLimitMsg(e);
       if (limitMsg) { setUpgradeLimitMsg(limitMsg); return; }
-      const msg = e instanceof Error ? e.message : 'Request failed';
-      setError(msg.includes('429') ? 'Rate limit reached — wait a moment and try again.' : msg);
+      const msg = e instanceof Error ? e.message : COPY.aiGenerate.requestFailed;
+      setError(msg.includes('429') ? COPY.aiGenerate.requestRateLimited : msg);
     } finally {
       setLoading(false);
     }
@@ -1922,7 +1901,7 @@ export default function GameDetailScreen() {
 
   const handleSaveTopic = async () => {
     const trimmed = topicInput.trim();
-    if (!trimmed) { setTopicError('Quiz name cannot be empty'); return; }
+    if (!trimmed) { setTopicError(COPY.admin.renameEmpty); return; }
     setTopicError('');
     try {
       await updateGame.mutateAsync({ gameId, data: { topic: trimmed } });
@@ -1936,7 +1915,7 @@ export default function GameDetailScreen() {
       qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
       setEditingTopic(false);
     } catch {
-      setTopicError('Failed to save — try again');
+      setTopicError(COPY.admin.renameFailed);
     }
   };
 
@@ -1951,9 +1930,9 @@ export default function GameDetailScreen() {
   };
 
   const handleConfirmDelete = (id: number) => {
-    Alert.alert('Delete Question', 'This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => handleDelete(id) },
+    Alert.alert(COPY.questionEditor.deleteTitle, COPY.questionEditor.deleteBody, [
+      { text: COPY.questionEditor.deleteCancel, style: 'cancel' },
+      { text: COPY.questionEditor.deleteConfirm, style: 'destructive', onPress: () => handleDelete(id) },
     ]);
   };
 
@@ -2184,10 +2163,10 @@ export default function GameDetailScreen() {
       {localQs.length > 0 && (
         <View style={s.filterRow}>
           {([
-            { key: 'all', label: 'All' },
-            { key: 'opentdb', label: 'Open Trivia DB' },
-            { key: 'ai', label: 'AI' },
-            { key: 'manual', label: 'Manual' },
+            { key: 'all', label: COPY.admin.filterAll },
+            { key: 'opentdb', label: COPY.source.openTriviaDatabase },
+            { key: 'ai', label: COPY.source.ai },
+            { key: 'manual', label: COPY.source.manual },
           ] as const).map(({ key, label }) => {
             const active = sourceFilter === key;
             const count = key === 'all' ? localQs.length : localQs.filter((q) => {
@@ -2261,7 +2240,7 @@ export default function GameDetailScreen() {
         onClose={() => setFormOpen(false)}
         onSave={handleSave}
         pending={createQuestion.isPending || updateQuestion.isPending}
-        title={editingQuestion ? 'Edit Question' : 'New Question'}
+        title={editingQuestion ? COPY.questionEditor.editTitle : COPY.questionEditor.newTitle}
         gameId={gameId}
         gameTopic={game?.topic}
       />

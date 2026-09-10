@@ -51,31 +51,16 @@ type SetupResult =
   | { type: 'opentdb'; imported: number; game: Game };
 
 const STEPS: { id: Step; label: string }[] = [
-  { id: 'setup', label: 'Setup' },
-  { id: 'review', label: 'Review' },
+  { id: 'setup', label: COPY.build.stepSetup },
+  { id: 'review', label: COPY.build.stepReview },
 ];
 
-const OPENTDB_CATEGORIES = [
-  { id: 9, name: 'General Knowledge' },
-  { id: 10, name: 'Books' },
-  { id: 11, name: 'Film' },
-  { id: 12, name: 'Music' },
-  { id: 14, name: 'Television' },
-  { id: 15, name: 'Video Games' },
-  { id: 17, name: 'Science & Nature' },
-  { id: 21, name: 'Sports' },
-  { id: 22, name: 'Geography' },
-  { id: 23, name: 'History' },
-  { id: 25, name: 'Art' },
-  { id: 26, name: 'Celebrities' },
-  { id: 27, name: 'Animals' },
-  { id: 28, name: 'Vehicles' },
-] as const;
+const OPENTDB_CATEGORIES = COPY.openTdbCategories;
 
 const DIFF_LABELS: Record<Difficulty, string> = {
-  easy: 'Easy',
-  medium: 'Medium',
-  hard: 'Hard',
+  easy: COPY.difficulty.display.easy,
+  medium: COPY.difficulty.display.medium,
+  hard: COPY.difficulty.display.hard,
 };
 
 const TYPE_ICONS: Record<string, string> = {
@@ -85,13 +70,7 @@ const TYPE_ICONS: Record<string, string> = {
   image_hotspot: 'locate', matching: 'git-compare-outline',
 };
 
-const TYPE_LABELS: Record<string, string> = {
-  multiple_choice: 'Multiple Choice', multi_select: 'Multi-Select',
-  true_false: 'True / False', write_in: 'Write-In',
-  short_response: 'Short Response', ordering: 'Ordering',
-  slider: 'Slider', image_recognition: 'Image', image_hotspot: 'Image Hotspot',
-  matching: 'Matching',
-};
+const TYPE_LABELS: Record<string, string> = COPY.questionType;
 
 const AI_COLOR = '#a855f7';
 
@@ -393,7 +372,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
       qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
       router.push(`/admin/live/${setupResult.game.id}`);
     } catch (err) {
-      setSetupError(extractApiError(err, 'Could not go live — please retry'));
+      setSetupError(extractApiError(err, COPY.build.error.goLive));
     }
   };
 
@@ -419,7 +398,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleCreateAI = async () => {
-    if (!topic.trim()) { setSetupError('Enter a topic'); return; }
+    if (!topic.trim()) { setSetupError(COPY.build.enterTopic); return; }
     if (openTdbMode === null) {
       setSetupError(COPY.openTdbQuestionMix.hint);
       return;
@@ -449,7 +428,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
         setSetupError(result.contentFilteredMessage);
       }
     } catch (err) {
-      const msg = extractApiError(err, 'Failed to create game — please retry');
+      const msg = extractApiError(err, COPY.build.error.createGame);
       if (msg.includes('Monthly limit reached')) {
         setLimitMsg(msg);
       } else {
@@ -465,7 +444,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
     }
     setSetupError('');
     try {
-      const catName = selectedCategory?.name ?? 'General Knowledge';
+      const catName = selectedCategory?.name ?? COPY.openTdbCategories[0].name;
       const game = await createGame.mutateAsync({
         data: { topic: catName, difficulty, createdByAdmin: true },
       });
@@ -485,7 +464,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
       setBuildStage('joinCode');
       setShowQuestionReview(false);
     } catch (err) {
-      setSetupError(extractApiError(err, 'Could not import questions — please retry'));
+      setSetupError(extractApiError(err, COPY.build.error.importQuestions));
     }
   };
 
@@ -515,7 +494,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
         setAiError(result.contentFilteredMessage);
       }
     } catch (err) {
-      const msg = extractApiError(err, 'Generation failed — try again or add questions manually');
+      const msg = extractApiError(err, COPY.build.error.generate);
       if (msg.includes('Monthly limit reached')) {
         setAiOpen(false);
         setLimitMsg(msg);
@@ -537,7 +516,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
       invalidate(selectedGame.id);
       setTdbResult(result.imported);
     } catch (err) {
-      setTdbError(extractApiError(err, 'Could not fetch questions from Open Trivia Database'));
+      setTdbError(extractApiError(err, COPY.build.error.fetchOpenTdb));
     }
   };
 
@@ -569,7 +548,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
       });
       setRegenPreview(result);
     } catch (err) {
-      setRegenError(extractApiError(err, 'Regeneration failed — try again'));
+      setRegenError(extractApiError(err, COPY.build.error.regenerate));
     } finally {
       setRegenLoading(false);
     }
@@ -591,7 +570,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
       invalidate(workingGameId);
       setRegenOpen(false);
     } catch (err) {
-      setRegenError(extractApiError(err, 'Could not save regenerated question'));
+      setRegenError(extractApiError(err, COPY.build.error.saveRegenerated));
     }
   };
 
@@ -615,7 +594,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
       });
       setEnhResult(result);
     } catch (err) {
-      setEnhError(extractApiError(err, 'Enhancement failed — try again'));
+      setEnhError(extractApiError(err, COPY.build.error.enhance));
     } finally {
       setEnhLoading(false);
     }
@@ -638,7 +617,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
       invalidate(workingGameId);
       setEnhOpen(false);
     } catch (err) {
-      setEnhError(extractApiError(err, 'Could not save enhanced question'));
+      setEnhError(extractApiError(err, COPY.build.error.saveEnhanced));
     }
   };
 
@@ -664,7 +643,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
       invalidate(selectedGame.id);
       setRegenAllConfirmOpen(false);
     } catch (err) {
-      setRegenAllError(extractApiError(err, 'Regeneration failed — try again'));
+      setRegenAllError(extractApiError(err, COPY.build.error.regenerate));
       setRegenAllLoading(false);
     }
   };
@@ -686,9 +665,9 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
   const manualQCount = questions.length - aiQCount - tdbQCount;
   const totalPoints = questions.reduce((sum, q) => sum + (q.points ?? 0), 0);
   const sourceParts: string[] = [];
-  if (aiQCount > 0) sourceParts.push('Gemini AI');
-  if (tdbQCount > 0) sourceParts.push('Open Trivia Database');
-  if (manualQCount > 0) sourceParts.push('Manual');
+  if (aiQCount > 0) sourceParts.push(COPY.source.geminiAi);
+  if (tdbQCount > 0) sourceParts.push(COPY.source.openTriviaDatabase);
+  if (manualQCount > 0) sourceParts.push(COPY.source.manual);
   const sourceLabel = sourceParts.join(' · ') || '—';
 
   const renderReadyToGoLive = () => {
@@ -836,7 +815,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                   onPress={() => setBuildStage('runMode')}
                   hitSlop={10}
                   accessibilityRole="button"
-                  accessibilityLabel="Back to game mode"
+                  accessibilityLabel={COPY.build.backToGameMode}
                 >
                   <Ionicons name="arrow-back" size={18} color="#c5ccda" />
                   <Text style={s.buildBackText}>Back</Text>
@@ -856,8 +835,8 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                     >
                       <Text style={s.setupSelectText} numberOfLines={1}>
                         {source === 'ai'
-                          ? 'Custom topic — Gemini AI generates questions'
-                          : selectedCategory?.name ?? 'Select a category'}
+                          ? COPY.build.customTopicOption
+                          : selectedCategory?.name ?? COPY.build.selectCategory}
                       </Text>
                       <Ionicons name={catOpen ? 'chevron-up' : 'chevron-down'} size={22} color="#8b93a4" />
                     </Pressable>
@@ -873,7 +852,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                             setCatOpen(false);
                           }}
                         >
-                          <Text style={s.setupOptionText}>Custom topic — Gemini AI generates questions</Text>
+                          <Text style={s.setupOptionText}>{COPY.build.customTopicOption}</Text>
                           {source === 'ai' && <Ionicons name="checkmark" size={18} color="#f5138c" />}
                         </Pressable>
                         {OPENTDB_CATEGORIES.map((c) => {
@@ -898,8 +877,8 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                   </View>
                   <Text style={s.setupHint}>
                     {source === 'ai'
-                      ? 'Questions are generated by Gemini AI.'
-                      : 'Questions are pulled from Open Trivia Database.'}
+                      ? COPY.sourceHelper.topic
+                      : COPY.sourceHelper.category}
                   </Text>
 
                   <OpenTdbQuestionMixSelector value={openTdbMode} onSelect={setOpenTdbMode} />
@@ -1016,7 +995,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                     ) : (
                       <View style={s.btnRow}>
                         <Ionicons name={source === 'ai' ? 'sparkles' : 'cloud-download-outline'} size={19} color="#fff" />
-                        <Text style={s.setupSaveBtnText}>{source === 'ai' ? 'Create Game' : 'Save Game'}</Text>
+                        <Text style={s.setupSaveBtnText}>{source === 'ai' ? COPY.btn.createGame : COPY.btn.saveGame}</Text>
                       </View>
                     )}
                   </Pressable>
@@ -1039,7 +1018,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                   }}
                   hitSlop={10}
                   accessibilityRole="button"
-                  accessibilityLabel="Back to join code"
+                  accessibilityLabel={COPY.build.backToJoinCode}
                 >
                   <Ionicons name="arrow-back" size={18} color="#c5ccda" />
                   <Text style={s.buildBackText}>Back</Text>
@@ -1059,7 +1038,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
               }}
               hitSlop={10}
               accessibilityRole="button"
-              accessibilityLabel={setupResult ? 'Back to ready screen' : 'Back to setup'}
+              accessibilityLabel={setupResult ? COPY.build.backToReadyScreen : COPY.build.backToSetup}
             >
               <Ionicons name="arrow-back" size={18} color="#c5ccda" />
               <Text style={s.buildBackText}>Back</Text>

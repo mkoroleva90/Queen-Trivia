@@ -11,9 +11,9 @@ import { RoomsTab } from '@/components/admin/RoomsTab';
 import { useColors } from '@/hooks/useColors';
 
 const TAB_TITLES: Record<AdminTab, string> = {
-  games:   'Games',
-  build:   'Build',
-  results: 'Results',
+  games:   COPY.nav.games,
+  build:   COPY.nav.buildShort,
+  results: COPY.nav.results,
   rooms:   COPY.nav.rooms,
 };
 

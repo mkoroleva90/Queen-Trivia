@@ -34,11 +34,7 @@ const STATUS_COLORS: Record<string, string> = {
   active: '#00ddff',
   completed: '#888',
 };
-const STATUS_LABELS: Record<string, string> = {
-  waiting: 'Waiting',
-  active: 'Live',
-  completed: 'Done',
-};
+const STATUS_LABELS: Record<string, string> = COPY.status;
 
 function statusSort(s: string) {
   return s === 'active' ? 0 : s === 'waiting' ? 1 : 2;
@@ -46,8 +42,8 @@ function statusSort(s: string) {
 
 const FILTERS: { id: GameFilter; label: string }[] = [
   { id: 'all', label: COPY.admin.filterAll },
-  { id: 'live', label: 'Live' },
-  { id: 'drafts', label: 'Drafts' },
+  { id: 'live', label: COPY.admin.filterLive },
+  { id: 'drafts', label: COPY.admin.filterDrafts },
 ];
 
 type Props = {

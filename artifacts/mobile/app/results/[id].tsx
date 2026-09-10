@@ -54,18 +54,7 @@ type QuestionStat = {
   percentCorrect: number | null;
 };
 
-const QUESTION_TYPE_LABELS: Record<string, string> = {
-  multiple_choice: 'Multiple Choice',
-  multi_select: 'Multi-Select',
-  true_false: 'True / False',
-  write_in: 'Write-In',
-  short_response: 'Short Response',
-  ordering: 'Ordering',
-  slider: 'Slider',
-  image_recognition: 'Image',
-  image_hotspot: 'Image Hotspot',
-  matching: 'Matching',
-};
+const QUESTION_TYPE_LABELS: Record<string, string> = COPY.questionType;
 
 const baseUrl = API_BASE_URL;
 
@@ -484,12 +473,12 @@ export default function ResultsScreen() {
         <TouchableOpacity
           onPress={() => {
             Alert.alert(
-              'Sign out?',
-              "You'll need to rejoin with a room code to play again.",
+              COPY.results.signOutTitle,
+              COPY.results.signOutBody,
               [
-                { text: 'Cancel', style: 'cancel' },
+                { text: COPY.results.signOutCancel, style: 'cancel' },
                 {
-                  text: 'Sign out',
+                  text: COPY.results.signOutConfirm,
                   style: 'destructive',
                   onPress: async () => {
                     await logout();

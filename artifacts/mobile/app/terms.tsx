@@ -83,14 +83,7 @@ export default function TermsScreen() {
           <Text style={[styles.body, { color: colors.mutedForeground }]}>
             You agree not to use the Service to:
           </Text>
-          {[
-            'Post or transmit content that is unlawful, harmful, threatening, abusive, defamatory, or otherwise objectionable',
-            'Harass, intimidate, or discriminate against any person or group',
-            'Violate any applicable law or regulation',
-            'Interfere with or disrupt the integrity or performance of the Service',
-            'Attempt to gain unauthorized access to any part of the Service',
-            'Use automated tools to scrape, crawl, or otherwise extract data from the Service without our consent',
-          ].map((item) => (
+          {COPY.legal.terms.acceptableUse.map((item) => (
             <View key={item} style={styles.listItem}>
               <Text style={[styles.bullet, { color: colors.mutedForeground }]}>•</Text>
               <Text style={[styles.listBody, { color: colors.mutedForeground }]}>{item}</Text>

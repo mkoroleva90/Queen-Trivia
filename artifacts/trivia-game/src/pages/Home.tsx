@@ -207,7 +207,7 @@ export default function Home() {
                   boxShadow: "0 12px 30px -10px rgba(255,0,128,.5)",
                   cursor: "pointer",
                 }}
-              >HOST A GAME</button>
+              >{COPY.join.hostAGame}</button>
             </div>
           </div>
         )}

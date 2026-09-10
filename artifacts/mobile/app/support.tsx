@@ -57,12 +57,7 @@ export default function SupportScreen() {
             If you've encountered a bug, an unexpected error, or inappropriate content in a game,
             please include the following in your message so we can investigate quickly:
           </Text>
-          {[
-            'A brief description of what happened and what you expected to happen',
-            'The game code or topic name, if relevant',
-            'The device and app version you were using',
-            'Any error messages you saw on screen',
-          ].map((item) => (
+          {COPY.legal.support.reportChecklist.map((item) => (
             <View key={item} style={styles.listItem}>
               <Text style={[styles.bullet, { color: colors.mutedForeground }]}>•</Text>
               <Text style={[styles.listBody, { color: colors.mutedForeground }]}>{item}</Text>

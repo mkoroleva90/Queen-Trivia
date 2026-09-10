@@ -79,6 +79,11 @@ export const COPY = {
     openTriviaDatabase: 'Open Trivia Database',
     ai:                 'AI Generated',
     manual:             'Manual',
+    /**
+     * Name of the AI question source as shown in host-facing summaries
+     * (e.g. the "Ready to go live" source line). Both platforms.
+     */
+    geminiAi:           'Gemini AI',
   },
 
   /** Helper text shown under source-specific input fields. */
@@ -102,6 +107,8 @@ export const COPY = {
   btn: {
     newGame:       'New game',
     createGame:    'Create game',
+    /** Setup-form submit when questions come from Open Trivia Database. */
+    saveGame:      'Save game',
     saveChanges:   'Save changes',
     addQuestion:   'Add question',
     saveQuestion:  'Save changes',
@@ -125,6 +132,11 @@ export const COPY = {
     games:   'Games',
     live:    'Live',
     build:   'Build a game',
+    /**
+     * Short form of `build` for bottom tab bars (web mobile-width nav and
+     * the native AdminTabBar), where the full label does not fit.
+     */
+    buildShort: 'Build',
     results: 'Results',
     rooms:   'Account',
   },
@@ -137,6 +149,37 @@ export const COPY = {
   build: {
     /** Placeholder for the quiz title / topic input, which starts blank. */
     titlePlaceholder: 'Name your quiz',
+    /** Step-indicator labels on the mobile Build tab (web has no step indicator). */
+    stepSetup:  'Setup',
+    stepReview: 'Review',
+    /** Validation error when the AI topic field is blank (mobile setup form). */
+    enterTopic: 'Enter a topic',
+    /** Category selector option that switches the source to Gemini AI. Both platforms. */
+    customTopicOption: 'Custom topic — Gemini AI generates questions',
+    /** Category selector placeholder before a category is chosen (mobile). */
+    selectCategory: 'Select a category',
+    /** Accessibility labels for the Build tab back buttons (mobile). */
+    backToGameMode:    'Back to game mode',
+    backToJoinCode:    'Back to join code',
+    backToReadyScreen: 'Back to ready screen',
+    backToSetup:       'Back to setup',
+    /**
+     * Fallback error messages for the Build flow, used when the API response
+     * carries no message of its own.
+     */
+    error: {
+      /** Both platforms. */
+      fetchOpenTdb:    'Could not fetch questions from Open Trivia Database',
+      /** Mobile setup / review flow. */
+      goLive:          'Could not go live — please retry',
+      importQuestions: 'Could not import questions — please retry',
+      createGame:      'Failed to create game — please retry',
+      generate:        'Generation failed — try again or add questions manually',
+      regenerate:      'Regeneration failed — try again',
+      saveRegenerated: 'Could not save regenerated question',
+      enhance:         'Enhancement failed — try again',
+      saveEnhanced:    'Could not save enhanced question',
+    },
   },
 
   /**
@@ -147,6 +190,10 @@ export const COPY = {
   admin: {
     /** Label for the filter tab that shows all games regardless of status. */
     filterAll: 'All',
+    /** Filter tab that shows only live games. */
+    filterLive: 'Live',
+    /** Filter tab that shows only draft (waiting) games. */
+    filterDrafts: 'Drafts',
     /**
      * Rename-quiz flow — host-facing errors and success messages.
      * Used in web GamesView (Admin.tsx) and mobile GamesTab.tsx.
@@ -202,6 +249,10 @@ export const COPY = {
     viewBackLabel:      'Back',
     /** Screen-reader label for the chevron that steps the view forward, up to the released question (host live screen and player screen). */
     viewForwardLabel:   'Forward',
+    /** Shown when releasing the next question fails. Both platforms. */
+    releaseNextError:   'Could not release the next question — please retry',
+    /** Shown when the host's own play-along answer fails to submit (mobile). */
+    submitAnswerError:  'Could not submit your answer — please retry',
   },
 
   /**
@@ -408,6 +459,12 @@ export const COPY = {
     feedbackTotalLabel: 'Total:',
     /** Pulsing hint shown below the question while waiting for the player to answer. */
     clockHint: "Tap your answer — the clock's ticking",
+    /** Placeholder for the single-line write-in answer input. Both platforms. */
+    answerPlaceholder: 'Type your answer',
+    /** Placeholder for the multi-line short-response answer input (mobile). */
+    answerPlaceholderMultiline: 'Your answer...',
+    /** Alert title when the content filter rejects a typed answer (mobile). */
+    answerRejectedTitle: 'Answer not submitted',
     /**
      * Suffix appended after the player's score in the compact gameplay header
      * (e.g. "4/10 · 150 pts"). Used on both web and mobile.
@@ -463,6 +520,17 @@ export const COPY = {
    * Both platforms must use these keys so wording stays in sync.
    */
   aiGenerate: {
+    /** Validation error when the topic field is blank (mobile generate panel). */
+    topicRequired: 'Topic is required',
+    /** Validation error for the question-count field (mobile generate panel). */
+    amountRange: 'Enter a number between 1 and 20',
+    /** Fallback errors when the API response carries no message (mobile). */
+    failed:             'Generation failed',
+    formFailed:         'AI generation failed — try again',
+    rateLimited:        'AI rate limit reached — wait a moment and try again.',
+    requestFailed:      'Request failed',
+    requestRateLimited: 'Rate limit reached — wait a moment and try again.',
+    importFailed:       'Import failed',
     /**
      * Shown to the host when Gemini's built-in safety filter blocks the
      * requested topic entirely (finishReason === "SAFETY" or promptFeedback
@@ -559,6 +627,11 @@ export const COPY = {
     headerLabel: 'Final Scores',
     /** Title of the collapsible question-breakdown section. */
     breakdown:   'Question-by-Question Breakdown',
+    /** Player sign-out confirmation on the results screen (mobile). */
+    signOutTitle:   'Sign out?',
+    signOutBody:    "You'll need to rejoin with a room code to play again.",
+    signOutConfirm: 'Sign out',
+    signOutCancel:  'Cancel',
     /** Numbered pill at the top-left of each question card in the breakdown ("Q1", "Q2", …). */
     questionBadge: (n: number) => `Q${n}`,
     /**
@@ -677,6 +750,8 @@ export const COPY = {
     heading:         'JOIN A GAME',
     /** Tagline on the welcome screen. */
     tagline:         'Enter the code. Answer fast. Take the throne.',
+    /** Welcome-screen button that opens host login. Both platforms. */
+    hostAGame:       'HOST A GAME',
     /** Placeholder for the game-code input. Web Home and Gate step 2; mobile step 2. */
     codePlaceholder: 'CODE',
     /** Aria-label for the code input (web). */
@@ -917,6 +992,20 @@ export const COPY = {
    * Both platforms must use these keys so wording is identical.
    */
   account: {
+    /**
+     * Delete-account confirmation. Web AdminSettings.tsx dialog and mobile
+     * RoomsTab.tsx alert. Both platforms must use these keys.
+     */
+    deleteAccount: {
+      confirmTitle:    'Delete account',
+      confirmBody:     'This will permanently delete your account and all your games. This cannot be undone.',
+      confirmQuestion: 'Are you sure?',
+      confirmCancel:   'Cancel',
+      confirmAction:   'Delete my account',
+      failed:          'Failed to delete account. Please try again.',
+    },
+    /** Network failure on the account screen (password change, deletion). Both platforms. */
+    connectionError: 'Connection error — please retry.',
     displayName: {
       /** Card / section heading. */
       sectionTitle:  'Display name',
@@ -947,6 +1036,27 @@ export const COPY = {
    * these keys so labels stay in sync.
    */
   questionEditor: {
+    /** Create/edit dialog titles. Both platforms. */
+    newTitle:  'New Question',
+    editTitle: 'Edit Question',
+    /** Generic choice-list buttons (multi-select uses specialist.multiSelect). Both platforms. */
+    addChoice:    'Add choice',
+    removeChoice: 'Remove choice',
+    /** Delete-question confirmation (mobile alert). */
+    deleteTitle:   'Delete Question',
+    deleteBody:    'This cannot be undone.',
+    deleteConfirm: 'Delete',
+    deleteCancel:  'Cancel',
+    /** Form validation errors shared by both platforms' validateForm. */
+    validation: {
+      questionTextRequired:  'Question text is required',
+      addTwoChoices:         'Add at least two choices',
+      selectCorrectAnswer:   'Select the correct answer',
+      answerMustBeChoice:    'Correct answer must be one of the choices',
+      addTwoPairs:           'Add at least two complete pairs',
+      imageUrlRequired:      'Image URL is required',
+      correctAnswerRequired: 'Correct answer is required',
+    },
     /** Label for the optional fact-check source URL field. */
     factCheckUrl: 'Fact-check URL',
     /** Placeholder for the fact-check URL input. */
@@ -1010,6 +1120,106 @@ export const COPY = {
         rubricError: 'A grading rubric is required',
         maxWordsError: 'Maximum words must be a positive integer',
       },
+    },
+  },
+
+  /**
+   * Host registration validation. Mobile app/admin-register.tsx; web
+   * Register.tsx reuses passwordsNoMatch / passwordTooShort from
+   * hostForgotPassword.error. Email / password presence is enforced by the
+   * browser on web.
+   */
+  hostRegister: {
+    error: {
+      enterPassword: 'Enter a password',
+    },
+  },
+
+  /**
+   * Question-type display labels, keyed by the API questionType value.
+   * Web Admin.tsx TYPE_META / Results.tsx and mobile BuildTab, game editor and
+   * results screens. Both platforms must use these keys.
+   */
+  questionType: {
+    multiple_choice:   'Multiple Choice',
+    multi_select:      'Multi-Select',
+    true_false:        'True / False',
+    write_in:          'Write-In',
+    short_response:    'Short Response',
+    ordering:          'Ordering',
+    slider:            'Slider',
+    image_recognition: 'Image',
+    image_hotspot:     'Image Hotspot',
+    matching:          'Matching',
+  },
+
+  /**
+   * Open Trivia Database category picker entries (id = OpenTDB category id).
+   * Web Admin.tsx and mobile BuildTab / game editor. Both platforms.
+   */
+  openTdbCategories: [
+    { id: 9, name: 'General Knowledge' },
+    { id: 10, name: 'Books' },
+    { id: 11, name: 'Film' },
+    { id: 12, name: 'Music' },
+    { id: 14, name: 'Television' },
+    { id: 15, name: 'Video Games' },
+    { id: 17, name: 'Science & Nature' },
+    { id: 21, name: 'Sports' },
+    { id: 22, name: 'Geography' },
+    { id: 23, name: 'History' },
+    { id: 25, name: 'Art' },
+    { id: 26, name: 'Celebrities' },
+    { id: 27, name: 'Animals' },
+    { id: 28, name: 'Vehicles' },
+  ],
+
+  /**
+   * Admin results screen alerts (mobile app/admin/results/[gameId].tsx and
+   * live/[gameId].tsx). Web downloads the CSV directly and has no equivalent.
+   */
+  adminResults: {
+    reviewSaveErrorTitle:    'Could not save review',
+    reviewSaveErrorBody:     'Please check your connection and try again.',
+    exportDialogTitle:       'Export results CSV',
+    sharingUnavailableTitle: 'Sharing unavailable',
+    sharingUnavailableBody:  'File sharing is not available on this device.',
+    exportFailedTitle:       'Export failed',
+    exportFailedBody:        'Could not export results.',
+  },
+
+  /**
+   * Bullet lists on the legal / support pages that both platforms render
+   * item-by-item. Web Support.tsx / Terms.tsx / Privacy.tsx and the mobile
+   * support / terms / privacy screens.
+   */
+  legal: {
+    support: {
+      reportChecklist: [
+        'A brief description of what happened and what you expected to happen',
+        'The game code or topic name, if relevant',
+        'The device and browser (or app version) you were using',
+        'Any error messages you saw on screen',
+      ],
+    },
+    terms: {
+      acceptableUse: [
+        'Post or transmit content that is unlawful, harmful, threatening, abusive, defamatory, or otherwise objectionable',
+        'Harass, intimidate, or discriminate against any person or group',
+        'Violate any applicable law or regulation',
+        'Interfere with or disrupt the integrity or performance of the Service',
+        'Attempt to gain unauthorized access to any part of the Service',
+        'Use automated tools to scrape, crawl, or otherwise extract data from the Service without our consent',
+      ],
+    },
+    privacy: {
+      informationUse: [
+        'Provide, operate, and maintain the Service',
+        'Create and manage your host account',
+        'Send account-related emails (verification, password reset)',
+        'Diagnose technical issues and improve the Service',
+        'Comply with legal obligations',
+      ],
     },
   },
 

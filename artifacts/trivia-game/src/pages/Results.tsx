@@ -58,18 +58,7 @@ type QuestionStat = {
   percentCorrect: number | null;
 };
 
-const QUESTION_TYPE_LABELS: Record<string, string> = {
-  multiple_choice:   "Multiple Choice",
-  multi_select:      "Multi-Select",
-  true_false:        "True / False",
-  write_in:          "Write-In",
-  short_response:    "Short Response",
-  ordering:          "Ordering",
-  slider:            "Slider",
-  image_recognition: "Image",
-  image_hotspot:     "Image Hotspot",
-  matching:          "Matching",
-};
+const QUESTION_TYPE_LABELS: Record<string, string> = COPY.questionType;
 
 function formatCorrectAnswer(questionType: string, correctAnswer: string): string {
   if (!correctAnswer) return correctAnswer;

@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { COPY } from "@workspace/copy";
 import { ArrowLeft } from "lucide-react";
 
 export default function Terms() {
@@ -60,12 +61,7 @@ export default function Terms() {
             <h2 className="text-xl font-semibold text-white mb-3">4. Acceptable Use</h2>
             <p className="mb-3">You agree not to use the Service to:</p>
             <ul className="list-disc pl-6 space-y-2">
-              <li>Post or transmit content that is unlawful, harmful, threatening, abusive, defamatory, or otherwise objectionable</li>
-              <li>Harass, intimidate, or discriminate against any person or group</li>
-              <li>Violate any applicable law or regulation</li>
-              <li>Interfere with or disrupt the integrity or performance of the Service</li>
-              <li>Attempt to gain unauthorized access to any part of the Service</li>
-              <li>Use automated tools to scrape, crawl, or otherwise extract data from the Service without our consent</li>
+              {COPY.legal.terms.acceptableUse.map((item) => <li key={item}>{item}</li>)}
             </ul>
           </section>
 
