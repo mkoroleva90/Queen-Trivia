@@ -8,11 +8,6 @@
     "scheme": "queentrivia",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/images/icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0d0f15"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.queentrivia.games",
@@ -86,7 +81,16 @@
         }
       ],
       "expo-apple-authentication",
-      "expo-updates"
+      "expo-updates",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#0d0f15"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
