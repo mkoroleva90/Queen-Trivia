@@ -21,7 +21,7 @@ import { TextInput } from '@/components/ThemedTextInput';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import * as SecureStore from 'expo-secure-store';
+import { getItem, setItem } from '@/lib/storage';
 import { ADMIN_TOKEN_KEY, useAdminAuth } from '@/context/AdminAuthContext';
 import { API_BASE_URL } from '@/lib/apiBase';
 import { useColors } from '@/hooks/useColors';
@@ -34,7 +34,7 @@ const SUPPORT_URL = 'https://queen-trivia.com/support';
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function adminFetch(url: string, options?: RequestInit) {
-  const token = await SecureStore.getItemAsync(ADMIN_TOKEN_KEY).catch(() => null);
+  const token = await getItem(ADMIN_TOKEN_KEY).catch(() => null);
   return fetch(url, {
     ...options,
     headers: {
@@ -157,7 +157,7 @@ export default function AdminAccountScreen() {
       }
       // Store the fresh token so the old (now-invalidated) one is replaced.
       if (json.newAdminToken) {
-        await SecureStore.setItemAsync(ADMIN_TOKEN_KEY, json.newAdminToken).catch(() => null);
+        await setItem(ADMIN_TOKEN_KEY, json.newAdminToken).catch(() => null);
       }
       setPwCurrent('');
       setPwNew('');
