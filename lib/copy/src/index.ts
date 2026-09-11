@@ -1359,11 +1359,23 @@ export const COPY = {
    * browser on web.
    */
   hostRegister: {
-    /** Post-submit confirmation (mobile). */
-    doneTitle:       'Check your inbox',
-    doneBodyPrefix:  'We sent a verification link to',
-    doneBodySuffix:  'Click the link to activate your account, then sign in.',
-    goToSignIn:      'GO TO SIGN IN',
+    /**
+     * Code-entry step shown after the mobile registration form submits.
+     * The server emails a 6-digit code (POST /auth/email/mobile-register);
+     * the host types it here (POST /auth/email/mobile-verify) and is signed in.
+     */
+    verify: {
+      heading:        'VERIFY YOUR EMAIL',
+      /** Rendered as "{helperPrefix} {email}." */
+      helperPrefix:   'Enter the 6-digit code we sent to',
+      codeLabel:      'VERIFICATION CODE',
+      codePlaceholder: '6-digit code',
+      submitBtn:      'VERIFY EMAIL',
+      submitting:     'Verifying…',
+      /** Footer prompt + link that returns to the registration form. */
+      wrongEmail:     'Wrong email?',
+      startOver:      'Start over',
+    },
     /** Form (mobile). */
     heading:         'CREATE ACCOUNT',
     helper:          'Register as a host to create and manage trivia games',
@@ -1378,6 +1390,10 @@ export const COPY = {
     signInLink:      'Sign in →',
     error: {
       enterPassword: 'Enter a password',
+      /** Server rejected the verification code (400). */
+      invalidCode:   'That code is invalid or has expired',
+      /** Per-account attempt limit or IP limit hit (429). */
+      tooManyAttempts: 'Too many attempts — please wait a while and try again',
     },
   },
 

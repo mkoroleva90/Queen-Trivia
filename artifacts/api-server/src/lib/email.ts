@@ -52,6 +52,37 @@ export async function sendVerificationEmail(
   }
 }
 
+export async function sendVerificationCodeEmail(
+  to: string,
+  code: string
+): Promise<void> {
+  const resend = getEmailClient();
+  const from = getFromAddress();
+
+  const { error } = await resend.emails.send({
+    from,
+    to,
+    subject: "Your Queen Trivia verification code",
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+        <h2 style="color:#ff2d8e">Queen Trivia — Verify your email</h2>
+        <p>Use the code below to verify your email address in the app. This code expires in <strong>15 minutes</strong>.</p>
+        <div style="margin:24px 0;text-align:center">
+          <span style="display:inline-block;background:#f3f4f6;border-radius:12px;padding:16px 32px;font-size:36px;font-weight:bold;letter-spacing:8px;color:#111">${code}</span>
+        </div>
+        <p style="color:#666;font-size:13px">If you didn't create a Queen Trivia account, you can safely ignore this email.</p>
+      </div>
+    `,
+  });
+
+  if (error) {
+    // Log the error type/code but never the code or recipient in plain text
+    throw new Error(
+      `[email] Failed to send verification code email: ${error.name}`
+    );
+  }
+}
+
 export async function sendContentReportEmail(report: {
   id: number;
   gameId: number | null;

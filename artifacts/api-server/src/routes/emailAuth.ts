@@ -17,11 +17,14 @@ import {
   EmailChangePasswordBody,
   MobileForgotPasswordBody,
   MobileResetPasswordBody,
+  MobileRegisterBody,
+  MobileVerifyBody,
 } from "@workspace/api-zod";
 import {
   authRateLimit,
   mobileResetAttemptKey,
   mobileResetAttemptStore,
+  mobileVerifyAttemptKey,
 } from "../middleware/authRateLimit.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { invalidateAdminSessions } from "../lib/session.ts";
@@ -30,6 +33,7 @@ import {
   sendVerificationEmail,
   sendPasswordResetEmail,
   sendPasswordResetCodeEmail,
+  sendVerificationCodeEmail,
 } from "../lib/email.ts";
 import { logger } from "../lib/logger.ts";
 import { revokeAppleRefreshToken } from "../lib/appleTokens.ts";
@@ -483,6 +487,129 @@ router.post(
       adminAccountId: account.id,
       adminEmail: account.email,
     });
+
+    const { generateAdminToken } = await import("../lib/mobileAuth.js");
+    const adminToken = generateAdminToken(account.id);
+    res.json({ ok: true, adminToken });
+  }
+);
+
+// POST /api/auth/email/mobile-register
+// Mobile variant of /register: creates the account the same way but emails a
+// 6-digit numeric verification code (rather than a URL token) so the host can
+// finish signup inside the app. Reuses the verificationTokenHash /
+// verificationTokenExpiry columns with a 15-minute expiry; no schema change.
+router.post(
+  "/auth/email/mobile-register",
+  authRateLimit,
+  async (req, res): Promise<void> => {
+    const parsed = MobileRegisterBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    const { email, password } = parsed.data;
+    const normalised = email.toLowerCase().trim();
+    const genericOk = { ok: true, message: "Check your email for a verification code." };
+
+    // Check for existing account — always respond generically to avoid enumeration
+    const [existing] = await db
+      .select({ id: adminAccountsTable.id })
+      .from(adminAccountsTable)
+      .where(eq(adminAccountsTable.email, normalised))
+      .limit(1);
+
+    if (existing) {
+      // Same response as success to avoid account enumeration
+      res.json(genericOk);
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    const code = crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
+    const tokenHash = hashToken(code);
+    const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 min
+
+    await db.insert(adminAccountsTable).values({
+      email: normalised,
+      passwordHash,
+      emailVerified: false,
+      verificationTokenHash: tokenHash,
+      verificationTokenExpiry: expiry,
+    });
+
+    try {
+      await sendVerificationCodeEmail(normalised, code);
+    } catch (err) {
+      // Do not reveal delivery failures; that would make registration an
+      // account-enumeration oracle when the mail service is unavailable.
+      logger.error({ err }, "Verification code email delivery failed");
+    }
+
+    res.json(genericOk);
+  }
+);
+
+// POST /api/auth/email/mobile-verify
+// Mobile variant of /verify: accepts email + 6-digit code. The same
+// account-scoped failed-attempt limit as mobile-reset-password applies on top
+// of the persistent IP limit. On success marks the email verified, clears the
+// token, and returns a mobile Bearer token so the app can sign the host in.
+router.post(
+  "/auth/email/mobile-verify",
+  authRateLimit,
+  async (req, res): Promise<void> => {
+    const parsed = MobileVerifyBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    const { email, code } = parsed.data;
+    const normalised = email.toLowerCase().trim();
+    const tokenHash = hashToken(code);
+    const now = new Date();
+
+    const [account] = await db
+      .select()
+      .from(adminAccountsTable)
+      .where(eq(adminAccountsTable.email, normalised))
+      .limit(1);
+
+    if (
+      !account ||
+      !account.verificationTokenExpiry ||
+      account.verificationTokenExpiry < now ||
+      !account.verificationTokenHash
+    ) {
+      res.status(400).json({ error: "That code is invalid or has expired." });
+      return;
+    }
+
+    const verifyAttempt = await mobileResetAttemptStore.increment(
+      mobileVerifyAttemptKey(account.id),
+    );
+    if (verifyAttempt.totalHits > 5) {
+      res.status(429).json({
+        error: "Too many verification attempts for this account. Please try again later.",
+      });
+      return;
+    }
+
+    if (account.verificationTokenHash !== tokenHash) {
+      res.status(400).json({ error: "That code is invalid or has expired." });
+      return;
+    }
+
+    await db
+      .update(adminAccountsTable)
+      .set({
+        emailVerified: true,
+        verificationTokenHash: null,
+        verificationTokenExpiry: null,
+      })
+      .where(eq(adminAccountsTable.id, account.id));
 
     const { generateAdminToken } = await import("../lib/mobileAuth.js");
     const adminToken = generateAdminToken(account.id);

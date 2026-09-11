@@ -36,6 +36,47 @@ export const VerifyAccessCodeResponse = zod.object({
 
 
 /**
+ * Creates the host account like /auth/email/register but emails a 6-digit verification code (15-minute expiry) instead of a link. Always responds 200 with a generic message so existing accounts cannot be enumerated.
+ * @summary Register a host account from the mobile app
+ */
+export const mobileRegisterHostBodyPasswordMin = 8;
+
+export const mobileRegisterHostBodyPasswordMax = 128;
+
+
+export const MobileRegisterHostBody = zod.object({
+  "email": zod.string().email(),
+  "password": zod.string().min(mobileRegisterHostBodyPasswordMin).max(mobileRegisterHostBodyPasswordMax)
+})
+
+export const MobileRegisterHostResponse = zod.object({
+  "ok": zod.boolean(),
+  "message": zod.string()
+})
+
+
+/**
+ * Marks the account's email as verified, clears the code, and returns a mobile Bearer token. Failed attempts are limited to 5 per account in addition to the IP limit.
+ * @summary Verify a host email with the 6-digit code and sign in
+ */
+export const mobileVerifyHostEmailBodyCodeMin = 6;
+
+export const mobileVerifyHostEmailBodyCodeMax = 6;
+export const mobileVerifyHostEmailBodyCodeRegExp = new RegExp('^[0-9]{6}$');
+
+
+export const MobileVerifyHostEmailBody = zod.object({
+  "email": zod.string().email(),
+  "code": zod.string().min(mobileVerifyHostEmailBodyCodeMin).max(mobileVerifyHostEmailBodyCodeMax).regex(mobileVerifyHostEmailBodyCodeRegExp)
+})
+
+export const MobileVerifyHostEmailResponse = zod.object({
+  "ok": zod.boolean(),
+  "adminToken": zod.string()
+})
+
+
+/**
  * @summary Create a player by name
  */
 export const createUserBodyNameMax = 80;

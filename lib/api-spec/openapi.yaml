@@ -56,6 +56,59 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AccessCodeResult"
+  /auth/email/mobile-register:
+    post:
+      operationId: mobileRegisterHost
+      tags: [auth]
+      summary: Register a host account from the mobile app
+      description: >-
+        Creates the host account like /auth/email/register but emails a
+        6-digit verification code (15-minute expiry) instead of a link.
+        Always responds 200 with a generic message so existing accounts
+        cannot be enumerated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MobileRegisterInput"
+      responses:
+        "200":
+          description: Generic acknowledgement (sent whether or not an account was created)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MobileRegisterResult"
+        "400":
+          description: Invalid request body
+        "429":
+          description: Too many attempts from this IP
+  /auth/email/mobile-verify:
+    post:
+      operationId: mobileVerifyHostEmail
+      tags: [auth]
+      summary: Verify a host email with the 6-digit code and sign in
+      description: >-
+        Marks the account's email as verified, clears the code, and returns a
+        mobile Bearer token. Failed attempts are limited to 5 per account in
+        addition to the IP limit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MobileVerifyInput"
+      responses:
+        "200":
+          description: Email verified; host signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MobileVerifyResult"
+        "400":
+          description: Code is invalid or has expired
+        "429":
+          description: Too many attempts for this account or IP
   /users:
     post:
       operationId: createUser
@@ -620,6 +673,30 @@ components:
           enum: [player, admin, none]
         gameId: { type: ["integer", "null"] }
         gameTopic: { type: ["string", "null"] }
+    MobileRegisterInput:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8, maxLength: 128 }
+    MobileRegisterResult:
+      type: object
+      required: [ok, message]
+      properties:
+        ok: { type: boolean }
+        message: { type: string }
+    MobileVerifyInput:
+      type: object
+      required: [email, code]
+      properties:
+        email: { type: string, format: email }
+        code: { type: string, minLength: 6, maxLength: 6, pattern: "^[0-9]{6}$" }
+    MobileVerifyResult:
+      type: object
+      required: [ok, adminToken]
+      properties:
+        ok: { type: boolean }
+        adminToken: { type: string }
     UserInput:
       type: object
       required: [name]

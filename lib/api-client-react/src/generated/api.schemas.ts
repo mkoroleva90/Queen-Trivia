@@ -32,6 +32,35 @@ export interface AccessCodeResult {
   gameTopic?: string | null;
 }
 
+export interface MobileRegisterInput {
+  email: string;
+  /**
+   * @minLength 8
+   * @maxLength 128
+   */
+  password: string;
+}
+
+export interface MobileRegisterResult {
+  ok: boolean;
+  message: string;
+}
+
+export interface MobileVerifyInput {
+  email: string;
+  /**
+   * @minLength 6
+   * @maxLength 6
+   * @pattern ^[0-9]{6}$
+   */
+  code: string;
+}
+
+export interface MobileVerifyResult {
+  ok: boolean;
+  adminToken: string;
+}
+
 export interface UserInput {
   /**
      * @minLength 1

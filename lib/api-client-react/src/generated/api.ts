@@ -35,6 +35,10 @@ import type {
   HealthStatus,
   JoinGameInput,
   ListGamesParams,
+  MobileRegisterInput,
+  MobileRegisterResult,
+  MobileVerifyInput,
+  MobileVerifyResult,
   OpenTdbImportInput,
   OpenTdbImportResult,
   Participant,
@@ -229,6 +233,150 @@ export const useVerifyAccessCode = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getVerifyAccessCodeMutationOptions(options));
+    }
+
+export const getMobileRegisterHostUrl = () => {
+
+
+
+
+  return `/api/auth/email/mobile-register`
+}
+
+/**
+ * Creates the host account like /auth/email/register but emails a 6-digit verification code (15-minute expiry) instead of a link. Always responds 200 with a generic message so existing accounts cannot be enumerated.
+ * @summary Register a host account from the mobile app
+ */
+export const mobileRegisterHost = async (mobileRegisterInput: MobileRegisterInput, options?: RequestInit): Promise<MobileRegisterResult> => {
+
+  return customFetch<MobileRegisterResult>(getMobileRegisterHostUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(mobileRegisterInput)
+  }
+);}
+
+
+
+
+
+export const getMobileRegisterHostMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mobileRegisterHost>>, TError,{data: BodyType<MobileRegisterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof mobileRegisterHost>>, TError,{data: BodyType<MobileRegisterInput>}, TContext> => {
+
+const mutationKey = ['mobileRegisterHost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof mobileRegisterHost>>, {data: BodyType<MobileRegisterInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  mobileRegisterHost(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MobileRegisterHostMutationResult = NonNullable<Awaited<ReturnType<typeof mobileRegisterHost>>>
+    export type MobileRegisterHostMutationBody = BodyType<MobileRegisterInput>
+    export type MobileRegisterHostMutationError = ErrorType<void>
+
+    /**
+ * @summary Register a host account from the mobile app
+ */
+export const useMobileRegisterHost = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mobileRegisterHost>>, TError,{data: BodyType<MobileRegisterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof mobileRegisterHost>>,
+        TError,
+        {data: BodyType<MobileRegisterInput>},
+        TContext
+      > => {
+      return useMutation(getMobileRegisterHostMutationOptions(options));
+    }
+
+export const getMobileVerifyHostEmailUrl = () => {
+
+
+
+
+  return `/api/auth/email/mobile-verify`
+}
+
+/**
+ * Marks the account's email as verified, clears the code, and returns a mobile Bearer token. Failed attempts are limited to 5 per account in addition to the IP limit.
+ * @summary Verify a host email with the 6-digit code and sign in
+ */
+export const mobileVerifyHostEmail = async (mobileVerifyInput: MobileVerifyInput, options?: RequestInit): Promise<MobileVerifyResult> => {
+
+  return customFetch<MobileVerifyResult>(getMobileVerifyHostEmailUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(mobileVerifyInput)
+  }
+);}
+
+
+
+
+
+export const getMobileVerifyHostEmailMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mobileVerifyHostEmail>>, TError,{data: BodyType<MobileVerifyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof mobileVerifyHostEmail>>, TError,{data: BodyType<MobileVerifyInput>}, TContext> => {
+
+const mutationKey = ['mobileVerifyHostEmail'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof mobileVerifyHostEmail>>, {data: BodyType<MobileVerifyInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  mobileVerifyHostEmail(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MobileVerifyHostEmailMutationResult = NonNullable<Awaited<ReturnType<typeof mobileVerifyHostEmail>>>
+    export type MobileVerifyHostEmailMutationBody = BodyType<MobileVerifyInput>
+    export type MobileVerifyHostEmailMutationError = ErrorType<void>
+
+    /**
+ * @summary Verify a host email with the 6-digit code and sign in
+ */
+export const useMobileVerifyHostEmail = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mobileVerifyHostEmail>>, TError,{data: BodyType<MobileVerifyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof mobileVerifyHostEmail>>,
+        TError,
+        {data: BodyType<MobileVerifyInput>},
+        TContext
+      > => {
+      return useMutation(getMobileVerifyHostEmailMutationOptions(options));
     }
 
 export const getCreateUserUrl = () => {

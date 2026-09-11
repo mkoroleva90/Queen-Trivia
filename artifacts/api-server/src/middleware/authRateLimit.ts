@@ -88,6 +88,24 @@ export const triviaJoinRateLimit = rateLimit({
   skip: (req) => isDev && isLoopback(req),
 });
 
+/**
+ * Mobile email-verification codes share the reset code's entropy, so failed
+ * verify attempts use the same account-scoped rolling limit
+ * (mobileResetAttemptStore) under their own key namespace.
+ */
+export function mobileVerifyAttemptKey(accountId: number): string {
+  const secret = process.env["SESSION_SECRET"];
+  if (!secret) {
+    throw new Error("SESSION_SECRET must be configured before email verification attempts can be tracked.");
+  }
+
+  const digest = crypto
+    .createHmac("sha256", secret)
+    .update(`mobile-email-verify:v1:${accountId}`)
+    .digest("hex");
+  return `mobile-email-verify:${digest}`;
+}
+
 export function mobileResetAttemptKey(accountId: number): string {
   const secret = process.env["SESSION_SECRET"];
   if (!secret) {

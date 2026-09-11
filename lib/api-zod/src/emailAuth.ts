@@ -65,6 +65,26 @@ export const MobileResetPasswordResponse = zod.object({
   adminToken: zod.string(),
 });
 
+// POST /api/auth/email/mobile-register
+export const MobileRegisterBody = zod.object({
+  email: zod.string().email(),
+  password: zod.string().min(8).max(128),
+});
+export const MobileRegisterResponse = zod.object({
+  ok: zod.boolean(),
+  message: zod.string(),
+});
+
+// POST /api/auth/email/mobile-verify
+export const MobileVerifyBody = zod.object({
+  email: zod.string().email(),
+  code: zod.string().length(6),
+});
+export const MobileVerifyResponse = zod.object({
+  ok: zod.boolean(),
+  adminToken: zod.string(),
+});
+
 // POST /api/auth/email/change-password
 export const EmailChangePasswordBody = zod.object({
   currentPassword: zod.string().min(1),

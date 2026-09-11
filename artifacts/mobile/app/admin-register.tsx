@@ -1,6 +1,10 @@
 /**
  * Host account registration — open self-service signup.
  * No existing admin session required.
+ *
+ * Two steps: the form posts to /auth/email/mobile-register, which emails a
+ * 6-digit code; the code step posts to /auth/email/mobile-verify, which
+ * returns a mobile Bearer token so the host lands on the admin home signed in.
  */
 import React, { useState } from 'react';
 import {
@@ -20,11 +24,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { COPY } from '@workspace/copy';
 import { API_BASE_URL } from '@/lib/apiBase';
+import { useAdminAuth } from '@/context/AdminAuthContext';
 
 export default function AdminRegisterScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { loginAdmin } = useAdminAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,6 +39,9 @@ export default function AdminRegisterScreen() {
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState(false);
+  const [code, setCode] = useState('');
+  const [verifyError, setVerifyError] = useState('');
+  const [verifying, setVerifying] = useState(false);
 
   const baseUrl = API_BASE_URL;
 
@@ -45,7 +54,7 @@ export default function AdminRegisterScreen() {
     setError('');
     setPending(true);
     try {
-      const res = await fetch(`${baseUrl}/api/auth/email/register`, {
+      const res = await fetch(`${baseUrl}/api/auth/email/mobile-register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: trimmedEmail, password }),
@@ -59,6 +68,8 @@ export default function AdminRegisterScreen() {
         setError(body.error ?? COPY.hostLogin.error.somethingWrong);
         return;
       }
+      setCode('');
+      setVerifyError('');
       setDone(true);
     } catch {
       setError(COPY.hostLogin.error.connectionError);
@@ -67,27 +78,117 @@ export default function AdminRegisterScreen() {
     }
   };
 
+  const handleVerify = async () => {
+    const trimmedCode = code.trim();
+    if (!trimmedCode) { setVerifyError(COPY.hostForgotPassword.error.enterCode); return; }
+    if (!/^\d{6}$/.test(trimmedCode)) { setVerifyError(COPY.hostForgotPassword.error.codeLength); return; }
+    setVerifyError('');
+    setVerifying(true);
+    try {
+      const res = await fetch(`${baseUrl}/api/auth/email/mobile-verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), code: trimmedCode }),
+      });
+      if (res.status === 400) {
+        setVerifyError(COPY.hostRegister.error.invalidCode);
+        return;
+      }
+      if (res.status === 429) {
+        setVerifyError(COPY.hostRegister.error.tooManyAttempts);
+        return;
+      }
+      if (!res.ok) {
+        setVerifyError(COPY.hostLogin.error.somethingWrong);
+        return;
+      }
+      const data = await res.json() as { ok: boolean; adminToken: string };
+      await loginAdmin(data.adminToken);
+      router.replace('/admin');
+    } catch {
+      setVerifyError(COPY.hostLogin.error.connectionError);
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   const s = styles(colors);
 
   if (done) {
     return (
-      <View style={[s.doneContainer, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
-        <View style={[s.doneCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Ionicons name="mail" size={48} color={colors.primary} style={{ alignSelf: 'center' }} />
-          <Text style={[s.doneTitle, { color: colors.foreground }]}>{COPY.hostRegister.doneTitle}</Text>
-          <Text style={[s.doneBody, { color: colors.mutedForeground }]}>
-            {COPY.hostRegister.doneBodyPrefix}{' '}
-            <Text style={{ color: colors.foreground }}>{email}</Text>.
-            {'\n\n'}{COPY.hostRegister.doneBodySuffix}
-          </Text>
-          <Pressable
-            style={[s.btn, { backgroundColor: colors.primary }]}
-            onPress={() => router.replace('/admin-login')}
-          >
-            <Text style={s.btnText}>{COPY.hostRegister.goToSignIn}</Text>
+      <KeyboardAvoidingView
+        style={{ flex: 1, backgroundColor: colors.background }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView
+          contentContainerStyle={[s.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 32 }]}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={[s.blob,  { backgroundColor: colors.primary }]} />
+          <View style={[s.blob2, { backgroundColor: colors.secondary }]} />
+
+          <Pressable onPress={() => { setDone(false); setVerifyError(''); }} style={s.backBtn}>
+            <Ionicons name="chevron-back" size={22} color={colors.mutedForeground} />
+            <Text style={[s.backText, { color: colors.mutedForeground }]}>{COPY.common.back}</Text>
           </Pressable>
-        </View>
-      </View>
+
+          <View style={s.content}>
+            <View style={s.iconRow}>
+              <Ionicons name="mail" size={48} color={colors.primary} />
+            </View>
+            <Text style={[s.title, { color: colors.foreground }]}>{COPY.hostRegister.verify.heading}</Text>
+            <Text style={[s.subtitle, { color: colors.mutedForeground }]}>
+              {COPY.hostRegister.verify.helperPrefix}{' '}
+              <Text style={{ color: colors.foreground }}>{email.trim().toLowerCase()}</Text>.
+            </Text>
+
+            <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[s.label, { color: colors.mutedForeground }]}>{COPY.hostRegister.verify.codeLabel}</Text>
+              <TextInput
+                style={[s.input, s.codeInput, { backgroundColor: colors.background, color: colors.foreground, borderColor: verifyError ? colors.destructive : colors.border }]}
+                value={code}
+                onChangeText={(t) => { setCode(t.replace(/\D/g, '').slice(0, 6)); setVerifyError(''); }}
+                placeholder={COPY.hostRegister.verify.codePlaceholder}
+                placeholderTextColor={colors.mutedForeground}
+                keyboardType="number-pad"
+                maxLength={6}
+                returnKeyType="done"
+                onSubmitEditing={handleVerify}
+                autoFocus
+              />
+
+              {!!verifyError && (
+                <View style={s.errorRow}>
+                  <Ionicons name="alert-circle" size={16} color={colors.destructive} />
+                  <Text style={[s.errorText, { color: colors.destructive }]}>{verifyError}</Text>
+                </View>
+              )}
+
+              <Pressable
+                style={({ pressed }) => [s.btn, { backgroundColor: colors.primary, opacity: pressed || verifying ? 0.8 : 1 }]}
+                onPress={handleVerify}
+                disabled={verifying}
+              >
+                {verifying
+                  ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <ActivityIndicator color="#fff" />
+                      <Text style={s.btnText}>{COPY.hostRegister.verify.submitting}</Text>
+                    </View>
+                  )
+                  : <Text style={s.btnText}>{COPY.hostRegister.verify.submitBtn}</Text>}
+              </Pressable>
+            </View>
+
+            <Pressable onPress={() => { setDone(false); setVerifyError(''); }} style={s.footerLink}>
+              <Text style={[s.footerText, { color: colors.mutedForeground }]}>
+                {COPY.hostRegister.verify.wrongEmail}{' '}
+                <Text style={{ color: colors.primary }}>{COPY.hostRegister.verify.startOver}</Text>
+              </Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -206,10 +307,6 @@ export default function AdminRegisterScreen() {
 const styles = (colors: ReturnType<typeof useColors>) =>
   StyleSheet.create({
     container:     { paddingHorizontal: 24, flexGrow: 1 },
-    doneContainer: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 24, justifyContent: 'center' },
-    doneCard:      { borderRadius: 20, borderWidth: 1, padding: 28, gap: 16 },
-    doneTitle:     { fontSize: 22, fontFamily: 'Manrope_800ExtraBold', textAlign: 'center' },
-    doneBody:      { fontSize: 14, lineHeight: 21, textAlign: 'center' },
     blob:  { position: 'absolute', width: 220, height: 220, borderRadius: 110, top: 60,   left: -80, opacity: 0.12 },
     blob2: { position: 'absolute', width: 180, height: 180, borderRadius: 90,  bottom: 120, right: -60, opacity: 0.10 },
     backBtn:  { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 24 },
@@ -224,6 +321,7 @@ const styles = (colors: ReturnType<typeof useColors>) =>
       borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14,
       fontSize: 15, fontFamily: 'Manrope_600SemiBold',
     },
+    codeInput:    { fontSize: 22, fontFamily: 'Manrope_800ExtraBold', letterSpacing: 6, textAlign: 'center' },
     passwordRow:  { position: 'relative' },
     passwordInput: { paddingRight: 48 },
     eyeBtn:       { position: 'absolute', right: 14, top: 14 },
