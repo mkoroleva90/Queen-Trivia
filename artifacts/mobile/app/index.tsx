@@ -186,8 +186,8 @@ export default function WelcomeScreen() {
             <View style={styles.stepContainer}>
               <View style={{ alignItems: 'center' }}><CrownMark size={72} /></View>
               <Text style={[styles.heroTitle, { color: colors.foreground }]}>
-                <Text style={{ color: colors.accent }}>QUEEN</Text>{'\n'}
-                <Text style={{ color: colors.primary }}>TRIVIA</Text>
+                <Text style={{ color: colors.accent }}>{COPY.brand.queen}</Text>{'\n'}
+                <Text style={{ color: colors.primary }}>{COPY.brand.trivia}</Text>
               </Text>
               <Text style={[styles.tagline, { color: colors.mutedForeground }]}>
                 {COPY.join.tagline}

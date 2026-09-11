@@ -205,7 +205,7 @@ export default function ResultsScreen() {
           <Ionicons name="alert-circle-outline" size={48} color={colors.mutedForeground} />
           <Text style={[styles.errorTitle, { color: colors.foreground }]}>{COPY.results.couldNotLoad}</Text>
           <Text style={[styles.errorSub, { color: colors.mutedForeground }]}>
-            Something went wrong fetching the game results.
+            {COPY.results.loadFailedBody}
           </Text>
           <TouchableOpacity
             onPress={() => refetch()}
@@ -225,13 +225,13 @@ export default function ResultsScreen() {
   const handleShare = async () => {
     const shareText = me
       ? buildShareText({ score: me.totalScore, rank: me.rank, playerCount: participants.length, topic: game.topic, correct: me.correctCount, questions: totalQuestions })
-      : `Check out the results for "${game.topic}" trivia!`;
+      : COPY.results.shareFallback(game.topic);
     if (Platform.OS === 'web') {
       try {
         await navigator.clipboard.writeText(shareText);
-        Alert.alert('Copied!', 'Your results were copied to the clipboard.');
+        Alert.alert(COPY.results.copiedTitle, COPY.results.copiedBody);
       } catch {
-        Alert.alert('Share', shareText);
+        Alert.alert(COPY.results.shareTitle, shareText);
       }
     } else {
       try {
@@ -255,7 +255,7 @@ export default function ResultsScreen() {
             {game.topic}
           </Text>
           <Text style={[styles.headerMeta, { color: colors.mutedForeground }]}>
-            {totalQuestions} question{totalQuestions !== 1 ? 's' : ''} · {participants.length} player{participants.length !== 1 ? 's' : ''}
+            {COPY.results.headerMeta(totalQuestions, participants.length)}
           </Text>
         </View>
       </View>
@@ -269,17 +269,17 @@ export default function ResultsScreen() {
           <View style={[styles.summaryCard, { backgroundColor: 'rgba(168,85,247,.09)', borderColor: 'rgba(168,85,247,.35)' }]}>
             <View style={styles.summaryHeader}>
               <Ionicons name="stats-chart" size={14} color="#a855f7" />
-              <Text style={[styles.summaryLabel, { color: '#a855f7' }]}>HOST SUMMARY</Text>
+              <Text style={[styles.summaryLabel, { color: '#a855f7' }]}>{COPY.results.hostSummaryLabel}</Text>
             </View>
             <View style={styles.summaryRow}>
               <View style={styles.summaryStat}>
                 <Text style={[styles.summaryStatValue, { color: '#a855f7' }]}>{adminSummary.totalPlayers}</Text>
-                <Text style={[styles.summaryStatKey, { color: 'rgba(168,85,247,.7)' }]}>players</Text>
+                <Text style={[styles.summaryStatKey, { color: 'rgba(168,85,247,.7)' }]}>{COPY.results.playersLabel}</Text>
               </View>
               <View style={[styles.summaryDivider, { backgroundColor: 'rgba(168,85,247,.25)' }]} />
               <View style={styles.summaryStat}>
                 <Text style={[styles.summaryStatValue, { color: '#a855f7' }]}>{adminSummary.avgScore}</Text>
-                <Text style={[styles.summaryStatKey, { color: 'rgba(168,85,247,.7)' }]}>avg score</Text>
+                <Text style={[styles.summaryStatKey, { color: 'rgba(168,85,247,.7)' }]}>{COPY.results.avgScoreLabel}</Text>
               </View>
               {adminSummary.hardestQuestion && (
                 <>
@@ -289,7 +289,7 @@ export default function ResultsScreen() {
                       {adminSummary.hardestQuestion.questionText}
                     </Text>
                     <Text style={[styles.summaryStatKey, { color: 'rgba(168,85,247,.7)' }]}>
-                      hardest · {adminSummary.hardestPct}% correct
+                      {COPY.results.hardestLabel(adminSummary.hardestPct)}
                     </Text>
                   </View>
                 </>
@@ -305,7 +305,7 @@ export default function ResultsScreen() {
               <Text style={[styles.myRank, { color: colors.accent }]}>#{me.rank}</Text>
               <Text style={[styles.myName, { color: colors.foreground }]}>{me.userName}</Text>
               <Text style={[styles.myAccuracy, { color: colors.mutedForeground }]}>
-                {me.correctCount}/{totalQuestions} correct
+                {COPY.results.correctOf(me.correctCount, totalQuestions)}
               </Text>
             </View>
             <Text style={[styles.myScore, { color: colors.accent }]}>{me.totalScore}</Text>
@@ -317,7 +317,7 @@ export default function ResultsScreen() {
           {sortedParticipants.length === 0 ? (
             <View style={styles.emptyLeaderboard}>
               <Text style={[styles.emptyLeaderboardText, { color: colors.mutedForeground }]}>
-                No scores to show yet
+                {COPY.results.noScores}
               </Text>
             </View>
           ) : sortedParticipants.map((p, i) => {
@@ -343,7 +343,7 @@ export default function ResultsScreen() {
                   </Text>
                 </View>
                 <Text style={[styles.playerName, { color: isMe ? colors.accent : colors.foreground, fontSize: isWinner ? 16 : 15 }]} numberOfLines={1}>
-                  {p.userName}{isMe && !isWinner ? ' (you)' : ''}
+                  {p.userName}{isMe && !isWinner ? ` ${COPY.results.youTag}` : ''}
                 </Text>
                 <Text style={[styles.playerScore, { color: isMe ? colors.accent : colors.foreground, fontSize: isWinner ? 17 : 15 }]}>
                   {p.totalScore}
@@ -397,7 +397,7 @@ export default function ResultsScreen() {
                         {(() => {
                           const stat = statsMap.get(q.id);
                           return stat && stat.percentCorrect !== null && stat.totalAnswered > 0
-                            ? ` · ${stat.percentCorrect}% got it right`
+                            ? COPY.results.gotItRightSuffix(stat.percentCorrect)
                             : '';
                         })()}
                       </Text>
@@ -447,7 +447,7 @@ export default function ResultsScreen() {
           style={[styles.shareBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
         >
           <Ionicons name="share-social-outline" size={16} color={colors.foreground} />
-          <Text style={[styles.shareBtnText, { color: colors.foreground }]}>Share results</Text>
+          <Text style={[styles.shareBtnText, { color: colors.foreground }]}>{COPY.results.shareBtn}</Text>
         </TouchableOpacity>
 
         {/* Back to Lobby */}
@@ -490,7 +490,7 @@ export default function ResultsScreen() {
           }}
           style={styles.signOutBtn}
         >
-          <Text style={[styles.signOutBtnText, { color: colors.mutedForeground }]}>Sign out</Text>
+          <Text style={[styles.signOutBtnText, { color: colors.mutedForeground }]}>{COPY.results.signOutConfirm}</Text>
         </TouchableOpacity>
       </ScrollView>
       <ReportModal

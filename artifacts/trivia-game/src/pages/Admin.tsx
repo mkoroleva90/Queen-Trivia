@@ -309,7 +309,7 @@ function extractFreeTierLimitMsg(err: unknown): string | null {
   const data = "data" in err ? (err as { data: unknown }).data : null;
   if (data && typeof data === "object" && "error" in data) {
     const msg = String((data as { error: unknown }).error);
-    if (msg.includes("Monthly limit reached")) return msg;
+    if (msg.includes(COPY.usageLimit.title)) return msg;
   }
   return null;
 }
@@ -320,15 +320,15 @@ function FreeTierLimitModal({ msg, onClose }: { msg: string | null; onClose: () 
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Crown className="h-5 w-5 text-yellow-400" /> Monthly limit reached
+            <Crown className="h-5 w-5 text-yellow-400" /> {COPY.usageLimit.title}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground leading-relaxed">{msg}</p>
           <div className="rounded-lg border border-yellow-400/20 bg-yellow-400/5 px-4 py-3 text-sm text-yellow-300 leading-relaxed">
-            This resets at the start of next month. You can still add questions manually in the meantime.
+            {COPY.usageLimit.resetsNote}
           </div>
-          <Button className="w-full" onClick={onClose}>Got it</Button>
+          <Button className="w-full" onClick={onClose}>{COPY.common.gotIt}</Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -705,7 +705,7 @@ function QuestionForm({
    if (filled) setForm(filled);
   } catch (err) {
    const msg = err instanceof Error ? err.message : "";
-   if (msg.includes("Monthly limit reached")) {
+   if (msg.includes(COPY.usageLimit.title)) {
     setUpgradeLimitMsg(msg);
    } else {
     toast({ variant: "destructive", title: "AI generation failed. Please try again." });
@@ -766,9 +766,9 @@ return (
       disabled={aiLoading || pending}
      >
       {aiLoading ? (
-       <><Loader2 className="h-3.5 w-3.5 animate-spin" />Generating…</>
+       <><Loader2 className="h-3.5 w-3.5 animate-spin" />{COPY.questionEditor.generating}</>
       ) : (
-       <><Sparkles className="h-3.5 w-3.5" />Fill with AI</>
+       <><Sparkles className="h-3.5 w-3.5" />{COPY.questionEditor.fillWithAi}</>
       )}
      </Button>
     )}
@@ -786,7 +786,7 @@ return (
   placeholder={
       form.questionType === "image_recognition"
        ? 'e.g. "Name this landmark" or "Which country is this flag from?"'
-       : "Type the question players will see..."
+       : COPY.questionEditor.questionPlaceholder
   }
   rows={3}
  />
@@ -998,7 +998,7 @@ return (
   {form.questionType === "image_recognition" && (
    <div className="space-y-4">
        <div className="space-y-2">
-       <Label>Image URL</Label>
+       <Label>{COPY.questionEditor.imageUrlLabel}</Label>
        <Input
         value={form.imageUrl}
         onChange={(e) => set("imageUrl", e.target.value)}
@@ -1096,7 +1096,7 @@ return (
             className="ml-9"
             onClick={() => set("pairs", [...form.pairs, { left: "", right: "" }])}
         >
-            <Plus className="mr-1 h-3.5 w-3.5" /> Add pair
+            <Plus className="mr-1 h-3.5 w-3.5" /> {COPY.questionEditor.addPair}
         </Button>
        )}
    </div>
@@ -1438,7 +1438,7 @@ return (
    </div>
    <div className="flex items-center gap-2">
     <Button variant="outline" className="font-semibold" onClick={() => setGenOpen(true)}>
-     <Sparkles className="mr-1.5 h-4 w-4 text-purple-400" /> Generate with AI
+     <Sparkles className="mr-1.5 h-4 w-4 text-purple-400" /> {COPY.build.aiSheet.title}
     </Button>
     <Dialog
     open={dialogOpen}
@@ -1541,7 +1541,7 @@ return (
  <DialogContent className="sm:max-w-sm">
   <DialogHeader>
    <DialogTitle className="flex items-center gap-2">
-    <Sparkles className="h-4 w-4 text-purple-400" /> Generate Questions with AI
+    <Sparkles className="h-4 w-4 text-purple-400" /> {COPY.aiGenerate.title}
    </DialogTitle>
   </DialogHeader>
   <div className="space-y-4">
@@ -1550,7 +1550,7 @@ return (
     <span className="font-medium text-foreground">{game.topic}</span>. Review them before going live.
    </p>
    <div className="space-y-1.5">
-    <Label>Number of questions (1–20)</Label>
+    <Label>{COPY.aiGenerate.amountLabel}</Label>
     <Input
      type="number"
      min={1}
@@ -1613,7 +1613,7 @@ return (
  <Card className="border-dashed border-primary/30 bg-card/30">
   <CardContent className="py-12 text-center space-y-3">
    <HelpCircle className="mx-auto h-10 w-10 text-primary/40" />
-   <p className="font-semibold">No questions yet</p>
+   <p className="font-semibold">{COPY.gameEditor.emptyTitle}</p>
    <p className="text-sm text-muted-foreground max-w-sm mx-auto">
     Write questions one at a time with <span className="font-medium text-foreground">Add Question</span>, or let Gemini AI generate a full set instantly with <span className="font-medium text-foreground">Generate with AI</span>.
    </p>
@@ -1734,7 +1734,7 @@ const handleSubmit = async (e: React.FormEvent) => {
 
  let game: Game;
   try {
-      setWorkingLabel("Creating game…");
+      setWorkingLabel(COPY.build.working.creating);
       setWorking(true);
       game = await createGame.mutateAsync({
        data: { topic: topicName, difficulty, createdByAdmin: true, brief: brief.trim() || null },
@@ -2024,7 +2024,7 @@ if (created && importedCount !== null && !working) {
           )}
         >
           {updateGame.isPending
-            ? <><Loader2 className="h-4 w-4 animate-spin" />Going live…</>
+            ? <><Loader2 className="h-4 w-4 animate-spin" />{COPY.build.goingLive}</>
             : <><Play className="h-4 w-4 fill-current" />{COPY.readyToGoLive.goLiveBtn}</>}
         </button>
        </div>
@@ -2099,7 +2099,7 @@ return (
     <div className="space-y-6 max-w-xl">
      <FreeTierLimitModal msg={upgradeLimitMsg} onClose={() => setUpgradeLimitMsg(null)} />
      <div>
-         <h2 className="text-xl font-bold tracking-tight">Create a new game</h2>
+         <h2 className="text-xl font-bold tracking-tight">{COPY.heading.createNewGame}</h2>
      </div>
      <form onSubmit={handleSubmit} className="space-y-5">
 
@@ -2156,7 +2156,7 @@ return (
    onChange={(e) => setBrief(e.target.value)}
    rows={6}
    maxLength={2000}
-   placeholder="e.g. Focus on the 1990s. Players are experts — skip the obvious. No chart position questions."
+   placeholder={COPY.build.briefPlaceholder}
    className="resize-none text-sm"
   />
  </div>
@@ -2940,7 +2940,7 @@ return (
 
         {/* Question type */}
         <div className="space-y-2">
-         <p className="text-sm font-medium">Question type</p>
+         <p className="text-sm font-medium">{COPY.questionEditor.typeLabel}</p>
          <Select value={regenType} onValueChange={setRegenType}>
           <SelectTrigger className="h-9">
              <SelectValue />
@@ -3074,7 +3074,7 @@ return (
 
          {/* Checkboxes */}
          <div className="space-y-2">
-          <p className="text-sm font-medium">Apply improvements</p>
+          <p className="text-sm font-medium">{COPY.build.enhanceSheet.applyBtn}</p>
           <label className="flex items-start gap-2.5 cursor-pointer group">
               <input
               type="checkbox"
@@ -4179,11 +4179,11 @@ function GamesView({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <h1 className="text-3xl font-extrabold text-white">Your games</h1>
+          <h1 className="text-3xl font-extrabold text-white">{COPY.heading.yourGames}</h1>
           <span className="bg-[#1b2740] text-[#9aa6bc] px-3 py-1 rounded-full text-sm font-bold">{games.length}</span>
         </div>
         <Button className="bg-[#ff0080] hover:bg-[#ff0080]/90 text-white rounded-xl" onClick={() => onNavigate("build")}>
-          <Plus className="w-4 h-4 mr-2" /> New game
+          <Plus className="w-4 h-4 mr-2" /> {COPY.btn.newGame}
         </Button>
       </div>
 
@@ -4212,7 +4212,7 @@ function GamesView({
           <div className="w-12 h-12 rounded-full bg-[#1b2740] flex items-center justify-center mb-4">
             <Plus className="w-6 h-6" />
           </div>
-          <span className="font-bold">Create new game</span>
+          <span className="font-bold">{COPY.heading.createNewGame2}</span>
         </button>
 
         {filteredGames.map(game => {
@@ -4256,7 +4256,7 @@ function GamesView({
                       autoFocus
                       disabled={updateGame.isPending}
                       className="h-8 flex-1 text-sm font-bold bg-[#0a1019] border-[#1b2740] text-white"
-                      aria-label="Quiz name"
+                      aria-label={COPY.gameEditor.quizNamePlaceholder}
                     />
                     <Button
                       size="icon"

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CrownMark } from './CrownMark';
 import { useColors } from '@/hooks/useColors';
 import { useAdminAuth } from '@/context/AdminAuthContext';
+import { COPY } from '@workspace/copy';
 
 type Props = {
   /** Short section title shown next to the crown — e.g. "Games", "Live" */
@@ -39,7 +40,7 @@ export function AdminHeader({ title, isLive }: Props) {
         <Text style={[styles.title, { color: colors.foreground }]}>{title}</Text>
         {isLive && (
           <View style={[styles.livePill, { backgroundColor: colors.primary }]}>
-            <Text style={styles.livePillText}>LIVE</Text>
+            <Text style={styles.livePillText}>{COPY.admin.livePill}</Text>
           </View>
         )}
       </View>

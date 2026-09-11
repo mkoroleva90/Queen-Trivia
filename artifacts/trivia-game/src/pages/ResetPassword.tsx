@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Lock, ArrowLeft, CheckCircle } from "lucide-react";
+import { COPY } from "@workspace/copy";
 
 export default function ResetPassword() {
   const [password, setPassword] = useState("");
@@ -131,7 +132,7 @@ export default function ResetPassword() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  placeholder="At least 8 characters"
+                  placeholder={COPY.hostRegister.passwordPlaceholder}
                   className="pl-10 bg-[#060d16] border-[#1b2740] text-white placeholder:text-[#3d5068] focus:border-[#ff2d8e]"
                 />
               </div>

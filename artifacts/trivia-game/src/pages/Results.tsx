@@ -181,7 +181,7 @@ export default function Results() {
   const handleShare = async () => {
     const text = me
       ? buildShareText({ score: myScore, rank: myRank, playerCount: results!.participants.length, topic: results!.game.topic, correct: myCorrect, questions: totalQ })
-      : `Check out the results for "${results?.game.topic ?? "Queen Trivia"}" trivia!`;
+      : COPY.results.shareFallback(results?.game.topic ?? "Queen Trivia");
     try {
       await navigator.clipboard.writeText(text);
       toast({ title: "Copied to clipboard!", description: text });
@@ -338,7 +338,7 @@ export default function Results() {
                     {p.userName}
                     {isMe && !isWinner && (
                       <span style={{ fontSize: 11, fontWeight: 500, color: "#ffe500", opacity: 0.7, marginLeft: 4 }}>
-                        (you)
+                        {COPY.results.youTag}
                       </span>
                     )}
                   </span>
@@ -447,7 +447,7 @@ export default function Results() {
                             <p className="text-[11px] text-muted-foreground mt-1">
                               {QUESTION_TYPE_LABELS[q.questionType] ?? q.questionType} · {q.points}pts
                               {stat?.percentCorrect != null && (
-                                <> · {stat.percentCorrect}% got it right</>
+                                <>{COPY.results.gotItRightSuffix(stat.percentCorrect)}</>
                               )}
                             </p>
 

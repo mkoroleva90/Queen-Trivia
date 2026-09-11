@@ -123,9 +123,9 @@ export function RoomsTab({ bottomPadding }: Props) {
   const handleChangePassword = async () => {
     setPwError('');
     setPwSuccess('');
-    if (!pwCurrent) { setPwError('Please enter your current password.'); return; }
-    if (pwNew.length < 8) { setPwError('New password must be at least 8 characters.'); return; }
-    if (pwNew !== pwConfirm) { setPwError('New passwords do not match.'); return; }
+    if (!pwCurrent) { setPwError(COPY.account.changePassword.errorCurrentRequired); return; }
+    if (pwNew.length < 8) { setPwError(COPY.account.changePassword.errorTooShort); return; }
+    if (pwNew !== pwConfirm) { setPwError(COPY.account.changePassword.errorNoMatch); return; }
     setPwSaving(true);
     try {
       const r = await adminFetch(`${baseUrl}/api/auth/email/change-password`, {
@@ -144,7 +144,7 @@ export function RoomsTab({ bottomPadding }: Props) {
       setPwCurrent('');
       setPwNew('');
       setPwConfirm('');
-      setPwSuccess(json.message ?? 'Password changed successfully.');
+      setPwSuccess(json.message ?? COPY.account.changePassword.success);
     } catch {
       setPwError(COPY.account.connectionError);
     } finally {
@@ -265,15 +265,15 @@ export function RoomsTab({ bottomPadding }: Props) {
         <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={s.sectionHeader}>
             <Ionicons name="lock-closed-outline" size={18} color={colors.primary} />
-            <Text style={[s.sectionTitle, { color: colors.foreground }]}>Change Password</Text>
+            <Text style={[s.sectionTitle, { color: colors.foreground }]}>{COPY.account.changePassword.sectionTitle}</Text>
           </View>
           <Text style={[s.sectionDesc, { color: colors.mutedForeground }]}>
-            Enter your current password and choose a new one (at least 8 characters).
+            {COPY.account.changePassword.description}
           </Text>
 
           {/* Current password */}
           <View style={s.fieldGroup}>
-            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Current password</Text>
+            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.account.changePassword.currentLabel}</Text>
             <View style={s.pwRow}>
               <TextInput
                 style={[s.input, s.pwInput, {
@@ -283,7 +283,7 @@ export function RoomsTab({ bottomPadding }: Props) {
                 }]}
                 value={pwCurrent}
                 onChangeText={(v) => { setPwCurrent(v); setPwError(''); setPwSuccess(''); }}
-                placeholder="Current password"
+                placeholder={COPY.account.changePassword.currentPlaceholder}
                 placeholderTextColor={colors.mutedForeground}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -297,7 +297,7 @@ export function RoomsTab({ bottomPadding }: Props) {
 
           {/* New password */}
           <View style={s.fieldGroup}>
-            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>New password</Text>
+            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.account.changePassword.newLabel}</Text>
             <View style={s.pwRow}>
               <TextInput
                 style={[s.input, s.pwInput, {
@@ -307,7 +307,7 @@ export function RoomsTab({ bottomPadding }: Props) {
                 }]}
                 value={pwNew}
                 onChangeText={(v) => { setPwNew(v); setPwError(''); setPwSuccess(''); }}
-                placeholder="New password (min. 8 characters)"
+                placeholder={COPY.account.changePassword.newPlaceholder}
                 placeholderTextColor={colors.mutedForeground}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -321,7 +321,7 @@ export function RoomsTab({ bottomPadding }: Props) {
 
           {/* Confirm new password */}
           <View style={s.fieldGroup}>
-            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Confirm new password</Text>
+            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.account.changePassword.confirmLabel}</Text>
             <View style={s.pwRow}>
               <TextInput
                 style={[s.input, s.pwInput, {
@@ -331,7 +331,7 @@ export function RoomsTab({ bottomPadding }: Props) {
                 }]}
                 value={pwConfirm}
                 onChangeText={(v) => { setPwConfirm(v); setPwError(''); setPwSuccess(''); }}
-                placeholder="Confirm new password"
+                placeholder={COPY.account.changePassword.confirmPlaceholder}
                 placeholderTextColor={colors.mutedForeground}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -342,7 +342,7 @@ export function RoomsTab({ bottomPadding }: Props) {
               </Pressable>
             </View>
             {!!pwConfirm && pwConfirm !== pwNew && (
-              <Text style={[s.fieldError, { color: colors.destructive }]}>Passwords do not match.</Text>
+              <Text style={[s.fieldError, { color: colors.destructive }]}>{COPY.account.changePassword.mismatch}</Text>
             )}
           </View>
 
@@ -373,7 +373,7 @@ export function RoomsTab({ bottomPadding }: Props) {
             ) : (
               <>
                 <Ionicons name="lock-closed-outline" size={18} color="#fff" />
-                <Text style={s.saveBtnText}>Change Password</Text>
+                <Text style={s.saveBtnText}>{COPY.account.changePassword.submitBtn}</Text>
               </>
             )}
           </Pressable>
@@ -383,10 +383,10 @@ export function RoomsTab({ bottomPadding }: Props) {
         <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.destructive + '40' }]}>
           <View style={s.sectionHeader}>
             <Ionicons name="warning-outline" size={18} color={colors.destructive} />
-            <Text style={[s.sectionTitle, { color: colors.destructive }]}>Danger zone</Text>
+            <Text style={[s.sectionTitle, { color: colors.destructive }]}>{COPY.heading.dangerZone}</Text>
           </View>
           <Text style={[s.sectionDesc, { color: colors.mutedForeground }]}>
-            Deleting your account is permanent and cannot be undone. Your account and all associated games will be removed immediately.
+            {COPY.account.dangerZoneBody}
           </Text>
           {!!globalError && (
             <View style={[s.msgRow, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}>
@@ -404,7 +404,7 @@ export function RoomsTab({ bottomPadding }: Props) {
             ) : (
               <>
                 <Ionicons name="trash-outline" size={18} color={colors.destructive} />
-                <Text style={[s.deleteBtnText, { color: colors.destructive }]}>Delete account</Text>
+                <Text style={[s.deleteBtnText, { color: colors.destructive }]}>{COPY.btn.deleteAccount}</Text>
               </>
             )}
           </Pressable>
@@ -414,13 +414,13 @@ export function RoomsTab({ bottomPadding }: Props) {
         <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={s.sectionHeader}>
             <Ionicons name="document-text-outline" size={18} color={colors.primary} />
-            <Text style={[s.sectionTitle, { color: colors.foreground }]}>Legal</Text>
+            <Text style={[s.sectionTitle, { color: colors.foreground }]}>{COPY.account.legalTitle}</Text>
           </View>
           <Pressable
             style={s.legalRow}
             onPress={() => Linking.openURL(PRIVACY_URL)}
           >
-            <Text style={[s.legalLink, { color: colors.primary }]}>Privacy Policy</Text>
+            <Text style={[s.legalLink, { color: colors.primary }]}>{COPY.footer.privacyPolicy}</Text>
             <Ionicons name="open-outline" size={15} color={colors.primary} />
           </Pressable>
           <View style={[s.legalDivider, { backgroundColor: colors.border }]} />
@@ -428,7 +428,7 @@ export function RoomsTab({ bottomPadding }: Props) {
             style={s.legalRow}
             onPress={() => Linking.openURL(TERMS_URL)}
           >
-            <Text style={[s.legalLink, { color: colors.primary }]}>Terms of Service</Text>
+            <Text style={[s.legalLink, { color: colors.primary }]}>{COPY.footer.termsOfService}</Text>
             <Ionicons name="open-outline" size={15} color={colors.primary} />
           </Pressable>
         </View>

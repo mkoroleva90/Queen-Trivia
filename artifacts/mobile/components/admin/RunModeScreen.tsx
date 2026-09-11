@@ -33,10 +33,10 @@ export function RunModeScreen({ value, onSelect, onBack, onContinue }: Props) {
         onPress={onBack}
         hitSlop={10}
         accessibilityRole="button"
-        accessibilityLabel="Back to games"
+        accessibilityLabel={COPY.build.backToGames}
       >
         <Ionicons name="arrow-back" size={18} color="#c5ccda" />
-        <Text style={s.backText}>Back</Text>
+        <Text style={s.backText}>{COPY.common.back}</Text>
       </Pressable>
 
       <View style={{ gap: 6 }}>

@@ -116,7 +116,7 @@ export function ReportModal({ visible, gameId, questionId, onClose }: ReportModa
                 onPress={resetAndClose}
                 style={[styles.closeBtn, { backgroundColor: 'rgba(255,255,255,.08)', borderColor: 'rgba(255,255,255,.12)' }]}
               >
-                <Text style={[styles.closeBtnText, { color: colors.mutedForeground }]}>Close</Text>
+                <Text style={[styles.closeBtnText, { color: colors.mutedForeground }]}>{COPY.common.close}</Text>
               </TouchableOpacity>
             </View>
           ) : (

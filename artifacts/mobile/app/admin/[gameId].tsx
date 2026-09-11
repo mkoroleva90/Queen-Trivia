@@ -520,7 +520,7 @@ function QuestionFormModal({
       setForm(previewToForm(preview));
     } catch (e) {
       const msg = e instanceof Error ? e.message : COPY.aiGenerate.formFailed;
-      if (msg.includes('Monthly limit reached')) {
+      if (msg.includes(COPY.usageLimit.title)) {
         setUpgradeLimitMsg(msg);
       } else {
         setError(msg);
@@ -541,21 +541,21 @@ function QuestionFormModal({
         {/* Modal header */}
         <View style={[s.mHeader, { paddingTop: insets.top + 8, borderBottomColor: colors.border }]}>
           <Pressable onPress={onClose} hitSlop={12}>
-            <Text style={[s.cancelBtn, { color: colors.mutedForeground }]}>Cancel</Text>
+            <Text style={[s.cancelBtn, { color: colors.mutedForeground }]}>{COPY.common.cancel}</Text>
           </Pressable>
           <Text style={[s.mTitle, { color: colors.foreground }]}>{title}</Text>
           <Pressable onPress={handleSave} disabled={pending} hitSlop={12}>
             {pending ? (
               <ActivityIndicator color={colors.primary} />
             ) : (
-              <Text style={[s.saveBtn, { color: colors.primary }]}>Save</Text>
+              <Text style={[s.saveBtn, { color: colors.primary }]}>{COPY.common.save}</Text>
             )}
           </Pressable>
         </View>
 
         <ScrollView contentContainerStyle={s.mBody} keyboardShouldPersistTaps="handled">
           {/* Type selector */}
-          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Question type</Text>
+          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.questionEditor.typeLabel}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.typeScroll}>
             {ALL_TYPES.map((t) => (
               <Pressable
@@ -593,7 +593,7 @@ function QuestionFormModal({
               <Ionicons name="sparkles" size={15} color="#a855f7" />
             )}
             <Text style={[s.aiFillText, { color: '#a855f7' }]}>
-              {aiLoading ? 'Generating…' : `Fill with AI${gameTopic ? ` (${gameTopic})` : ''}`}
+              {aiLoading ? COPY.questionEditor.generating : gameTopic ? COPY.questionEditor.fillWithAiTopic(gameTopic) : COPY.questionEditor.fillWithAi}
             </Text>
           </Pressable>
 
@@ -602,25 +602,25 @@ function QuestionFormModal({
             <View style={{ borderRadius: 12, borderWidth: 1, borderColor: '#facc1540', backgroundColor: '#facc1508', padding: 14, gap: 6 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Ionicons name="star" size={16} color="#facc15" />
-                <Text style={{ color: '#fcd34d', fontSize: 14, fontFamily: 'Manrope_700Bold' }}>Monthly limit reached</Text>
+                <Text style={{ color: '#fcd34d', fontSize: 14, fontFamily: 'Manrope_700Bold' }}>{COPY.usageLimit.title}</Text>
               </View>
               <Text style={{ color: '#fcd34d', fontSize: 12, lineHeight: 18 }}>{upgradeLimitMsg}</Text>
               <Text style={{ color: '#fcd34d', fontSize: 12, lineHeight: 18 }}>
-                This resets at the start of next month. You can still add questions manually in the meantime.
+                {COPY.usageLimit.resetsNote}
               </Text>
               <Pressable onPress={() => setUpgradeLimitMsg('')} hitSlop={8}>
-                <Text style={{ color: '#fcd34d', fontSize: 12, textDecorationLine: 'underline' }}>Dismiss</Text>
+                <Text style={{ color: '#fcd34d', fontSize: 12, textDecorationLine: 'underline' }}>{COPY.common.dismiss}</Text>
               </Pressable>
             </View>
           )}
 
           {/* Question text */}
-          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Question</Text>
+          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.questionEditor.questionLabel}</Text>
           <TextInput
             style={[s.textArea, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
             value={form.questionText}
             onChangeText={(v) => set('questionText', v)}
-            placeholder="Type the question players will see..."
+            placeholder={COPY.questionEditor.questionPlaceholder}
             placeholderTextColor={colors.mutedForeground}
             multiline
             numberOfLines={3}
@@ -632,7 +632,7 @@ function QuestionFormModal({
               <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>
                 {form.questionType === 'multi_select'
                   ? COPY.questionEditor.specialist.multiSelect.choicesLabel
-                  : 'Choices (tap to mark correct)'}
+                  : COPY.questionEditor.choicesLabel}
               </Text>
               {form.questionType === 'multi_select' && (
                 <Text style={[s.hint, { color: colors.mutedForeground, textAlign: 'left', paddingVertical: 0 }]}>
@@ -685,7 +685,7 @@ function QuestionFormModal({
                       }}
                        placeholder={form.questionType === 'multi_select'
                          ? `${COPY.questionEditor.specialist.multiSelect.choicePlaceholder} ${String.fromCharCode(65 + i)}`
-                         : `Choice ${String.fromCharCode(65 + i)}`}
+                         : COPY.questionEditor.choicePlaceholder(String.fromCharCode(65 + i))}
                       placeholderTextColor={colors.mutedForeground}
                     />
                     {form.choices.length > 2 && (
@@ -720,7 +720,7 @@ function QuestionFormModal({
           {/* True / False */}
           {form.questionType === 'true_false' && (
             <>
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Correct answer</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.questionEditor.correctAnswerLabel}</Text>
               <View style={s.tfRow}>
                 {(['true', 'false'] as const).map((v) => (
                   <Pressable
@@ -735,7 +735,7 @@ function QuestionFormModal({
                     onPress={() => set('tfAnswer', v)}
                   >
                     <Text style={[s.tfBtnText, { color: form.tfAnswer === v ? colors.secondary : colors.muted }]}>
-                      {v === 'true' ? 'TRUE ✓' : 'FALSE ✗'}
+                      {v === 'true' ? COPY.questionEditor.tfTrue : COPY.questionEditor.tfFalse}
                     </Text>
                   </Pressable>
                 ))}
@@ -746,20 +746,20 @@ function QuestionFormModal({
           {/* Write-in */}
           {form.questionType === 'write_in' && (
             <>
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Correct answer</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.questionEditor.correctAnswerLabel}</Text>
               <TextInput
                 style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
                 value={form.correctAnswer}
                 onChangeText={(v) => set('correctAnswer', v)}
-                placeholder="The exact correct answer"
+                placeholder={COPY.questionEditor.writeInPlaceholder}
                 placeholderTextColor={colors.mutedForeground}
               />
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Alternate answers (comma-separated)</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.questionEditor.alternateAnswersLabel}</Text>
               <TextInput
                 style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
                 value={form.alternateAnswers}
                 onChangeText={(v) => set('alternateAnswers', v)}
-                placeholder="e.g. NYC, The Big Apple"
+                placeholder={COPY.questionEditor.alternateAnswersPlaceholder}
                 placeholderTextColor={colors.mutedForeground}
               />
             </>
@@ -933,14 +933,14 @@ function QuestionFormModal({
           {/* Matching */}
           {form.questionType === 'matching' && (
             <>
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Matching pairs</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.questionEditor.matchingPairsLabel}</Text>
               {form.pairs.map((pair, i) => (
                 <View key={i} style={s.pairRow}>
                   <TextInput
                     style={[s.pairInput, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
                     value={pair.left}
                     onChangeText={(v) => { const next = [...form.pairs]; next[i] = { ...next[i]!, left: v }; set('pairs', next); }}
-                    placeholder="Left"
+                    placeholder={COPY.questionEditor.pairLeftPlaceholder}
                     placeholderTextColor={colors.mutedForeground}
                   />
                   <Ionicons name="arrow-forward" size={16} color={colors.mutedForeground} />
@@ -948,7 +948,7 @@ function QuestionFormModal({
                     style={[s.pairInput, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
                     value={pair.right}
                     onChangeText={(v) => { const next = [...form.pairs]; next[i] = { ...next[i]!, right: v }; set('pairs', next); }}
-                    placeholder="Right"
+                    placeholder={COPY.questionEditor.pairRightPlaceholder}
                     placeholderTextColor={colors.mutedForeground}
                   />
                   {form.pairs.length > 2 && (
@@ -961,7 +961,7 @@ function QuestionFormModal({
               {form.pairs.length < 6 && (
                 <Pressable style={[s.addItemBtn, { borderColor: colors.border }]} onPress={() => set('pairs', [...form.pairs, { left: '', right: '' }])}>
                   <Ionicons name="add" size={16} color={colors.primary} />
-                  <Text style={[s.addItemText, { color: colors.primary }]}>Add pair</Text>
+                  <Text style={[s.addItemText, { color: colors.primary }]}>{COPY.questionEditor.addPair}</Text>
                 </Pressable>
               )}
             </>
@@ -970,39 +970,39 @@ function QuestionFormModal({
           {/* Image Recognition / Image Hotspot */}
           {(form.questionType === 'image_recognition' || form.questionType === 'image_hotspot') && (
             <>
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Image URL</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.questionEditor.imageUrlLabel}</Text>
               <TextInput
                 style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
                 value={form.imageUrl}
                 onChangeText={(v) => set('imageUrl', v)}
-                placeholder="https://example.com/image.jpg"
+                placeholder={COPY.questionEditor.imageUrlPlaceholder}
                 placeholderTextColor={colors.mutedForeground}
                 autoCapitalize="none"
                 keyboardType="url"
               />
               {form.questionType === 'image_recognition' && (
                 <>
-                  <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Correct answer</Text>
+                  <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.questionEditor.correctAnswerLabel}</Text>
                   <TextInput
                     style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
                     value={form.correctAnswer}
                     onChangeText={(v) => set('correctAnswer', v)}
-                    placeholder="What is in the image?"
+                    placeholder={COPY.questionEditor.imageAnswerPlaceholder}
                     placeholderTextColor={colors.mutedForeground}
                   />
-                  <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Alternate answers (comma-separated)</Text>
+                  <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.questionEditor.alternateAnswersLabel}</Text>
                   <TextInput
                     style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
                     value={form.alternateAnswers}
                     onChangeText={(v) => set('alternateAnswers', v)}
-                    placeholder="Alternate accepted answers"
+                    placeholder={COPY.questionEditor.imageAltPlaceholder}
                     placeholderTextColor={colors.mutedForeground}
                   />
                 </>
               )}
               {form.questionType === 'image_hotspot' && !!form.imageUrl.trim() && (
                 <>
-                  <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Tap image to set hotspot</Text>
+                  <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.questionEditor.hotspotLabel}</Text>
                   <HotspotPicker
                     imageUrl={form.imageUrl.trim()}
                     x={parseFloat(form.hotspotX) || 0.5}
@@ -1013,13 +1013,13 @@ function QuestionFormModal({
                 </>
               )}
               {form.questionType === 'image_hotspot' && !form.imageUrl.trim() && (
-                <Text style={[s.hint, { color: colors.mutedForeground }]}>Enter an image URL above to set the hotspot location.</Text>
+                <Text style={[s.hint, { color: colors.mutedForeground }]}>{COPY.questionEditor.hotspotHint}</Text>
               )}
             </>
           )}
 
           {/* Points & Source */}
-          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Points</Text>
+          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.questionEditor.pointsLabel}</Text>
           <TextInput
             style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border, width: 120 }]}
             value={form.points}
@@ -1029,18 +1029,18 @@ function QuestionFormModal({
             placeholderTextColor={colors.mutedForeground}
           />
 
-          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Source (optional)</Text>
+          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.questionEditor.sourceLabel}</Text>
           <TextInput
             style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
             value={form.source}
             onChangeText={(v) => set('source', v)}
-            placeholder="e.g. Wikipedia — Capital cities"
+            placeholder={COPY.questionEditor.sourcePlaceholder}
             placeholderTextColor={colors.mutedForeground}
           />
 
           <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>
             {COPY.questionEditor.factCheckUrl}{' '}
-            <Text style={{ fontWeight: '400' }}>(optional)</Text>
+            <Text style={{ fontWeight: '400' }}>{COPY.common.optional}</Text>
           </Text>
           <TextInput
             style={[s.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
@@ -1065,7 +1065,7 @@ function QuestionFormModal({
             onPress={handleSave}
             disabled={pending}
           >
-            {pending ? <ActivityIndicator color="#fff" /> : <Text style={s.saveRowText}>Save Question</Text>}
+            {pending ? <ActivityIndicator color="#fff" /> : <Text style={s.saveRowText}>{COPY.questionEditor.saveQuestionBtn}</Text>}
           </Pressable>
 
           <View style={{ height: insets.bottom + 24 }} />
@@ -1085,7 +1085,7 @@ function extractFreeTierLimitMsg(err: unknown): string | null {
   const data = 'data' in err ? (err as { data: unknown }).data : null;
   if (data && typeof data === 'object' && 'error' in data) {
     const msg = String((data as { error: unknown }).error);
-    if (msg.includes('Monthly limit reached')) return msg;
+    if (msg.includes(COPY.usageLimit.title)) return msg;
   }
   return null;
 }
@@ -1104,13 +1104,13 @@ function UpgradeLimitCard({
   return (
     <View style={[s.resultCard, { backgroundColor: '#facc1508', borderColor: '#facc1540' }]}>
       <Ionicons name="star" size={32} color="#facc15" />
-      <Text style={[s.resultTitle, { color: '#fcd34d' }]}>Monthly limit reached</Text>
+      <Text style={[s.resultTitle, { color: '#fcd34d' }]}>{COPY.usageLimit.title}</Text>
       <Text style={[s.resultSub, { color: colors.mutedForeground }]}>{msg}</Text>
       <Text style={[s.resultSub, { color: '#fcd34d', marginTop: 2 }]}>
-        This resets at the start of next month. You can still add questions manually in the meantime.
+        {COPY.usageLimit.resetsNote}
       </Text>
       <Pressable style={[s.closeResultBtn, { borderColor: '#facc15' }]} onPress={onClose}>
-        <Text style={[s.closeResultText, { color: '#fcd34d' }]}>Got it</Text>
+        <Text style={[s.closeResultText, { color: '#fcd34d' }]}>{COPY.common.gotIt}</Text>
       </Pressable>
     </View>
   );
@@ -1189,7 +1189,7 @@ function BulkGenerateModal({
             <View style={[s.aiIcon, { backgroundColor: '#a855f7' + '22' }]}>
               <Ionicons name="sparkles" size={20} color="#a855f7" />
             </View>
-            <Text style={[s.sheetTitle, { color: colors.foreground }]}>Generate Questions with AI</Text>
+            <Text style={[s.sheetTitle, { color: colors.foreground }]}>{COPY.aiGenerate.title}</Text>
           </View>
 
           {upgradeLimitMsg ? (
@@ -1198,29 +1198,29 @@ function BulkGenerateModal({
             <View style={[s.resultCard, { backgroundColor: colors.secondary + '15', borderColor: colors.secondary + '30' }]}>
               <Ionicons name="checkmark-circle" size={32} color={colors.secondary} />
               <Text style={[s.resultTitle, { color: colors.secondary }]}>
-                {result.imported} question{result.imported !== 1 ? 's' : ''} added
+                {COPY.aiGenerate.addedResult(result.imported)}
               </Text>
               {result.discarded > 0 && (
                 <Text style={[s.resultSub, { color: colors.mutedForeground }]}>
-                  {result.discarded} discarded (invalid or duplicate)
+                  {COPY.aiGenerate.discardedResult(result.discarded)}
                 </Text>
               )}
               <Pressable style={[s.closeResultBtn, { borderColor: colors.secondary }]} onPress={onClose}>
-                <Text style={[s.closeResultText, { color: colors.secondary }]}>Done</Text>
+                <Text style={[s.closeResultText, { color: colors.secondary }]}>{COPY.common.done}</Text>
               </Pressable>
             </View>
           ) : (
             <>
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Topic</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.aiGenerate.topicLabel}</Text>
               <TextInput
                 style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
                 value={topic}
                 onChangeText={(v) => { setTopic(v); setError(''); }}
-                placeholder="e.g. 90s Pop Music"
+                placeholder={COPY.aiGenerate.topicPlaceholder}
                 placeholderTextColor={colors.mutedForeground}
               />
 
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Difficulty</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.aiGenerate.difficultyLabel}</Text>
               <View style={s.diffRow}>
                 {(['easy', 'medium', 'hard'] as const).map((d) => (
                   <Pressable
@@ -1229,13 +1229,13 @@ function BulkGenerateModal({
                     onPress={() => setDifficulty(d)}
                   >
                     <Text style={[s.diffChipText, { color: difficulty === d ? '#a855f7' : colors.muted }]}>
-                      {d === 'easy' ? 'Easy (5 pts)' : d === 'medium' ? 'Medium (10 pts)' : 'Hard (15 pts)'}
+                      {COPY.difficulty.selector[d]}
                     </Text>
                   </Pressable>
                 ))}
               </View>
 
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Number of questions (1–20)</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.aiGenerate.amountLabel}</Text>
               <TextInput
                 style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border, width: 100 }]}
                 value={amount}
@@ -1267,12 +1267,12 @@ function BulkGenerateModal({
                 {generateGemini.isPending ? (
                   <>
                     <ActivityIndicator color="#fff" size="small" />
-                    <Text style={s.genBtnText}>Generating… this may take a moment</Text>
+                    <Text style={s.genBtnText}>{COPY.aiGenerate.generatingLong}</Text>
                   </>
                 ) : (
                   <>
                     <Ionicons name="sparkles" size={16} color="#fff" />
-                    <Text style={s.genBtnText}>Generate</Text>
+                    <Text style={s.genBtnText}>{COPY.aiGenerate.generateBtn}</Text>
                   </>
                 )}
               </Pressable>
@@ -1321,7 +1321,7 @@ function ImportOpenTdbModal({
   const handleImport = async () => {
     setError('');
     const n = parseInt(amount, 10);
-    if (isNaN(n) || n < 1 || n > 50) { setError('Enter a number between 1 and 50'); return; }
+    if (isNaN(n) || n < 1 || n > 50) { setError(COPY.openTdbImport.amountError); return; }
     try {
       const res = await importMutation.mutateAsync({
         gameId,
@@ -1341,11 +1341,11 @@ function ImportOpenTdbModal({
         msg.toLowerCase().includes('timeout') ||
         msg.toLowerCase().includes('timed out');
       if (isNetworkError || isTimeoutError) {
-        setError('No internet connection — check your network and try again.');
+        setError(COPY.openTdbImport.errorNetwork);
       } else if (msg.includes('429') || msg.toLowerCase().includes('rate limit')) {
-        setError('Open Trivia DB rate limit reached — wait a few seconds and try again.');
+        setError(COPY.openTdbImport.errorRateLimit);
       } else if (msg.includes('422') || msg.toLowerCase().includes('no questions')) {
-        setError('No questions available for this combination — try a different difficulty.');
+        setError(COPY.openTdbImport.errorNoQuestions);
       } else {
         setError(msg);
       }
@@ -1365,28 +1365,28 @@ function ImportOpenTdbModal({
             <View style={[s.aiIcon, { backgroundColor: colors.primary + '22' }]}>
               <Ionicons name="cloud-download-outline" size={20} color={colors.primary} />
             </View>
-            <Text style={[s.sheetTitle, { color: colors.foreground }]}>Import from Open Trivia DB</Text>
+            <Text style={[s.sheetTitle, { color: colors.foreground }]}>{COPY.heading.importFromOtdb}</Text>
           </View>
 
           {result ? (
             <View style={[s.resultCard, { backgroundColor: colors.secondary + '15', borderColor: colors.secondary + '30' }]}>
               <Ionicons name="checkmark-circle" size={32} color={colors.secondary} />
               <Text style={[s.resultTitle, { color: colors.secondary }]}>
-                {result.imported} question{result.imported !== 1 ? 's' : ''} imported
+                {COPY.openTdbImport.importedResult(result.imported)}
               </Text>
               <Pressable style={[s.closeResultBtn, { borderColor: colors.secondary }]} onPress={onClose}>
-                <Text style={[s.closeResultText, { color: colors.secondary }]}>Done</Text>
+                <Text style={[s.closeResultText, { color: colors.secondary }]}>{COPY.common.done}</Text>
               </Pressable>
             </View>
           ) : (
             <>
               {/* Category picker */}
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Category</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.openTdbImport.categoryLabel}</Text>
               <Pressable
                 style={[s.input, { backgroundColor: colors.background, borderColor: colors.border, flexDirection: 'row', alignItems: 'center' }]}
                 onPress={() => setCategoryOpen((v) => !v)}
               >
-                <Text style={[{ flex: 1, fontSize: 15, color: colors.foreground }]}>{selectedCategory?.name ?? 'Select…'}</Text>
+                <Text style={[{ flex: 1, fontSize: 15, color: colors.foreground }]}>{selectedCategory?.name ?? COPY.openTdbImport.selectPlaceholder}</Text>
                 <Ionicons name={categoryOpen ? 'chevron-up' : 'chevron-down'} size={16} color={colors.mutedForeground} />
               </Pressable>
 
@@ -1410,7 +1410,7 @@ function ImportOpenTdbModal({
               )}
 
               {/* Difficulty */}
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Difficulty</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.openTdbImport.difficultyLabel}</Text>
               <View style={s.diffRow}>
                 {(['easy', 'medium', 'hard'] as const).map((d) => (
                   <Pressable
@@ -1419,14 +1419,14 @@ function ImportOpenTdbModal({
                     onPress={() => setDifficulty(d)}
                   >
                     <Text style={[s.diffChipText, { color: difficulty === d ? colors.primary : colors.muted }]}>
-                      {d === 'easy' ? 'Easy (5 pts)' : d === 'medium' ? 'Medium (10 pts)' : 'Hard (15 pts)'}
+                      {COPY.difficulty.selector[d]}
                     </Text>
                   </Pressable>
                 ))}
               </View>
 
               {/* Amount */}
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Number of questions (1–50)</Text>
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.openTdbImport.amountLabel}</Text>
               <TextInput
                 style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border, width: 100 }]}
                 value={amount}
@@ -1451,12 +1451,12 @@ function ImportOpenTdbModal({
                 {importMutation.isPending ? (
                   <>
                     <ActivityIndicator color="#fff" size="small" />
-                    <Text style={s.genBtnText}>Importing…</Text>
+                    <Text style={s.genBtnText}>{COPY.openTdbImport.importing}</Text>
                   </>
                 ) : (
                   <>
                     <Ionicons name="cloud-download-outline" size={16} color="#fff" />
-                    <Text style={s.genBtnText}>Import</Text>
+                    <Text style={s.genBtnText}>{COPY.openTdbImport.importBtn}</Text>
                   </>
                 )}
               </Pressable>
@@ -1564,7 +1564,7 @@ function AIActionMenu({
       onUpdate(updated);
       onClose();
     } catch {
-      setError('Failed to apply — please retry.');
+      setError(COPY.aiTools.applyFailed);
     } finally {
       setLoading(false);
     }
@@ -1588,7 +1588,7 @@ function AIActionMenu({
       onUpdate(updated);
       onClose();
     } catch {
-      setError('Failed to apply — please retry.');
+      setError(COPY.aiTools.applyFailed);
     } finally {
       setLoading(false);
     }
@@ -1615,7 +1615,7 @@ function AIActionMenu({
               <Ionicons name="sparkles" size={18} color="#a855f7" />
             </View>
             <Text style={[s.sheetTitle, { color: colors.foreground }]} numberOfLines={2}>
-              AI Tools
+              {COPY.aiTools.title}
             </Text>
           </View>
           <Text style={[s.questionPreview, { color: colors.mutedForeground }]} numberOfLines={2}>
@@ -1626,9 +1626,9 @@ function AIActionMenu({
           {!action && (
             <View style={s.actionList}>
               {[
-                { id: 'regenerate' as AIAction, icon: 'refresh', label: 'Regenerate', desc: 'Replace with a new AI-written question on the same topic' },
-                { id: 'enhance' as AIAction, icon: 'sparkles', label: 'Enhance', desc: 'Improve wording, fix options, add a source suggestion' },
-                { id: 'fact-check' as AIAction, icon: 'shield-checkmark-outline', label: 'Fact-Check', desc: 'Verify the question and correct answer with AI' },
+                { id: 'regenerate' as AIAction, icon: 'refresh', label: COPY.aiTools.regenerate.label, desc: COPY.aiTools.regenerate.desc },
+                { id: 'enhance' as AIAction, icon: 'sparkles', label: COPY.aiTools.enhance.label, desc: COPY.aiTools.enhance.desc },
+                { id: 'fact-check' as AIAction, icon: 'shield-checkmark-outline', label: COPY.aiTools.factCheck.label, desc: COPY.aiTools.factCheck.desc },
               ].map(({ id, icon, label, desc }) => (
                 <Pressable
                   key={id}
@@ -1651,9 +1651,9 @@ function AIActionMenu({
             <View style={s.loadingBox}>
               <ActivityIndicator color="#a855f7" size="large" />
               <Text style={[s.loadingText, { color: colors.mutedForeground }]}>
-                {action === 'regenerate' ? 'Generating new question…'
-                  : action === 'enhance' ? 'Enhancing question…'
-                  : 'Fact-checking…'}
+                {action === 'regenerate' ? COPY.aiTools.regenerate.loading
+                  : action === 'enhance' ? COPY.aiTools.enhance.loading
+                  : COPY.aiTools.factCheck.loading}
               </Text>
             </View>
           )}
@@ -1675,13 +1675,13 @@ function AIActionMenu({
           {action === 'regenerate' && !loading && regenPreview && (
             <ScrollView style={{ maxHeight: 300 }} contentContainerStyle={{ gap: 12, paddingVertical: 4 }}>
               <View style={[s.previewCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>NEW QUESTION</Text>
+                <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>{COPY.aiTools.newQuestionLabel}</Text>
                 <Text style={[s.previewText, { color: colors.foreground }]}>{regenPreview.questionText}</Text>
-                <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>Correct answer</Text>
+                <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>{COPY.aiTools.correctAnswerLabel}</Text>
                 <Text style={[s.previewAnswer, { color: colors.secondary }]}>{regenPreview.correctAnswer}</Text>
                 {regenPreview.options && Array.isArray(regenPreview.options) && regenPreview.options.length > 0 && (
                   <>
-                    <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>OPTIONS</Text>
+                    <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>{COPY.aiTools.optionsLabel}</Text>
                     {(regenPreview.options as unknown as string[]).map((o, i) => (
                       <Text key={i} style={[s.previewOption, { color: colors.foreground }]}>• {o}</Text>
                     ))}
@@ -1690,11 +1690,11 @@ function AIActionMenu({
               </View>
               <View style={s.applyRow}>
                 <Pressable style={[s.discardBtn, { borderColor: colors.border }]} onPress={onClose}>
-                  <Text style={[s.discardText, { color: colors.mutedForeground }]}>Discard</Text>
+                  <Text style={[s.discardText, { color: colors.mutedForeground }]}>{COPY.common.discard}</Text>
                 </Pressable>
                 <Pressable style={[s.applyBtn, { backgroundColor: '#a855f7' }]} onPress={applyRegenerate} disabled={loading}>
                   <Ionicons name="checkmark" size={16} color="#fff" />
-                  <Text style={s.applyText}>Apply</Text>
+                  <Text style={s.applyText}>{COPY.common.apply}</Text>
                 </Pressable>
               </View>
             </ScrollView>
@@ -1704,11 +1704,11 @@ function AIActionMenu({
           {action === 'enhance' && !loading && enhanceResult && (
             <ScrollView style={{ maxHeight: 320 }} contentContainerStyle={{ gap: 12, paddingVertical: 4 }}>
               <View style={[s.previewCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>IMPROVED QUESTION</Text>
+                <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>{COPY.aiTools.improvedQuestionLabel}</Text>
                 <Text style={[s.previewText, { color: colors.foreground }]}>{enhanceResult.improvedQuestionText}</Text>
                 {enhanceResult.improvedOptions && enhanceResult.improvedOptions.length > 0 && (
                   <>
-                    <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>IMPROVED OPTIONS</Text>
+                    <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>{COPY.aiTools.improvedOptionsLabel}</Text>
                     {enhanceResult.improvedOptions.map((o, i) => (
                       <Text key={i} style={[s.previewOption, { color: colors.foreground }]}>• {o}</Text>
                     ))}
@@ -1716,24 +1716,24 @@ function AIActionMenu({
                 )}
                 {!!enhanceResult.factCheckNotes && (
                   <>
-                    <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>NOTES</Text>
+                    <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>{COPY.aiTools.notesLabel}</Text>
                     <Text style={[s.previewOption, { color: colors.mutedForeground }]}>{enhanceResult.factCheckNotes}</Text>
                   </>
                 )}
                 {!!enhanceResult.suggestedSource && (
                   <>
-                    <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>SUGGESTED SOURCE</Text>
+                    <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>{COPY.aiTools.suggestedSourceLabel}</Text>
                     <Text style={[s.previewOption, { color: colors.accent }]}>{enhanceResult.suggestedSource}</Text>
                   </>
                 )}
               </View>
               <View style={s.applyRow}>
                 <Pressable style={[s.discardBtn, { borderColor: colors.border }]} onPress={onClose}>
-                  <Text style={[s.discardText, { color: colors.mutedForeground }]}>Discard</Text>
+                  <Text style={[s.discardText, { color: colors.mutedForeground }]}>{COPY.common.discard}</Text>
                 </Pressable>
                 <Pressable style={[s.applyBtn, { backgroundColor: '#a855f7' }]} onPress={applyEnhance} disabled={loading}>
                   <Ionicons name="checkmark" size={16} color="#fff" />
-                  <Text style={s.applyText}>Apply</Text>
+                  <Text style={s.applyText}>{COPY.common.apply}</Text>
                 </Pressable>
               </View>
             </ScrollView>
@@ -1752,26 +1752,26 @@ function AIActionMenu({
                   <Text style={[s.verdictText, { color: verdictColor }]}>
                     {factCheckResult.verdict.charAt(0).toUpperCase() + factCheckResult.verdict.slice(1)}
                     {' · '}
-                    {factCheckResult.confidence} confidence
+                    {COPY.aiTools.confidence(factCheckResult.confidence)}
                   </Text>
                 </View>
-                <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>EXPLANATION</Text>
+                <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>{COPY.aiTools.explanationLabel}</Text>
                 <Text style={[s.previewText, { color: colors.foreground }]}>{factCheckResult.explanation}</Text>
                 {!!factCheckResult.correctAnswerIfWrong && (
                   <>
-                    <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>CORRECT ANSWER SHOULD BE</Text>
+                    <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>{COPY.aiTools.correctAnswerShouldBeLabel}</Text>
                     <Text style={[s.previewAnswer, { color: colors.secondary }]}>{factCheckResult.correctAnswerIfWrong}</Text>
                   </>
                 )}
                 {!!factCheckResult.groundingUrl && (
                   <>
-                    <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>SOURCE</Text>
+                    <Text style={[s.previewLabel, { color: colors.mutedForeground }]}>{COPY.aiTools.sourceLabel}</Text>
                     <Text style={[s.previewOption, { color: colors.accent }]} numberOfLines={2}>{factCheckResult.groundingUrl}</Text>
                   </>
                 )}
               </View>
               <Pressable style={[s.applyBtn, { backgroundColor: colors.primary, alignSelf: 'flex-end' }]} onPress={onClose}>
-                <Text style={s.applyText}>Done</Text>
+                <Text style={s.applyText}>{COPY.common.done}</Text>
               </Pressable>
             </ScrollView>
           )}
@@ -1974,20 +1974,20 @@ export default function GameDetailScreen() {
               {q.aiGenerated ? (
                 <View style={[s.typeTag, { backgroundColor: '#a855f7' + '22' }]}>
                   <Ionicons name="sparkles" size={11} color="#a855f7" />
-                  <Text style={[s.typeTagText, { color: '#a855f7' }]}>AI</Text>
+                  <Text style={[s.typeTagText, { color: '#a855f7' }]}>{COPY.source.aiTag}</Text>
                 </View>
               ) : q.source === 'opentdb' ? (
                 <View style={[s.typeTag, { backgroundColor: '#3b82f6' + '22' }]}>
                   <Ionicons name="cloud-download-outline" size={11} color="#3b82f6" />
-                  <Text style={[s.typeTagText, { color: '#3b82f6' }]}>OpenTDB</Text>
+                  <Text style={[s.typeTagText, { color: '#3b82f6' }]}>{COPY.source.openTriviaDatabaseTag}</Text>
                 </View>
               ) : (
                 <View style={[s.typeTag, { backgroundColor: colors.muted + '33' }]}>
                   <Ionicons name="create-outline" size={11} color={colors.mutedForeground} />
-                  <Text style={[s.typeTagText, { color: colors.mutedForeground }]}>Manual</Text>
+                  <Text style={[s.typeTagText, { color: colors.mutedForeground }]}>{COPY.source.manual}</Text>
                 </View>
               )}
-              <Text style={[s.qPoints, { color: colors.accent }]}>{q.points}pts</Text>
+              <Text style={[s.qPoints, { color: colors.accent }]}>{q.points}{COPY.gameplay.scorePtsSuffix}</Text>
               <Text style={[s.qNum, { color: colors.mutedForeground }]}>#{idx + 1}</Text>
             </View>
 
@@ -2002,12 +2002,12 @@ export default function GameDetailScreen() {
                 onPress={() => setAiMenuQuestion(q)}
               >
                 <Ionicons name="sparkles" size={13} color="#a855f7" />
-                <Text style={[s.aiChipText, { color: '#a855f7' }]}>AI</Text>
+                <Text style={[s.aiChipText, { color: '#a855f7' }]}>{COPY.source.aiTag}</Text>
               </Pressable>
 
               <Pressable style={[s.qActionBtn, { borderColor: colors.border }]} onPress={() => openEdit(q)}>
                 <Ionicons name="pencil" size={15} color={colors.foreground} />
-                <Text style={[s.qActionText, { color: colors.foreground }]}>Edit</Text>
+                <Text style={[s.qActionText, { color: colors.foreground }]}>{COPY.common.edit}</Text>
               </Pressable>
 
               {deletingId === q.id ? (
@@ -2045,7 +2045,7 @@ export default function GameDetailScreen() {
                   returnKeyType="done"
                   onSubmitEditing={handleSaveTopic}
                   placeholderTextColor={colors.mutedForeground}
-                  placeholder="Quiz name"
+                  placeholder={COPY.gameEditor.quizNamePlaceholder}
                 />
                 <Pressable onPress={handleSaveTopic} hitSlop={8} disabled={updateGame.isPending}>
                   {updateGame.isPending
@@ -2067,7 +2067,7 @@ export default function GameDetailScreen() {
               hitSlop={8}
             >
               <Text style={[s.headerTitle, { color: colors.foreground, flex: 1 }]} numberOfLines={1}>
-                {game?.topic ?? 'Game'}
+                {game?.topic ?? COPY.entity.singularCap}
               </Text>
               <Ionicons name="pencil" size={14} color={colors.mutedForeground} />
             </Pressable>
@@ -2083,7 +2083,7 @@ export default function GameDetailScreen() {
         {game?.status === 'active' && (
           <Pressable onPress={() => router.push(`/admin/live/${gameId}`)} style={[s.liveBtn, { backgroundColor: colors.secondary + '22' }]}>
             <Ionicons name="radio" size={16} color={colors.secondary} />
-            <Text style={[s.liveBtnText, { color: colors.secondary }]}>Live</Text>
+            <Text style={[s.liveBtnText, { color: colors.secondary }]}>{COPY.admin.liveBtn}</Text>
           </Pressable>
         )}
       </View>
@@ -2093,19 +2093,19 @@ export default function GameDetailScreen() {
           {game?.status === 'waiting' && (
             <Pressable style={[s.actionChip, { backgroundColor: colors.secondary + '22' }]} onPress={() => handleStatusChange('active')}>
               <Ionicons name="play" size={14} color={colors.secondary} />
-              <Text style={[s.actionChipText, { color: colors.secondary }]}>Start</Text>
+              <Text style={[s.actionChipText, { color: colors.secondary }]}>{COPY.admin.startBtn}</Text>
             </Pressable>
           )}
           {game?.status === 'active' && (
             <Pressable style={[s.actionChip, { backgroundColor: colors.destructive + '22' }]} onPress={() => handleStatusChange('completed')}>
               <Ionicons name="flag" size={14} color={colors.destructive} />
-              <Text style={[s.actionChipText, { color: colors.destructive }]}>End</Text>
+              <Text style={[s.actionChipText, { color: colors.destructive }]}>{COPY.admin.endBtn}</Text>
             </Pressable>
           )}
           {game?.status === 'completed' && (
             <Pressable style={[s.actionChip, { backgroundColor: colors.primary + '22' }]} onPress={() => router.push(`/admin/results/${gameId}`)}>
               <Ionicons name="trophy-outline" size={14} color={colors.primary} />
-              <Text style={[s.actionChipText, { color: colors.primary }]}>Results</Text>
+              <Text style={[s.actionChipText, { color: colors.primary }]}>{COPY.admin.resultsBtn}</Text>
             </Pressable>
           )}
         </View>
@@ -2135,7 +2135,7 @@ export default function GameDetailScreen() {
       {/* AI Generate + Add row */}
       <View style={[s.toolbarRow, { borderBottomColor: colors.border }]}>
         <Text style={[s.listTitle, { color: colors.foreground }]}>
-          {localQs.length} Question{localQs.length !== 1 ? 's' : ''}
+          {COPY.gameEditor.questionCountTitle(localQs.length)}
         </Text>
         <View style={s.toolbarActions}>
           <Pressable
@@ -2143,18 +2143,18 @@ export default function GameDetailScreen() {
             onPress={() => setImportOpen(true)}
           >
             <Ionicons name="cloud-download-outline" size={14} color={colors.primary} />
-            <Text style={[s.genAiBtnText, { color: colors.primary }]}>Open Trivia Database</Text>
+            <Text style={[s.genAiBtnText, { color: colors.primary }]}>{COPY.source.openTriviaDatabase}</Text>
           </Pressable>
           <Pressable
             style={[s.genAiBtn, { borderColor: '#a855f7' + '55', backgroundColor: '#a855f7' + '15' }]}
             onPress={() => setGenerateOpen(true)}
           >
             <Ionicons name="sparkles" size={14} color="#a855f7" />
-            <Text style={[s.genAiBtnText, { color: '#a855f7' }]}>AI Generate</Text>
+            <Text style={[s.genAiBtnText, { color: '#a855f7' }]}>{COPY.gameEditor.aiGenerateBtn}</Text>
           </Pressable>
           <Pressable style={[s.addBtn, { backgroundColor: colors.primary }]} onPress={openAdd}>
             <Ionicons name="add" size={16} color="#fff" />
-            <Text style={s.addBtnText}>Add</Text>
+            <Text style={s.addBtnText}>{COPY.common.add}</Text>
           </Pressable>
         </View>
       </View>
@@ -2202,19 +2202,19 @@ export default function GameDetailScreen() {
       ) : localQs.length === 0 ? (
         <View style={s.emptyBox}>
           <Ionicons name="help-circle-outline" size={40} color={colors.mutedForeground} />
-          <Text style={[s.emptyText, { color: colors.mutedForeground }]}>No questions yet</Text>
+          <Text style={[s.emptyText, { color: colors.mutedForeground }]}>{COPY.gameEditor.emptyTitle}</Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <Pressable style={[s.addBtn, { backgroundColor: '#a855f7' }]} onPress={() => setGenerateOpen(true)}>
               <Ionicons name="sparkles" size={14} color="#fff" />
-              <Text style={s.addBtnText}>AI Generate</Text>
+              <Text style={s.addBtnText}>{COPY.gameEditor.aiGenerateBtn}</Text>
             </Pressable>
             <Pressable style={[s.addBtn, { backgroundColor: colors.primary }]} onPress={openAdd}>
               <Ionicons name="add" size={16} color="#fff" />
-              <Text style={s.addBtnText}>Add manually</Text>
+              <Text style={s.addBtnText}>{COPY.gameEditor.addManuallyBtn}</Text>
             </Pressable>
           </View>
           <Text style={[{ color: colors.mutedForeground, fontSize: 12, marginTop: 4 }]}>
-            Long-press any question card to drag and reorder
+            {COPY.gameEditor.dragHint}
           </Text>
         </View>
       ) : (
@@ -2226,7 +2226,7 @@ export default function GameDetailScreen() {
           contentContainerStyle={s.list}
           ListEmptyComponent={
             <Text style={{ color: colors.mutedForeground, fontSize: 13, textAlign: 'center', marginTop: 24 }}>
-              No questions match this filter
+              {COPY.gameEditor.noFilterMatch}
             </Text>
           }
           ListFooterComponent={<View style={{ height: insets.bottom + 24 }} />}

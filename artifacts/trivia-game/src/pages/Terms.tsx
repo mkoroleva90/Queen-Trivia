@@ -15,126 +15,93 @@ export default function Terms() {
           </Link>
         </div>
 
-        <h1 className="text-3xl font-bold mb-2">Terms of Service</h1>
-        <p className="text-[#9aa6bc] text-sm mb-8">Last updated: August 11, 2026</p>
+        <h1 className="text-3xl font-bold mb-2">{COPY.footer.termsOfService}</h1>
+        <p className="text-[#9aa6bc] text-sm mb-8">{COPY.legal.lastUpdated}</p>
 
         <div className="space-y-8 text-[#c8d0df] leading-relaxed">
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">1. Acceptance of Terms</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">{COPY.legal.terms.s1Title}</h2>
             <p>
-              By creating an account or using Queen Trivia (the "Service"), you agree to be bound by
-              these Terms of Service ("Terms"). If you do not agree, do not use the Service. These Terms
-              apply to all hosts, players, and visitors.
+              {COPY.legal.terms.s1Body}
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">2. The Service</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">{COPY.legal.terms.s2Title}</h2>
             <p>
-              Queen Trivia provides a platform for creating and hosting live trivia games. Hosts create
-              quizzes and manage game sessions; players join using a room code and participate via their
-              device. We reserve the right to modify or discontinue the Service at any time with
-              reasonable notice.
+              {COPY.legal.terms.s2Body}
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">3. Accounts</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">{COPY.legal.terms.s3Title}</h2>
             <ul className="list-disc pl-6 space-y-2">
-              <li>
-                You must provide a valid email address when registering and verify it before signing in.
-              </li>
-              <li>
-                You are responsible for maintaining the confidentiality of your password and for all
-                activity that occurs under your account.
-              </li>
-              <li>
-                You must notify us immediately of any unauthorized use of your account.
-              </li>
-              <li>
-                You must be at least 13 years old to create an account.
-              </li>
+              {COPY.legal.terms.accounts.map((item) => <li key={item}>{item}</li>)}
             </ul>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">4. Acceptable Use</h2>
-            <p className="mb-3">You agree not to use the Service to:</p>
+            <h2 className="text-xl font-semibold text-white mb-3">{COPY.legal.terms.s4Title}</h2>
+            <p className="mb-3">{COPY.legal.terms.s4Intro}</p>
             <ul className="list-disc pl-6 space-y-2">
               {COPY.legal.terms.acceptableUse.map((item) => <li key={item}>{item}</li>)}
             </ul>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">5. Content</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">{COPY.legal.terms.s5Title}</h2>
             <p>
-              You retain ownership of any quiz content you create. By submitting content to the Service,
-              you grant us a non-exclusive, royalty-free license to store, display, and deliver that
-              content as necessary to operate the Service. You are solely responsible for ensuring your
-              content does not infringe third-party intellectual property rights or violate applicable
-              laws.
+              {COPY.legal.terms.s5Body}
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">6. Termination</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">{COPY.legal.terms.s6Title}</h2>
             <p>
-              We may suspend or terminate your account at any time for violations of these Terms or for
-              any other reason at our discretion. You may delete your account at any time by contacting
-              us. Provisions of these Terms that by their nature should survive termination shall
-              survive.
+              {COPY.legal.terms.s6Body}
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">7. Disclaimer of Warranties</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">{COPY.legal.terms.s7Title}</h2>
             <p>
-              THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EXPRESS
-              OR IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, OR
-              NON-INFRINGEMENT. WE DO NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE, OR
-              FREE OF HARMFUL COMPONENTS.
+              {COPY.legal.terms.s7Body}
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">8. Limitation of Liability</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">{COPY.legal.terms.s8Title}</h2>
             <p>
-              TO THE MAXIMUM EXTENT PERMITTED BY LAW, WE SHALL NOT BE LIABLE FOR ANY INDIRECT,
-              INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING OUT OF OR RELATED TO YOUR
-              USE OF THE SERVICE, EVEN IF WE HAVE BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+              {COPY.legal.terms.s8Body}
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">9. Governing Law</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">{COPY.legal.terms.s9Title}</h2>
             <p>
-              These Terms are governed by and construed in accordance with applicable law. Any disputes
-              arising under these Terms shall be resolved through binding arbitration or in a court of
-              competent jurisdiction.
+              {COPY.legal.terms.s9Body}
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">10. Changes to These Terms</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">{COPY.legal.terms.s10Title}</h2>
             <p>
-              We may update these Terms from time to time. We will notify registered hosts by email or
-              in-app notice of material changes. Continued use of the Service after changes take effect
-              constitutes acceptance of the updated Terms.
+              {COPY.legal.terms.s10Body}
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">11. Contact Us</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">{COPY.legal.terms.s11Title}</h2>
             <p>
-              Questions about these Terms? Contact us at{" "}
-              <span className="text-[#ff2d8e]">legal@queen-trivia.com</span>.
+              {COPY.legal.terms.s11Prefix}{" "}
+              <span className="text-[#ff2d8e]">{COPY.legal.terms.email}</span>.
             </p>
           </section>
         </div>
 
         <div className="mt-12 pt-8 border-t border-[#1b2740] text-sm text-[#9aa6bc]">
           <Link href="/privacy" className="text-[#ff2d8e] hover:underline">
-            Privacy Policy
+            {COPY.footer.privacyPolicy}
           </Link>
         </div>
       </div>

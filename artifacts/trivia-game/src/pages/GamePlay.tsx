@@ -728,7 +728,7 @@ export function ImageQuestion({
         <Input
           value={val}
           onChange={(e) => setVal(e.target.value)}
-          placeholder="Your answer…"
+          placeholder={COPY.gameplay.answerPlaceholderShort}
           className="h-14 text-lg"
           disabled={disabled}
           autoFocus
@@ -1928,9 +1928,9 @@ export default function GamePlay() {
                   style={{ background: "rgba(255,255,255,.04)", border: "1px dashed rgba(255,255,255,.1)" }}
                 >
                   <Sparkles className="mx-auto h-12 w-12" style={{ color: "rgba(0,221,255,.65)" }} />
-                  <h3 className="text-2xl font-bold">Waiting for the host</h3>
+                  <h3 className="text-2xl font-bold">{COPY.gameplay.waitingHostTitle}</h3>
                   <p className="text-muted-foreground max-w-md mx-auto text-sm">
-                    The next question will appear here when the host releases it.
+                    {COPY.gameplay.waitingHostBody}
                   </p>
                 </motion.div>
               )}

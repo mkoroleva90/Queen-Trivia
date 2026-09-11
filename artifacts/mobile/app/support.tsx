@@ -28,7 +28,7 @@ export default function SupportScreen() {
         <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={22} color={colors.foreground} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Support</Text>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>{COPY.footer.support}</Text>
         <View style={styles.backBtn} />
       </View>
 
@@ -37,25 +37,23 @@ export default function SupportScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Text style={[styles.lastUpdated, { color: colors.mutedForeground }]}>
-          We're here to help
+          {COPY.legal.support.tagline}
         </Text>
 
         {/* Contact Us */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Contact Us</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{COPY.legal.support.contactTitle}</Text>
           <Text style={[styles.body, { color: colors.mutedForeground }]}>
-            For any questions, issues, or feedback about Queen Trivia, reach out to us directly
-            by email. We aim to respond within one business day.
+            {COPY.legal.support.contactBody}
           </Text>
-          <Text style={[styles.email, { color: colors.primary }]}>support@queen-trivia.com</Text>
+          <Text style={[styles.email, { color: colors.primary }]}>{COPY.legal.support.email}</Text>
         </View>
 
         {/* How to Report */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>How to Report a Problem</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{COPY.legal.support.reportTitle}</Text>
           <Text style={[styles.body, { color: colors.mutedForeground }]}>
-            If you've encountered a bug, an unexpected error, or inappropriate content in a game,
-            please include the following in your message so we can investigate quickly:
+            {COPY.legal.support.reportBody}
           </Text>
           {COPY.legal.support.reportChecklist.map((item) => (
             <View key={item} style={styles.listItem}>
@@ -67,23 +65,21 @@ export default function SupportScreen() {
 
         {/* Host Accounts */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Host Accounts</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{COPY.legal.support.hostAccountsTitle}</Text>
           <Text style={[styles.body, { color: colors.mutedForeground }]}>
-            If you're having trouble with your host account — such as a missing verification email,
-            a password reset that didn't arrive, or difficulty signing in — email us at{' '}
-            <Text style={{ color: colors.primary }}>support@queen-trivia.com</Text>
-            {' '}with your registered email address and we'll get you sorted.
+            {COPY.legal.support.hostAccountsPrefix}{' '}
+            <Text style={{ color: colors.primary }}>{COPY.legal.support.email}</Text>
+            {' '}{COPY.legal.support.hostAccountsSuffix}
           </Text>
         </View>
 
         {/* Content Concerns */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Content Concerns</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{COPY.legal.support.contentTitle}</Text>
           <Text style={[styles.body, { color: colors.mutedForeground }]}>
-            Queen Trivia includes a content filter to prevent offensive material from appearing in
-            games. If you see something that slipped through, please report it to{' '}
-            <Text style={{ color: colors.primary }}>support@queen-trivia.com</Text>
-            {' '}and we'll review it promptly.
+            {COPY.legal.support.contentPrefix}{' '}
+            <Text style={{ color: colors.primary }}>{COPY.legal.support.email}</Text>
+            {' '}{COPY.legal.support.contentSuffix}
           </Text>
         </View>
 

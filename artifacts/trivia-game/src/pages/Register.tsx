@@ -125,7 +125,7 @@ export default function Register() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  placeholder="At least 8 characters"
+                  placeholder={COPY.hostRegister.passwordPlaceholder}
                   className="pl-10 bg-[#060d16] border-[#1b2740] text-white placeholder:text-[#3d5068] focus:border-[#ff2d8e]"
                 />
               </div>
@@ -141,7 +141,7 @@ export default function Register() {
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
                   required
-                  placeholder="Repeat your password"
+                  placeholder={COPY.hostForgotPassword.confirmPlaceholder}
                   className="pl-10 bg-[#060d16] border-[#1b2740] text-white placeholder:text-[#3d5068] focus:border-[#ff2d8e]"
                 />
               </div>
@@ -163,11 +163,11 @@ export default function Register() {
             </Button>
 
             <p className="text-center text-xs text-[#9aa6bc] leading-relaxed">
-              By creating an account you agree to our{" "}
+              {COPY.hostRegister.legalPrefix}{" "}
               <Link href="/terms" className="text-[#ff2d8e] hover:underline">
                 {COPY.footer.termsOfService}
               </Link>{" "}
-              and{" "}
+              {COPY.hostRegister.legalAnd}{" "}
               <Link href="/privacy" className="text-[#ff2d8e] hover:underline">
                 {COPY.footer.privacyPolicy}
               </Link>
@@ -176,7 +176,7 @@ export default function Register() {
           </form>
 
           <p className="mt-4 text-center text-sm text-[#9aa6bc]">
-            Already have an account?{" "}
+            {COPY.hostRegister.haveAccount}{" "}
             <Link href="/admin-login" className="text-[#ff2d8e] hover:underline">
               Sign in
             </Link>

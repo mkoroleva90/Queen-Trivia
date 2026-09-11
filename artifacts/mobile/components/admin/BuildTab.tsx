@@ -159,7 +159,7 @@ function AmountStepper({ value, onChange, max = 20, colors }: {
       >
         <Ionicons name="add" size={18} color={colors.foreground} />
       </Pressable>
-      <Text style={[sh.stepperHint, { color: colors.mutedForeground }]}>questions (max {max})</Text>
+      <Text style={[sh.stepperHint, { color: colors.mutedForeground }]}>{COPY.build.stepperHint(max)}</Text>
     </View>
   );
 }
@@ -190,7 +190,7 @@ function GamePicker({ games, selectedId, onSelect, colors }: {
               {g.topic}
             </Text>
             <Text style={[sh.gameChipCount, { color: colors.mutedForeground }]}>
-              {g.questionCount ?? 0} questions
+              {COPY.admin.questionsCount(g.questionCount ?? 0)}
             </Text>
           </Pressable>
         );
@@ -308,12 +308,12 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
   // Derived: setup working state
   const setupWorking = createGame.isPending || generateGemini.isPending || importOpenTdb.isPending;
   const setupWorkingLabel = createGame.isPending
-    ? 'Creating game…'
+    ? COPY.build.working.creating
     : generateGemini.isPending
-      ? 'Generating questions…'
+      ? COPY.build.working.generating
       : importOpenTdb.isPending
-        ? 'Importing questions…'
-        : 'Working…';
+        ? COPY.build.working.importing
+        : COPY.build.working.default;
 
   const selectedCategory = OPENTDB_CATEGORIES.find((c) => c.id === setupCategory);
 
@@ -429,7 +429,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
       }
     } catch (err) {
       const msg = extractApiError(err, COPY.build.error.createGame);
-      if (msg.includes('Monthly limit reached')) {
+      if (msg.includes(COPY.usageLimit.title)) {
         setLimitMsg(msg);
       } else {
         setSetupError(msg);
@@ -495,7 +495,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
       }
     } catch (err) {
       const msg = extractApiError(err, COPY.build.error.generate);
-      if (msg.includes('Monthly limit reached')) {
+      if (msg.includes(COPY.usageLimit.title)) {
         setAiOpen(false);
         setLimitMsg(msg);
       } else {
@@ -741,7 +741,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
         >
           <Ionicons name="play" size={16} color="#fff" />
           <Text style={s.rtglGoLiveText}>
-            {updateGame.isPending ? 'Going live…' : COPY.readyToGoLive.goLiveBtn}
+            {updateGame.isPending ? COPY.build.goingLive : COPY.readyToGoLive.goLiveBtn}
           </Text>
         </Pressable>
 
@@ -818,12 +818,12 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                   accessibilityLabel={COPY.build.backToGameMode}
                 >
                   <Ionicons name="arrow-back" size={18} color="#c5ccda" />
-                  <Text style={s.buildBackText}>Back</Text>
+                  <Text style={s.buildBackText}>{COPY.common.back}</Text>
                 </Pressable>
                 <View style={s.setupCard}>
-                  <Text style={s.setupTitle}>Create a new game</Text>
+                  <Text style={s.setupTitle}>{COPY.heading.createNewGame}</Text>
 
-                  <Text style={s.setupLabel}>Category</Text>
+                  <Text style={s.setupLabel}>{COPY.build.categoryLabel}</Text>
                   <View style={s.setupSelectGroup}>
                     <Pressable
                       style={s.setupSelect}
@@ -886,7 +886,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                   {/* ── Custom topic fields ── */}
                   {source === 'ai' && (
                     <>
-                      <Text style={s.setupLabel}>Topic</Text>
+                      <Text style={s.setupLabel}>{COPY.build.topicLabel}</Text>
                       <TextInput
                         style={[s.setupInput, { borderColor: setupError ? colors.destructive : colors.border }]}
                         value={topic}
@@ -896,13 +896,13 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                       />
 
                       <Text style={s.setupLabel}>
-                        Brief <Text style={s.fieldLabelOpt}>(optional)</Text>
+                        {COPY.build.briefLabel} <Text style={s.fieldLabelOpt}>{COPY.common.optional}</Text>
                       </Text>
                       <TextInput
                         style={[s.setupInput, s.setupTextArea, { borderColor: colors.border }]}
                         value={brief}
                         onChangeText={setBrief}
-                        placeholder="e.g. Focus on the 1990s. Players are experts — skip the obvious. No chart position questions."
+                        placeholder={COPY.build.briefPlaceholder}
                         placeholderTextColor={colors.mutedForeground}
                         multiline
                         maxLength={2000}
@@ -912,7 +912,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
 
                   <View style={s.setupSplitRow}>
                     <View style={s.setupHalfField}>
-                      <Text style={s.setupLabel}>Difficulty</Text>
+                      <Text style={s.setupLabel}>{COPY.build.difficultyLabel}</Text>
                       <Pressable
                         style={s.setupSelect}
                         onPress={() => {
@@ -941,7 +941,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                     </View>
 
                     <View style={s.setupHalfField}>
-                      <Text style={s.setupLabel}>Questions to Import</Text>
+                      <Text style={s.setupLabel}>{COPY.build.amountLabel}</Text>
                       <Pressable
                         style={s.setupSelect}
                         onPress={() => {
@@ -950,7 +950,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                           setDifficultyOpen(false);
                         }}
                       >
-                        <Text style={s.setupSelectText} numberOfLines={1}>{setupAmount} questions</Text>
+                        <Text style={s.setupSelectText} numberOfLines={1}>{COPY.admin.questionsCount(setupAmount)}</Text>
                         <Ionicons name={amountOpen ? 'chevron-up' : 'chevron-down'} size={22} color="#8b93a4" />
                       </Pressable>
                       {amountOpen && (
@@ -963,7 +963,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                                 style={[s.setupOption, setupAmount === n && s.setupOptionActive]}
                                 onPress={() => { setSetupAmount(n); setAmountOpen(false); }}
                               >
-                                <Text style={s.setupOptionText}>{n} questions</Text>
+                                <Text style={s.setupOptionText}>{COPY.admin.questionsCount(n)}</Text>
                                 {setupAmount === n && <Ionicons name="checkmark" size={18} color="#f5138c" />}
                               </Pressable>
                             ))}
@@ -1021,7 +1021,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                   accessibilityLabel={COPY.build.backToJoinCode}
                 >
                   <Ionicons name="arrow-back" size={18} color="#c5ccda" />
-                  <Text style={s.buildBackText}>Back</Text>
+                  <Text style={s.buildBackText}>{COPY.common.back}</Text>
                 </Pressable>
                 {renderReadyToGoLive()}
               </>
@@ -1041,30 +1041,30 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
               accessibilityLabel={setupResult ? COPY.build.backToReadyScreen : COPY.build.backToSetup}
             >
               <Ionicons name="arrow-back" size={18} color="#c5ccda" />
-              <Text style={s.buildBackText}>Back</Text>
+              <Text style={s.buildBackText}>{COPY.common.back}</Text>
             </Pressable>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 0 }}>
-              <Text style={[s.heading, { color: colors.foreground, marginBottom: 0 }]}>Review questions</Text>
+              <Text style={[s.heading, { color: colors.foreground, marginBottom: 0 }]}>{COPY.build.reviewHeading}</Text>
               {selectedGame && questions.filter((q) => q.aiGenerated).length > 0 && (
                 <Pressable
                   style={[s.smallBtn, { backgroundColor: colors.muted, paddingHorizontal: 10, marginTop: 0 }]}
                   onPress={() => { setRegenAllError(''); setRegenAllConfirmOpen(true); }}
                 >
-                  <Text style={[s.smallBtnText, { color: colors.mutedForeground }]}>Regen all</Text>
+                  <Text style={[s.smallBtnText, { color: colors.mutedForeground }]}>{COPY.build.regenAllBtn}</Text>
                 </Pressable>
               )}
             </View>
             {editableGames.length === 0 ? (
               <View style={[s.emptyCard, { borderColor: colors.border }]}>
                 <Ionicons name="checkmark-done-outline" size={36} color={colors.mutedForeground} />
-                <Text style={[s.emptyTitle, { color: colors.foreground }]}>Nothing to review</Text>
+                <Text style={[s.emptyTitle, { color: colors.foreground }]}>{COPY.build.nothingToReviewTitle}</Text>
                 <Text style={[s.emptySub, { color: colors.mutedForeground }]}>
-                  Create a game and add questions first.
+                  {COPY.build.nothingToReviewBody}
                 </Text>
               </View>
             ) : (
               <>
-                <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Select game</Text>
+                <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.build.selectGameLabel}</Text>
                 <GamePicker
                   games={editableGames}
                   selectedId={workingGameId}
@@ -1094,7 +1094,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                       <View style={s.summaryMetaItem}>
                         <Ionicons name="help-circle-outline" size={13} color={colors.mutedForeground} />
                         <Text style={[s.summaryMetaText, { color: colors.mutedForeground }]}>
-                          {questions.length} question{questions.length === 1 ? '' : 's'} · {totalPoints} pts total
+                          {COPY.build.summaryQuestions(questions.length, totalPoints)}
                         </Text>
                       </View>
                     </View>
@@ -1105,10 +1105,10 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                   <View style={[s.emptyCard, { borderColor: colors.border }]}>
                     <Ionicons name="help-circle-outline" size={32} color={colors.mutedForeground} />
                     <Text style={[s.emptySub, { color: colors.mutedForeground }]}>
-                      No questions yet — add some from the game detail screen.
+                      {COPY.build.noQuestionsHint}
                     </Text>
                     <Pressable style={[s.smallBtn, { backgroundColor: colors.primary }]} onPress={() => router.push(`/admin/${selectedGame.id}`)}>
-                      <Text style={s.smallBtnText}>Add questions</Text>
+                      <Text style={s.smallBtnText}>{COPY.build.addQuestionsBtn}</Text>
                     </Pressable>
                   </View>
                 )}
@@ -1131,8 +1131,8 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                             color={colors.mutedForeground}
                           />
                           <Text style={[s.qMetaText, { color: colors.mutedForeground }]}>
-                            {TYPE_LABELS[q.questionType] ?? q.questionType} · {q.points} pts
-                            {q.aiGenerated ? ' · AI' : q.source === 'opentdb' ? ' · Open Trivia Database' : ''}
+                            {TYPE_LABELS[q.questionType] ?? q.questionType} · {q.points} {COPY.gameplay.scorePtsSuffix}
+                            {q.aiGenerated ? COPY.build.metaAiSuffix : q.source === 'opentdb' ? COPY.build.metaOpenTdbSuffix : ''}
                           </Text>
                         </View>
                       </View>
@@ -1184,7 +1184,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                           : (
                             <View style={s.btnRow}>
                               <Ionicons name="play" size={16} color="#0a1019" />
-                              <Text style={[s.primaryBtnText, { color: '#0a1019' }]}>Publish &amp; go live</Text>
+                              <Text style={[s.primaryBtnText, { color: '#0a1019' }]}>{COPY.build.publishBtn}</Text>
                             </View>
                           )}
                       </Pressable>
@@ -1193,7 +1193,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                     <View style={[s.liveBanner, { backgroundColor: colors.secondary + '15', borderColor: colors.secondary + '40' }]}>
                       <View style={[s.liveBannerDot, { backgroundColor: colors.secondary }]} />
                       <Text style={[s.liveBannerText, { color: colors.secondary }]}>
-                        This game is live — changes save instantly
+                        {COPY.build.liveBanner}
                       </Text>
                     </View>
                   )
@@ -1215,7 +1215,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
               <View style={sh.sheetHandle} />
               <View style={sh.sheetTitleRow}>
                 <Ionicons name="sparkles" size={20} color={AI_COLOR} />
-                <Text style={[sh.sheetTitle, { color: colors.foreground }]}>Generate with AI</Text>
+                <Text style={[sh.sheetTitle, { color: colors.foreground }]}>{COPY.build.aiSheet.title}</Text>
               </View>
 
               {aiResult ? (
@@ -1223,33 +1223,33 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                   <View style={[sh.resultBox, { borderColor: colors.secondary + '40', backgroundColor: colors.secondary + '12' }]}>
                     <Ionicons name="checkmark-circle" size={20} color={colors.secondary} />
                     <Text style={[sh.resultText, { color: colors.foreground }]}>
-                      {aiResult.imported} question{aiResult.imported === 1 ? '' : 's'} generated
+                      {COPY.build.aiSheet.generatedResult(aiResult.imported)}
                     </Text>
                   </View>
                   <Pressable style={[sh.sheetBtn, { backgroundColor: colors.primary }]} onPress={() => setAiOpen(false)}>
-                    <Text style={sh.sheetBtnText}>Done</Text>
+                    <Text style={sh.sheetBtnText}>{COPY.common.done}</Text>
                   </Pressable>
                   <Pressable style={sh.secondaryLink} onPress={() => setAiResult(null)}>
-                    <Text style={[sh.secondaryLinkText, { color: colors.mutedForeground }]}>Generate more</Text>
+                    <Text style={[sh.secondaryLinkText, { color: colors.mutedForeground }]}>{COPY.build.aiSheet.generateMore}</Text>
                   </Pressable>
                 </>
               ) : (
                 <>
                   <Text style={[sh.sheetSub, { color: colors.mutedForeground }]}>
-                    Topic: {selectedGame?.topic} · {selectedGame?.difficulty}
+                    {COPY.build.aiSheet.topicLine(selectedGame?.topic ?? '', selectedGame?.difficulty ?? '')}
                   </Text>
 
-                  <Text style={[sh.fieldLabel, { color: colors.mutedForeground }]}>How many</Text>
+                  <Text style={[sh.fieldLabel, { color: colors.mutedForeground }]}>{COPY.build.aiSheet.howManyLabel}</Text>
                   <AmountStepper value={aiAmount} onChange={setAiAmount} colors={colors} />
 
                   <OpenTdbQuestionMixSelector value={aiMode} onSelect={setAiMode} />
 
-                  <Text style={[sh.fieldLabel, { color: colors.mutedForeground }]}>Brief (optional)</Text>
+                  <Text style={[sh.fieldLabel, { color: colors.mutedForeground }]}>{COPY.build.aiSheet.briefLabel}</Text>
                   <TextInput
                     style={[sh.textInput, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
                     value={aiBrief}
                     onChangeText={setAiBrief}
-                    placeholder="Extra guidance for the AI"
+                    placeholder={COPY.build.aiSheet.briefPlaceholder}
                     placeholderTextColor={colors.mutedForeground}
                   />
 
@@ -1264,10 +1264,10 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                     {generateGemini.isPending ? (
                       <View style={sh.btnRow}>
                         <ActivityIndicator color="#fff" />
-                        <Text style={sh.sheetBtnText}>Generating questions…</Text>
+                        <Text style={sh.sheetBtnText}>{COPY.build.aiSheet.generating}</Text>
                       </View>
                     ) : (
-                      <Text style={sh.sheetBtnText}>Generate {aiAmount} questions</Text>
+                      <Text style={sh.sheetBtnText}>{COPY.build.aiSheet.generateBtn(aiAmount)}</Text>
                     )}
                   </Pressable>
                 </>
@@ -1285,7 +1285,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
             <View style={sh.sheetHandle} />
             <View style={sh.sheetTitleRow}>
               <Ionicons name="cloud-download-outline" size={20} color={colors.primary} />
-              <Text style={[sh.sheetTitle, { color: colors.foreground }]}>Import from Open Trivia Database</Text>
+              <Text style={[sh.sheetTitle, { color: colors.foreground }]}>{COPY.heading.importFromOtdb}</Text>
             </View>
 
             {tdbResult !== null ? (
@@ -1293,19 +1293,19 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                 <View style={[sh.resultBox, { borderColor: colors.secondary + '40', backgroundColor: colors.secondary + '12' }]}>
                   <Ionicons name="checkmark-circle" size={20} color={colors.secondary} />
                   <Text style={[sh.resultText, { color: colors.foreground }]}>
-                    {tdbResult} question{tdbResult === 1 ? '' : 's'} imported
+                    {COPY.build.tdbSheet.importedResult(tdbResult)}
                   </Text>
                 </View>
                 <Pressable style={[sh.sheetBtn, { backgroundColor: colors.primary }]} onPress={() => setTdbOpen(false)}>
-                  <Text style={sh.sheetBtnText}>Done</Text>
+                  <Text style={sh.sheetBtnText}>{COPY.common.done}</Text>
                 </Pressable>
                 <Pressable style={sh.secondaryLink} onPress={() => setTdbResult(null)}>
-                  <Text style={[sh.secondaryLinkText, { color: colors.mutedForeground }]}>Import more</Text>
+                  <Text style={[sh.secondaryLinkText, { color: colors.mutedForeground }]}>{COPY.build.tdbSheet.importMore}</Text>
                 </Pressable>
               </>
             ) : (
               <>
-                <Text style={[sh.fieldLabel, { color: colors.mutedForeground }]}>Category</Text>
+                <Text style={[sh.fieldLabel, { color: colors.mutedForeground }]}>{COPY.build.tdbSheet.categoryLabel}</Text>
                 <ScrollView style={sh.catList} showsVerticalScrollIndicator={false}>
                   {OPENTDB_CATEGORIES.map((c) => {
                     const active = c.id === tdbCategory;
@@ -1324,10 +1324,10 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                   })}
                 </ScrollView>
 
-                <Text style={[sh.fieldLabel, { color: colors.mutedForeground }]}>Difficulty</Text>
+                <Text style={[sh.fieldLabel, { color: colors.mutedForeground }]}>{COPY.build.tdbSheet.difficultyLabel}</Text>
                 <DifficultyChips value={tdbDifficulty} onChange={setTdbDifficulty} colors={colors} />
 
-                <Text style={[sh.fieldLabel, { color: colors.mutedForeground }]}>How many</Text>
+                <Text style={[sh.fieldLabel, { color: colors.mutedForeground }]}>{COPY.build.tdbSheet.howManyLabel}</Text>
                 <AmountStepper value={tdbAmount} onChange={setTdbAmount} colors={colors} />
 
                 {!!tdbError && <Text style={[sh.errorText, { color: colors.destructive }]}>{tdbError}</Text>}
@@ -1339,7 +1339,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                 >
                   {importOpenTdb.isPending
                     ? <ActivityIndicator color="#fff" />
-                    : <Text style={sh.sheetBtnText}>Import {tdbAmount} questions</Text>}
+                    : <Text style={sh.sheetBtnText}>{COPY.build.tdbSheet.importBtn(tdbAmount)}</Text>}
                 </Pressable>
               </>
             )}
@@ -1355,11 +1355,11 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
             <View style={sh.sheetHandle} />
             <View style={sh.sheetTitleRow}>
               <Ionicons name="information-circle-outline" size={20} color={colors.secondary} />
-              <Text style={[sh.sheetTitle, { color: colors.foreground }]}>Monthly limit reached</Text>
+              <Text style={[sh.sheetTitle, { color: colors.foreground }]}>{COPY.usageLimit.title}</Text>
             </View>
             <Text style={[sh.sheetSub, { color: colors.mutedForeground }]}>{limitMsg}</Text>
             <Pressable style={[sh.sheetBtn, { backgroundColor: colors.primary }]} onPress={() => setLimitMsg(null)}>
-              <Text style={sh.sheetBtnText}>Got it</Text>
+              <Text style={sh.sheetBtnText}>{COPY.common.gotIt}</Text>
             </Pressable>
           </View>
         </View>
@@ -1373,7 +1373,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
             <View style={sh.sheetHandle} />
             <View style={sh.sheetTitleRow}>
               <Ionicons name="refresh-outline" size={20} color={colors.primary} />
-              <Text style={[sh.sheetTitle, { color: colors.foreground }]}>Regenerate question</Text>
+              <Text style={[sh.sheetTitle, { color: colors.foreground }]}>{COPY.build.regenSheet.title}</Text>
             </View>
 
             {regenQ && (
@@ -1385,24 +1385,24 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
             {regenPreview ? (
               <>
                 <View style={[sh.resultBox, { borderColor: colors.primary + '40', backgroundColor: colors.primary + '10' }]}>
-                  <Text style={[sh.fieldLabel, { color: colors.mutedForeground, marginBottom: 2 }]}>New question</Text>
+                  <Text style={[sh.fieldLabel, { color: colors.mutedForeground, marginBottom: 2 }]}>{COPY.build.regenSheet.newQuestionLabel}</Text>
                   <Text style={[sh.resultText, { color: colors.foreground }]}>{regenPreview.questionText}</Text>
-                  <Text style={[sh.fieldLabel, { color: colors.mutedForeground, marginTop: 8, marginBottom: 2 }]}>Answer</Text>
+                  <Text style={[sh.fieldLabel, { color: colors.mutedForeground, marginTop: 8, marginBottom: 2 }]}>{COPY.build.regenSheet.answerLabel}</Text>
                   <Text style={[sh.resultText, { color: colors.secondary }]}>{regenPreview.correctAnswer}</Text>
                 </View>
                 {!!regenError && <Text style={[sh.errorText, { color: colors.destructive }]}>{regenError}</Text>}
                 <Pressable style={[sh.sheetBtn, { backgroundColor: colors.secondary }]} onPress={handleAcceptRegen}>
-                  <Text style={[sh.sheetBtnText, { color: '#0a1019' }]}>Accept</Text>
+                  <Text style={[sh.sheetBtnText, { color: '#0a1019' }]}>{COPY.build.regenSheet.acceptBtn}</Text>
                 </Pressable>
                 <Pressable style={[sh.sheetBtn, { backgroundColor: colors.muted }]} onPress={handleGeneratePreview} disabled={regenLoading}>
-                  {regenLoading ? <ActivityIndicator color={colors.foreground} /> : <Text style={[sh.sheetBtnText, { color: colors.foreground }]}>Retry</Text>}
+                  {regenLoading ? <ActivityIndicator color={colors.foreground} /> : <Text style={[sh.sheetBtnText, { color: colors.foreground }]}>{COPY.common.retry}</Text>}
                 </Pressable>
               </>
             ) : (
               <>
                 {!!regenError && <Text style={[sh.errorText, { color: colors.destructive }]}>{regenError}</Text>}
                 <Pressable style={[sh.sheetBtn, { backgroundColor: colors.primary, opacity: regenLoading ? 0.7 : 1 }]} onPress={handleGeneratePreview} disabled={regenLoading}>
-                  {regenLoading ? <ActivityIndicator color="#fff" /> : <Text style={sh.sheetBtnText}>Generate</Text>}
+                  {regenLoading ? <ActivityIndicator color="#fff" /> : <Text style={sh.sheetBtnText}>{COPY.build.regenSheet.generateBtn}</Text>}
                 </Pressable>
               </>
             )}
@@ -1418,20 +1418,20 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
             <View style={sh.sheetHandle} />
             <View style={sh.sheetTitleRow}>
               <Ionicons name="sparkles" size={20} color={AI_COLOR} />
-              <Text style={[sh.sheetTitle, { color: colors.foreground }]}>Enhance question</Text>
+              <Text style={[sh.sheetTitle, { color: colors.foreground }]}>{COPY.build.enhanceSheet.title}</Text>
             </View>
 
             {enhResult ? (
               <>
                 {enhResult.improvedQuestionText && (
                   <View style={[sh.resultBox, { borderColor: AI_COLOR + '40', backgroundColor: AI_COLOR + '10', marginBottom: 8 }]}>
-                    <Text style={[sh.fieldLabel, { color: colors.mutedForeground, marginBottom: 2 }]}>Improved question</Text>
+                    <Text style={[sh.fieldLabel, { color: colors.mutedForeground, marginBottom: 2 }]}>{COPY.build.enhanceSheet.improvedQuestionLabel}</Text>
                     <Text style={[{ fontSize: 14, color: colors.foreground, lineHeight: 20 }]}>{enhResult.improvedQuestionText}</Text>
                   </View>
                 )}
                 {enhResult.improvedOptions && enhResult.improvedOptions.length > 0 && (
                   <View style={[sh.resultBox, { borderColor: colors.secondary + '40', backgroundColor: colors.secondary + '10', marginBottom: 8 }]}>
-                    <Text style={[sh.fieldLabel, { color: colors.mutedForeground, marginBottom: 2 }]}>Improved options</Text>
+                    <Text style={[sh.fieldLabel, { color: colors.mutedForeground, marginBottom: 2 }]}>{COPY.build.enhanceSheet.improvedOptionsLabel}</Text>
                     {enhResult.improvedOptions.map((opt, i) => (
                       <Text key={i} style={[{ fontSize: 13, color: i === 0 ? colors.secondary : colors.foreground, lineHeight: 20 }]}>
                         {i === 0 ? '✓ ' : '• '}{opt}
@@ -1441,10 +1441,10 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                 )}
                 {!!enhError && <Text style={[sh.errorText, { color: colors.destructive }]}>{enhError}</Text>}
                 <Pressable style={[sh.sheetBtn, { backgroundColor: colors.secondary }]} onPress={handleApplyEnhance}>
-                  <Text style={[sh.sheetBtnText, { color: '#0a1019' }]}>Apply improvements</Text>
+                  <Text style={[sh.sheetBtnText, { color: '#0a1019' }]}>{COPY.build.enhanceSheet.applyBtn}</Text>
                 </Pressable>
                 <Pressable style={sh.secondaryLink} onPress={() => setEnhOpen(false)}>
-                  <Text style={[sh.secondaryLinkText, { color: colors.mutedForeground }]}>Keep original</Text>
+                  <Text style={[sh.secondaryLinkText, { color: colors.mutedForeground }]}>{COPY.build.enhanceSheet.keepOriginalBtn}</Text>
                 </Pressable>
               </>
             ) : (
@@ -1456,7 +1456,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                 )}
                 {!!enhError && <Text style={[sh.errorText, { color: colors.destructive }]}>{enhError}</Text>}
                 <Pressable style={[sh.sheetBtn, { backgroundColor: AI_COLOR, opacity: enhLoading ? 0.7 : 1 }]} onPress={handleEnhance} disabled={enhLoading}>
-                  {enhLoading ? <ActivityIndicator color="#fff" /> : <Text style={sh.sheetBtnText}>Enhance with AI</Text>}
+                  {enhLoading ? <ActivityIndicator color="#fff" /> : <Text style={sh.sheetBtnText}>{COPY.build.enhanceSheet.enhanceBtn}</Text>}
                 </Pressable>
               </>
             )}
@@ -1470,9 +1470,9 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
           <Pressable style={sh.modalBackdrop} onPress={() => !regenAllLoading && setRegenAllConfirmOpen(false)} />
           <View style={[sh.sheet, { backgroundColor: colors.card, paddingBottom: sheetPadBottom }]}>
             <View style={sh.sheetHandle} />
-            <Text style={[sh.sheetTitle, { color: colors.foreground }]}>Regenerate all AI questions?</Text>
+            <Text style={[sh.sheetTitle, { color: colors.foreground }]}>{COPY.build.regenAll.title}</Text>
             <Text style={[sh.sheetSub, { color: colors.mutedForeground }]}>
-              All {questions.filter((q) => q.aiGenerated).length} AI-generated questions will be deleted and new ones generated for this game.
+              {COPY.build.regenAll.body(questions.filter((q) => q.aiGenerated).length)}
             </Text>
             {!!regenAllError && <Text style={[sh.errorText, { color: colors.destructive }]}>{regenAllError}</Text>}
             <Pressable
@@ -1482,10 +1482,10 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
             >
               {regenAllLoading
                 ? <ActivityIndicator color="#fff" />
-                : <Text style={sh.sheetBtnText}>Regenerate all</Text>}
+                : <Text style={sh.sheetBtnText}>{COPY.build.regenAll.confirmBtn}</Text>}
             </Pressable>
             <Pressable style={sh.secondaryLink} onPress={() => setRegenAllConfirmOpen(false)} disabled={regenAllLoading}>
-              <Text style={[sh.secondaryLinkText, { color: colors.mutedForeground }]}>Cancel</Text>
+              <Text style={[sh.secondaryLinkText, { color: colors.mutedForeground }]}>{COPY.common.cancel}</Text>
             </Pressable>
           </View>
         </View>

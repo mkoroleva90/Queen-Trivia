@@ -104,9 +104,9 @@ function ChangePasswordCard() {
     e.preventDefault();
     setError("");
     setSuccess("");
-    if (!pwCurrent) { setError("Please enter your current password."); return; }
-    if (pwNew.length < 8) { setError("New password must be at least 8 characters."); return; }
-    if (pwNew !== pwConfirm) { setError("New passwords do not match."); return; }
+    if (!pwCurrent) { setError(COPY.account.changePassword.errorCurrentRequired); return; }
+    if (pwNew.length < 8) { setError(COPY.account.changePassword.errorTooShort); return; }
+    if (pwNew !== pwConfirm) { setError(COPY.account.changePassword.errorNoMatch); return; }
     setSaving(true);
     try {
       const r = await apiFetch("/api/auth/email/change-password", {
@@ -119,7 +119,7 @@ function ChangePasswordCard() {
         return;
       }
       clear();
-      setSuccess(json.message ?? "Password changed successfully.");
+      setSuccess(json.message ?? COPY.account.changePassword.success);
     } catch {
       setError(COPY.account.connectionError);
     } finally {
@@ -132,23 +132,23 @@ function ChangePasswordCard() {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <Lock className="h-4 w-4 text-primary" />
-          Change password
+          {COPY.account.changePassword.sectionTitle}
         </CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Enter your current password and choose a new one (at least 8 characters).
+            {COPY.account.changePassword.description}
           </p>
 
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Current password
+              {COPY.account.changePassword.currentLabel}
             </label>
             <PwField
               value={pwCurrent}
               onChange={(v) => { setPwCurrent(v); setError(""); setSuccess(""); }}
-              placeholder="Current password"
+              placeholder={COPY.account.changePassword.currentPlaceholder}
               autoComplete="current-password"
               isError={!!error && !pwCurrent}
             />
@@ -156,28 +156,28 @@ function ChangePasswordCard() {
 
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              New password
+              {COPY.account.changePassword.newLabel}
             </label>
             <PwField
               value={pwNew}
               onChange={(v) => { setPwNew(v); setError(""); setSuccess(""); }}
-              placeholder="New password (min. 8 characters)"
+              placeholder={COPY.account.changePassword.newPlaceholder}
               autoComplete="new-password"
             />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Confirm new password
+              {COPY.account.changePassword.confirmLabel}
             </label>
             <PwField
               value={pwConfirm}
               onChange={(v) => { setPwConfirm(v); setError(""); setSuccess(""); }}
-              placeholder="Confirm new password"
+              placeholder={COPY.account.changePassword.confirmPlaceholder}
               autoComplete="new-password"
               isError={mismatch}
             />
-            {mismatch && <InlineMsg kind="error" text="Passwords do not match." />}
+            {mismatch && <InlineMsg kind="error" text={COPY.account.changePassword.mismatch} />}
           </div>
 
           {error && <InlineMsg kind="error" text={error} />}
@@ -185,7 +185,7 @@ function ChangePasswordCard() {
 
           <Button type="submit" disabled={saving} className="w-full h-11">
             {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Change password
+            {COPY.account.changePassword.submitBtn}
           </Button>
         </form>
       </CardContent>
@@ -230,7 +230,7 @@ function DangerZoneCard() {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Deleting your account is permanent and cannot be undone. Your account and all associated games will be removed immediately.
+          {COPY.account.dangerZoneBody}
         </p>
 
         {error && <InlineMsg kind="error" text={error} />}
@@ -269,9 +269,9 @@ function DangerZoneCard() {
 
 function LegalCard() {
   const links = [
-    { label: "Privacy Policy", href: "/privacy" },
-    { label: "Terms of Service", href: "/terms" },
-    { label: "Support", href: "/support" },
+    { label: COPY.footer.privacyPolicy, href: "/privacy" },
+    { label: COPY.footer.termsOfService, href: "/terms" },
+    { label: COPY.footer.support, href: "/support" },
   ] as const;
 
   return (
@@ -279,7 +279,7 @@ function LegalCard() {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <FileText className="h-4 w-4 text-primary" />
-          Legal
+          {COPY.account.legalTitle}
         </CardTitle>
       </CardHeader>
       <CardContent>

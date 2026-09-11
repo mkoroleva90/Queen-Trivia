@@ -28,7 +28,7 @@ export default function PrivacyScreen() {
         <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={22} color={colors.foreground} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Privacy Policy</Text>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>{COPY.footer.privacyPolicy}</Text>
         <View style={styles.backBtn} />
       </View>
 
@@ -37,56 +37,39 @@ export default function PrivacyScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Text style={[styles.lastUpdated, { color: colors.mutedForeground }]}>
-          Last updated: August 11, 2026
+          {COPY.legal.lastUpdated}
         </Text>
 
         {/* Section 1 */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>1. Introduction</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{COPY.legal.privacy.s1Title}</Text>
           <Text style={[styles.body, { color: colors.mutedForeground }]}>
-            Queen Trivia ("we", "us", or "our") operates the Queen Trivia mobile and web application
-            (the "Service"). This Privacy Policy describes how we collect, use, and share information
-            when you use our Service, and your choices regarding that information.
+            {COPY.legal.privacy.s1Body}
           </Text>
         </View>
 
         {/* Section 2 */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>2. Information We Collect</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{COPY.legal.privacy.s2Title}</Text>
           <Text style={[styles.body, { color: colors.mutedForeground }]}>
-            We collect the following types of information:
+            {COPY.legal.privacy.s2Intro}
           </Text>
-          <View style={styles.listItem}>
-            <Text style={[styles.bullet, { color: colors.mutedForeground }]}>•</Text>
-            <Text style={[styles.listBody, { color: colors.mutedForeground }]}>
-              <Text style={[styles.strong, { color: colors.foreground }]}>Account information: </Text>
-              When you register as a host, we collect your email address and a hashed version of your
-              password. We never store your password in plain text.
-            </Text>
-          </View>
-          <View style={styles.listItem}>
-            <Text style={[styles.bullet, { color: colors.mutedForeground }]}>•</Text>
-            <Text style={[styles.listBody, { color: colors.mutedForeground }]}>
-              <Text style={[styles.strong, { color: colors.foreground }]}>Game data: </Text>
-              Quizzes, questions, and game sessions you create or participate in, including player
-              nicknames and answers submitted during games.
-            </Text>
-          </View>
-          <View style={styles.listItem}>
-            <Text style={[styles.bullet, { color: colors.mutedForeground }]}>•</Text>
-            <Text style={[styles.listBody, { color: colors.mutedForeground }]}>
-              <Text style={[styles.strong, { color: colors.foreground }]}>Usage data: </Text>
-              Basic technical information such as device type, operating system version, and error
-              logs to help us maintain and improve the Service.
-            </Text>
-          </View>
+          {COPY.legal.privacy.collect.map((item) => (
+            <View key={item.label} style={styles.listItem}>
+              <Text style={[styles.bullet, { color: colors.mutedForeground }]}>•</Text>
+              <Text style={[styles.listBody, { color: colors.mutedForeground }]}>
+                <Text style={[styles.strong, { color: colors.foreground }]}>{item.label} </Text>
+                {item.body}
+              </Text>
+            </View>
+          ))}
         </View>
 
         {/* Section 3 */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>3. How We Use Your Information</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{COPY.legal.privacy.s3Title}</Text>
           <Text style={[styles.body, { color: colors.mutedForeground }]}>
-            We use the information we collect to:
+            {COPY.legal.privacy.s3Intro}
           </Text>
           {COPY.legal.privacy.informationUse.map((item) => (
             <View key={item} style={styles.listItem}>
@@ -98,88 +81,71 @@ export default function PrivacyScreen() {
 
         {/* Section 4 */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>4. Information Sharing</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{COPY.legal.privacy.s4Title}</Text>
           <Text style={[styles.body, { color: colors.mutedForeground }]}>
-            We do not sell your personal information. We may share your information only in these
-            limited circumstances:
+            {COPY.legal.privacy.s4Intro}
           </Text>
-          <View style={styles.listItem}>
-            <Text style={[styles.bullet, { color: colors.mutedForeground }]}>•</Text>
-            <Text style={[styles.listBody, { color: colors.mutedForeground }]}>
-              <Text style={[styles.strong, { color: colors.foreground }]}>Service providers: </Text>
-              Third-party vendors who help us operate the Service (e.g. transactional email
-              delivery), subject to confidentiality obligations.
-            </Text>
-          </View>
-          <View style={styles.listItem}>
-            <Text style={[styles.bullet, { color: colors.mutedForeground }]}>•</Text>
-            <Text style={[styles.listBody, { color: colors.mutedForeground }]}>
-              <Text style={[styles.strong, { color: colors.foreground }]}>Legal requirements: </Text>
-              When required by law or to protect the rights and safety of our users or the public.
-            </Text>
-          </View>
+          {COPY.legal.privacy.sharing.map((item) => (
+            <View key={item.label} style={styles.listItem}>
+              <Text style={[styles.bullet, { color: colors.mutedForeground }]}>•</Text>
+              <Text style={[styles.listBody, { color: colors.mutedForeground }]}>
+                <Text style={[styles.strong, { color: colors.foreground }]}>{item.label} </Text>
+                {item.body}
+              </Text>
+            </View>
+          ))}
           <Text style={[styles.body, { color: colors.mutedForeground, marginTop: 8 }]}>
-            Player nicknames and scores entered during a live game session are visible to other
-            participants in that same game session.
+            {COPY.legal.privacy.s4Note}
           </Text>
         </View>
 
         {/* Section 5 */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>5. Data Retention</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{COPY.legal.privacy.s5Title}</Text>
           <Text style={[styles.body, { color: colors.mutedForeground }]}>
-            We retain your account information for as long as your account is active. Game session
-            data may be retained to provide score history and analytics to hosts. You may request
-            deletion of your account and associated data by contacting us at the address below.
+            {COPY.legal.privacy.s5Body}
           </Text>
         </View>
 
         {/* Section 6 */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>6. Children's Privacy</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{COPY.legal.privacy.s6Title}</Text>
           <Text style={[styles.body, { color: colors.mutedForeground }]}>
-            The Service is not directed to children under the age of 13. We do not knowingly collect
-            personal information from children under 13. If you believe a child has provided us
-            personal information, please contact us so we can delete it.
+            {COPY.legal.privacy.s6Body}
           </Text>
         </View>
 
         {/* Section 7 */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>7. Security</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{COPY.legal.privacy.s7Title}</Text>
           <Text style={[styles.body, { color: colors.mutedForeground }]}>
-            We take reasonable technical and organizational measures to protect your information.
-            Passwords are stored using industry-standard one-way hashing. However, no method of
-            transmission or storage is 100% secure, and we cannot guarantee absolute security.
+            {COPY.legal.privacy.s7Body}
           </Text>
         </View>
 
         {/* Section 8 */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>8. Your Rights</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{COPY.legal.privacy.s8Title}</Text>
           <Text style={[styles.body, { color: colors.mutedForeground }]}>
-            Depending on your location, you may have the right to access, correct, or delete your
-            personal information. To exercise any of these rights, contact us at:
+            {COPY.legal.privacy.s8Body}
           </Text>
-          <Text style={[styles.email, { color: colors.primary }]}>privacy@queen-trivia.com</Text>
+          <Text style={[styles.email, { color: colors.primary }]}>{COPY.legal.privacy.email}</Text>
         </View>
 
         {/* Section 9 */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>9. Changes to This Policy</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{COPY.legal.privacy.s9Title}</Text>
           <Text style={[styles.body, { color: colors.mutedForeground }]}>
-            We may update this Privacy Policy from time to time. We will notify registered hosts by
-            email or in-app notice when we make material changes. Continued use of the Service after
-            changes take effect constitutes acceptance of the updated policy.
+            {COPY.legal.privacy.s9Body}
           </Text>
         </View>
 
         {/* Section 10 */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>10. Contact Us</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{COPY.legal.privacy.s10Title}</Text>
           <Text style={[styles.body, { color: colors.mutedForeground }]}>
-            If you have questions about this Privacy Policy, please contact us at{' '}
-            <Text style={{ color: colors.primary }}>privacy@queen-trivia.com</Text>.
+            {COPY.legal.privacy.s10Prefix}{' '}
+            <Text style={{ color: colors.primary }}>{COPY.legal.privacy.email}</Text>.
           </Text>
         </View>
 

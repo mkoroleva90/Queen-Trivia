@@ -168,7 +168,7 @@ export default function AdminLiveScreen() {
               if (!r.ok) throw new Error(`HTTP ${r.status}`);
               void refetchParticipants();
             } catch {
-              Alert.alert('Error', COPY.kick.removeError);
+              Alert.alert(COPY.common.error, COPY.kick.removeError);
             }
           },
         },
@@ -503,7 +503,7 @@ export default function AdminLiveScreen() {
       router.replace(`/admin/results/${gameId}`);
     } catch {
       setEnding(false);
-      setEndGameError('Failed to end the game. Please try again.');
+      setEndGameError(COPY.adminLive.endGameError);
     }
   };
 
@@ -527,15 +527,15 @@ export default function AdminLiveScreen() {
     return (
       <View style={[s.container, s.center, { paddingTop: insets.top }]}>
         <Ionicons name="alert-circle-outline" size={48} color={colors.mutedForeground} />
-        <Text style={[s.errorTitle, { color: colors.foreground }]}>Game not found</Text>
+        <Text style={[s.errorTitle, { color: colors.foreground }]}>{COPY.adminLive.notFoundTitle}</Text>
         <Text style={[s.errorSub, { color: colors.mutedForeground }]}>
-          This game may have ended or is no longer available.
+          {COPY.adminLive.notFoundBody}
         </Text>
         <Pressable
           style={[s.errorBackBtn, { backgroundColor: colors.primary }]}
           onPress={() => router.back()}
         >
-          <Text style={s.errorBackBtnText}>Go back</Text>
+          <Text style={s.errorBackBtnText}>{COPY.adminLive.goBack}</Text>
         </Pressable>
       </View>
     );
@@ -608,7 +608,7 @@ export default function AdminLiveScreen() {
                     advance the game. */}
                 <View style={[s.qCard, { backgroundColor: colors.card, borderColor: isViewingReleased ? colors.primary + '66' : colors.border }]}>
                   <Text style={[s.playMeta, { color: colors.mutedForeground }]}>
-                    {viewedQ.points} pts
+                    {COPY.gameplay.ptsLine(viewedQ.points)}
                   </Text>
                   {viewedSkipped && (
                     /* Came back to a skipped question — it can still be answered */
@@ -639,7 +639,7 @@ export default function AdminLiveScreen() {
                           : hostFeedback.isCorrect ? COPY.gameplay.feedbackCorrect : COPY.gameplay.feedbackWrong}
                       </Text>
                       <Text style={[s.feedbackPts, { color: colors.mutedForeground }]}>
-                        +{hostFeedback.pointsEarned} pts · total {hostFeedback.totalScore}
+                        {COPY.adminLive.feedbackPts(hostFeedback.pointsEarned, hostFeedback.totalScore)}
                       </Text>
                       {!!hostFeedback.feedback && (
                         <Text style={[s.feedbackText, { color: colors.mutedForeground }]}>{hostFeedback.feedback}</Text>
@@ -722,9 +722,9 @@ export default function AdminLiveScreen() {
                 {isOnLastQuestion ? COPY.hostPlayAlong.endGameBtn : COPY.hostPlayAlong.nextQuestionBtn}
               </Text>
             </Pressable>
-            <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>ANSWER PROGRESS</Text>
+            <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>{COPY.adminLive.answerProgressLabel}</Text>
             {sortedQs.length === 0 ? (
-              <Text style={[s.emptyText, { color: colors.mutedForeground }]}>No questions in this game.</Text>
+              <Text style={[s.emptyText, { color: colors.mutedForeground }]}>{COPY.adminLive.noQuestions}</Text>
             ) : (
               sortedQs.map((q, idx) => {
                 const total = answerCounts[q.id] ?? 0;
@@ -735,11 +735,11 @@ export default function AdminLiveScreen() {
                     <View style={s.qTop}>
                       <Text style={[s.qNum, { color: colors.mutedForeground }]}>Q{idx + 1}</Text>
                       <Text style={[s.qAnswered, { color: colors.foreground }]}>
-                        {total}/{totalPlayers} answered
+                        {COPY.adminLive.answeredCount(total, totalPlayers)}
                       </Text>
                       {total > 0 && (
                         <Text style={[s.qCorrect, { color: colors.secondary }]}>
-                          {correct} correct
+                          {COPY.adminLive.correctCount(correct)}
                         </Text>
                       )}
                     </View>
@@ -763,7 +763,7 @@ export default function AdminLiveScreen() {
         {pendingReviews.length > 0 && (
           <>
             <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>
-              NEEDS REVIEW · {pendingReviews.length}
+              {COPY.adminLive.needsReviewLabel(pendingReviews.length)}
             </Text>
             {pendingReviews.map((review) => {
               const isReviewing = reviewingAnswerId === review.id;
@@ -772,23 +772,23 @@ export default function AdminLiveScreen() {
                   <View style={s.reviewTop}>
                     <View style={[s.reviewBadge, { backgroundColor: colors.accent + '20' }]}>
                       <Ionicons name="sparkles-outline" size={14} color={colors.accent} />
-                      <Text style={[s.reviewBadgeText, { color: colors.accent }]}>AI UNAVAILABLE</Text>
+                      <Text style={[s.reviewBadgeText, { color: colors.accent }]}>{COPY.answerReview.aiUnavailable}</Text>
                     </View>
                     <Text style={[s.reviewPlayer, { color: colors.mutedForeground }]}>{review.userName}</Text>
                   </View>
                   <Text style={[s.reviewQuestion, { color: colors.foreground }]}>{review.questionText}</Text>
                   <View style={[s.reviewAnswer, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                    <Text style={[s.reviewLabel, { color: colors.mutedForeground }]}>PLAYER ANSWER</Text>
+                    <Text style={[s.reviewLabel, { color: colors.mutedForeground }]}>{COPY.answerReview.playerAnswerLabel}</Text>
                     <Text style={[s.reviewAnswerText, { color: colors.foreground }]}>{review.userAnswer}</Text>
                   </View>
                   {!!review.rubric && (
                     <View style={s.reviewRubric}>
-                      <Text style={[s.reviewLabel, { color: colors.mutedForeground }]}>RUBRIC</Text>
+                      <Text style={[s.reviewLabel, { color: colors.mutedForeground }]}>{COPY.answerReview.rubricLabel}</Text>
                       <Text style={[s.reviewRubricText, { color: colors.mutedForeground }]}>{review.rubric}</Text>
                     </View>
                   )}
                   <Text style={[s.reviewSuggested, { color: colors.mutedForeground }]}>
-                    Suggested score: {review.pointsEarned}/{review.points} points · awaiting your decision
+                    {COPY.answerReview.suggested(review.pointsEarned, review.points)}
                   </Text>
                   <View style={s.reviewActions}>
                     <Pressable
@@ -797,7 +797,7 @@ export default function AdminLiveScreen() {
                       style={[s.reviewBtn, { borderColor: colors.destructive, backgroundColor: colors.destructive + '14', opacity: isReviewing ? 0.6 : 1 }]}
                     >
                       <Ionicons name="close" size={16} color={colors.destructive} />
-                      <Text style={[s.reviewBtnText, { color: colors.destructive }]}>Deny</Text>
+                      <Text style={[s.reviewBtnText, { color: colors.destructive }]}>{COPY.answerReview.denyBtn}</Text>
                     </Pressable>
                     <Pressable
                       disabled={isReviewing}
@@ -805,7 +805,7 @@ export default function AdminLiveScreen() {
                       style={[s.reviewBtn, { borderColor: colors.secondary, backgroundColor: colors.secondary + '18', opacity: isReviewing ? 0.6 : 1 }]}
                     >
                       {isReviewing ? <ActivityIndicator size="small" color={colors.secondary} /> : <Ionicons name="checkmark" size={16} color={colors.secondary} />}
-                      <Text style={[s.reviewBtnText, { color: colors.secondary }]}>Award {review.points} pts</Text>
+                      <Text style={[s.reviewBtnText, { color: colors.secondary }]}>{COPY.answerReview.awardBtn(review.points)}</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -826,7 +826,7 @@ export default function AdminLiveScreen() {
               >
                 <Ionicons name="person-circle-outline" size={20} color={colors.mutedForeground} />
                 <Text style={[s.playerName, { color: colors.foreground }]}>{p.userName}</Text>
-                <Text style={[s.playerScore, { color: colors.accent }]}>{p.totalScore} pts</Text>
+                <Text style={[s.playerScore, { color: colors.accent }]}>{COPY.gameplay.ptsLine(p.totalScore)}</Text>
                 <Ionicons name="close-circle-outline" size={18} color={colors.destructive} style={{ marginLeft: 4 }} />
               </TouchableOpacity>
             ))}
@@ -854,7 +854,7 @@ export default function AdminLiveScreen() {
           ) : (
             <>
               <Ionicons name="flag" size={18} color="#fff" />
-              <Text style={s.endBtnText}>End Game</Text>
+              <Text style={s.endBtnText}>{COPY.adminLive.endGameBtn}</Text>
             </>
           )}
         </Pressable>

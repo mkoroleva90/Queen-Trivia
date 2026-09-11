@@ -211,7 +211,7 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
       {/* Section heading row */}
       <View style={s.sectionRow}>
         <View style={s.headingGroup}>
-          <Text style={[s.heading, { color: colors.foreground }]}>Your games</Text>
+          <Text style={[s.heading, { color: colors.foreground }]}>{COPY.heading.yourGames}</Text>
           {totalGames > 0 && (
             <View style={[s.countBadge, { backgroundColor: colors.muted }]}>
               <Text style={[s.countText, { color: colors.mutedForeground }]}>{totalGames}</Text>
@@ -224,7 +224,7 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
           onPress={() => onGoToBuild?.()}
         >
           <Ionicons name="add" size={16} color="#fff" />
-          <Text style={s.newQuizBtnText}>New game</Text>
+          <Text style={s.newQuizBtnText}>{COPY.btn.newGame}</Text>
         </Pressable>
       </View>
 
@@ -258,15 +258,15 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
       ) : isError ? (
         <View style={s.center}>
           <Ionicons name="alert-circle-outline" size={40} color={colors.mutedForeground} />
-          <Text style={[s.errorText, { color: colors.foreground }]}>Couldn't load games</Text>
+          <Text style={[s.errorText, { color: colors.foreground }]}>{COPY.admin.loadFailedTitle}</Text>
           <Text style={[s.errorSub, { color: colors.mutedForeground }]}>
-            Something went wrong. Check your connection and try again.
+            {COPY.admin.loadFailedBody}
           </Text>
           <Pressable
             style={[s.retryBtn, { backgroundColor: colors.primary }]}
             onPress={() => refetch()}
           >
-            <Text style={s.retryBtnText}>Try again</Text>
+            <Text style={s.retryBtnText}>{COPY.results.tryAgain}</Text>
           </Pressable>
         </View>
       ) : filtered.length === 0 ? (
@@ -283,16 +283,16 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
               <View style={[s.emptyCircle, { backgroundColor: colors.muted }]}>
                 <Ionicons name="add" size={28} color={colors.mutedForeground} />
               </View>
-              <Text style={[s.emptyCardText, { color: colors.foreground }]}>Create new game</Text>
+              <Text style={[s.emptyCardText, { color: colors.foreground }]}>{COPY.heading.createNewGame2}</Text>
               <Text style={[s.emptyCardSub, { color: colors.mutedForeground }]}>
-                Tap to set up your first trivia game
+                {COPY.admin.emptyCardSub}
               </Text>
             </Pressable>
           ) : (
             /* Filtered empty */
             <View style={s.center}>
               <Text style={[s.emptyText, { color: colors.mutedForeground }]}>
-                No {gameFilter === 'live' ? 'live games' : 'drafts'} right now
+                {COPY.admin.noneRightNow(gameFilter === 'live' ? COPY.admin.liveGamesNoun : COPY.admin.draftsNoun)}
               </Text>
             </View>
           )}
@@ -419,7 +419,7 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
               <View style={s.cardMeta}>
                 <View style={s.metaItem}>
                   <Ionicons name="help-circle-outline" size={14} color={colors.mutedForeground} />
-                  <Text style={[s.metaText, { color: colors.mutedForeground }]}>{game.questionCount ?? 0} questions</Text>
+                  <Text style={[s.metaText, { color: colors.mutedForeground }]}>{COPY.admin.questionsCount(game.questionCount ?? 0)}</Text>
                 </View>
                 <View style={s.metaItem}>
                   <Ionicons name="people-outline" size={14} color={colors.mutedForeground} />
@@ -438,7 +438,7 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
                     onPress={() => { setPlayAlongPending(false); setStartTarget(game); }}
                   >
                     <Ionicons name="play" size={14} color={colors.secondary} />
-                    <Text style={[s.actionText, { color: colors.secondary }]}>Start</Text>
+                    <Text style={[s.actionText, { color: colors.secondary }]}>{COPY.admin.startBtn}</Text>
                   </Pressable>
                 )}
                 {game.status === 'active' && (
@@ -448,14 +448,14 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
                       onPress={() => router.push(`/admin/live/${game.id}`)}
                     >
                       <Ionicons name="radio" size={14} color={colors.accent} />
-                      <Text style={[s.actionText, { color: colors.accent }]}>Live</Text>
+                      <Text style={[s.actionText, { color: colors.accent }]}>{COPY.admin.liveBtn}</Text>
                     </Pressable>
                     <Pressable
                       style={[s.actionBtn, { backgroundColor: colors.muted + '22', borderColor: colors.muted + '44' }]}
                       onPress={() => handleStatus(game, 'completed')}
                     >
                       <Ionicons name="flag" size={14} color={colors.mutedForeground} />
-                      <Text style={[s.actionText, { color: colors.mutedForeground }]}>End</Text>
+                      <Text style={[s.actionText, { color: colors.mutedForeground }]}>{COPY.admin.endBtn}</Text>
                     </Pressable>
                   </>
                 )}
@@ -465,7 +465,7 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
                     onPress={() => router.push(`/admin/results/${game.id}`)}
                   >
                     <Ionicons name="trophy-outline" size={14} color={colors.primary} />
-                    <Text style={[s.actionText, { color: colors.primary }]}>Results</Text>
+                    <Text style={[s.actionText, { color: colors.primary }]}>{COPY.admin.resultsBtn}</Text>
                   </Pressable>
                 )}
                 {deletingId === game.id ? (
@@ -492,7 +492,7 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
             <View style={s.sheetHandle} />
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <Ionicons name="play-circle-outline" size={20} color={colors.secondary} />
-              <Text style={[s.sheetTitle, { color: colors.foreground }]}>Start game?</Text>
+              <Text style={[s.sheetTitle, { color: colors.foreground }]}>{COPY.admin.startGameTitle}</Text>
             </View>
             <Text style={{ fontSize: 14, color: colors.mutedForeground, lineHeight: 20, marginBottom: 16 }}>
               {startTarget?.topic}
@@ -517,13 +517,13 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
                 style={[s.sheetBtn, { backgroundColor: colors.muted, flex: 1 }]}
                 onPress={() => { setStartTarget(null); setPlayAlongPending(false); }}
               >
-                <Text style={[s.sheetBtnText, { color: colors.mutedForeground }]}>Cancel</Text>
+                <Text style={[s.sheetBtnText, { color: colors.mutedForeground }]}>{COPY.common.cancel}</Text>
               </Pressable>
               <Pressable
                 style={[s.sheetBtn, { backgroundColor: colors.secondary, flex: 1 }]}
                 onPress={confirmStart}
               >
-                <Text style={s.sheetBtnText}>Go live</Text>
+                <Text style={s.sheetBtnText}>{COPY.admin.goLiveBtn}</Text>
               </Pressable>
             </View>
           </View>
@@ -538,7 +538,7 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
             <View style={s.sheetHandle} />
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <Ionicons name="information-circle-outline" size={20} color={colors.secondary} />
-              <Text style={[s.sheetTitle, { color: colors.foreground }]}>Monthly limit reached</Text>
+              <Text style={[s.sheetTitle, { color: colors.foreground }]}>{COPY.usageLimit.title}</Text>
             </View>
             <Text style={[{ fontSize: 14, lineHeight: 22 }, { color: colors.mutedForeground }]}>
               {upgradeLimitMsg}
@@ -547,7 +547,7 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
               style={[s.sheetBtn, { backgroundColor: colors.primary }]}
               onPress={() => setUpgradeLimitMsg(null)}
             >
-              <Text style={s.sheetBtnText}>Got it</Text>
+              <Text style={s.sheetBtnText}>{COPY.common.gotIt}</Text>
             </Pressable>
           </View>
         </View>

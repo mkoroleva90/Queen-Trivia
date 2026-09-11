@@ -125,10 +125,10 @@ export function QuizCompleteModal({
             <Ionicons name="flag" size={30} color={colors.secondary} />
           </View>
           <Text style={[quizCompleteStyles.title, { color: colors.foreground }]}>
-            Quiz complete!
+            {COPY.gameplay.quizCompleteTitle}
           </Text>
           <Text style={[quizCompleteStyles.message, { color: colors.mutedForeground }]}>
-            You&apos;ve reached the end of the game and answered all the questions in this quiz.
+            {COPY.gameplay.quizCompleteBody}
           </Text>
           <Pressable
             accessibilityRole="button"
@@ -138,7 +138,7 @@ export function QuizCompleteModal({
               { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 },
             ]}
           >
-            <Text style={quizCompleteStyles.buttonText}>Got it</Text>
+            <Text style={quizCompleteStyles.buttonText}>{COPY.common.gotIt}</Text>
           </Pressable>
         </View>
       </View>
@@ -198,7 +198,7 @@ export function MultipleChoiceQ({
           onPress={() => onSubmit(selected)}
           style={[styles.confirmBtn, { backgroundColor: colors.primary }]}
         >
-          <Text style={styles.confirmBtnText}>Confirm: {selected}</Text>
+          <Text style={styles.confirmBtnText}>{COPY.gameplay.confirmSelected(selected)}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -253,7 +253,7 @@ export function MultiSelectQ({
           onPress={() => onSubmit([...selected].sort().join('|'))}
           style={[styles.confirmBtn, { backgroundColor: colors.primary }]}
         >
-          <Text style={styles.confirmBtnText}>Confirm {selected.length} selection{selected.length !== 1 ? 's' : ''}</Text>
+          <Text style={styles.confirmBtnText}>{COPY.gameplay.confirmSelections(selected.length)}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -457,7 +457,7 @@ export function SliderQ({
           disabled={disabled}
           style={[styles.confirmBtn, { backgroundColor: colors.accent }]}
         >
-          <Text style={[styles.confirmBtnText, { color: colors.accentForeground }]}>Submit: {value}{unit}</Text>
+          <Text style={[styles.confirmBtnText, { color: colors.accentForeground }]}>{COPY.gameplay.submitValue(value, unit)}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -506,7 +506,7 @@ export function ImageRecognitionQ({
         }]}
         value={answer}
         onChangeText={setAnswer}
-        placeholder="Your answer…"
+        placeholder={COPY.gameplay.answerPlaceholderShort}
         placeholderTextColor={colors.mutedForeground}
         editable={!disabled && !answered}
         returnKeyType="done"
@@ -698,7 +698,7 @@ function FeedbackCard({ feedback, onNext, isLast, skipped = false }: { feedback:
               : feedback.isCorrect ? COPY.gameplay.feedbackCorrect : COPY.gameplay.feedbackWrong}
           </Text>
           <Text style={[styles.feedbackPoints, { color: colors.foreground }]}>
-            +{feedback.pointsEarned} pts{feedback.timeTaken !== undefined ? ` · ${feedback.timeTaken}s` : ''}
+            {COPY.gameplay.feedbackPointsLine(feedback.pointsEarned)}{feedback.timeTaken !== undefined ? COPY.gameplay.timeTakenSuffix(feedback.timeTaken) : ''}
           </Text>
         </View>
         <Text style={[styles.feedbackScore, { color: colors.accent }]}>{feedback.totalScore}</Text>
@@ -927,11 +927,11 @@ export default function GamePlayScreen() {
             onPress={() => {
               if (current && !lockedAnswer) {
                 Alert.alert(
-                  'Leave game?',
-                  "You'll lose your progress on the current question. You can rejoin with a room code.",
+                  COPY.gameplay.leaveTitle,
+                  COPY.gameplay.leaveBody,
                   [
-                    { text: 'Stay', style: 'cancel' },
-                    { text: 'Leave', style: 'destructive', onPress: () => router.replace('/') },
+                    { text: COPY.gameplay.leaveStay, style: 'cancel' },
+                    { text: COPY.gameplay.leaveConfirm, style: 'destructive', onPress: () => router.replace('/') },
                   ],
                 );
               } else {
@@ -1065,7 +1065,7 @@ export default function GamePlayScreen() {
               </Pressable>
             </View>
             <Text style={[styles.questionType, { color: colors.mutedForeground }]}>
-              {current.points} pts
+              {COPY.gameplay.ptsLine(current.points)}
             </Text>
           </View>
         )}
@@ -1082,9 +1082,9 @@ export default function GamePlayScreen() {
           /* The host controls when the next question is released. */
           <View style={styles.doneState}>
             <Ionicons name="time-outline" size={64} color={colors.secondary} />
-            <Text style={[styles.doneTitle, { color: colors.foreground }]}>Waiting for the host</Text>
+            <Text style={[styles.doneTitle, { color: colors.foreground }]}>{COPY.gameplay.waitingHostTitle}</Text>
             <Text style={[styles.doneSub, { color: colors.mutedForeground }]}>
-              The next question will appear here when the host releases it.
+              {COPY.gameplay.waitingHostBody}
             </Text>
           </View>
         ) : (

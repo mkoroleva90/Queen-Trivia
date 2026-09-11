@@ -61,10 +61,10 @@ export function JoinCodeScreen({ initialCode, initialTitle, saving, error, title
         disabled={saving}
         hitSlop={10}
         accessibilityRole="button"
-        accessibilityLabel="Back"
+        accessibilityLabel={COPY.common.back}
       >
         <Ionicons name="arrow-back" size={18} color="#c5ccda" />
-        <Text style={s.backText}>Back</Text>
+        <Text style={s.backText}>{COPY.common.back}</Text>
       </Pressable>
 
       <Text style={s.title}>{COPY.joinCode.title}</Text>

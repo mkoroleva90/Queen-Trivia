@@ -51,17 +51,17 @@ export default function AdminRegisterScreen() {
         body: JSON.stringify({ email: trimmedEmail, password }),
       });
       if (res.status === 503) {
-        setError('Email service unavailable — try again later');
+        setError(COPY.hostForgotPassword.error.emailServiceDown);
         return;
       }
       if (!res.ok) {
         const body = await res.json().catch(() => ({})) as { error?: string };
-        setError(body.error ?? 'Something went wrong — please retry');
+        setError(body.error ?? COPY.hostLogin.error.somethingWrong);
         return;
       }
       setDone(true);
     } catch {
-      setError('Connection error — please retry');
+      setError(COPY.hostLogin.error.connectionError);
     } finally {
       setPending(false);
     }
@@ -74,17 +74,17 @@ export default function AdminRegisterScreen() {
       <View style={[s.doneContainer, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
         <View style={[s.doneCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Ionicons name="mail" size={48} color={colors.primary} style={{ alignSelf: 'center' }} />
-          <Text style={[s.doneTitle, { color: colors.foreground }]}>Check your inbox</Text>
+          <Text style={[s.doneTitle, { color: colors.foreground }]}>{COPY.hostRegister.doneTitle}</Text>
           <Text style={[s.doneBody, { color: colors.mutedForeground }]}>
-            We sent a verification link to{' '}
+            {COPY.hostRegister.doneBodyPrefix}{' '}
             <Text style={{ color: colors.foreground }}>{email}</Text>.
-            {'\n\n'}Click the link to activate your account, then sign in.
+            {'\n\n'}{COPY.hostRegister.doneBodySuffix}
           </Text>
           <Pressable
             style={[s.btn, { backgroundColor: colors.primary }]}
             onPress={() => router.replace('/admin-login')}
           >
-            <Text style={s.btnText}>GO TO SIGN IN</Text>
+            <Text style={s.btnText}>{COPY.hostRegister.goToSignIn}</Text>
           </Pressable>
         </View>
       </View>
@@ -105,25 +105,25 @@ export default function AdminRegisterScreen() {
 
         <Pressable onPress={() => router.back()} style={s.backBtn}>
           <Ionicons name="chevron-back" size={22} color={colors.mutedForeground} />
-          <Text style={[s.backText, { color: colors.mutedForeground }]}>Back</Text>
+          <Text style={[s.backText, { color: colors.mutedForeground }]}>{COPY.common.back}</Text>
         </Pressable>
 
         <View style={s.content}>
           <View style={s.iconRow}>
             <Ionicons name="person-add" size={48} color={colors.primary} />
           </View>
-          <Text style={[s.title, { color: colors.foreground }]}>CREATE ACCOUNT</Text>
+          <Text style={[s.title, { color: colors.foreground }]}>{COPY.hostRegister.heading}</Text>
           <Text style={[s.subtitle, { color: colors.mutedForeground }]}>
-            Register as a host to create and manage trivia games
+            {COPY.hostRegister.helper}
           </Text>
 
           <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[s.label, { color: colors.mutedForeground }]}>EMAIL</Text>
+            <Text style={[s.label, { color: colors.mutedForeground }]}>{COPY.hostLogin.emailLabel}</Text>
             <TextInput
               style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: error ? colors.destructive : colors.border }]}
               value={email}
               onChangeText={(t) => { setEmail(t); setError(''); }}
-              placeholder="your@email.com"
+              placeholder={COPY.hostLogin.mobileEmailPlaceholder}
               placeholderTextColor={colors.mutedForeground}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -131,13 +131,13 @@ export default function AdminRegisterScreen() {
               returnKeyType="next"
             />
 
-            <Text style={[s.label, { color: colors.mutedForeground }]}>PASSWORD</Text>
+            <Text style={[s.label, { color: colors.mutedForeground }]}>{COPY.hostLogin.passwordLabel}</Text>
             <View style={s.passwordRow}>
               <TextInput
                 style={[s.input, s.passwordInput, { backgroundColor: colors.background, color: colors.foreground, borderColor: error ? colors.destructive : colors.border }]}
                 value={password}
                 onChangeText={(t) => { setPassword(t); setError(''); }}
-                placeholder="At least 8 characters"
+                placeholder={COPY.hostRegister.passwordPlaceholder}
                 placeholderTextColor={colors.mutedForeground}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
@@ -148,12 +148,12 @@ export default function AdminRegisterScreen() {
               </Pressable>
             </View>
 
-            <Text style={[s.label, { color: colors.mutedForeground }]}>CONFIRM PASSWORD</Text>
+            <Text style={[s.label, { color: colors.mutedForeground }]}>{COPY.hostForgotPassword.confirmLabel}</Text>
             <TextInput
               style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: error ? colors.destructive : colors.border }]}
               value={confirm}
               onChangeText={(t) => { setConfirm(t); setError(''); }}
-              placeholder="Repeat your password"
+              placeholder={COPY.hostForgotPassword.confirmPlaceholder}
               placeholderTextColor={colors.mutedForeground}
               secureTextEntry={!showPassword}
               autoCapitalize="none"
@@ -169,11 +169,11 @@ export default function AdminRegisterScreen() {
             )}
 
             <Text style={[s.legalText, { color: colors.mutedForeground }]}>
-              By creating an account you agree to our{' '}
+              {COPY.hostRegister.legalPrefix}{' '}
               <Text style={{ color: colors.primary }} onPress={() => router.push('/terms')}>
                 {COPY.footer.termsOfService}
               </Text>
-              {' '}and{' '}
+              {' '}{COPY.hostRegister.legalAnd}{' '}
               <Text style={{ color: colors.primary }} onPress={() => router.push('/privacy')}>
                 {COPY.footer.privacyPolicy}
               </Text>
@@ -187,14 +187,14 @@ export default function AdminRegisterScreen() {
             >
               {pending
                 ? <ActivityIndicator color="#fff" />
-                : <Text style={s.btnText}>CREATE ACCOUNT</Text>}
+                : <Text style={s.btnText}>{COPY.hostRegister.submitBtn}</Text>}
             </Pressable>
           </View>
 
           <Pressable onPress={() => router.replace('/admin-login')} style={s.footerLink}>
             <Text style={[s.footerText, { color: colors.mutedForeground }]}>
-              Already have an account?{' '}
-              <Text style={{ color: colors.primary }}>Sign in →</Text>
+              {COPY.hostRegister.haveAccount}{' '}
+              <Text style={{ color: colors.primary }}>{COPY.hostRegister.signInLink}</Text>
             </Text>
           </Pressable>
         </View>

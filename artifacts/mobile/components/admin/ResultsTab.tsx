@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useListGames } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
+import { COPY } from '@workspace/copy';
 
 type Props = { bottomPadding: number };
 
@@ -56,7 +57,7 @@ export function ResultsTab({ bottomPadding }: Props) {
       {/* Section heading */}
       <View style={s.sectionRow}>
         <View style={s.headingGroup}>
-          <Text style={[s.heading, { color: colors.foreground }]}>Game results</Text>
+          <Text style={[s.heading, { color: colors.foreground }]}>{COPY.adminResultsList.heading}</Text>
           {completed.length > 0 && (
             <View style={[s.countBadge, { backgroundColor: colors.muted }]}>
               <Text style={[s.countText, { color: colors.mutedForeground }]}>{completed.length}</Text>
@@ -65,7 +66,7 @@ export function ResultsTab({ bottomPadding }: Props) {
         </View>
       </View>
       <Text style={[s.subheading, { color: colors.mutedForeground }]}>
-        Leaderboards and question analytics for completed games.
+        {COPY.adminResultsList.subheading}
       </Text>
 
       {isLoading ? (
@@ -76,13 +77,13 @@ export function ResultsTab({ bottomPadding }: Props) {
         <View style={s.center}>
           <Ionicons name="alert-circle-outline" size={40} color={colors.destructive} />
           <Text style={[s.emptyText, { color: colors.mutedForeground }]}>
-            Could not load games. Check your connection.
+            {COPY.adminResultsList.loadFailed}
           </Text>
           <Pressable
             style={[s.retryBtn, { backgroundColor: colors.primary }]}
             onPress={() => void refetch()}
           >
-            <Text style={s.retryText}>Retry</Text>
+            <Text style={s.retryText}>{COPY.common.retry}</Text>
           </Pressable>
         </View>
       ) : completed.length === 0 ? (
@@ -93,9 +94,9 @@ export function ResultsTab({ bottomPadding }: Props) {
           <View style={[s.emptyCircle, { backgroundColor: colors.muted }]}>
             <Ionicons name="trophy-outline" size={28} color={colors.mutedForeground} />
           </View>
-          <Text style={[s.emptyTitle, { color: colors.foreground }]}>No completed games yet</Text>
+          <Text style={[s.emptyTitle, { color: colors.foreground }]}>{COPY.adminResultsList.emptyTitle}</Text>
           <Text style={[s.emptyText, { color: colors.mutedForeground }]}>
-            Finish a game to see its leaderboard and score history here.
+            {COPY.adminResultsList.emptyBody}
           </Text>
         </ScrollView>
       ) : (
@@ -107,17 +108,17 @@ export function ResultsTab({ bottomPadding }: Props) {
           <View style={[s.statsRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={s.statItem}>
               <Text style={[s.statNum, { color: colors.primary }]}>{completed.length}</Text>
-              <Text style={[s.statLabel, { color: colors.mutedForeground }]}>Games</Text>
+              <Text style={[s.statLabel, { color: colors.mutedForeground }]}>{COPY.adminResultsList.statGames}</Text>
             </View>
             <View style={[s.statDivider, { backgroundColor: colors.border }]} />
             <View style={s.statItem}>
               <Text style={[s.statNum, { color: colors.secondary }]}>{totalPlayerSessions}</Text>
-              <Text style={[s.statLabel, { color: colors.mutedForeground }]}>Player sessions</Text>
+              <Text style={[s.statLabel, { color: colors.mutedForeground }]}>{COPY.adminResultsList.statPlayerSessions}</Text>
             </View>
             <View style={[s.statDivider, { backgroundColor: colors.border }]} />
             <View style={s.statItem}>
               <Text style={[s.statNum, { color: colors.accent }]}>{totalQuestions}</Text>
-              <Text style={[s.statLabel, { color: colors.mutedForeground }]}>Questions asked</Text>
+              <Text style={[s.statLabel, { color: colors.mutedForeground }]}>{COPY.adminResultsList.statQuestionsAsked}</Text>
             </View>
           </View>
 
@@ -147,13 +148,13 @@ export function ResultsTab({ bottomPadding }: Props) {
                   <View style={s.metaItem}>
                     <Ionicons name="people-outline" size={13} color={colors.mutedForeground} />
                     <Text style={[s.metaText, { color: colors.mutedForeground }]}>
-                      {game.participantCount ?? 0} player{(game.participantCount ?? 0) !== 1 ? 's' : ''}
+                      {COPY.admin.playersCount(game.participantCount ?? 0)}
                     </Text>
                   </View>
                   <View style={s.metaItem}>
                     <Ionicons name="help-circle-outline" size={13} color={colors.mutedForeground} />
                     <Text style={[s.metaText, { color: colors.mutedForeground }]}>
-                      {game.questionCount ?? 0} questions
+                      {COPY.admin.questionsCount(game.questionCount ?? 0)}
                     </Text>
                   </View>
                 </View>

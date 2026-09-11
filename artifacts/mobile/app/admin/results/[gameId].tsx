@@ -229,16 +229,16 @@ export default function AdminResultsScreen() {
       <View style={[s.container, s.center, { paddingTop: insets.top, gap: 16 }]}>
         <Ionicons name="alert-circle-outline" size={40} color={colors.destructive} />
         <Text style={[{ color: colors.mutedForeground, fontSize: 15, textAlign: 'center', paddingHorizontal: 32 }]}>
-          Could not load results. Check your connection and try again.
+          {COPY.adminResults.loadFailed}
         </Text>
         <Pressable
           style={[{ backgroundColor: colors.primary, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }]}
           onPress={() => void refetchResults()}
         >
-          <Text style={{ color: '#fff', fontFamily: 'Manrope_700Bold', fontSize: 15 }}>Retry</Text>
+          <Text style={{ color: '#fff', fontFamily: 'Manrope_700Bold', fontSize: 15 }}>{COPY.common.retry}</Text>
         </Pressable>
         <Pressable onPress={() => router.push('/admin')} hitSlop={12}>
-          <Text style={[{ color: colors.mutedForeground, fontSize: 14 }]}>← Back to games</Text>
+          <Text style={[{ color: colors.mutedForeground, fontSize: 14 }]}>{COPY.adminResults.backToGames}</Text>
         </Pressable>
       </View>
     );
@@ -252,7 +252,7 @@ export default function AdminResultsScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.foreground} />
         </Pressable>
         <Text style={[s.headerTitle, { color: colors.foreground }]} numberOfLines={1}>
-          {results?.game.topic ?? 'Results'}
+          {results?.game.topic ?? COPY.nav.results}
         </Text>
         <Pressable
           onPress={handleExport}
@@ -275,19 +275,19 @@ export default function AdminResultsScreen() {
               <Text style={[s.summaryNum, { color: colors.primary }]}>
                 {results?.participants.length ?? 0}
               </Text>
-              <Text style={[s.summaryLabel, { color: colors.mutedForeground }]}>Players</Text>
+              <Text style={[s.summaryLabel, { color: colors.mutedForeground }]}>{COPY.adminResults.playersLabel}</Text>
             </View>
             <View style={s.summaryItem}>
               <Text style={[s.summaryNum, { color: colors.secondary }]}>
                 {avgScore}
               </Text>
-              <Text style={[s.summaryLabel, { color: colors.mutedForeground }]}>Avg Score</Text>
+              <Text style={[s.summaryLabel, { color: colors.mutedForeground }]}>{COPY.adminResults.avgScoreLabel}</Text>
             </View>
             <View style={s.summaryItem}>
               <Text style={[s.summaryNum, { color: colors.accent }]}>
                 {results?.participants[0]?.totalScore ?? 0}
               </Text>
-              <Text style={[s.summaryLabel, { color: colors.mutedForeground }]}>Top Score</Text>
+              <Text style={[s.summaryLabel, { color: colors.mutedForeground }]}>{COPY.adminResults.topScoreLabel}</Text>
             </View>
           </View>
           {hardestQuestion && (
@@ -295,7 +295,7 @@ export default function AdminResultsScreen() {
               <Ionicons name="flame-outline" size={13} color={colors.destructive} />
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={[s.hardestLabel, { color: colors.mutedForeground }]}>
-                  HARDEST · {hardestQuestion.percentCorrect}% correct
+                  {COPY.adminResults.hardestLabel(hardestQuestion.percentCorrect)}
                 </Text>
                 <Text style={[s.hardestText, { color: colors.foreground }]} numberOfLines={2}>
                   {hardestQuestion.questionText}
@@ -306,7 +306,7 @@ export default function AdminResultsScreen() {
         </View>
 
         {/* Leaderboard */}
-        <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>LEADERBOARD</Text>
+        <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>{COPY.adminResults.leaderboardLabel}</Text>
         {(results?.participants ?? []).map((p) => (
           <View key={p.id} style={[s.playerCard, { backgroundColor: colors.card, borderColor: p.rank <= 3 ? (RANK_COLORS[p.rank - 1] + '44') : colors.border }]}>
             <View style={[s.rankBadge, { backgroundColor: p.rank <= 3 ? RANK_COLORS[p.rank - 1] + '33' : colors.background }]}>
@@ -319,12 +319,12 @@ export default function AdminResultsScreen() {
             <View style={s.playerInfo}>
               <Text style={[s.playerName, { color: colors.foreground }]}>{p.userName}</Text>
               <Text style={[s.playerSub, { color: colors.mutedForeground }]}>
-                {p.correctCount}/{results?.totalQuestions ?? p.totalAnswered} correct
+                {COPY.adminResults.correctOf(p.correctCount, results?.totalQuestions ?? p.totalAnswered)}
                 {(results?.totalQuestions ?? 0) > 0
-                  ? ` · ${Math.round((p.correctCount / (results?.totalQuestions ?? 1)) * 100)}%`
+                  ? COPY.adminResults.pctSuffix(Math.round((p.correctCount / (results?.totalQuestions ?? 1)) * 100))
                   : ''}
                 {results?.game?.hostUserId && p.userId === results.game.hostUserId && (results.totalQuestions - p.totalAnswered) > 0
-                  ? ` · ${results.totalQuestions - p.totalAnswered} unanswered`
+                  ? COPY.adminResults.unansweredSuffix(results.totalQuestions - p.totalAnswered)
                   : ''}
               </Text>
             </View>
@@ -337,7 +337,7 @@ export default function AdminResultsScreen() {
         {pendingReviews.length > 0 && (
           <>
             <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>
-              ANSWERS NEEDING REVIEW · {pendingReviews.length}
+              {COPY.adminResults.needingReviewLabel(pendingReviews.length)}
             </Text>
             {pendingReviews.map((review) => {
               const isReviewing = reviewingAnswerId === review.id;
@@ -346,23 +346,23 @@ export default function AdminResultsScreen() {
                   <View style={s.reviewTop}>
                     <View style={[s.reviewBadge, { backgroundColor: colors.accent + '20' }]}>
                       <Ionicons name="sparkles-outline" size={14} color={colors.accent} />
-                      <Text style={[s.reviewBadgeText, { color: colors.accent }]}>AI UNAVAILABLE</Text>
+                      <Text style={[s.reviewBadgeText, { color: colors.accent }]}>{COPY.answerReview.aiUnavailable}</Text>
                     </View>
                     <Text style={[s.reviewPlayer, { color: colors.mutedForeground }]}>{review.userName}</Text>
                   </View>
                   <Text style={[s.reviewQuestion, { color: colors.foreground }]}>{review.questionText}</Text>
                   <View style={[s.reviewAnswer, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                    <Text style={[s.reviewLabel, { color: colors.mutedForeground }]}>PLAYER ANSWER</Text>
+                    <Text style={[s.reviewLabel, { color: colors.mutedForeground }]}>{COPY.answerReview.playerAnswerLabel}</Text>
                     <Text style={[s.reviewAnswerText, { color: colors.foreground }]}>{review.userAnswer}</Text>
                   </View>
                   {!!review.rubric && (
                     <View style={s.reviewRubric}>
-                      <Text style={[s.reviewLabel, { color: colors.mutedForeground }]}>RUBRIC</Text>
+                      <Text style={[s.reviewLabel, { color: colors.mutedForeground }]}>{COPY.answerReview.rubricLabel}</Text>
                       <Text style={[s.reviewRubricText, { color: colors.mutedForeground }]}>{review.rubric}</Text>
                     </View>
                   )}
                   <Text style={[s.reviewSuggested, { color: colors.mutedForeground }]}>
-                    Suggested score: {review.pointsEarned}/{review.points} points · awaiting your decision
+                    {COPY.answerReview.suggested(review.pointsEarned, review.points)}
                   </Text>
                   <View style={s.reviewActions}>
                     <Pressable
@@ -371,7 +371,7 @@ export default function AdminResultsScreen() {
                       style={[s.reviewBtn, { borderColor: colors.destructive, backgroundColor: colors.destructive + '14', opacity: isReviewing ? 0.6 : 1 }]}
                     >
                       <Ionicons name="close" size={16} color={colors.destructive} />
-                      <Text style={[s.reviewBtnText, { color: colors.destructive }]}>Deny</Text>
+                      <Text style={[s.reviewBtnText, { color: colors.destructive }]}>{COPY.answerReview.denyBtn}</Text>
                     </Pressable>
                     <Pressable
                       disabled={isReviewing}
@@ -379,7 +379,7 @@ export default function AdminResultsScreen() {
                       style={[s.reviewBtn, { borderColor: colors.secondary, backgroundColor: colors.secondary + '18', opacity: isReviewing ? 0.6 : 1 }]}
                     >
                       {isReviewing ? <ActivityIndicator size="small" color={colors.secondary} /> : <Ionicons name="checkmark" size={16} color={colors.secondary} />}
-                      <Text style={[s.reviewBtnText, { color: colors.secondary }]}>Award {review.points} pts</Text>
+                      <Text style={[s.reviewBtnText, { color: colors.secondary }]}>{COPY.answerReview.awardBtn(review.points)}</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -393,7 +393,7 @@ export default function AdminResultsScreen() {
           style={[s.toggleBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
           onPress={() => setShowStats((v) => !v)}
         >
-          <Text style={[s.toggleText, { color: colors.foreground }]}>Question Breakdown</Text>
+          <Text style={[s.toggleText, { color: colors.foreground }]}>{COPY.adminResults.breakdownToggle}</Text>
           <Ionicons name={showStats ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
         </Pressable>
 
@@ -403,9 +403,9 @@ export default function AdminResultsScreen() {
           ) : statsError ? (
             <View style={[s.errorBox, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}>
               <Ionicons name="alert-circle-outline" size={20} color={colors.destructive} />
-              <Text style={[s.errorMsg, { color: colors.destructive }]}>Could not load question breakdown.</Text>
+              <Text style={[s.errorMsg, { color: colors.destructive }]}>{COPY.adminResults.breakdownLoadFailed}</Text>
               <Pressable onPress={() => void refetchStats()} style={[s.retrySmall, { borderColor: colors.destructive }]}>
-                <Text style={[s.retrySmallText, { color: colors.destructive }]}>Retry</Text>
+                <Text style={[s.retrySmallText, { color: colors.destructive }]}>{COPY.common.retry}</Text>
               </Pressable>
             </View>
           ) : (
@@ -416,7 +416,7 @@ export default function AdminResultsScreen() {
               <View key={q.id} style={[s.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={s.statTop}>
                   <Text style={[s.statQ, { color: colors.mutedForeground }]}>Q{idx + 1}</Text>
-                  <Text style={[s.statPts, { color: colors.accent }]}>{q.points}pts</Text>
+                  <Text style={[s.statPts, { color: colors.accent }]}>{q.points}{COPY.gameplay.scorePtsSuffix}</Text>
                 </View>
                 <Text style={[s.statText, { color: colors.foreground }]} numberOfLines={2}>
                   {q.questionText}
@@ -425,7 +425,7 @@ export default function AdminResultsScreen() {
                   <Text style={[s.statFig, { color: colors.secondary }]}>
                     {q.correctCount}/{q.totalAnswered}
                   </Text>
-                  <Text style={[s.statLabel2, { color: colors.mutedForeground }]}>correct</Text>
+                  <Text style={[s.statLabel2, { color: colors.mutedForeground }]}>{COPY.adminResults.correctLabel}</Text>
                   {q.percentCorrect !== null && (
                     <View style={[s.pctBadge, { backgroundColor: q.percentCorrect >= 70 ? colors.secondary + '22' : colors.destructive + '22' }]}>
                       <Text style={[s.pctText, { color: q.percentCorrect >= 70 ? colors.secondary : colors.destructive }]}>
@@ -441,7 +441,7 @@ export default function AdminResultsScreen() {
                 )}
                 {!!correctAnswer && (
                   <View style={[s.correctRow, { borderTopColor: colors.border }]}>
-                    <Text style={[s.correctLabel, { color: colors.secondary }]}>CORRECT ANSWER</Text>
+                    <Text style={[s.correctLabel, { color: colors.secondary }]}>{COPY.adminResults.correctAnswerLabel}</Text>
                     <Text style={[s.correctText, { color: colors.secondary }]}>
                       {formatCorrectAnswer(q.questionType, correctAnswer)}
                     </Text>

@@ -84,6 +84,12 @@ export const COPY = {
      * (e.g. the "Ready to go live" source line). Both platforms.
      */
     geminiAi:           'Gemini AI',
+    /**
+     * Compact badge forms shown on question cards in the mobile game editor,
+     * where the full source name does not fit beside the type tag.
+     */
+    aiTag:              'AI',
+    openTriviaDatabaseTag: 'OpenTDB',
   },
 
   /** Helper text shown under source-specific input fields. */
@@ -180,6 +186,86 @@ export const COPY = {
       enhance:         'Enhancement failed — try again',
       saveEnhanced:    'Could not save enhanced question',
     },
+    /** Setup-form working labels shown on the submit button while a request is in flight. */
+    working: {
+      creating:  'Creating game…',
+      generating: 'Generating questions…',
+      importing: 'Importing questions…',
+      default:   'Working…',
+    },
+    /** Go-live button label while the status PATCH is in flight. Both platforms. */
+    goingLive:        'Going live…',
+    /** Setup-form field labels (mobile). */
+    categoryLabel:    'Category',
+    topicLabel:       'Topic',
+    briefLabel:       'Brief',
+    /** Placeholder for the optional AI brief. Both platforms. */
+    briefPlaceholder: 'e.g. Focus on the 1990s. Players are experts — skip the obvious. No chart position questions.',
+    difficultyLabel:  'Difficulty',
+    amountLabel:      'Questions to Import',
+    /** Accessibility label for the run-mode screen back button (mobile). */
+    backToGames:      'Back to games',
+    /** Review step (mobile). */
+    reviewHeading:        'Review questions',
+    regenAllBtn:          'Regen all',
+    nothingToReviewTitle: 'Nothing to review',
+    nothingToReviewBody:  'Create a game and add questions first.',
+    selectGameLabel:      'Select game',
+    noQuestionsHint:      'No questions yet — add some from the game detail screen.',
+    addQuestionsBtn:      'Add questions',
+    liveBanner:           'This game is live — changes save instantly',
+    publishBtn:           'Publish & go live',
+    /** "{n} question(s) · {pts} pts total" summary line on the review step. */
+    summaryQuestions:     (n: number, pts: number) => `${n} question${n === 1 ? '' : 's'} · ${pts} pts total`,
+    /** Suffixes appended to the question meta line ("{type} · {pts} pts{suffix}"). */
+    metaAiSuffix:         ' · AI',
+    metaOpenTdbSuffix:    ' · Open Trivia Database',
+    /** Amount stepper hint ("questions (max 20)"). */
+    stepperHint:          (max: number) => `questions (max ${max})`,
+    /** Generate-with-AI sheet on the review step (mobile). */
+    aiSheet: {
+      title:           'Generate with AI',
+      generatedResult: (n: number) => `${n} question${n === 1 ? '' : 's'} generated`,
+      generateMore:    'Generate more',
+      topicLine:       (topic: string, difficulty: string) => `Topic: ${topic} · ${difficulty}`,
+      howManyLabel:    'How many',
+      briefLabel:      'Brief (optional)',
+      briefPlaceholder: 'Extra guidance for the AI',
+      generating:      'Generating questions…',
+      generateBtn:     (n: number) => `Generate ${n} questions`,
+    },
+    /** Import-from-Open-Trivia-Database sheet on the review step (mobile). */
+    tdbSheet: {
+      importedResult: (n: number) => `${n} question${n === 1 ? '' : 's'} imported`,
+      importMore:     'Import more',
+      categoryLabel:  'Category',
+      difficultyLabel: 'Difficulty',
+      howManyLabel:   'How many',
+      importBtn:      (n: number) => `Import ${n} questions`,
+    },
+    /** Regenerate-question sheet (mobile review step). */
+    regenSheet: {
+      title:            'Regenerate question',
+      newQuestionLabel: 'New question',
+      answerLabel:      'Answer',
+      acceptBtn:        'Accept',
+      generateBtn:      'Generate',
+    },
+    /** Enhance-question sheet (mobile review step). */
+    enhanceSheet: {
+      title:                'Enhance question',
+      improvedQuestionLabel: 'Improved question',
+      improvedOptionsLabel: 'Improved options',
+      applyBtn:             'Apply improvements',
+      keepOriginalBtn:      'Keep original',
+      enhanceBtn:           'Enhance with AI',
+    },
+    /** Regenerate-all confirmation sheet (mobile review step). */
+    regenAll: {
+      title:      'Regenerate all AI questions?',
+      body:       (n: number) => `All ${n} AI-generated questions will be deleted and new ones generated for this game.`,
+      confirmBtn: 'Regenerate all',
+    },
   },
 
   /**
@@ -205,6 +291,29 @@ export const COPY = {
     codeUpdated:    (code: string) => `Room code updated to ${code}`,
     /** Toast shown when the clipboard write fails. */
     copyCodeFailed: "Couldn't copy code",
+    /** Sub-text on the dashed empty-state tile (mobile GamesTab). */
+    emptyCardSub:   'Tap to set up your first trivia game',
+    /** Error state when the games list fails to load (mobile GamesTab). */
+    loadFailedTitle: "Couldn't load games",
+    loadFailedBody:  'Something went wrong. Check your connection and try again.',
+    /** Empty state when a filter tab has no games (mobile GamesTab). */
+    noneRightNow:   (what: string) => `No ${what} right now`,
+    liveGamesNoun:  'live games',
+    draftsNoun:     'drafts',
+    /** "{n} questions" meta on game cards / pickers (mobile). Always plural. */
+    questionsCount: (n: number) => `${n} questions`,
+    /** "{n} player(s)" meta on completed game cards (mobile ResultsTab). */
+    playersCount:   (n: number) => `${n} player${n === 1 ? '' : 's'}`,
+    /** Start-game confirmation sheet (mobile GamesTab). */
+    startGameTitle: 'Start game?',
+    goLiveBtn:      'Go live',
+    /** Per-game action chips (mobile GamesTab and game editor header). */
+    startBtn:       'Start',
+    liveBtn:        'Live',
+    endBtn:         'End',
+    resultsBtn:     'Results',
+    /** Pill shown beside the header title while a game is live (mobile AdminHeader). */
+    livePill:       'LIVE',
   },
 
   /**
@@ -513,6 +622,33 @@ export const COPY = {
     submitErrorTitle:  'Could not submit answer',
     /** Body of that error. */
     submitErrorBody:   'Please try again.',
+
+    // ── Mobile answer controls ─────────────────────────────────────────────
+    /** Multiple-choice confirm button ("Confirm: Paris"). */
+    confirmSelected:   (choice: string) => `Confirm: ${choice}`,
+    /** Multi-select confirm button ("Confirm 2 selections"). */
+    confirmSelections: (n: number) => `Confirm ${n} selection${n === 1 ? '' : 's'}`,
+    /** Slider submit button ("Submit: 42km"). `unit` is appended as-is (no separator). */
+    submitValue:       (value: string | number, unit: string) => `Submit: ${value}${unit}`,
+    /** Placeholder for the write-in input (mobile) and web answer input. */
+    answerPlaceholderShort: 'Your answer…',
+    /** "+{n} pts" line in post-answer feedback (mobile). */
+    feedbackPointsLine: (earned: number) => `+${earned} pts`,
+    /** " · 8.2s" time-taken suffix in post-answer feedback (mobile). */
+    timeTakenSuffix:   (seconds: string | number) => ` · ${seconds}s`,
+    /** "{n} pts" question meta line (mobile player and host screens). */
+    ptsLine:           (pts: number | null | undefined) => `${pts} pts`,
+    /** Leave-game confirmation (mobile). */
+    leaveTitle:        'Leave game?',
+    leaveBody:         "You'll lose your progress on the current question. You can rejoin with a room code.",
+    leaveStay:         'Stay',
+    leaveConfirm:      'Leave',
+    /** Shown while the host has not yet released the next question. Both platforms. */
+    waitingHostTitle:  'Waiting for the host',
+    waitingHostBody:   'The next question will appear here when the host releases it.',
+    /** Quiz-complete modal (mobile). */
+    quizCompleteTitle: 'Quiz complete!',
+    quizCompleteBody:  "You've reached the end of the game and answered all the questions in this quiz.",
   },
 
   /**
@@ -524,6 +660,17 @@ export const COPY = {
     topicRequired: 'Topic is required',
     /** Validation error for the question-count field (mobile generate panel). */
     amountRange: 'Enter a number between 1 and 20',
+    /** Bulk-generate dialog / sheet. Both platforms. */
+    title:              'Generate Questions with AI',
+    topicLabel:         'Topic',
+    topicPlaceholder:   'e.g. 90s Pop Music',
+    difficultyLabel:    'Difficulty',
+    amountLabel:        'Number of questions (1–20)',
+    generatingLong:     'Generating… this may take a moment',
+    generateBtn:        'Generate',
+    /** Result lines after a bulk generation (mobile). */
+    addedResult:        (n: number) => `${n} question${n === 1 ? '' : 's'} added`,
+    discardedResult:    (n: number) => `${n} discarded (invalid or duplicate)`,
     /** Fallback errors when the API response carries no message (mobile). */
     failed:             'Generation failed',
     formFailed:         'AI generation failed — try again',
@@ -667,6 +814,31 @@ export const COPY = {
      * that is live or waiting. Tapping it takes the player directly into that game.
      */
     nextGameLive:   'Next game is live — join →',
+    /** Sub-text under couldNotLoad (mobile). */
+    loadFailedBody: 'Something went wrong fetching the game results.',
+    /** "{q} question(s) · {p} player(s)" header meta (mobile). */
+    headerMeta:     (questions: number, players: number) =>
+                      `${questions} question${questions === 1 ? '' : 's'} · ${players} player${players === 1 ? '' : 's'}`,
+    /** Host summary banner (mobile, admins only). */
+    hostSummaryLabel: 'HOST SUMMARY',
+    playersLabel:   'players',
+    avgScoreLabel:  'avg score',
+    hardestLabel:   (pct: number | null) => `hardest · ${pct}% correct`,
+    /** "{correct}/{total} correct" accuracy line. */
+    correctOf:      (correct: number, total: number) => `${correct}/${total} correct`,
+    /** Empty leaderboard (mobile). */
+    noScores:       'No scores to show yet',
+    /** Tag appended after the current player's own name on the leaderboard. Both platforms. */
+    youTag:         '(you)',
+    /** " · 62% got it right" suffix on the per-question meta line. Both platforms. */
+    gotItRightSuffix: (pct: number) => ` · ${pct}% got it right`,
+    /** Share button and share-sheet text. */
+    shareBtn:       'Share results',
+    /** Share text when the viewer did not play. Both platforms. */
+    shareFallback:  (topic: string) => `Check out the results for "${topic}" trivia!`,
+    copiedTitle:    'Copied!',
+    copiedBody:     'Your results were copied to the clipboard.',
+    shareTitle:     'Share',
   },
   /**
    * Content reporting flow — available to players on in-game and results screens.
@@ -1006,6 +1178,30 @@ export const COPY = {
     },
     /** Network failure on the account screen (password change, deletion). Both platforms. */
     connectionError: 'Connection error — please retry.',
+    /**
+     * Change-password card. Web AdminSettings.tsx and mobile RoomsTab.tsx.
+     * Both platforms must use these keys.
+     */
+    changePassword: {
+      sectionTitle:        'Change password',
+      description:         'Enter your current password and choose a new one (at least 8 characters).',
+      currentLabel:        'Current password',
+      currentPlaceholder:  'Current password',
+      newLabel:            'New password',
+      newPlaceholder:      'New password (min. 8 characters)',
+      confirmLabel:        'Confirm new password',
+      confirmPlaceholder:  'Confirm new password',
+      mismatch:            'Passwords do not match.',
+      submitBtn:           'Change password',
+      errorCurrentRequired: 'Please enter your current password.',
+      errorTooShort:       'New password must be at least 8 characters.',
+      errorNoMatch:        'New passwords do not match.',
+      success:             'Password changed successfully.',
+    },
+    /** Body text of the danger-zone card. Both platforms. */
+    dangerZoneBody: 'Deleting your account is permanent and cannot be undone. Your account and all associated games will be removed immediately.',
+    /** Heading of the legal-links card. Both platforms. */
+    legalTitle:     'Legal',
     displayName: {
       /** Card / section heading. */
       sectionTitle:  'Display name',
@@ -1057,6 +1253,39 @@ export const COPY = {
       imageUrlRequired:      'Image URL is required',
       correctAnswerRequired: 'Correct answer is required',
     },
+    /** Field labels and placeholders in the question form (mobile; web shares the ones marked). */
+    typeLabel:                'Question type',
+    questionLabel:            'Question',
+    /** Both platforms. */
+    questionPlaceholder:      'Type the question players will see...',
+    choicesLabel:             'Choices (tap to mark correct)',
+    choicePlaceholder:        (letter: string) => `Choice ${letter}`,
+    correctAnswerLabel:       'Correct answer',
+    tfTrue:                   'TRUE ✓',
+    tfFalse:                  'FALSE ✗',
+    writeInPlaceholder:       'The exact correct answer',
+    alternateAnswersLabel:    'Alternate answers (comma-separated)',
+    alternateAnswersPlaceholder: 'e.g. NYC, The Big Apple',
+    matchingPairsLabel:       'Matching pairs',
+    pairLeftPlaceholder:      'Left',
+    pairRightPlaceholder:     'Right',
+    /** Both platforms. */
+    addPair:                  'Add pair',
+    /** Both platforms. */
+    imageUrlLabel:            'Image URL',
+    imageUrlPlaceholder:      'https://example.com/image.jpg',
+    imageAnswerPlaceholder:   'What is in the image?',
+    imageAltPlaceholder:      'Alternate accepted answers',
+    hotspotLabel:             'Tap image to set hotspot',
+    hotspotHint:              'Enter an image URL above to set the hotspot location.',
+    pointsLabel:              'Points',
+    sourceLabel:              'Source (optional)',
+    sourcePlaceholder:        'e.g. Wikipedia — Capital cities',
+    saveQuestionBtn:          'Save Question',
+    /** Fill-with-AI button. Both platforms; mobile appends the game topic. */
+    fillWithAi:               'Fill with AI',
+    fillWithAiTopic:          (topic: string) => `Fill with AI (${topic})`,
+    generating:               'Generating…',
     /** Label for the optional fact-check source URL field. */
     factCheckUrl: 'Fact-check URL',
     /** Placeholder for the fact-check URL input. */
@@ -1130,6 +1359,23 @@ export const COPY = {
    * browser on web.
    */
   hostRegister: {
+    /** Post-submit confirmation (mobile). */
+    doneTitle:       'Check your inbox',
+    doneBodyPrefix:  'We sent a verification link to',
+    doneBodySuffix:  'Click the link to activate your account, then sign in.',
+    goToSignIn:      'GO TO SIGN IN',
+    /** Form (mobile). */
+    heading:         'CREATE ACCOUNT',
+    helper:          'Register as a host to create and manage trivia games',
+    /** Both platforms. */
+    passwordPlaceholder: 'At least 8 characters',
+    /** Both platforms. */
+    legalPrefix:     'By creating an account you agree to our',
+    legalAnd:        'and',
+    submitBtn:       'CREATE ACCOUNT',
+    /** Both platforms. */
+    haveAccount:     'Already have an account?',
+    signInLink:      'Sign in →',
     error: {
       enterPassword: 'Enter a password',
     },
@@ -1186,6 +1432,25 @@ export const COPY = {
     sharingUnavailableBody:  'File sharing is not available on this device.',
     exportFailedTitle:       'Export failed',
     exportFailedBody:        'Could not export results.',
+    /** Error / empty states. */
+    loadFailed:              'Could not load results. Check your connection and try again.',
+    backToGames:             '← Back to games',
+    /** Summary card labels. */
+    playersLabel:            'Players',
+    avgScoreLabel:           'Avg Score',
+    topScoreLabel:           'Top Score',
+    hardestLabel:            (pct: number | null) => `HARDEST · ${pct}% correct`,
+    leaderboardLabel:        'LEADERBOARD',
+    /** "{c}/{t} correct" line under each player. */
+    correctOf:               (correct: number, total: number) => `${correct}/${total} correct`,
+    pctSuffix:               (pct: number) => ` · ${pct}%`,
+    unansweredSuffix:        (n: number) => ` · ${n} unanswered`,
+    needingReviewLabel:      (n: number) => `ANSWERS NEEDING REVIEW · ${n}`,
+    /** Per-question breakdown. */
+    breakdownToggle:         'Question Breakdown',
+    breakdownLoadFailed:     'Could not load question breakdown.',
+    correctLabel:            'correct',
+    correctAnswerLabel:      'CORRECT ANSWER',
   },
 
   /**
@@ -1194,7 +1459,23 @@ export const COPY = {
    * support / terms / privacy screens.
    */
   legal: {
+    /** "Last updated" line on the terms and privacy pages. Both platforms. */
+    lastUpdated: 'Last updated: August 11, 2026',
     support: {
+      tagline:      "We're here to help",
+      contactTitle: 'Contact Us',
+      contactBody:  'For any questions, issues, or feedback about Queen Trivia, reach out to us directly by email. We aim to respond within one business day.',
+      email:        'support@queen-trivia.com',
+      reportTitle:  'How to Report a Problem',
+      reportBody:   "If you've encountered a bug, an unexpected error, or inappropriate content in a game, please include the following in your message so we can investigate quickly:",
+      hostAccountsTitle: 'Host Accounts',
+      /** Rendered as "{prefix} {email} {suffix}". */
+      hostAccountsPrefix: "If you're having trouble with your host account — such as a missing verification email, a password reset that didn't arrive, or difficulty signing in — email us at",
+      hostAccountsSuffix: "with your registered email address and we'll get you sorted.",
+      contentTitle: 'Content Concerns',
+      /** Rendered as "{prefix} {email} {suffix}". */
+      contentPrefix: 'Queen Trivia includes a content filter to prevent offensive material from appearing in games. If you see something that slipped through, please report it to',
+      contentSuffix: "and we'll review it promptly.",
       reportChecklist: [
         'A brief description of what happened and what you expected to happen',
         'The game code or topic name, if relevant',
@@ -1203,6 +1484,35 @@ export const COPY = {
       ],
     },
     terms: {
+      s1Title: '1. Acceptance of Terms',
+      s1Body:  'By creating an account or using Queen Trivia (the "Service"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree, do not use the Service. These Terms apply to all hosts, players, and visitors.',
+      s2Title: '2. The Service',
+      s2Body:  'Queen Trivia provides a platform for creating and hosting live trivia games. Hosts create quizzes and manage game sessions; players join using a room code and participate via their device. We reserve the right to modify or discontinue the Service at any time with reasonable notice.',
+      s3Title: '3. Accounts',
+      accounts: [
+        'You must provide a valid email address when registering and verify it before signing in.',
+        'You are responsible for maintaining the confidentiality of your password and for all activity that occurs under your account.',
+        'You must notify us immediately of any unauthorized use of your account.',
+        'You must be at least 13 years old to create an account.',
+      ],
+      s4Title: '4. Acceptable Use',
+      s4Intro: 'You agree not to use the Service to:',
+      s5Title: '5. Content',
+      s5Body:  'You retain ownership of any quiz content you create. By submitting content to the Service, you grant us a non-exclusive, royalty-free license to store, display, and deliver that content as necessary to operate the Service. You are solely responsible for ensuring your content does not infringe third-party intellectual property rights or violate applicable laws.',
+      s6Title: '6. Termination',
+      s6Body:  'We may suspend or terminate your account at any time for violations of these Terms or for any other reason at our discretion. You may delete your account at any time by contacting us. Provisions of these Terms that by their nature should survive termination shall survive.',
+      s7Title: '7. Disclaimer of Warranties',
+      s7Body:  'THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, OR NON-INFRINGEMENT. WE DO NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE, OR FREE OF HARMFUL COMPONENTS.',
+      s8Title: '8. Limitation of Liability',
+      s8Body:  'TO THE MAXIMUM EXTENT PERMITTED BY LAW, WE SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING OUT OF OR RELATED TO YOUR USE OF THE SERVICE, EVEN IF WE HAVE BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.',
+      s9Title: '9. Governing Law',
+      s9Body:  'These Terms are governed by and construed in accordance with applicable law. Any disputes arising under these Terms shall be resolved through binding arbitration or in a court of competent jurisdiction.',
+      s10Title: '10. Changes to These Terms',
+      s10Body: 'We may update these Terms from time to time. We will notify registered hosts by email or in-app notice of material changes. Continued use of the Service after changes take effect constitutes acceptance of the updated Terms.',
+      s11Title: '11. Contact Us',
+      /** Rendered as "{prefix} {email}." */
+      s11Prefix: 'Questions about these Terms? Contact us at',
+      email:   'legal@queen-trivia.com',
       acceptableUse: [
         'Post or transmit content that is unlawful, harmful, threatening, abusive, defamatory, or otherwise objectionable',
         'Harass, intimidate, or discriminate against any person or group',
@@ -1213,6 +1523,39 @@ export const COPY = {
       ],
     },
     privacy: {
+      s1Title: '1. Introduction',
+      s1Body:  'Queen Trivia ("we", "us", or "our") operates the Queen Trivia mobile and web application (the "Service"). This Privacy Policy describes how we collect, use, and share information when you use our Service, and your choices regarding that information.',
+      s2Title: '2. Information We Collect',
+      s2Intro: 'We collect the following types of information:',
+      /** Bullets rendered as "<strong>{label}</strong> {body}". */
+      collect: [
+        { label: 'Account information:', body: 'When you register as a host, we collect your email address and a hashed version of your password. We never store your password in plain text.' },
+        { label: 'Game data:',           body: 'Quizzes, questions, and game sessions you create or participate in, including player nicknames and answers submitted during games.' },
+        { label: 'Usage data:',          body: 'Basic technical information such as device type, operating system version, and error logs to help us maintain and improve the Service.' },
+      ],
+      s3Title: '3. How We Use Your Information',
+      s3Intro: 'We use the information we collect to:',
+      s4Title: '4. Information Sharing',
+      s4Intro: 'We do not sell your personal information. We may share your information only in these limited circumstances:',
+      sharing: [
+        { label: 'Service providers:',  body: 'Third-party vendors who help us operate the Service (e.g. transactional email delivery), subject to confidentiality obligations.' },
+        { label: 'Legal requirements:', body: 'When required by law or to protect the rights and safety of our users or the public.' },
+      ],
+      s4Note:  'Player nicknames and scores entered during a live game session are visible to other participants in that same game session.',
+      s5Title: '5. Data Retention',
+      s5Body:  'We retain your account information for as long as your account is active. Game session data may be retained to provide score history and analytics to hosts. You may request deletion of your account and associated data by contacting us at the address below.',
+      s6Title: "6. Children's Privacy",
+      s6Body:  'The Service is not directed to children under the age of 13. We do not knowingly collect personal information from children under 13. If you believe a child has provided us personal information, please contact us so we can delete it.',
+      s7Title: '7. Security',
+      s7Body:  'We take reasonable technical and organizational measures to protect your information. Passwords are stored using industry-standard one-way hashing. However, no method of transmission or storage is 100% secure, and we cannot guarantee absolute security.',
+      s8Title: '8. Your Rights',
+      s8Body:  'Depending on your location, you may have the right to access, correct, or delete your personal information. To exercise any of these rights, contact us at:',
+      email:   'privacy@queen-trivia.com',
+      s9Title: '9. Changes to This Policy',
+      s9Body:  'We may update this Privacy Policy from time to time. We will notify registered hosts by email or in-app notice when we make material changes. Continued use of the Service after changes take effect constitutes acceptance of the updated policy.',
+      s10Title: '10. Contact Us',
+      /** Rendered as "{prefix} {email}." */
+      s10Prefix: 'If you have questions about this Privacy Policy, please contact us at',
       informationUse: [
         'Provide, operate, and maintain the Service',
         'Create and manage your host account',
@@ -1234,6 +1577,194 @@ export const COPY = {
     termsOfService: 'Terms of Service',
     /** Link to the support page. */
     support:        'Support',
+  },
+
+  /**
+   * Generic single-word actions and labels shared across many screens.
+   * Prefer a screen-specific key when the wording carries extra meaning
+   * (e.g. kick.confirmCancel); use these for plain buttons and chips.
+   */
+  common: {
+    cancel:   'Cancel',
+    save:     'Save',
+    done:     'Done',
+    retry:    'Retry',
+    back:     'Back',
+    edit:     'Edit',
+    add:      'Add',
+    close:    'Close',
+    gotIt:    'Got it',
+    dismiss:  'Dismiss',
+    discard:  'Discard',
+    apply:    'Apply',
+    /** Muted "(optional)" suffix after a field label. */
+    optional: '(optional)',
+    /** Generic alert title. */
+    error:    'Error',
+  },
+
+  /**
+   * Free-tier usage limit. The API server prefixes its 429 message with
+   * `title`; both clients match on it to show the limit card instead of a
+   * plain error, and use `title` as the card heading.
+   */
+  usageLimit: {
+    title:      'Monthly limit reached',
+    resetsNote: 'This resets at the start of next month. You can still add questions manually in the meantime.',
+  },
+
+  /**
+   * Brand wordmark. Web Brand.tsx and the mobile welcome / about screens.
+   */
+  brand: {
+    queen:  'QUEEN',
+    trivia: 'TRIVIA',
+  },
+
+  /**
+   * Per-question AI tools sheet (mobile game editor).
+   */
+  aiTools: {
+    title: 'AI Tools',
+    regenerate: {
+      label:   'Regenerate',
+      desc:    'Replace with a new AI-written question on the same topic',
+      loading: 'Generating new question…',
+    },
+    enhance: {
+      label:   'Enhance',
+      desc:    'Improve wording, fix options, add a source suggestion',
+      loading: 'Enhancing question…',
+    },
+    factCheck: {
+      label:   'Fact-Check',
+      desc:    'Verify the question and correct answer with AI',
+      loading: 'Fact-checking…',
+    },
+    applyFailed:          'Failed to apply — please retry.',
+    /** Preview-card section labels. Stored upper-case as displayed. */
+    newQuestionLabel:     'NEW QUESTION',
+    correctAnswerLabel:   'Correct answer',
+    optionsLabel:         'OPTIONS',
+    improvedQuestionLabel: 'IMPROVED QUESTION',
+    improvedOptionsLabel: 'IMPROVED OPTIONS',
+    notesLabel:           'NOTES',
+    suggestedSourceLabel: 'SUGGESTED SOURCE',
+    explanationLabel:     'EXPLANATION',
+    correctAnswerShouldBeLabel: 'CORRECT ANSWER SHOULD BE',
+    sourceLabel:          'SOURCE',
+    /** "{level} confidence" beside the fact-check verdict. */
+    confidence:           (level: string) => `${level} confidence`,
+  },
+
+  /**
+   * Import-from-Open-Trivia-Database sheet (mobile game editor).
+   */
+  openTdbImport: {
+    categoryLabel:     'Category',
+    selectPlaceholder: 'Select…',
+    difficultyLabel:   'Difficulty',
+    amountLabel:       'Number of questions (1–50)',
+    amountError:       'Enter a number between 1 and 50',
+    importing:         'Importing…',
+    importBtn:         'Import',
+    importedResult:    (n: number) => `${n} question${n === 1 ? '' : 's'} imported`,
+    errorNetwork:      'No internet connection — check your network and try again.',
+    errorRateLimit:    'Open Trivia DB rate limit reached — wait a few seconds and try again.',
+    errorNoQuestions:  'No questions available for this combination — try a different difficulty.',
+  },
+
+  /**
+   * Game editor screen (mobile app/admin/[gameId].tsx).
+   */
+  gameEditor: {
+    /** Placeholder / aria-label of the inline quiz-title input. Both platforms. */
+    quizNamePlaceholder: 'Quiz name',
+    /** "{n} Question(s)" list title above the toolbar. */
+    questionCountTitle: (n: number) => `${n} Question${n === 1 ? '' : 's'}`,
+    aiGenerateBtn:     'AI Generate',
+    /** Both platforms. */
+    emptyTitle:        'No questions yet',
+    addManuallyBtn:    'Add manually',
+    dragHint:          'Long-press any question card to drag and reorder',
+    noFilterMatch:     'No questions match this filter',
+  },
+
+  /**
+   * Admin results list tab (mobile ResultsTab.tsx).
+   */
+  adminResultsList: {
+    heading:           'Game results',
+    subheading:        'Leaderboards and question analytics for completed games.',
+    loadFailed:        'Could not load games. Check your connection.',
+    emptyTitle:        'No completed games yet',
+    emptyBody:         'Finish a game to see its leaderboard and score history here.',
+    statGames:         'Games',
+    statPlayerSessions: 'Player sessions',
+    statQuestionsAsked: 'Questions asked',
+  },
+
+  /**
+   * Host live-control screen (mobile app/admin/live/[gameId].tsx).
+   */
+  adminLive: {
+    notFoundTitle:      'Game not found',
+    notFoundBody:       'This game may have ended or is no longer available.',
+    goBack:             'Go back',
+    answerProgressLabel: 'ANSWER PROGRESS',
+    noQuestions:        'No questions in this game.',
+    answeredCount:      (n: number, total: number) => `${n}/${total} answered`,
+    correctCount:       (n: number) => `${n} correct`,
+    needsReviewLabel:   (n: number) => `NEEDS REVIEW · ${n}`,
+    endGameBtn:         'End Game',
+    endGameError:       'Failed to end the game. Please try again.',
+    /** "+{earned} pts · total {total}" under the host's own answer feedback. */
+    feedbackPts:        (earned: number, total: number) => `+${earned} pts · total ${total}`,
+  },
+
+  /**
+   * Manual answer-review card shown when AI grading was unavailable
+   * (mobile host live and admin results screens).
+   */
+  answerReview: {
+    aiUnavailable:     'AI UNAVAILABLE',
+    playerAnswerLabel: 'PLAYER ANSWER',
+    rubricLabel:       'RUBRIC',
+    suggested:         (earned: number, points: number) => `Suggested score: ${earned}/${points} points · awaiting your decision`,
+    denyBtn:           'Deny',
+    awardBtn:          (points: number) => `Award ${points} pts`,
+  },
+
+  /**
+   * Crash screen (mobile ErrorFallback.tsx).
+   */
+  errorFallback: {
+    title:        'Something went wrong',
+    body:         'Please reload the app to continue.',
+    tryAgain:     'Try Again',
+    detailsTitle: 'Error Details',
+    viewDetails:  'View error details',
+    closeDetails: 'Close error details',
+  },
+
+  /**
+   * Unmatched-route screen (mobile app/+not-found.tsx).
+   */
+  notFound: {
+    title: 'Oops!',
+    body:  "This screen doesn't exist.",
+    link:  'Go to home screen!',
+  },
+
+  /**
+   * About screen (mobile app/about.tsx).
+   */
+  about: {
+    title:             'About',
+    legalSupportLabel: 'LEGAL & SUPPORT',
+    privacySub:        'How we handle your data',
+    termsSub:          'Our rules and your rights',
+    supportSub:        'Get help or report an issue',
   },
 } as const;
 

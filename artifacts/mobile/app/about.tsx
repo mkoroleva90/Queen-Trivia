@@ -99,7 +99,7 @@ export default function AboutScreen() {
         <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={22} color={colors.foreground} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>About</Text>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>{COPY.about.title}</Text>
         <View style={styles.backBtn} />
       </View>
 
@@ -108,32 +108,32 @@ export default function AboutScreen() {
         <View style={styles.brand}>
           <CrownMark size={48} />
           <Text style={[styles.appName, { color: colors.foreground }]}>
-            <Text style={{ color: colors.accent }}>QUEEN</Text>{' '}
-            <Text style={{ color: colors.primary }}>TRIVIA</Text>
+            <Text style={{ color: colors.accent }}>{COPY.brand.queen}</Text>{' '}
+            <Text style={{ color: colors.primary }}>{COPY.brand.trivia}</Text>
           </Text>
         </View>
 
         {/* Links */}
         <View style={styles.section}>
-          <Text style={[styles.sectionHeader, { color: colors.mutedForeground }]}>LEGAL & SUPPORT</Text>
+          <Text style={[styles.sectionHeader, { color: colors.mutedForeground }]}>{COPY.about.legalSupportLabel}</Text>
           <LinkRow
             icon="shield-checkmark-outline"
             label={COPY.footer.privacyPolicy}
-            sublabel="How we handle your data"
+            sublabel={COPY.about.privacySub}
             accentColor={colors.primary}
             onPress={() => router.push('/privacy')}
           />
           <LinkRow
             icon="document-text-outline"
             label={COPY.footer.termsOfService}
-            sublabel="Our rules and your rights"
+            sublabel={COPY.about.termsSub}
             accentColor={colors.accent}
             onPress={() => router.push('/terms')}
           />
           <SupportRow
             icon="chatbubble-ellipses-outline"
             label={COPY.footer.support}
-            sublabel="Get help or report an issue"
+            sublabel={COPY.about.supportSub}
             accentColor={colors.secondary}
             url={SUPPORT_URL}
           />
