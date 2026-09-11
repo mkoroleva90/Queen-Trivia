@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { COPY } from '@workspace/copy';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ThemedText';
 import { useColors } from '@/hooks/useColors';
 
 export type OpenTdbImportMode = 'standard' | 'extended' | 'surprise';

@@ -1,4 +1,5 @@
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Pressable, StyleSheet } from 'react-native';
+import { Text } from '@/components/ThemedText';
 import { Ionicons } from '@expo/vector-icons';
 import { COPY } from '@workspace/copy';
 import { CrownMark } from '@/components/CrownMark';

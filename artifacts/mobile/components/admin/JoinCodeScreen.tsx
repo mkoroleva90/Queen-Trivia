@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { Text } from '@/components/ThemedText';
+import { TextInput } from '@/components/ThemedTextInput';
 import { Ionicons } from '@expo/vector-icons';
 import { COPY } from '@workspace/copy';
 import { useColors } from '@/hooks/useColors';
