@@ -1,8 +1,3 @@
 uploads = []
 generated = []
-
-[[outputs]]
-id = "IgGJSOrXznjeF4vFFeByG"
-uri = "file://mktrivia-source.zip"
-type = "unspecified"
-title = "MK Trivia — Full Source Code"
+outputs = []
