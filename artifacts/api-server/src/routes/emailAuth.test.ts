@@ -104,3 +104,191 @@ describe("POST /api/auth/email/mobile-reset-password — account rate limiting",
     assert.equal(typeof blocked.body.error, "string");
   });
 });
+
+// ── Mobile email verification by code ────────────────────────────────────────
+// Mirrors the reset-limiter test above for POST /auth/email/mobile-register and
+// POST /auth/email/mobile-verify. RESEND_API_KEY is unset in tests, so the code
+// email fails inside the route's try/catch and the generic response is returned;
+// the code is written straight into verification_token_hash instead.
+
+const verifyPool = new pg.Pool({ connectionString: process.env["DATABASE_URL"] });
+const registerEmail = "otp-mobile-register-test@example.invalid";
+const verifyLimitEmail = "otp-mobile-verify-limit-test@example.invalid";
+const verifySuccessEmail = "otp-mobile-verify-success-test@example.invalid";
+const validVerifyCode = "123456";
+const verifyTokenHash = crypto.createHash("sha256").update(validVerifyCode).digest("hex");
+const verifyIps = [
+  "203.0.113.211",
+  "203.0.113.212",
+  "203.0.113.213",
+  "203.0.113.214",
+  "203.0.113.215",
+  "203.0.113.216",
+  "203.0.113.217",
+  "203.0.113.218",
+  "203.0.113.219",
+];
+const verifyAuthKeys = verifyIps.map((ip) => `auth:${ip}`);
+let verifyLimitKey = "";
+let verifySuccessKey = "";
+
+function mobileVerifyKeyFor(accountId: number): string {
+  return `mobile-email-verify:${crypto
+    .createHmac("sha256", process.env["SESSION_SECRET"] ?? "")
+    .update(`mobile-email-verify:v1:${accountId}`)
+    .digest("hex")}`;
+}
+
+describe("POST /api/auth/email/mobile-register — code-based signup", () => {
+  before(async () => {
+    await verifyPool.query("DELETE FROM admin_accounts WHERE email = $1", [registerEmail]);
+    await verifyPool.query("DELETE FROM rate_limit_hits WHERE key = ANY($1)", [verifyAuthKeys]);
+  });
+
+  after(async () => {
+    await verifyPool.query("DELETE FROM admin_accounts WHERE email = $1", [registerEmail]);
+  });
+
+  it("creates an unverified account with a 15-minute code and responds generically", async () => {
+    const res = await request(app)
+      .post("/api/auth/email/mobile-register")
+      .set("X-Forwarded-For", verifyIps[0]!)
+      .send({ email: registerEmail, password: "a-secure-test-password" });
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.ok, true);
+    assert.equal(typeof res.body.message, "string");
+
+    const { rows } = await verifyPool.query<{
+      email_verified: boolean;
+      verification_token_hash: string | null;
+      minutes_left: number;
+    }>(
+      `SELECT email_verified, verification_token_hash,
+              EXTRACT(EPOCH FROM (verification_token_expiry - NOW())) / 60 AS minutes_left
+         FROM admin_accounts WHERE email = $1`,
+      [registerEmail],
+    );
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]!.email_verified, false);
+    assert.match(rows[0]!.verification_token_hash ?? "", /^[0-9a-f]{64}$/);
+    assert.ok(Number(rows[0]!.minutes_left) > 13 && Number(rows[0]!.minutes_left) <= 15);
+
+    // Re-registering an existing address must be indistinguishable from success.
+    const again = await request(app)
+      .post("/api/auth/email/mobile-register")
+      .set("X-Forwarded-For", verifyIps[1]!)
+      .send({ email: registerEmail, password: "another-password-1234" });
+    assert.equal(again.status, 200);
+    assert.deepEqual(again.body, res.body);
+
+    const count = await verifyPool.query("SELECT COUNT(*)::int AS n FROM admin_accounts WHERE email = $1", [registerEmail]);
+    assert.equal(count.rows[0].n, 1);
+  });
+});
+
+describe("POST /api/auth/email/mobile-verify — account rate limiting and sign-in", () => {
+  before(async () => {
+    await verifyPool.query(
+      "DELETE FROM admin_accounts WHERE email = ANY($1)",
+      [[verifyLimitEmail, verifySuccessEmail]],
+    );
+    const inserted = await verifyPool.query<{ id: number; email: string }>(
+      `INSERT INTO admin_accounts
+         (email, password_hash, email_verified, verification_token_hash, verification_token_expiry)
+       VALUES ($1, $3, FALSE, $4, NOW() + interval '15 minutes'),
+              ($2, $3, FALSE, $4, NOW() + interval '15 minutes')
+       RETURNING id, email`,
+      [verifyLimitEmail, verifySuccessEmail, "not-used-for-verify-test", verifyTokenHash],
+    );
+    for (const row of inserted.rows) {
+      if (row.email === verifyLimitEmail) verifyLimitKey = mobileVerifyKeyFor(row.id);
+      if (row.email === verifySuccessEmail) verifySuccessKey = mobileVerifyKeyFor(row.id);
+    }
+    await verifyPool.query(
+      "DELETE FROM rate_limit_hits WHERE key = ANY($1)",
+      [[verifyLimitKey, verifySuccessKey, ...verifyAuthKeys]],
+    );
+  });
+
+  after(async () => {
+    await verifyPool.query(
+      "DELETE FROM rate_limit_hits WHERE key = ANY($1)",
+      [[verifyLimitKey, verifySuccessKey, ...verifyAuthKeys]],
+    );
+    await verifyPool.query(
+      "DELETE FROM admin_accounts WHERE email = ANY($1)",
+      [[verifyLimitEmail, verifySuccessEmail]],
+    );
+    await verifyPool.end();
+  });
+
+  it("blocks the sixth invalid code despite IP rotation and code reissue", async () => {
+    for (let i = 0; i < 5; i++) {
+      const res = await request(app)
+        .post("/api/auth/email/mobile-verify")
+        .set("X-Forwarded-For", verifyIps[i]!)
+        .send({ email: verifyLimitEmail, code: "000000" });
+
+      assert.equal(res.status, 400, `invalid attempt ${i + 1}/5 should reach the verify handler`);
+    }
+
+    const reissuedTokenHash = crypto.createHash("sha256").update("654321").digest("hex");
+    await verifyPool.query(
+      "UPDATE admin_accounts SET verification_token_hash = $1 WHERE email = $2",
+      [reissuedTokenHash, verifyLimitEmail],
+    );
+
+    const blocked = await request(app)
+      .post("/api/auth/email/mobile-verify")
+      .set("X-Forwarded-For", verifyIps[5]!)
+      .send({ email: verifyLimitEmail, code: "654321" });
+
+    assert.equal(blocked.status, 429);
+    assert.equal(typeof blocked.body.error, "string");
+
+    const { rows } = await verifyPool.query<{ email_verified: boolean }>(
+      "SELECT email_verified FROM admin_accounts WHERE email = $1",
+      [verifyLimitEmail],
+    );
+    assert.equal(rows[0]!.email_verified, false);
+  });
+
+  it("marks the email verified, clears the code, and returns an admin token", async () => {
+    const res = await request(app)
+      .post("/api/auth/email/mobile-verify")
+      .set("X-Forwarded-For", verifyIps[6]!)
+      .send({ email: verifySuccessEmail, code: validVerifyCode });
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.ok, true);
+    assert.equal(typeof res.body.adminToken, "string");
+    assert.ok(res.body.adminToken.length > 0);
+
+    const { rows } = await verifyPool.query<{
+      email_verified: boolean;
+      verification_token_hash: string | null;
+      verification_token_expiry: Date | null;
+    }>(
+      "SELECT email_verified, verification_token_hash, verification_token_expiry FROM admin_accounts WHERE email = $1",
+      [verifySuccessEmail],
+    );
+    assert.equal(rows[0]!.email_verified, true);
+    assert.equal(rows[0]!.verification_token_hash, null);
+    assert.equal(rows[0]!.verification_token_expiry, null);
+
+    // The token returned must be accepted as an admin Bearer token.
+    const me = await request(app)
+      .get("/api/games")
+      .set("X-Forwarded-For", verifyIps[7]!)
+      .set("Authorization", `Bearer ${res.body.adminToken}`);
+    assert.equal(me.status, 200);
+
+    // A consumed code cannot be replayed.
+    const replay = await request(app)
+      .post("/api/auth/email/mobile-verify")
+      .set("X-Forwarded-For", verifyIps[8]!)
+      .send({ email: verifySuccessEmail, code: validVerifyCode });
+    assert.equal(replay.status, 400);
+  });
+});
