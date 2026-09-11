@@ -79,7 +79,6 @@ type Feedback = {
   questionId: number;
   questionType: string;
   factCheckUrl?: string | null;
-  correctAnswer?: string; // slider / image_hotspot — included in submit response
   feedback?: string;       // AI feedback for short_response
 };
 
@@ -90,7 +89,6 @@ function isSafeFactCheckUrl(value: string | null | undefined): value is string {
 export type FeedbackResult = {
   isCorrect: boolean;
   lockedAnswer: string;
-  correctAnswer?: string; // slider only
 };
 
 export const CHOICE_LABELS = ["A", "B", "C", "D", "E", "F"];
@@ -953,14 +951,6 @@ export function SliderQuestion({
   useEffect(() => { setValue(Math.round(((min + max) / 2) / step) * step); }, [question.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const answered   = !!feedbackResult;
-  const playerVal  = answered ? parseFloat(feedbackResult!.lockedAnswer) : value;
-  const correctVal = answered && feedbackResult!.correctAnswer !== undefined
-    ? parseFloat(feedbackResult!.correctAnswer)
-    : null;
-
-  const toPct      = (v: number) => Math.max(0, Math.min(1, (v - min) / (max - min)));
-  const playerPct  = toPct(playerVal);
-  const correctPct = correctVal !== null ? toPct(correctVal) : null;
 
   const fmtVal = (v: number) => `${v.toLocaleString()}${unit ? ` ${unit}` : ""}`;
 
@@ -997,64 +987,6 @@ export function SliderQuestion({
           <div className="flex justify-between mt-2">
             <span className="text-[12px]" style={{ color: "#a3aec2" }}>{fmtVal(min)}</span>
             <span className="text-[12px]" style={{ color: "#a3aec2" }}>{fmtVal(max)}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Reveal: dual-marker track */}
-      {answered && correctPct !== null && (
-        <div className="px-1 py-2">
-          {/* Track + markers */}
-          <div className="relative" style={{ height: 52 }}>
-            {/* Base track */}
-            <div
-              className="absolute"
-              style={{ top: 22, left: 0, right: 0, height: 4, borderRadius: 2, background: "rgba(255,255,255,.15)" }}
-            >
-              {/* Bridge between the two thumbs */}
-              <div style={{
-                position: "absolute",
-                left: `${Math.min(playerPct, correctPct) * 100}%`,
-                width: `${Math.abs(playerPct - correctPct) * 100}%`,
-                height: "100%",
-                background: "rgba(255,255,255,.2)",
-              }} />
-            </div>
-            {/* Player thumb (pink) */}
-            <div style={{ position: "absolute", top: 12, left: `calc(${playerPct * 100}% - 10px)` }}>
-              <div style={{
-                width: 20, height: 20, borderRadius: "50%",
-                background: "#ff0080",
-                boxShadow: "0 0 14px rgba(255,0,128,.55)",
-                border: "2px solid rgba(255,255,255,.25)",
-              }} />
-            </div>
-            {/* Correct thumb (cyan) */}
-            <div style={{ position: "absolute", top: 12, left: `calc(${correctPct * 100}% - 10px)` }}>
-              <div style={{
-                width: 20, height: 20, borderRadius: "50%",
-                background: "#00ddff",
-                boxShadow: "0 0 14px rgba(0,221,255,.55)",
-                border: "2px solid rgba(255,255,255,.25)",
-              }} />
-            </div>
-          </div>
-          {/* Labels */}
-          <div className="flex justify-between text-[12px] mt-1" style={{ color: "#a3aec2" }}>
-            <span>{fmtVal(min)}</span>
-            <span>{fmtVal(max)}</span>
-          </div>
-          <div className="flex justify-center gap-6 mt-3">
-            <div className="text-center">
-              <div className="w-3 h-3 rounded-full mx-auto mb-1" style={{ background: "#ff0080" }} />
-              <p className="text-[13px] font-bold" style={{ color: "#ff0080" }}>You</p>
-              <p className="text-[13px] font-semibold text-white">{fmtVal(playerVal)}</p>
-            </div>
-            <div className="text-center">
-              <div className="w-3 h-3 rounded-full mx-auto mb-1" style={{ background: "#00ddff" }} />
-              <p className="text-[13px] font-bold" style={{ color: "#00ddff" }}>Answer</p>
-              <p className="text-[13px] font-semibold text-white">{fmtVal(correctVal!)}</p>
-            </div>
           </div>
         </div>
       )}
@@ -1456,7 +1388,6 @@ export default function GamePlay() {
             questionId: question.id,
             questionType: question.questionType,
             factCheckUrl: question.factCheckUrl ?? null,
-            correctAnswer: (res as typeof res & { correctAnswer?: string }).correctAnswer,
             feedback: (res as typeof res & { feedback?: string }).feedback,
           };
           setFeedbackById((prev) => ({ ...prev, [question.id]: result }));
@@ -1506,7 +1437,7 @@ export default function GamePlay() {
     // A skipped question has no answer to reveal inline — just lock it.
     const skipped = feedback?.questionId === q.id && lockedAnswer === "";
     const fr: FeedbackResult | null = viewFeedback?.questionId === q.id && !skipped && lockedAnswer !== null
-      ? { isCorrect: viewFeedback.isCorrect, lockedAnswer, correctAnswer: viewFeedback.correctAnswer }
+      ? { isCorrect: viewFeedback.isCorrect, lockedAnswer }
       : null;
     // Locked while feedback shows, and whenever a real answer is on record.
     const sub = { question: q, disabled: submitAnswer.isPending || skipped || viewAnsweredReal };

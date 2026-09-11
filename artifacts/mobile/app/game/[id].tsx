@@ -45,7 +45,6 @@ type Feedback = {
   pointsEarned: number;
   totalScore: number;
   timeTaken?: string; // absent when a previously answered question is viewed again
-  correctAnswer?: string;
   feedback?: string;
 };
 
@@ -842,13 +841,12 @@ export default function GamePlayScreen() {
       { gameId, data: { questionId: current.id, userAnswer: answer } },
       {
         onSuccess: (res) => {
-          const r = res as typeof res & { correctAnswer?: string; feedback?: string };
+          const r = res as typeof res & { feedback?: string };
           const result: Feedback = {
             isCorrect: res.isCorrect,
             pointsEarned: res.pointsEarned,
             totalScore: res.totalScore,
             timeTaken,
-            correctAnswer: r.correctAnswer,
             feedback: r.feedback,
           };
           setFeedbackById((prev) => ({ ...prev, [current.id]: result }));
