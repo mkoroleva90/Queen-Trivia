@@ -138,6 +138,7 @@ PlusCircle,
 Settings,
 HelpCircle,
 LogOut,
+UserRound,
 Crown,
 AlertTriangle,
 ChevronLeft,
@@ -4868,7 +4869,7 @@ function NewAdminDashboard() {
                 onClick={async () => { await logout(); setLocation("/"); }}
                 className="text-xs text-[#9aa6bc] hover:text-white transition-colors"
               >
-                Sign out
+                {COPY.account.signOut.btn}
               </button>
             </div>
           </div>
@@ -4892,13 +4893,22 @@ function NewAdminDashboard() {
             </button>
           )}
         </div>
-        <button
-          onClick={async () => { await logout(); setLocation("/"); }}
-          className="text-[#9aa6bc] p-1.5 -mr-1"
-          aria-label="Sign out"
-        >
-          <LogOut className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => navigate("rooms")}
+            className={`p-1.5 transition-colors ${section === "rooms" ? "text-[#ff0080]" : "text-[#9aa6bc]"}`}
+            aria-label={COPY.nav.rooms}
+          >
+            <UserRound className="h-4 w-4" />
+          </button>
+          <button
+            onClick={async () => { await logout(); setLocation("/"); }}
+            className="text-[#9aa6bc] p-1.5 -mr-1"
+            aria-label={COPY.account.signOut.btn}
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* ── Main Content ── */}

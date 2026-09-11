@@ -23,6 +23,7 @@ export default function AdminLayout() {
   return (
     <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
       <Stack.Screen name="index" />
+      <Stack.Screen name="account" />
       <Stack.Screen name="[gameId]" />
       <Stack.Screen name="live/[gameId]" />
       <Stack.Screen name="results/[gameId]" />

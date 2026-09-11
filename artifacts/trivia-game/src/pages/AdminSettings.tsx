@@ -26,6 +26,7 @@ import {
   AlertCircle,
   CheckCircle2,
   ExternalLink,
+  LogOut,
 } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -193,6 +194,44 @@ function ChangePasswordCard() {
   );
 }
 
+// ── Card: Sign out ────────────────────────────────────────────────────────────
+
+function SignOutCard() {
+  const { logout } = useAuth();
+  const [, setLocation] = useLocation();
+  const [signingOut, setSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    try {
+      await logout();
+      setLocation("/");
+    } finally {
+      setSigningOut(false);
+    }
+  };
+
+  return (
+    <Card className="border-primary/20 bg-card/50">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <LogOut className="h-4 w-4 text-primary" />
+          {COPY.account.signOut.sectionTitle}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          {COPY.account.signOut.description}
+        </p>
+        <Button variant="outline" disabled={signingOut} onClick={handleSignOut} className="w-full h-11">
+          {signingOut ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+          {COPY.account.signOut.btn}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Card: Danger zone ─────────────────────────────────────────────────────────
 
 function DangerZoneCard() {
@@ -305,16 +344,33 @@ function LegalCard() {
 import { DisplayNameCard } from "@/components/DisplayNameCard";
 
 export default function AdminSettings() {
+  // Change-password card is shown only for accounts that have a password
+  // (SSO-only accounts do not). Same rule as the mobile Account screen.
+  const [hasPassword, setHasPassword] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await apiFetch("/api/account/profile");
+        const data = (await r.json()) as { hasPassword?: boolean };
+        setHasPassword(data.hasPassword === true);
+      } catch {
+        setHasPassword(false);
+      }
+    })();
+  }, []);
+
   return (
     <div className="max-w-lg space-y-4">
       <div className="mb-6">
         <h2 className="text-xl font-bold text-foreground">{COPY.nav.rooms}</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Manage your password and account.
+          {COPY.account.subtitle}
         </p>
       </div>
       <DisplayNameCard />
-      <ChangePasswordCard />
+      {hasPassword && <ChangePasswordCard />}
+      <SignOutCard />
       <DangerZoneCard />
       <LegalCard />
     </div>

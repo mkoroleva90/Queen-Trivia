@@ -16,6 +16,25 @@ const DISPLAY_NAME_MAX = 64;
 const router: IRouter = Router();
 
 /**
+ * GET /api/account/profile
+ * Returns the signed-in host's email and whether the account has a password
+ * (SSO-only accounts do not). Both clients use hasPassword to decide whether
+ * to show the change-password card.
+ */
+router.get("/account/profile", requireAdmin, async (req, res): Promise<void> => {
+    const adminId = req.session.adminAccountId!;
+    const [account] = await db
+        .select({ email: adminAccountsTable.email, passwordHash: adminAccountsTable.passwordHash })
+        .from(adminAccountsTable)
+        .where(eq(adminAccountsTable.id, adminId));
+    if (!account) {
+        res.status(404).json({ error: "not_found" });
+        return;
+    }
+    res.json({ email: account.email, hasPassword: account.passwordHash !== null });
+});
+
+/**
  * GET /api/account/display-name
  * Returns the host's current stored display name (null if not set).
  */

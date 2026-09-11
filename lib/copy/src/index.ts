@@ -1165,8 +1165,22 @@ export const COPY = {
    */
   account: {
     /**
+     * Account screen header. Title is nav.rooms; this is the line beneath it.
+     * Web AdminSettings.tsx and mobile app/admin/account.tsx.
+     */
+    subtitle: 'Manage your password and account.',
+    /**
+     * Sign-out card, shown between the change-password and danger-zone cards
+     * on both platforms.
+     */
+    signOut: {
+      sectionTitle: 'Sign out',
+      description:  "You'll need to sign in again to manage your games.",
+      btn:          'Sign out',
+    },
+    /**
      * Delete-account confirmation. Web AdminSettings.tsx dialog and mobile
-     * RoomsTab.tsx alert. Both platforms must use these keys.
+     * app/admin/account.tsx alert. Both platforms must use these keys.
      */
     deleteAccount: {
       confirmTitle:    'Delete account',
@@ -1179,8 +1193,9 @@ export const COPY = {
     /** Network failure on the account screen (password change, deletion). Both platforms. */
     connectionError: 'Connection error — please retry.',
     /**
-     * Change-password card. Web AdminSettings.tsx and mobile RoomsTab.tsx.
-     * Both platforms must use these keys.
+     * Change-password card. Web AdminSettings.tsx and mobile
+     * app/admin/account.tsx. Shown only for accounts that have a password
+     * (GET /api/account/profile → hasPassword). Both platforms must use these keys.
      */
     changePassword: {
       sectionTitle:        'Change password',

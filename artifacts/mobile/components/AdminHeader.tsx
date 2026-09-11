@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/ThemedText';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { CrownMark } from './CrownMark';
 import { useColors } from '@/hooks/useColors';
 import { useAdminAuth } from '@/context/AdminAuthContext';
@@ -22,6 +23,7 @@ type Props = {
 export function AdminHeader({ title, isLive }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { logoutAdmin } = useAdminAuth();
 
   return (
@@ -46,10 +48,21 @@ export function AdminHeader({ title, isLive }: Props) {
         )}
       </View>
 
-      {/* Right: logout */}
-      <Pressable onPress={logoutAdmin} hitSlop={12} style={styles.logoutBtn}>
-        <Ionicons name="log-out-outline" size={22} color={colors.mutedForeground} />
-      </Pressable>
+      {/* Right: account + logout */}
+      <View style={styles.right}>
+        <Pressable
+          onPress={() => router.push('/admin/account')}
+          hitSlop={12}
+          style={styles.logoutBtn}
+          accessibilityRole="button"
+          accessibilityLabel={COPY.nav.rooms}
+        >
+          <Ionicons name="person-circle-outline" size={24} color={colors.mutedForeground} />
+        </Pressable>
+        <Pressable onPress={logoutAdmin} hitSlop={12} style={styles.logoutBtn}>
+          <Ionicons name="log-out-outline" size={22} color={colors.mutedForeground} />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -67,6 +80,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  right: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   title: {
     fontSize: 17,
