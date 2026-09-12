@@ -586,6 +586,20 @@ function finiteFormNumber(value: string): number | null {
 }
 
 
+function isAllowedImageUrl(value: string): boolean {
+    try {
+        const url = new URL(value);
+        return url.protocol === "https:"
+            && url.hostname === "upload.wikimedia.org"
+            && !url.port
+            && !url.username
+            && !url.password
+            && url.pathname.startsWith("/wikipedia/commons/");
+    } catch {
+        return false;
+    }
+}
+
 export function validateForm(form: QuestionFormState): string | null {
     if (!form.questionText.trim()) return COPY.questionEditor.validation.questionTextRequired;
     if (form.questionType === "multiple_choice") {
@@ -642,6 +656,11 @@ export function validateForm(form: QuestionFormState): string | null {
         if (!form.correctAnswer.trim()) return COPY.questionEditor.validation.correctAnswerRequired;
         if (form.questionType === "image_recognition" && !form.imageUrl.trim())
          return COPY.questionEditor.validation.imageUrlRequired;
+        // Validate any provided image URL against the server's Wikimedia-only
+        // rule for every image type (parity with mobile, which checks both
+        // image_recognition and image_hotspot).
+        if (form.imageUrl.trim() && !isAllowedImageUrl(form.imageUrl.trim()))
+         return COPY.questionEditor.validation.imageUrlWikimedia;
     }
     return null;
 }
@@ -1003,7 +1022,7 @@ return (
        <Input
         value={form.imageUrl}
         onChange={(e) => set("imageUrl", e.target.value)}
-        placeholder="https://upload.wikimedia.org/..."
+        placeholder={COPY.questionEditor.imageUrlPlaceholder}
        />
        {form.imageUrl.trim() && (
       <div className="rounded-lg overflow-hidden border border-border max-h-48 flexitems-center justify-center bg-muted/30">
@@ -1487,12 +1506,7 @@ return (
         onError: (err: unknown) => {
             const errData = err && typeof err === "object" && "data" in err ? (err as { data: unknown }).data : null;
             const apiMsg = errData && typeof errData === "object" && "error" in errData ? String((errData as { error: unknown }).error) : null;
-            const errCode = errData && typeof errData === "object" && "code" in errData ? String((errData as { code: unknown }).code) : null;
-            if (errCode === "content_filtered" && apiMsg) {
-                toast({ variant: "destructive", title: apiMsg });
-            } else {
-                toast({ variant: "destructive", title: "Update failed" });
-            }
+            toast({ variant: "destructive", title: apiMsg ?? COPY.questionEditor.saveFailed });
         },
     },
    );
@@ -1519,12 +1533,7 @@ return (
            onError: (err: unknown) => {
                const errData = err && typeof err === "object" && "data" in err ? (err as { data: unknown }).data : null;
                const apiMsg = errData && typeof errData === "object" && "error" in errData ? String((errData as { error: unknown }).error) : null;
-               const errCode = errData && typeof errData === "object" && "code" in errData ? String((errData as { code: unknown }).code) : null;
-               if (errCode === "content_filtered" && apiMsg) {
-                   toast({ variant: "destructive", title: apiMsg });
-               } else {
-                   toast({ variant: "destructive", title: "Create failed" });
-               }
+               toast({ variant: "destructive", title: apiMsg ?? COPY.questionEditor.saveFailed });
            },
        },
       );

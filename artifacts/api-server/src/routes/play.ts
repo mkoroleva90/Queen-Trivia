@@ -1,6 +1,6 @@
 
 import { Router, type IRouter } from "express";
-import { rateLimit } from "express-rate-limit";
+import { rateLimit, ipKeyGenerator } from "express-rate-limit";
 import { eq, and, desc, asc, or, sql } from "drizzle-orm";
 import {
  db,
@@ -19,13 +19,22 @@ import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { assertGameOwnership } from "../lib/assertGameOwnership.ts";
 import { decodeHtml } from "../lib/decodeHtml.ts";
 import { containsBannedContent, logFlaggedContent } from "../lib/contentFilter.ts";
+import { PgRateLimitStore } from "../middleware/pgRateLimitStore.ts";
 import { COPY } from "@workspace/copy";
 const answerRateLimit = rateLimit({
     windowMs: 60_000,
-    max: 30,
-    message: { error: "Too many answer submissions. Please slow down." },
-    standardHeaders: true,
+    limit: 60,
+    standardHeaders: "draft-8",
     legacyHeaders: false,
+    message: { error: COPY.gameplay.answerRateLimitError },
+    store: new PgRateLimitStore(),
+    // Key by the authenticated player (requireUser runs first and guarantees
+    // req.session.userId), so a full room sharing one venue IP is not throttled
+    // as a single client. Fall back to a normalised IP key defensively.
+    keyGenerator: (req) =>
+        req.session.userId != null
+            ? `answers:user:${req.session.userId}`
+            : `answers:ip:${ipKeyGenerator(req.ip ?? "0.0.0.0")}`,
 });
 import {
     JoinGameParams,

@@ -100,12 +100,24 @@ function redactPlayerQuestion<T extends {
     correctAnswer: string;
     questionType: string;
     options: Record<string, unknown> | null;
+    factCheckUrl: string | null;
+    source: string | null;
 }>(question: T): Omit<T, "correctAnswer"> {
     const { correctAnswer: _correctAnswer, ...safeQuestion } = question;
+    // A fact-check URL is typically the answer's own reference page (e.g. its
+    // Wikipedia article) and the source can name the answer outright. Both are
+    // answer-revealing and must never reach an active player. Admin and
+    // completed-game payloads bypass this function and keep them.
+    safeQuestion.factCheckUrl = null;
+    safeQuestion.source = null;
     const options = safeQuestion.options ? { ...safeQuestion.options } : null;
 
     if (!options) return safeQuestion;
 
+    // The short_response rubric describes the accepted answer for grading, so
+    // it is answer-revealing and must never be included in an active player's
+    // payload.
+    delete options.rubric;
     // Alternate answers are grading data for write-in and image-recognition
     // questions. They must never be included in an active player's payload.
     delete options.alternateAnswers;

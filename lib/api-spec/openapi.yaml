@@ -109,6 +109,33 @@ paths:
           description: Code is invalid or has expired
         "429":
           description: Too many attempts for this account or IP
+  /auth/email/mobile-resend-code:
+    post:
+      operationId: mobileResendVerificationCode
+      tags: [auth]
+      summary: Resend the 6-digit host email-verification code
+      description: >-
+        If an UNVERIFIED account exists for the email, re-issues a fresh 6-digit
+        verification code (15-minute expiry) and emails it. Always responds 200
+        with a generic message whether or not an unverified account exists, so
+        accounts cannot be enumerated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MobileResendCodeInput"
+      responses:
+        "200":
+          description: Generic acknowledgement (sent whether or not a code was issued)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MobileResendCodeResult"
+        "400":
+          description: Invalid request body
+        "429":
+          description: Too many attempts from this IP
   /users:
     post:
       operationId: createUser
@@ -697,6 +724,17 @@ components:
       properties:
         ok: { type: boolean }
         adminToken: { type: string }
+    MobileResendCodeInput:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email }
+    MobileResendCodeResult:
+      type: object
+      required: [ok, message]
+      properties:
+        ok: { type: boolean }
+        message: { type: string }
     UserInput:
       type: object
       required: [name]

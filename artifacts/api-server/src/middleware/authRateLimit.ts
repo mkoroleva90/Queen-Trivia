@@ -31,6 +31,25 @@ export const authRateLimit = rateLimit({
   // preview proxy presents anonymous traffic to the server as loopback.
 });
 
+export const authVerifyRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 8,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many attempts. Please wait 15 minutes before trying again." },
+  // Only FAILED attempts accumulate: a legitimate operator (or reviewer)
+  // running many SUCCESSFUL auth flows from one IP is never blocked, while
+  // brute-force of credentials stays capped at 8 failures / 15 min.
+  skipSuccessfulRequests: true,
+  store: new PgRateLimitStore(),
+  // Separate namespace from the success-counting `auth:` limiter so the two
+  // counters never share a row in the shared rate_limit_hits table. Kept
+  // apart from authRateLimit deliberately: the email-SENDING endpoints stay
+  // on authRateLimit so their successes keep counting and cannot be abused
+  // to flood a victim's inbox / exhaust the mail quota.
+  keyGenerator: (req) => `auth-verify:${ipKeyGenerator(req.ip ?? "0.0.0.0")}`,
+});
+
 /**
  * Password-reset codes have limited entropy, so failed mobile reset attempts
  * need a second, account-scoped limit in addition to the IP-based auth limit.

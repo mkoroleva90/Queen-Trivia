@@ -68,6 +68,16 @@ export default function Register() {
               We've sent a verification link to <strong className="text-white">{email}</strong>.
               Click the link in that email to activate your account.
             </p>
+            <p className="text-[#9aa6bc] text-xs">
+              {COPY.hostRegister.verify.resendPrompt}{" "}
+              <button
+                type="button"
+                className="text-[#ff2d8e] hover:underline"
+                onClick={() => setDone(false)}
+              >
+                {COPY.hostRegister.verify.resendLink}
+              </button>
+            </p>
             <Button
               variant="outline"
               className="mt-4 border-[#1b2740] text-[#9aa6bc] hover:text-white"

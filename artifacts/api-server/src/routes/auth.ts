@@ -6,7 +6,7 @@ import {
   VerifyAccessCodeBody,
   VerifyAccessCodeResponse,
 } from "@workspace/api-zod";
-import { authRateLimit } from "../middleware/authRateLimit.ts";
+import { triviaJoinRateLimit } from "../middleware/authRateLimit.ts";
 import { MIN_GAME_ACCESS_CODE_LENGTH } from "../lib/accessCodeValidation.ts";
 
 
@@ -16,7 +16,7 @@ const router: IRouter = Router();
 // POST /api/auth/verify — verify a per-game access code.
 // Only per-game codes are accepted; the global trivia access code concept
 // has been removed. Returns valid=true with a gameId on success.
-router.post("/auth/verify", authRateLimit, async (req, res): Promise<void> => {
+router.post("/auth/verify", triviaJoinRateLimit, async (req, res): Promise<void> => {
   const parsed = VerifyAccessCodeBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });

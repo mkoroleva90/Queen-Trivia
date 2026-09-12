@@ -155,6 +155,13 @@ function getSafeImageUrl(imageUrl: string | null | undefined): string | null {
   }
 }
 
+/** Status code carried by a thrown ApiError from the api-client-react hooks. */
+function getErrorStatus(err: unknown): number | null {
+  return err && typeof err === "object" && "status" in err
+    ? (err as { status: number }).status
+    : null;
+}
+
 // ─── Shared styled button ─────────────────────────────────────────────────────
 export function ActionBtn({
   onClick, disabled = false, pending = false, pendingLabel, bg, color, children,
@@ -1242,7 +1249,7 @@ function GameSwitcher({ currentGameId, userId }: { currentGameId: number; userId
 export default function GamePlay() {
   const params = useParams<{ id: string }>();
   const gameId = Number(params.id);
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const userId = user?.id ?? 0;
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -1286,10 +1293,10 @@ export default function GamePlay() {
     },
   });
 
-  const { data: game } = useGetGame(gameId, {
+  const { data: game, isError: gameLoadError, error: gameError } = useGetGame(gameId, {
     query: { enabled: !!gameId, queryKey: getGetGameQueryKey(gameId) },
   });
-  const { data: questions } = useListGameQuestions(gameId, {
+  const { data: questions, isError: questionsLoadError, error: questionsError } = useListGameQuestions(gameId, {
     query: { enabled: !!gameId, queryKey: getListGameQuestionsQueryKey(gameId), refetchInterval: 10000 },
   });
   const { data: myAnswers } = useListUserAnswers(gameId, userId, {
@@ -1300,6 +1307,11 @@ export default function GamePlay() {
   });
 
   const submitAnswer = useSubmitAnswer();
+
+  // Parity with mobile B3: surface load errors so the player is never stranded.
+  const hasLoadError = gameLoadError || questionsLoadError;
+  const loadErrorStatus = getErrorStatus(gameError) ?? getErrorStatus(questionsError);
+  const signedOutRef = useRef(false);
 
   const sorted = useMemo(
     () => [...(questions ?? [])].sort((a, b) => a.orderIndex - b.orderIndex),
@@ -1371,6 +1383,15 @@ export default function GamePlay() {
   useEffect(() => {
     if (current?.id && currentAnswerable) questionStartRef.current = Date.now();
   }, [current?.id, currentAnswerable]);
+
+  // Parity with mobile B3: a 401 on load means the session is no longer valid —
+  // sign the player out and send them home. Fires once.
+  useEffect(() => {
+    if (hasLoadError && loadErrorStatus === 401 && !signedOutRef.current) {
+      signedOutRef.current = true;
+      void logout().finally(() => setLocation("/"));
+    }
+  }, [hasLoadError, loadErrorStatus, logout, setLocation]);
 
   const handleSubmit = (question: Question, userAnswer: string, isSkip = false) => {
     if ((!isSkip && !userAnswer.trim()) || submitAnswer.isPending) return;
@@ -1631,7 +1652,33 @@ export default function GamePlay() {
 
             {/* AnimatePresence wrapper */}
             <AnimatePresence mode="wait">
-              {total === 0 ? (
+              {hasLoadError && loadErrorStatus !== 401 ? (
+                <motion.div key="loaderror" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                  <div
+                    className="rounded-[20px] p-10 text-center space-y-4"
+                    style={{ background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.1)" }}
+                  >
+                    <Ban className="mx-auto h-12 w-12" style={{ color: "rgba(255,0,128,.6)" }} />
+                    <h3 className="text-2xl font-bold">{COPY.gameplay.errorLoadTitle}</h3>
+                    <p className="text-muted-foreground max-w-md mx-auto text-sm">
+                      {COPY.gameplay.errorLoadBody}
+                    </p>
+                    <button
+                      onClick={() => setLocation("/")}
+                      className="font-bold px-8 text-[14px]"
+                      style={{
+                        height: 52, borderRadius: 14,
+                        background: "rgba(255,255,255,.08)",
+                        color: "#ffffff",
+                        border: "1px solid rgba(255,255,255,.14)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {COPY.results.backToLobby}
+                    </button>
+                  </div>
+                </motion.div>
+              ) : total === 0 ? (
                 <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                   <div
                     className="rounded-[20px] p-10 text-center space-y-4"

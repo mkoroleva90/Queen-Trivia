@@ -38,6 +38,8 @@ export default function AdminResetPasswordScreen() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendMsg, setResendMsg] = useState('');
 
   const baseUrl = API_BASE_URL;
 
@@ -75,6 +77,29 @@ export default function AdminResetPasswordScreen() {
       setError(COPY.hostForgotPassword.error.connectionError);
     } finally {
       setPending(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (resending) return;
+    setResendMsg('');
+    setError('');
+    setResending(true);
+    try {
+      const res = await fetch(`${baseUrl}/api/auth/email/mobile-forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email ?? '' }),
+      });
+      if (res.status === 503) {
+        setError(COPY.hostForgotPassword.error.emailServiceDown);
+        return;
+      }
+      setResendMsg(COPY.hostForgotPassword.resent);
+    } catch {
+      setError(COPY.hostForgotPassword.error.connectionError);
+    } finally {
+      setResending(false);
     }
   };
 
@@ -178,6 +203,21 @@ export default function AdminResetPasswordScreen() {
                 )
                 : <Text style={s.btnText}>{COPY.hostForgotPassword.submitBtn}</Text>}
             </Pressable>
+
+            <Pressable onPress={handleResend} disabled={resending} style={{ alignItems: 'center', marginTop: 4 }} hitSlop={8}>
+              <Text style={[s.footerText, { color: colors.mutedForeground }]}>
+                {COPY.hostForgotPassword.resendPrompt}{' '}
+                <Text style={{ color: colors.primary }}>
+                  {resending ? COPY.hostForgotPassword.sending : COPY.hostForgotPassword.resendLink}
+                </Text>
+              </Text>
+            </Pressable>
+            {!!resendMsg && (
+              <View style={s.errorRow}>
+                <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
+                <Text style={[s.errorText, { color: colors.mutedForeground }]}>{resendMsg}</Text>
+              </View>
+            )}
           </View>
 
           <Pressable onPress={() => router.replace('/admin-login')} style={s.footerLink}>

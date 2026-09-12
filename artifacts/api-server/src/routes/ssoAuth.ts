@@ -14,7 +14,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { and, eq } from "drizzle-orm";
 import { db, adminAccountsTable, adminAuthProvidersTable } from "@workspace/db";
-import { authRateLimit } from "../middleware/authRateLimit.ts";
+import { authVerifyRateLimit } from "../middleware/authRateLimit.ts";
 import {
   verifyGoogleToken,
   verifyAppleToken,
@@ -238,7 +238,7 @@ function ssoError(res: Response, err: unknown): void {
 // POST /api/auth/sso/google  →  web cookie session
 router.post(
   "/auth/sso/google",
-  authRateLimit,
+  authVerifyRateLimit,
   async (req, res): Promise<void> => {
     try {
       const { idToken } = req.body as { idToken?: unknown };
@@ -258,7 +258,7 @@ router.post(
 // POST /api/auth/sso/google/mobile  →  mobile Bearer token
 router.post(
   "/auth/sso/google/mobile",
-  authRateLimit,
+  authVerifyRateLimit,
   async (req, res): Promise<void> => {
     try {
       const { idToken } = req.body as { idToken?: unknown };
@@ -280,7 +280,7 @@ router.post(
 // POST /api/auth/sso/apple  →  web cookie session
 router.post(
   "/auth/sso/apple",
-  authRateLimit,
+  authVerifyRateLimit,
   async (req, res): Promise<void> => {
     try {
       const { idToken, name, authorizationCode } = req.body as {
@@ -311,7 +311,7 @@ router.post(
 // POST /api/auth/sso/apple/mobile  →  mobile Bearer token
 router.post(
   "/auth/sso/apple/mobile",
-  authRateLimit,
+  authVerifyRateLimit,
   async (req, res): Promise<void> => {
     try {
       const { idToken, name, authorizationCode } = req.body as {

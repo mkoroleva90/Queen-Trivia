@@ -12,6 +12,7 @@ import { TextInput } from '@/components/ThemedTextInput';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { API_BASE_URL } from '@/lib/apiBase';
+import { getItem } from '@/lib/storage';
 import { COPY } from '@workspace/copy';
 
 type ReportReason = 'hateful' | 'sexual' | 'harassment' | 'spam' | 'other';
@@ -29,10 +30,16 @@ interface ReportModalProps {
   gameId: number;
   /** ID of the question currently on screen, if applicable. */
   questionId?: number;
+  /**
+   * Storage key of the Bearer token used to authenticate the report so the
+   * server can attribute reporterUserId. Player screens pass PLAYER_TOKEN_KEY;
+   * a host reporting from the results screen passes ADMIN_TOKEN_KEY.
+   */
+  tokenKey: string;
   onClose: () => void;
 }
 
-export function ReportModal({ visible, gameId, questionId, onClose }: ReportModalProps) {
+export function ReportModal({ visible, gameId, questionId, tokenKey, onClose }: ReportModalProps) {
   const colors = useColors();
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [note, setNote] = useState('');
@@ -58,11 +65,15 @@ export function ReportModal({ visible, gameId, questionId, onClose }: ReportModa
       if (questionId) body.questionId = questionId;
       if (note.trim()) body.note = note.trim();
 
+      const token = await getItem(tokenKey).catch(() => null);
+
       const r = await fetch(`${API_BASE_URL}/api/reports`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(body),
-        credentials: 'include',
       });
 
       if (!r.ok) {

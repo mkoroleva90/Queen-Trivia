@@ -33,7 +33,8 @@ import {
 } from '@workspace/api-client-react';
 import type { Question } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
-import { useAuth } from '@/context/AuthContext';
+import { PLAYER_TOKEN_KEY, useAuth } from '@/context/AuthContext';
+import { getItem } from '@/lib/storage';
 import { useGameSocket } from '@/hooks/useSocket';
 import { COPY } from '@workspace/copy';
 import { ReportModal } from '@/components/ReportModal';
@@ -92,6 +93,13 @@ function getSafeImageUrl(imageUrl: string | null | undefined): string | null {
   } catch {
     return null;
   }
+}
+
+/** Status code carried by a thrown ApiError from the api-client-react hooks. */
+function getErrorStatus(err: unknown): number | null {
+  return err && typeof err === 'object' && 'status' in err
+    ? (err as { status: number }).status
+    : null;
 }
 
 export function QuizCompleteModal({
@@ -725,7 +733,7 @@ export default function GamePlayScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const userId = user?.id ?? 0;
   const queryClient = useQueryClient();
   const questionStartRef = useRef(Date.now());
@@ -746,17 +754,55 @@ export default function GamePlayScreen() {
   const [kicked, setKicked] = useState(false);
   const [completionModalVisible, setCompletionModalVisible] = useState(false);
   const completionAlertShownRef = useRef(false);
+  const signedOutRef = useRef(false);
 
-  const { data: game } = useGetGame(gameId, {
-    query: { enabled: !!gameId, queryKey: getGetGameQueryKey(gameId), refetchInterval: 10000 },
+  // Always authenticate the player game screen as the PLAYER, even when a host
+  // is signed in on the same device. The global auth getter (app/_layout.tsx)
+  // is swapped to the ADMIN token for the whole admin session, so without an
+  // explicit per-request player token these hooks would send the admin bearer —
+  // which makes the server return the unredacted (correctAnswer) payload and
+  // 401s every answer submit (requireUser needs a player userId).
+  const [playerToken, setPlayerToken] = useState<string | null>(null);
+  const [tokenReady, setTokenReady] = useState(false);
+  useEffect(() => {
+    getItem(PLAYER_TOKEN_KEY)
+      .then(setPlayerToken)
+      .catch(() => setPlayerToken(null))
+      .finally(() => setTokenReady(true));
+  }, []);
+  const playerRequest = useMemo(
+    () => (playerToken ? { headers: { Authorization: `Bearer ${playerToken}` } } : undefined),
+    [playerToken],
+  );
+
+  const { data: game, isError: gameLoadError, error: gameError } = useGetGame(gameId, {
+    query: { enabled: !!gameId && !!playerToken, queryKey: getGetGameQueryKey(gameId), refetchInterval: 10000 },
+    request: playerRequest,
   });
-  const { data: questions } = useListGameQuestions(gameId, {
-    query: { enabled: !!gameId, queryKey: getListGameQuestionsQueryKey(gameId), refetchInterval: 10000 },
+  const { data: questions, isError: questionsLoadError, error: questionsError } = useListGameQuestions(gameId, {
+    query: { enabled: !!gameId && !!playerToken, queryKey: getListGameQuestionsQueryKey(gameId), refetchInterval: 10000 },
+    request: playerRequest,
   });
   const { data: myAnswers } = useListUserAnswers(gameId, userId, {
-    query: { enabled: !!gameId && !!userId, queryKey: getListUserAnswersQueryKey(gameId, userId), refetchInterval: 5000 },
+    query: { enabled: !!gameId && !!userId && !!playerToken, queryKey: getListUserAnswersQueryKey(gameId, userId), refetchInterval: 5000 },
+    request: playerRequest,
   });
-  const submitAnswer = useSubmitAnswer();
+  const submitAnswer = useSubmitAnswer({ request: playerRequest });
+
+  // B3: a failed game/questions load (token expired, host deleted the game, or
+  // no access) must not strand the player on the loading spinner. Read the
+  // query error state so the render can offer a way out.
+  // Once the player-token read has finished with no token, this screen has no
+  // player session to load with (e.g. a deep link straight to /game/[id]
+  // without joining, or a SecureStore read failure). The queries above stay
+  // disabled while playerToken is null, so without this they would never error
+  // and the player would be stranded on the spinner — the exact dead-end B3
+  // fixes. Treat it as an auth failure so the 401 effect signs them out and
+  // sends them home.
+  const noPlayerSession = tokenReady && !playerToken;
+  const hasLoadError = gameLoadError || questionsLoadError || noPlayerSession;
+  const loadErrorStatus =
+    getErrorStatus(gameError) ?? getErrorStatus(questionsError) ?? (noPlayerSession ? 401 : null);
 
   useGameSocket(gameId || null, {
     onAnswerSubmitted: () => {
@@ -832,6 +878,15 @@ export default function GamePlayScreen() {
     }
   }, [game?.status, current, answeredCount, total, gameId, router]);
 
+  // B3: a 401 on load means the player's token is no longer valid — sign them
+  // out and send them home. Fires once.
+  useEffect(() => {
+    if (hasLoadError && loadErrorStatus === 401 && !signedOutRef.current) {
+      signedOutRef.current = true;
+      void logout().finally(() => router.replace('/'));
+    }
+  }, [hasLoadError, loadErrorStatus, logout, router]);
+
   const handleSubmit = (answer: string, isSkip = false) => {
     if (!current || (!isSkip && !answer.trim()) || submitAnswer.isPending) return;
     const timeTaken = ((Date.now() - questionStartRef.current) / 1000).toFixed(1);
@@ -862,6 +917,14 @@ export default function GamePlayScreen() {
         },
         onError: (err: unknown) => {
           const status = err && typeof err === 'object' && 'status' in err ? (err as { status: number }).status : 0;
+          if (status === 401 && !signedOutRef.current) {
+            // Token expired mid-game (background query refetches keep stale data
+            // so the load-error card never fires here). Sign the player out and
+            // send them home instead of looping the generic submit error.
+            signedOutRef.current = true;
+            void logout().finally(() => router.replace('/'));
+            return;
+          }
           if (status === 409) {
             // Already answered, or not released: resync and tell the player instead of moving on.
             queryClient.invalidateQueries({ queryKey: getListUserAnswersQueryKey(gameId, userId) });
@@ -900,17 +963,57 @@ export default function GamePlayScreen() {
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
   const botPad = Platform.OS === 'web' ? 34 : insets.bottom;
 
-  if (!current && answeredCount === 0 && total === 0) {
+  if (hasLoadError || (!current && answeredCount === 0 && total === 0)) {
+    // B3: 401 is handled by the sign-out effect above (the spinner shows in the
+    // meantime while the redirect fires); 403/404/other load failures get an
+    // error card. A genuine loading / no-questions-yet state keeps the spinner.
+    // Both keep a header with a back affordance so the player is never stranded.
+    const showLoadError = hasLoadError && loadErrorStatus !== 401;
     return (
-      <View style={[styles.screen, { backgroundColor: colors.background, paddingTop: topPad, paddingBottom: botPad, alignItems: 'center', justifyContent: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <View style={{ marginTop: 24, padding: 24, borderRadius: 16, borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,.12)', backgroundColor: 'rgba(255,255,255,.04)', maxWidth: 320, alignItems: 'center', gap: 8 }}>
-          <Text style={{ fontSize: 20, fontWeight: '800', color: colors.foreground, textAlign: 'center', fontFamily: 'Manrope_800ExtraBold' }}>
-            {COPY.gameplay.noQuestionsTitle}
-          </Text>
-          <Text style={{ fontSize: 14, color: colors.mutedForeground, textAlign: 'center', lineHeight: 20 }}>
-            {COPY.gameplay.noQuestionsBody}
-          </Text>
+      <View style={[styles.screen, { backgroundColor: colors.background }]}>
+        <View style={[styles.gameHeader, { paddingTop: topPad + 8 }]}>
+          <View style={styles.gameHeaderTop}>
+            <TouchableOpacity onPress={() => router.replace('/')} hitSlop={12}>
+              <Ionicons name="chevron-back" size={24} color={colors.foreground} />
+            </TouchableOpacity>
+            <View style={styles.gameHeaderCenter}>
+              <Text style={[styles.gameHeaderTitle, { color: colors.foreground }]} numberOfLines={1}>
+                {game?.topic ?? '…'}
+              </Text>
+            </View>
+            <View style={{ width: 24 }} />
+          </View>
+        </View>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingBottom: botPad, gap: 16 }}>
+          {showLoadError ? (
+            <View style={{ padding: 24, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, maxWidth: 320, alignItems: 'center', gap: 12 }}>
+              <Ionicons name="alert-circle-outline" size={40} color={colors.mutedForeground} />
+              <Text style={{ fontSize: 20, fontWeight: '800', color: colors.foreground, textAlign: 'center', fontFamily: 'Manrope_800ExtraBold' }}>
+                {COPY.gameplay.errorLoadTitle}
+              </Text>
+              <Text style={{ fontSize: 14, color: colors.mutedForeground, textAlign: 'center', lineHeight: 20 }}>
+                {COPY.gameplay.errorLoadBody}
+              </Text>
+              <TouchableOpacity
+                onPress={() => router.replace('/')}
+                style={{ marginTop: 4, paddingVertical: 12, paddingHorizontal: 28, borderRadius: 12, backgroundColor: colors.muted }}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '700', color: colors.foreground }}>{COPY.results.backToLobby}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <View style={{ padding: 24, borderRadius: 16, borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,.12)', backgroundColor: 'rgba(255,255,255,.04)', maxWidth: 320, alignItems: 'center', gap: 8 }}>
+                <Text style={{ fontSize: 20, fontWeight: '800', color: colors.foreground, textAlign: 'center', fontFamily: 'Manrope_800ExtraBold' }}>
+                  {COPY.gameplay.noQuestionsTitle}
+                </Text>
+                <Text style={{ fontSize: 14, color: colors.mutedForeground, textAlign: 'center', lineHeight: 20 }}>
+                  {COPY.gameplay.noQuestionsBody}
+                </Text>
+              </View>
+            </>
+          )}
         </View>
       </View>
     );
@@ -1099,7 +1202,7 @@ export default function GamePlayScreen() {
             </Text>
 
             {/* Question renderer */}
-            <View style={styles.questionBody}>
+            <View key={current.id} style={styles.questionBody}>
               {current.questionType === 'multiple_choice' && (
                 <MultipleChoiceQ question={current} onSubmit={handleSubmit} disabled={questionDisabled} lockedAnswer={lockedAnswer} feedback={viewFeedback} />
               )}
@@ -1163,6 +1266,7 @@ export default function GamePlayScreen() {
         visible={reportOpen}
         gameId={gameId}
         questionId={current?.id}
+        tokenKey={PLAYER_TOKEN_KEY}
         onClose={() => setReportOpen(false)}
       />
       <QuizCompleteModal

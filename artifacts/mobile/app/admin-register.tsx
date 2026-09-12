@@ -42,6 +42,8 @@ export default function AdminRegisterScreen() {
   const [code, setCode] = useState('');
   const [verifyError, setVerifyError] = useState('');
   const [verifying, setVerifying] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendMsg, setResendMsg] = useState('');
 
   const baseUrl = API_BASE_URL;
 
@@ -112,6 +114,31 @@ export default function AdminRegisterScreen() {
     }
   };
 
+  const handleResend = async () => {
+    if (resending) return;
+    setResendMsg('');
+    setVerifyError('');
+    setResending(true);
+    try {
+      const res = await fetch(`${baseUrl}/api/auth/email/mobile-resend-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+      if (res.status === 503) {
+        setVerifyError(COPY.hostForgotPassword.error.emailServiceDown);
+        return;
+      }
+      // Server always returns a generic ack; show the same confirmation
+      // regardless of account state (no enumeration).
+      setResendMsg(COPY.hostRegister.verify.resent);
+    } catch {
+      setVerifyError(COPY.hostLogin.error.connectionError);
+    } finally {
+      setResending(false);
+    }
+  };
+
   const s = styles(colors);
 
   if (done) {
@@ -147,7 +174,7 @@ export default function AdminRegisterScreen() {
               <TextInput
                 style={[s.input, s.codeInput, { backgroundColor: colors.background, color: colors.foreground, borderColor: verifyError ? colors.destructive : colors.border }]}
                 value={code}
-                onChangeText={(t) => { setCode(t.replace(/\D/g, '').slice(0, 6)); setVerifyError(''); }}
+                onChangeText={(t) => { setCode(t.replace(/\D/g, '').slice(0, 6)); setVerifyError(''); setResendMsg(''); }}
                 placeholder={COPY.hostRegister.verify.codePlaceholder}
                 placeholderTextColor={colors.mutedForeground}
                 keyboardType="number-pad"
@@ -178,6 +205,22 @@ export default function AdminRegisterScreen() {
                   )
                   : <Text style={s.btnText}>{COPY.hostRegister.verify.submitBtn}</Text>}
               </Pressable>
+
+              <Pressable onPress={handleResend} disabled={resending} style={s.resendRow} hitSlop={8}>
+                <Text style={[s.footerText, { color: colors.mutedForeground }]}>
+                  {COPY.hostRegister.verify.resendPrompt}{' '}
+                  <Text style={{ color: colors.primary }}>
+                    {resending ? COPY.hostRegister.verify.resending : COPY.hostRegister.verify.resendLink}
+                  </Text>
+                </Text>
+              </Pressable>
+
+              {!!resendMsg && (
+                <View style={s.errorRow}>
+                  <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
+                  <Text style={[s.errorText, { color: colors.mutedForeground }]}>{resendMsg}</Text>
+                </View>
+              )}
             </View>
 
             <Pressable onPress={() => { setDone(false); setVerifyError(''); }} style={s.footerLink}>
@@ -330,6 +373,7 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     btn:          { borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 4 },
     btnText:      { color: '#fff', fontSize: 16, fontFamily: 'Manrope_800ExtraBold', letterSpacing: 1 },
     footerLink:   { marginTop: 24, alignItems: 'center' },
+    resendRow:    { alignItems: 'center', marginTop: 4 },
     footerText:   { fontSize: 14, textAlign: 'center' },
     legalText:    { fontSize: 12, textAlign: 'center', lineHeight: 18 },
   });

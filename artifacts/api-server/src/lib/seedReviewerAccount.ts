@@ -199,9 +199,12 @@ async function resetDemoGame(
  *  - If REVIEWER_ACCOUNT_PASSWORD is not set, logs and returns immediately.
  *  - If the reviewer account already exists → marks it emailVerified so the
  *    login gate never blocks the reviewer, then:
- *      - if its demo game exists → resets it to a joinable "waiting" state,
- *        clears prior player answers, and normalises its access code to
- *        DEMO_ACCESS_CODE (or the fallback) when not held by another game;
+ *      - if its demo game exists AND is "completed" → resets it to a joinable
+ *        "waiting" state, clears prior player answers, and normalises its
+ *        access code to DEMO_ACCESS_CODE (or the fallback) when not held by
+ *        another game;
+ *      - if its demo game exists AND is "waiting" or "active" → leaves it
+ *        completely untouched (never wipes a live/in-progress reviewer game);
  *      - if its demo game is missing → creates it (self-healing).
  *  - Otherwise creates the account (pre-verified, no email gate), demo game,
  *    and questions — all inside a serialised transaction.
@@ -240,7 +243,11 @@ export async function seedReviewerAccount(): Promise<void> {
         // Check whether the demo game is also present. Match on topic so
         // other games the reviewer may have created are left untouched.
         const [existingGame] = await tx
-          .select({ id: gamesTable.id, accessCode: gamesTable.accessCode })
+          .select({
+            id: gamesTable.id,
+            accessCode: gamesTable.accessCode,
+            status: gamesTable.status,
+          })
           .from(gamesTable)
           .where(
             and(
@@ -252,15 +259,42 @@ export async function seedReviewerAccount(): Promise<void> {
           .limit(1);
 
         if (existingGame) {
-          // Reset to a joinable state and normalise the access code.
-          const accessCode = await resetDemoGame(
-            tx,
-            existingGame.id,
-            existingGame.accessCode,
+          // B5: never wipe a live reviewer game. On Replit autoscale a
+          // scale-up boot can re-run this seed mid-review; resetting a
+          // "waiting" (joinable lobby) or "active" (in-progress) game would
+          // DELETE all answers, zero scores, and drop the released question
+          // out from under the reviewer. Only reset a game that has already
+          // finished ("completed"); otherwise leave it exactly as it is.
+          if (existingGame.status === "completed") {
+            const accessCode = await resetDemoGame(
+              tx,
+              existingGame.id,
+              existingGame.accessCode,
+            );
+            logger.info(
+              { email: REVIEWER_EMAIL, gameId: existingGame.id, accessCode },
+              `Reviewer demo game ready: ${accessCode}`,
+            );
+            return;
+          }
+
+          // "waiting" or "active": leave the in-progress game untouched.
+          logger.info(
+            {
+              email: REVIEWER_EMAIL,
+              gameId: existingGame.id,
+              accessCode: existingGame.accessCode,
+              status: existingGame.status,
+            },
+            `Reviewer demo game in progress (${existingGame.status}) — leaving it untouched.`,
           );
           logger.info(
-            { email: REVIEWER_EMAIL, gameId: existingGame.id, accessCode },
-            `Reviewer demo game ready: ${accessCode}`,
+            {
+              email: REVIEWER_EMAIL,
+              gameId: existingGame.id,
+              accessCode: existingGame.accessCode,
+            },
+            `Reviewer demo game ready: ${existingGame.accessCode}`,
           );
           return;
         }

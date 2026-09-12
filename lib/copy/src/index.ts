@@ -514,6 +514,17 @@ export const COPY = {
      */
     noQuestionsBody:  "The host hasn't added questions yet — this page checks automatically.",
 
+    /**
+     * Error card shown when the game cannot be loaded (the game was ended or
+     * removed, or the session is no longer valid). Distinct from noQuestions,
+     * which is the "waiting for the host" state. Both platforms must use these.
+     */
+    errorLoadTitle: "Couldn't load this game",
+    errorLoadBody:  'This game may have ended or is no longer available. Head back and try joining again.',
+
+    /** Shown when the player submits answers too quickly (server 429). Both platforms. */
+    answerRateLimitError: 'Too many answer submissions. Please slow down.',
+
     // ── True/False button labels ───────────────────────────────────────────
     /** Label on the True button. Sentence-case; platforms apply styling. */
     tfTrue:  'True',
@@ -995,6 +1006,8 @@ export const COPY = {
       connectionError: 'Connection error — please retry',
       /** Shown on mobile when the code belongs to an admin account. */
       adminCode:       'Use the admin app to manage games',
+      /** Shown when the join-code check is rate-limited (server 429). Both platforms. */
+      tooManyAttempts: 'Too many attempts — please wait a moment and try again',
     },
   },
 
@@ -1118,6 +1131,11 @@ export const COPY = {
     submitBtn:            'SET NEW PASSWORD',
     /** Submit button while request is in flight. */
     submitting:           'Saving…',
+
+    /** "Resend code" affordance on the reset-code screen (re-requests a code). */
+    resendPrompt:         "Didn't get the code?",
+    resendLink:           'Resend',
+    resent:               'A new code is on its way.',
 
     error: {
       /** Email field is empty. */
@@ -1267,6 +1285,8 @@ export const COPY = {
       addTwoPairs:           'Add at least two complete pairs',
       imageUrlRequired:      'Image URL is required',
       correctAnswerRequired: 'Correct answer is required',
+      /** Client-side check mirroring the server's Wikimedia-only image rule. Both platforms. */
+      imageUrlWikimedia:     'Image URL must be a Wikimedia Commons link (starts with https://upload.wikimedia.org/wikipedia/commons/)',
     },
     /** Field labels and placeholders in the question form (mobile; web shares the ones marked). */
     typeLabel:                'Question type',
@@ -1288,7 +1308,7 @@ export const COPY = {
     addPair:                  'Add pair',
     /** Both platforms. */
     imageUrlLabel:            'Image URL',
-    imageUrlPlaceholder:      'https://example.com/image.jpg',
+    imageUrlPlaceholder:      'https://upload.wikimedia.org/wikipedia/commons/…',
     imageAnswerPlaceholder:   'What is in the image?',
     imageAltPlaceholder:      'Alternate accepted answers',
     hotspotLabel:             'Tap image to set hotspot',
@@ -1297,6 +1317,8 @@ export const COPY = {
     sourceLabel:              'Source (optional)',
     sourcePlaceholder:        'e.g. Wikipedia — Capital cities',
     saveQuestionBtn:          'Save Question',
+    /** Fallback shown when saving a question fails and the server gave no specific message. Both platforms. */
+    saveFailed:               'Could not save the question. Please try again.',
     /** Fill-with-AI button. Both platforms; mobile appends the game topic. */
     fillWithAi:               'Fill with AI',
     fillWithAiTopic:          (topic: string) => `Fill with AI (${topic})`,
@@ -1390,6 +1412,11 @@ export const COPY = {
       /** Footer prompt + link that returns to the registration form. */
       wrongEmail:     'Wrong email?',
       startOver:      'Start over',
+      /** "Resend code" affordance on the verify step. Both platforms. */
+      resendPrompt:   "Didn't get the code?",
+      resendLink:     'Resend',
+      resending:      'Sending…',
+      resent:         'A new code is on its way.',
     },
     /** Form (mobile). */
     heading:         'CREATE ACCOUNT',

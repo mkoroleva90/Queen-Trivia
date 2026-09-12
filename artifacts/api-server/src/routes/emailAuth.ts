@@ -19,9 +19,11 @@ import {
   MobileResetPasswordBody,
   MobileRegisterBody,
   MobileVerifyBody,
+  MobileResendCodeBody,
 } from "@workspace/api-zod";
 import {
   authRateLimit,
+  authVerifyRateLimit,
   mobileResetAttemptKey,
   mobileResetAttemptStore,
   mobileVerifyAttemptKey,
@@ -94,12 +96,41 @@ router.post(
 
     // Check for existing account — always respond generically to avoid enumeration
     const [existing] = await db
-      .select({ id: adminAccountsTable.id })
+      .select({ id: adminAccountsTable.id, emailVerified: adminAccountsTable.emailVerified })
       .from(adminAccountsTable)
       .where(eq(adminAccountsTable.email, normalised))
       .limit(1);
 
     if (existing) {
+      // If the account is still UNVERIFIED, the email was never proven to belong
+      // to anyone: allow this registrant to take it over by overwriting the
+      // password and re-issuing + resending a fresh verification link. This
+      // unblocks a host who lost their link and stops an unverified squatter from
+      // permanently holding an address. A VERIFIED account is never modified
+      // (that would let anyone reset a real user's password). The generic
+      // response is returned either way to avoid account enumeration.
+      if (!existing.emailVerified) {
+        const reHash = await bcrypt.hash(password, 12);
+        const reToken = generateToken();
+        const reTokenHash = hashToken(reToken);
+        const reExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 h
+        await db
+          .update(adminAccountsTable)
+          .set({
+            passwordHash: reHash,
+            emailVerified: false,
+            verificationTokenHash: reTokenHash,
+            verificationTokenExpiry: reExpiry,
+          })
+          .where(eq(adminAccountsTable.id, existing.id));
+        const reBase = appBaseUrl(req);
+        const reVerifyUrl = `${reBase}/verify-email?token=${reToken}`;
+        try {
+          await sendVerificationEmail(normalised, reVerifyUrl);
+        } catch (err) {
+          logger.error({ err }, "Verification email delivery failed");
+        }
+      }
       // Same response as success to avoid account enumeration
       res.json(genericOk);
       return;
@@ -136,7 +167,7 @@ router.post(
 // POST /api/auth/email/verify
 router.post(
   "/auth/email/verify",
-  authRateLimit,
+  authVerifyRateLimit,
   requireJsonBody,
   async (req, res): Promise<void> => {
     const parsed = EmailVerifyBody.safeParse(req.body);
@@ -189,7 +220,7 @@ router.post(
 // POST /api/auth/email/login
 router.post(
   "/auth/email/login",
-  authRateLimit,
+  authVerifyRateLimit,
   requireJsonBody,
   async (req, res): Promise<void> => {
     const parsed = EmailLoginBody.safeParse(req.body);
@@ -298,7 +329,7 @@ router.post(
 // POST /api/auth/email/reset-password
 router.post(
   "/auth/email/reset-password",
-  authRateLimit,
+  authVerifyRateLimit,
   async (req, res): Promise<void> => {
     const parsed = EmailResetPasswordBody.safeParse(req.body);
     if (!parsed.success) {
@@ -337,6 +368,10 @@ router.post(
       .set({
         passwordHash,
         passwordChangedAt: new Date(),
+        // Completing a reset via the emailed link proves inbox control; mark the
+        // address verified so an unverified host who resets can log in (parity
+        // with mobile-reset-password).
+        emailVerified: true,
         resetTokenHash: null,
         resetTokenExpiry: null,
       })
@@ -416,7 +451,7 @@ router.post(
 // mobile Bearer token so the app can sign the host in immediately.
 router.post(
   "/auth/email/mobile-reset-password",
-  authRateLimit,
+  authVerifyRateLimit,
   async (req, res): Promise<void> => {
     const parsed = MobileResetPasswordBody.safeParse(req.body);
     if (!parsed.success) {
@@ -473,6 +508,10 @@ router.post(
       .set({
         passwordHash,
         passwordChangedAt: new Date(),
+        // Completing a reset with the emailed code proves inbox control, so mark
+        // the address verified — otherwise an unverified host who resets is still
+        // blocked at login (see admin-mobile-login / login emailVerified gate).
+        emailVerified: true,
         resetTokenHash: null,
         resetTokenExpiry: null,
       })
@@ -515,12 +554,35 @@ router.post(
 
     // Check for existing account — always respond generically to avoid enumeration
     const [existing] = await db
-      .select({ id: adminAccountsTable.id })
+      .select({ id: adminAccountsTable.id, emailVerified: adminAccountsTable.emailVerified })
       .from(adminAccountsTable)
       .where(eq(adminAccountsTable.email, normalised))
       .limit(1);
 
     if (existing) {
+      // Unverified account -> take it over: overwrite the password and re-issue +
+      // resend a fresh 6-digit code (see /auth/email/register for full rationale).
+      // Verified accounts are never touched. Generic response either way.
+      if (!existing.emailVerified) {
+        const reHash = await bcrypt.hash(password, 12);
+        const reCode = crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
+        const reTokenHash = hashToken(reCode);
+        const reExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 min
+        await db
+          .update(adminAccountsTable)
+          .set({
+            passwordHash: reHash,
+            emailVerified: false,
+            verificationTokenHash: reTokenHash,
+            verificationTokenExpiry: reExpiry,
+          })
+          .where(eq(adminAccountsTable.id, existing.id));
+        try {
+          await sendVerificationCodeEmail(normalised, reCode);
+        } catch (err) {
+          logger.error({ err }, "Verification code email delivery failed");
+        }
+      }
       // Same response as success to avoid account enumeration
       res.json(genericOk);
       return;
@@ -558,7 +620,7 @@ router.post(
 // token, and returns a mobile Bearer token so the app can sign the host in.
 router.post(
   "/auth/email/mobile-verify",
-  authRateLimit,
+  authVerifyRateLimit,
   async (req, res): Promise<void> => {
     const parsed = MobileVerifyBody.safeParse(req.body);
     if (!parsed.success) {
@@ -617,13 +679,64 @@ router.post(
   }
 );
 
+// POST /api/auth/email/mobile-resend-code
+// Re-issues a 6-digit email-verification code for an UNVERIFIED account so a
+// host who lost or never received the original code can finish signup. Reuses
+// the verificationTokenHash / verificationTokenExpiry columns with a 15-minute
+// expiry; no schema change. Always returns the generic acknowledgement — a
+// verified or non-existent account gets the same response with no email sent —
+// so it cannot be used to enumerate accounts. Does NOT reset the per-account
+// verify-attempt counter, so an existing lockout stays in force (prevents OTP
+// guessing across reissues, matching mobile-verify's design).
+router.post(
+  "/auth/email/mobile-resend-code",
+  authRateLimit,
+  async (req, res): Promise<void> => {
+    const parsed = MobileResendCodeBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid request" });
+      return;
+    }
+
+    const normalised = parsed.data.email.toLowerCase().trim();
+    const genericOk = { ok: true, message: "If that address needs verifying, a new code is on its way." };
+
+    const [account] = await db
+      .select({ id: adminAccountsTable.id, emailVerified: adminAccountsTable.emailVerified })
+      .from(adminAccountsTable)
+      .where(eq(adminAccountsTable.email, normalised))
+      .limit(1);
+
+    // Only unverified accounts get a fresh code. No account, or an already
+    // verified one -> same generic response, no email.
+    if (account && !account.emailVerified) {
+      const code = crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
+      const tokenHash = hashToken(code);
+      const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 min
+
+      await db
+        .update(adminAccountsTable)
+        .set({ verificationTokenHash: tokenHash, verificationTokenExpiry: expiry })
+        .where(eq(adminAccountsTable.id, account.id));
+
+      try {
+        await sendVerificationCodeEmail(normalised, code);
+      } catch (err) {
+        logger.error({ err }, "Verification code email delivery failed");
+      }
+    }
+
+    res.json(genericOk);
+  }
+);
+
 // POST /api/auth/email/change-password
 // Requires an active admin session. Verifies the current password, then hashes
 // and stores the new one. Issues a fresh mobile token; does NOT invalidate the
 // current session so the host stays logged in.
 router.post(
   "/auth/email/change-password",
-  authRateLimit,
+  authVerifyRateLimit,
   requireAdmin,
   async (req, res): Promise<void> => {
     const parsed = EmailChangePasswordBody.safeParse(req.body);
@@ -725,6 +838,21 @@ router.get("/auth/email/config-check", (req, res): void => {
     "APPLE_CLIENT_ID_WEB",
   ] as const) {
     if (!process.env[name]) issues.push(`${name} is not set — Apple token revocation on account deletion will be skipped`);
+  }
+
+  // Google sign-in — verifyGoogleToken() checks the ID-token audience against
+  // these OAuth client IDs; a missing platform client ID makes Google sign-in
+  // on that platform return 503 "Google sign-in is not configured".
+  if (!process.env["GOOGLE_OAUTH_CLIENT_ID_WEB"]) {
+    issues.push("GOOGLE_OAUTH_CLIENT_ID_WEB is not set — Google sign-in on web will return 503");
+  }
+  if (!process.env["GOOGLE_OAUTH_CLIENT_ID_IOS"]) {
+    issues.push("GOOGLE_OAUTH_CLIENT_ID_IOS is not set — Google sign-in on iOS will return 503");
+  }
+
+  // Content-report notification recipient (lib/email.ts sendContentReportEmail).
+  if (!process.env["REPORT_RECIPIENT_EMAIL"]) {
+    issues.push("REPORT_RECIPIENT_EMAIL is not set — content report notifications will be skipped");
   }
 
   if (issues.length > 0) {
@@ -858,7 +986,7 @@ router.delete(
 // ownership correctly (same as the cookie-based email login path).
 router.post(
   "/auth/email/admin-mobile-login",
-  authRateLimit,
+  authVerifyRateLimit,
   async (req, res): Promise<void> => {
     const parsed = EmailLoginBody.safeParse(req.body);
     if (!parsed.success) {

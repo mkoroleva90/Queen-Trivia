@@ -174,7 +174,18 @@ describe("POST /api/auth/email/mobile-register — code-based signup", () => {
     assert.match(rows[0]!.verification_token_hash ?? "", /^[0-9a-f]{64}$/);
     assert.ok(Number(rows[0]!.minutes_left) > 13 && Number(rows[0]!.minutes_left) <= 15);
 
-    // Re-registering an existing address must be indistinguishable from success.
+    // Capture the current credential state so we can prove the unverified
+    // account was taken over (password + fresh code) by the re-registration.
+    const before = await verifyPool.query<{
+      verification_token_hash: string | null;
+      password_hash: string | null;
+    }>(
+      "SELECT verification_token_hash, password_hash FROM admin_accounts WHERE email = $1",
+      [registerEmail],
+    );
+
+    // Re-registering an existing (still UNVERIFIED) address must be
+    // indistinguishable from success AND take over the account.
     const again = await request(app)
       .post("/api/auth/email/mobile-register")
       .set("X-Forwarded-For", verifyIps[1]!)
@@ -184,6 +195,18 @@ describe("POST /api/auth/email/mobile-register — code-based signup", () => {
 
     const count = await verifyPool.query("SELECT COUNT(*)::int AS n FROM admin_accounts WHERE email = $1", [registerEmail]);
     assert.equal(count.rows[0].n, 1);
+
+    const after = await verifyPool.query<{
+      verification_token_hash: string | null;
+      password_hash: string | null;
+      email_verified: boolean;
+    }>(
+      "SELECT verification_token_hash, password_hash, email_verified FROM admin_accounts WHERE email = $1",
+      [registerEmail],
+    );
+    assert.notEqual(after.rows[0]!.verification_token_hash, before.rows[0]!.verification_token_hash);
+    assert.notEqual(after.rows[0]!.password_hash, before.rows[0]!.password_hash);
+    assert.equal(after.rows[0]!.email_verified, false);
   });
 });
 
@@ -290,5 +313,173 @@ describe("POST /api/auth/email/mobile-verify — account rate limiting and sign-
       .set("X-Forwarded-For", verifyIps[8]!)
       .send({ email: verifySuccessEmail, code: validVerifyCode });
     assert.equal(replay.status, 400);
+  });
+});
+
+// ── Mobile resend verification code ──────────────────────────────────────────
+
+const resendPool = new pg.Pool({ connectionString: process.env["DATABASE_URL"] });
+const resendUnverifiedEmail = "otp-resend-unverified-test@example.invalid";
+const resendVerifiedEmail = "otp-resend-verified-test@example.invalid";
+const resendMissingEmail = "otp-resend-missing-test@example.invalid";
+const resendIps = [
+  "203.0.113.221",
+  "203.0.113.222",
+  "203.0.113.223",
+];
+const resendAuthKeys = resendIps.map((ip) => `auth:${ip}`);
+const resendKnownCode = "111111";
+const resendKnownHash = crypto.createHash("sha256").update(resendKnownCode).digest("hex");
+
+describe("POST /api/auth/email/mobile-resend-code", () => {
+  before(async () => {
+    await resendPool.query(
+      "DELETE FROM admin_accounts WHERE email = ANY($1)",
+      [[resendUnverifiedEmail, resendVerifiedEmail, resendMissingEmail]],
+    );
+    await resendPool.query("DELETE FROM rate_limit_hits WHERE key = ANY($1)", [resendAuthKeys]);
+    await resendPool.query(
+      `INSERT INTO admin_accounts
+         (email, password_hash, email_verified, verification_token_hash, verification_token_expiry)
+       VALUES ($1, $2, FALSE, $3, NOW() + interval '15 minutes')`,
+      [resendUnverifiedEmail, "not-used-for-resend-test", resendKnownHash],
+    );
+    await resendPool.query(
+      `INSERT INTO admin_accounts
+         (email, password_hash, email_verified, verification_token_hash, verification_token_expiry)
+       VALUES ($1, $2, TRUE, NULL, NULL)`,
+      [resendVerifiedEmail, "not-used-for-resend-test"],
+    );
+  });
+
+  after(async () => {
+    await resendPool.query("DELETE FROM rate_limit_hits WHERE key = ANY($1)", [resendAuthKeys]);
+    await resendPool.query(
+      "DELETE FROM admin_accounts WHERE email = ANY($1)",
+      [[resendUnverifiedEmail, resendVerifiedEmail, resendMissingEmail]],
+    );
+    await resendPool.end();
+  });
+
+  it("issues a fresh code for an unverified account", async () => {
+    const res = await request(app)
+      .post("/api/auth/email/mobile-resend-code")
+      .set("X-Forwarded-For", resendIps[0]!)
+      .send({ email: resendUnverifiedEmail });
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.ok, true);
+    assert.equal(typeof res.body.message, "string");
+
+    const { rows } = await resendPool.query<{
+      verification_token_hash: string | null;
+      minutes_left: number;
+    }>(
+      `SELECT verification_token_hash,
+              EXTRACT(EPOCH FROM (verification_token_expiry - NOW())) / 60 AS minutes_left
+         FROM admin_accounts WHERE email = $1`,
+      [resendUnverifiedEmail],
+    );
+    assert.match(rows[0]!.verification_token_hash ?? "", /^[0-9a-f]{64}$/);
+    assert.notEqual(rows[0]!.verification_token_hash, resendKnownHash);
+    assert.ok(Number(rows[0]!.minutes_left) > 13 && Number(rows[0]!.minutes_left) <= 15);
+  });
+
+  it("does not re-issue a code for an already verified account", async () => {
+    const res = await request(app)
+      .post("/api/auth/email/mobile-resend-code")
+      .set("X-Forwarded-For", resendIps[1]!)
+      .send({ email: resendVerifiedEmail });
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.ok, true);
+
+    const { rows } = await resendPool.query<{
+      verification_token_hash: string | null;
+      email_verified: boolean;
+    }>(
+      "SELECT verification_token_hash, email_verified FROM admin_accounts WHERE email = $1",
+      [resendVerifiedEmail],
+    );
+    assert.equal(rows[0]!.verification_token_hash, null);
+    assert.equal(rows[0]!.email_verified, true);
+  });
+
+  it("responds generically for a non-existent account without creating a row", async () => {
+    const res = await request(app)
+      .post("/api/auth/email/mobile-resend-code")
+      .set("X-Forwarded-For", resendIps[2]!)
+      .send({ email: resendMissingEmail });
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.ok, true);
+
+    const count = await resendPool.query(
+      "SELECT COUNT(*)::int AS n FROM admin_accounts WHERE email = $1",
+      [resendMissingEmail],
+    );
+    assert.equal(count.rows[0].n, 0);
+  });
+});
+
+// ── Mobile reset verifies the email ──────────────────────────────────────────
+
+const resetVerifyPool = new pg.Pool({ connectionString: process.env["DATABASE_URL"] });
+const resetVerifyEmail = "otp-reset-verifies-email-test@example.invalid";
+const resetVerifyCode = "222222";
+const resetVerifyHash = crypto.createHash("sha256").update(resetVerifyCode).digest("hex");
+const resetVerifyIp = "203.0.113.231";
+const resetVerifyAuthKey = `auth:${resetVerifyIp}`;
+let resetVerifyResetKey = "";
+
+describe("POST /api/auth/email/mobile-reset-password — verifies the email on success", () => {
+  before(async () => {
+    await resetVerifyPool.query("DELETE FROM admin_accounts WHERE email = $1", [resetVerifyEmail]);
+    const inserted = await resetVerifyPool.query<{ id: number }>(
+      `INSERT INTO admin_accounts
+         (email, password_hash, email_verified, reset_token_hash, reset_token_expiry)
+       VALUES ($1, $2, FALSE, $3, NOW() + interval '15 minutes')
+       RETURNING id`,
+      [resetVerifyEmail, "not-used-for-reset-verify-test", resetVerifyHash],
+    );
+    resetVerifyResetKey = `mobile-password-reset:${crypto
+      .createHmac("sha256", process.env["SESSION_SECRET"] ?? "")
+      .update(`mobile-password-reset:v1:${inserted.rows[0]!.id}`)
+      .digest("hex")}`;
+    await resetVerifyPool.query(
+      "DELETE FROM rate_limit_hits WHERE key = ANY($1)",
+      [[resetVerifyResetKey, resetVerifyAuthKey]],
+    );
+  });
+
+  after(async () => {
+    await resetVerifyPool.query(
+      "DELETE FROM rate_limit_hits WHERE key = ANY($1)",
+      [[resetVerifyResetKey, resetVerifyAuthKey]],
+    );
+    await resetVerifyPool.query("DELETE FROM admin_accounts WHERE email = $1", [resetVerifyEmail]);
+    await resetVerifyPool.end();
+  });
+
+  it("flips email_verified to TRUE and clears the reset token", async () => {
+    const res = await request(app)
+      .post("/api/auth/email/mobile-reset-password")
+      .set("X-Forwarded-For", resetVerifyIp)
+      .send({ email: resetVerifyEmail, code: resetVerifyCode, password: "a-secure-test-password" });
+
+    assert.equal(res.status, 200);
+    assert.equal(typeof res.body.adminToken, "string");
+
+    const { rows } = await resetVerifyPool.query<{
+      email_verified: boolean;
+      reset_token_hash: string | null;
+      reset_token_expiry: Date | null;
+    }>(
+      "SELECT email_verified, reset_token_hash, reset_token_expiry FROM admin_accounts WHERE email = $1",
+      [resetVerifyEmail],
+    );
+    assert.equal(rows[0]!.email_verified, true);
+    assert.equal(rows[0]!.reset_token_hash, null);
+    assert.equal(rows[0]!.reset_token_expiry, null);
   });
 });

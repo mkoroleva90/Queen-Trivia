@@ -72,6 +72,8 @@ export default function WelcomeScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: trimmed }),
       });
+      if (res.status === 429) { setCodeError(COPY.join.error.tooManyAttempts); return; }
+      if (!res.ok) { setCodeError(COPY.join.error.connectionError); return; }
       const data = (await res.json()) as { valid: boolean; role: string };
       if (!data.valid) { setCodeError(COPY.join.error.wrongCode); return; }
       if (data.role === 'admin') { setCodeError(COPY.join.error.adminCode); return; }

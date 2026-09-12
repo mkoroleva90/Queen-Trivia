@@ -1,8 +1,10 @@
 /**
  * Integration tests for rate limiting anonymous authentication endpoints.
  *
- * Both routes use the PostgreSQL-backed auth limiter so counters remain
- * effective across API replicas and development-preview proxying.
+ * The routes use different PostgreSQL-backed limiters (the lenient join
+ * limiter for /auth/verify vs the credential limiter for host login/verify)
+ * so counters remain effective across API replicas and development-preview
+ * proxying.
  *
  * Run with:
  *   node --experimental-strip-types --test src/routes/authRateLimit.test.ts
@@ -33,7 +35,10 @@ const CLEANUP_AUTH_IP = "198.51.100.252";
 const REPORT_COUNTER_IP = "198.51.100.253";
 
 async function clearRateLimitHits(...ips: string[]): Promise<void> {
-  const keys = ips.map((ip) => `auth:${ipKeyGenerator(ip)}`);
+  // /auth/verify uses the join limiter (trivia-join:), host login/verify use
+  // the credential limiter (auth-verify:), email senders stay on auth:.
+  const prefixes = ["auth", "auth-verify", "trivia-join"];
+  const keys = ips.flatMap((ip) => prefixes.map((p) => `${p}:${ipKeyGenerator(ip)}`));
   await pool.query(`DELETE FROM rate_limit_hits WHERE key = ANY($1::text[])`, [keys]);
 }
 
@@ -49,8 +54,11 @@ describe("anonymous authentication rate limiting", () => {
     await pool.end();
   });
 
-  it("limits repeated game-code verification attempts", async () => {
-    for (let i = 0; i < 8; i++) {
+  it("does not rate-limit a full room verifying a game code from one network", async () => {
+    // /auth/verify now uses the lenient join limiter (120/min, successes
+    // skipped), well above the old 8-per-15-min ceiling, so a room of players
+    // (or a reviewer) checking codes from one IP is never blocked.
+    for (let i = 0; i < 40; i++) {
       const res = await request(app)
         .post("/api/auth/verify")
         .set("X-Forwarded-For", VERIFY_IP)
@@ -59,20 +67,10 @@ describe("anonymous authentication rate limiting", () => {
       assert.equal(
         res.status,
         200,
-        `request ${i + 1}/8 should not be limited: ${JSON.stringify(res.body)}`,
+        `request ${i + 1}/40 should not be limited: ${JSON.stringify(res.body)}`,
       );
       assert.equal(res.body.valid, false);
     }
-
-    const limited = await request(app)
-      .post("/api/auth/verify")
-      .set("X-Forwarded-For", VERIFY_IP)
-      .send({ code: "RATE" });
-
-    assert.equal(limited.status, 429);
-    assert.equal(typeof limited.body.error, "string");
-    assert.ok(limited.headers["ratelimit"]);
-    assert.ok(limited.headers["retry-after"]);
   });
 
   it("limits repeated host login attempts", async () => {

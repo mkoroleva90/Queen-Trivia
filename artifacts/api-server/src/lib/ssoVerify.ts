@@ -6,7 +6,9 @@
  *
  * Apple: verifies the identity token's signature against Apple's public JWK set
  *   (https://appleid.apple.com/auth/keys) via jose, then checks issuer and
- *   audience against APPLE_BUNDLE_ID and/or APPLE_SERVICES_ID.
+ *   audience against APPLE_CLIENT_ID_IOS (native bundle ID) and/or
+ *   APPLE_CLIENT_ID_WEB (Services ID), falling back to the legacy
+ *   APPLE_BUNDLE_ID / APPLE_SERVICES_ID names for safety.
  *
  * Both functions throw on failure.  Errors carry a `statusCode` property so
  * callers can forward the right HTTP status to the client.
@@ -91,6 +93,12 @@ function getAppleJwks() {
 
 export async function verifyAppleToken(idToken: string): Promise<SSOIdentity> {
   const audiences = [
+    // Documented variable names, matching the rest of the Apple integration
+    // (appleTokens.ts, config-check, replit.md).
+    process.env["APPLE_CLIENT_ID_IOS"], // native app bundle ID
+    process.env["APPLE_CLIENT_ID_WEB"], // web Services ID
+    // Legacy fallbacks — kept for safety so a deployment still configured with
+    // the older names continues to verify.
     process.env["APPLE_BUNDLE_ID"],
     process.env["APPLE_SERVICES_ID"],
   ].filter((v): v is string => Boolean(v));

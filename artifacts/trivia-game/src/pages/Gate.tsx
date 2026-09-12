@@ -161,6 +161,14 @@ export default function Gate() {
         credentials: "include",
         body: JSON.stringify({ code: trimmed }),
       });
+      if (res.status === 429) {
+        toast({ variant: "destructive", title: COPY.join.error.tooManyAttempts });
+        return;
+      }
+      if (!res.ok) {
+        toast({ variant: "destructive", title: COPY.join.error.connectionError });
+        return;
+      }
       const data = await res.json();
       if (!data.valid) {
         setCodeError(COPY.join.error.wrongCode);

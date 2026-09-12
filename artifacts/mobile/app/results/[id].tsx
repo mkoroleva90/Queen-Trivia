@@ -113,6 +113,20 @@ export default function ResultsScreen() {
       .catch(() => setIsAdmin(false));
   }, []);
 
+  // Fetch the player's own review data (questions + this user's answers) as the
+  // PLAYER, even when a host is signed in on the same device. Without an explicit
+  // player bearer these generated hooks would use the swapped-to-admin global
+  // getter, which 401s useListUserAnswers (requireUser needs a player userId) so
+  // the host-as-player's own answers never load into the breakdown.
+  const [playerToken, setPlayerToken] = useState<string | null>(null);
+  useEffect(() => {
+    getItem(PLAYER_TOKEN_KEY).then(setPlayerToken).catch(() => setPlayerToken(null));
+  }, []);
+  const playerRequest = useMemo(
+    () => (playerToken ? { headers: { Authorization: `Bearer ${playerToken}` } } : undefined),
+    [playerToken],
+  );
+
   const { data: results, isLoading, isError, refetch } = useQuery<GameResults>({
     queryKey: ['game-results', gameId],
     queryFn: async () => {
@@ -128,10 +142,12 @@ export default function ResultsScreen() {
   });
 
   const { data: questions = [] } = useListGameQuestions(gameId, {
-    query: { enabled: !!gameId, queryKey: getListGameQuestionsQueryKey(gameId) },
+    query: { enabled: !!gameId && !!playerToken, queryKey: getListGameQuestionsQueryKey(gameId) },
+    request: playerRequest,
   });
   const { data: myAnswers = [] } = useListUserAnswers(gameId, userId, {
-    query: { enabled: !!gameId && !!userId, queryKey: getListUserAnswersQueryKey(gameId, userId) },
+    query: { enabled: !!gameId && !!userId && !!playerToken, queryKey: getListUserAnswersQueryKey(gameId, userId) },
+    request: playerRequest,
   });
 
   // Admin-only endpoint (same as web): a host viewing results sees per-question
@@ -496,6 +512,7 @@ export default function ResultsScreen() {
       <ReportModal
         visible={reportOpen}
         gameId={gameId}
+        tokenKey={PLAYER_TOKEN_KEY}
         onClose={() => setReportOpen(false)}
       />
     </View>

@@ -548,4 +548,88 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
       if (otherAdminId) await pool.query("DELETE FROM admin_accounts WHERE id = $1", [otherAdminId]);
     }
   });
+
+  it("redacts short_response rubric, fact-check URL, and source during an active game", async () => {
+    const code = `S${String(Date.now()).slice(-7)}`;
+    const rubric = "Award credit only for 'Tidal locking'.";
+    const factCheckUrl = "https://en.wikipedia.org/wiki/Tidal_locking";
+    const source = "Encyclopaedia: Tidal locking entry";
+    let sourceGameId: number | undefined;
+    let playerName: string | undefined;
+    try {
+      const game = await pool.query<{ id: number }>(
+        `INSERT INTO games (topic, difficulty, question_count, status, access_code, created_by_admin)
+         VALUES ('Source leak test', 'easy', 1, 'active', $1, true)
+         RETURNING id`,
+        [code],
+      );
+      sourceGameId = game.rows[0]!.id;
+      const question = await pool.query<{ id: number }>(
+        `INSERT INTO questions
+           (game_id, question_text, question_type, correct_answer, options, source, fact_check_url, points, order_index)
+         VALUES ($1, 'Why does the Moon show one face?', 'short_response', 'Tidal locking', $2::jsonb, $3, $4, 10, 0)
+         RETURNING id`,
+        [
+          sourceGameId,
+          JSON.stringify({ rubric, maxWords: 40, presentationHint: "One phrase" }),
+          source,
+          factCheckUrl,
+        ],
+      );
+      const questionId = question.rows[0]!.id;
+      await pool.query(
+        "UPDATE games SET current_question_id = $1 WHERE id = $2",
+        [questionId, sourceGameId],
+      );
+
+      // Active game: a player must receive no answer-revealing field.
+      playerName = `__test__source_redaction_${Date.now()}`;
+      const agent = request.agent(app);
+      assert.equal((await agent.post("/api/auth/login").send({ code, name: playerName })).status, 200);
+      assert.equal((await agent.post(`/api/games/${sourceGameId}/join`)).status, 201);
+
+      const active = await agent.get(`/api/games/${sourceGameId}/questions`);
+      assert.equal(active.status, 200, JSON.stringify(active.body));
+      assert.equal(active.body.length, 1);
+      const activeQuestion = active.body[0];
+      assert.equal(activeQuestion.id, questionId);
+      assert.equal(activeQuestion.correctAnswer, undefined);
+      assert.equal(activeQuestion.options.rubric, undefined, "short_response rubric must not reach active players");
+      assert.equal(activeQuestion.factCheckUrl, null, "fact-check URL must not reach active players");
+      assert.equal(activeQuestion.source, null, "source must not reach active players");
+      assert.equal(activeQuestion.options.maxWords, 40, "non-grading options metadata must be preserved");
+      assert.equal(activeQuestion.options.presentationHint, "One phrase");
+      assert.equal(
+        JSON.stringify(activeQuestion).includes("Tidal locking"),
+        false,
+        "active-game question payload must not disclose the answer via rubric, source, or fact-check URL",
+      );
+      assert.equal(JSON.stringify(activeQuestion).includes(factCheckUrl), false);
+      assert.equal(JSON.stringify(activeQuestion).includes(source), false);
+
+      // Admin (host) still receives everything for the active game.
+      const admin = request.agent(app);
+      assert.equal((await admin.post("/api/test-set-confidentiality-admin-session")).status, 200);
+      const adminList = await admin.get(`/api/games/${sourceGameId}/questions`);
+      assert.equal(adminList.status, 200, JSON.stringify(adminList.body));
+      const adminQuestion = adminList.body.find((q: { id: number }) => q.id === questionId);
+      assert.equal(adminQuestion.correctAnswer, "Tidal locking");
+      assert.equal(adminQuestion.options.rubric, rubric);
+      assert.equal(adminQuestion.factCheckUrl, factCheckUrl);
+      assert.equal(adminQuestion.source, source);
+
+      // Completed game: the review reveals rubric, source, and fact-check URL.
+      await pool.query("UPDATE games SET status = 'completed' WHERE id = $1", [sourceGameId]);
+      const completed = await agent.get(`/api/games/${sourceGameId}/questions`);
+      assert.equal(completed.status, 200, JSON.stringify(completed.body));
+      const completedQuestion = completed.body.find((q: { id: number }) => q.id === questionId);
+      assert.equal(completedQuestion.correctAnswer, "Tidal locking");
+      assert.equal(completedQuestion.options.rubric, rubric);
+      assert.equal(completedQuestion.factCheckUrl, factCheckUrl);
+      assert.equal(completedQuestion.source, source);
+    } finally {
+      if (sourceGameId) await pool.query("DELETE FROM games WHERE id = $1", [sourceGameId]);
+      if (playerName) await pool.query("DELETE FROM users WHERE name = $1", [playerName]);
+    }
+  });
 });

@@ -480,14 +480,14 @@ export default function AdminLiveScreen() {
       onSubmit: (answer: string) => { void submitHostAnswer(q.id, answer); },
     };
     switch (q.questionType) {
-      case 'multiple_choice': return <MultipleChoiceQ {...props} feedback={feedbackForComp} />;
-      case 'multi_select':    return <MultiSelectQ {...props} />;
-      case 'true_false':      return <TrueFalseQ onSubmit={props.onSubmit} disabled={props.disabled} lockedAnswer={props.lockedAnswer} />;
-      case 'write_in':        return <WriteInQ onSubmit={props.onSubmit} disabled={props.disabled} lockedAnswer={props.lockedAnswer} />;
-      case 'short_response':  return <WriteInQ onSubmit={props.onSubmit} disabled={props.disabled} lockedAnswer={props.lockedAnswer} multiline />;
+      case 'multiple_choice': return <MultipleChoiceQ key={q.id} {...props} feedback={feedbackForComp} />;
+      case 'multi_select':    return <MultiSelectQ key={q.id} {...props} />;
+      case 'true_false':      return <TrueFalseQ key={q.id} onSubmit={props.onSubmit} disabled={props.disabled} lockedAnswer={props.lockedAnswer} />;
+      case 'write_in':        return <WriteInQ key={q.id} onSubmit={props.onSubmit} disabled={props.disabled} lockedAnswer={props.lockedAnswer} />;
+      case 'short_response':  return <WriteInQ key={q.id} onSubmit={props.onSubmit} disabled={props.disabled} lockedAnswer={props.lockedAnswer} multiline />;
       case 'ordering':        return <OrderingQ key={q.id} {...props} />;
       case 'slider':          return <SliderQ key={q.id} {...props} />;
-      case 'image_recognition': return <ImageRecognitionQ {...props} />;
+      case 'image_recognition': return <ImageRecognitionQ key={q.id} {...props} />;
       case 'image_hotspot':   return <ImageHotspotQ key={q.id} {...props} />;
       case 'matching':        return <MatchingQ key={q.id} {...props} />;
       default:                return null;

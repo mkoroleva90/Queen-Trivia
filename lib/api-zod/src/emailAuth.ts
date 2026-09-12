@@ -85,6 +85,15 @@ export const MobileVerifyResponse = zod.object({
   adminToken: zod.string(),
 });
 
+// POST /api/auth/email/mobile-resend-code
+export const MobileResendCodeBody = zod.object({
+  email: zod.string().email(),
+});
+export const MobileResendCodeResponse = zod.object({
+  ok: zod.boolean(),
+  message: zod.string(),
+});
+
 // POST /api/auth/email/change-password
 export const EmailChangePasswordBody = zod.object({
   currentPassword: zod.string().min(1),

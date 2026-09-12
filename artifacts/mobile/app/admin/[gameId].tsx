@@ -294,6 +294,20 @@ function buildPayload(form: QForm, orderIndex: number) {
   }
 }
 
+function isAllowedImageUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:'
+      && url.hostname === 'upload.wikimedia.org'
+      && !url.port
+      && !url.username
+      && !url.password
+      && url.pathname.startsWith('/wikipedia/commons/');
+  } catch {
+    return false;
+  }
+}
+
 function validateForm(form: QForm): string | null {
   if (!form.questionText.trim()) return COPY.questionEditor.validation.questionTextRequired;
   switch (form.questionType) {
@@ -368,6 +382,7 @@ function validateForm(form: QForm): string | null {
     case 'image_hotspot':
     case 'image_recognition':
       if (!form.imageUrl.trim()) return COPY.questionEditor.validation.imageUrlRequired;
+      if (!isAllowedImageUrl(form.imageUrl.trim())) return COPY.questionEditor.validation.imageUrlWikimedia;
       if (form.questionType === 'image_recognition' && !form.correctAnswer.trim()) return COPY.questionEditor.validation.correctAnswerRequired;
       break;
     case 'true_false':
@@ -465,7 +480,7 @@ function QuestionFormModal({
   visible: boolean;
   initial: QForm;
   onClose: () => void;
-  onSave: (form: QForm) => void;
+  onSave: (form: QForm) => Promise<string | null>;
   pending: boolean;
   title: string;
   gameId: number;
@@ -491,10 +506,12 @@ function QuestionFormModal({
     setForm((f) => ({ ...f, questionType, ...specialistFieldsForType(questionType) }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const err = validateForm(form);
     if (err) { setError(err); return; }
-    onSave(form);
+    setError('');
+    const apiError = await onSave(form);
+    if (apiError) setError(apiError);
   };
 
   const handleFillWithAI = async () => {
@@ -1088,6 +1105,17 @@ function extractFreeTierLimitMsg(err: unknown): string | null {
     if (msg.includes(COPY.usageLimit.title)) return msg;
   }
   return null;
+}
+
+function extractApiError(err: unknown, fallback: string): string {
+  if (err && typeof err === 'object') {
+    const data = 'data' in err ? (err as { data: unknown }).data : null;
+    if (data && typeof data === 'object' && 'error' in data) {
+      return String((data as { error: unknown }).error);
+    }
+    if (err instanceof Error && err.message) return err.message;
+  }
+  return fallback;
 }
 
 function UpgradeLimitCard({
@@ -1849,7 +1877,7 @@ export default function GameDetailScreen() {
   const openAdd = () => { setEditingQuestion(null); setFormOpen(true); };
   const openEdit = (q: Question) => { setEditingQuestion(q); setFormOpen(true); };
 
-  const handleSave = async (form: QForm) => {
+  const handleSave = async (form: QForm): Promise<string | null> => {
     const orderIndex = editingQuestion
       ? (editingQuestion.orderIndex ?? sortedQs.length)
       : sortedQs.length;
@@ -1862,8 +1890,9 @@ export default function GameDetailScreen() {
       }
       invalidate();
       setFormOpen(false);
-    } catch {
-      // error handled in modal
+      return null;
+    } catch (err) {
+      return extractApiError(err, COPY.questionEditor.saveFailed);
     }
   };
 
