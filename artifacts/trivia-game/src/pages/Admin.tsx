@@ -84,12 +84,16 @@ import {
  useGenerateGeminiQuestions,
  useRegenerateQuestion,
  useEnhanceQuestion,
+ useListPendingAnswerReviews,
+ getListPendingAnswerReviewsQueryKey,
+ useReviewAnswer,
 } from "@workspace/api-client-react";
 import type {
  Game,
  Question,
  RegenerateQuestionPreview,
  EnhanceQuestionResult,
+ PendingAnswerReview,
 } from "@workspace/api-client-react";
 import { useAuth } from "../lib/auth";
 import { CrownMark } from "@/components/Brand";
@@ -199,6 +203,10 @@ type QuestionFormState = {
  shortResponseMaxWords: string;
  pairs: { left: string; right: string }[];
  imageUrl: string;
+ // image_hotspot: correct spot as percentages 0–100 of the rendered image box,
+ // matching the web player's tap math and the server's percentage-based grading.
+ hotspotX: string;
+ hotspotY: string;
  points: string;
  alternateAnswers: string;
  source: string;
@@ -249,6 +257,8 @@ const emptyForm: QuestionFormState = {
      { left: "", right: "" },
     ],
     imageUrl: "",
+    hotspotX: "50",
+    hotspotY: "50",
     points: "10",
     alternateAnswers: "",
     source: "",
@@ -358,6 +368,8 @@ export function formFromQuestion(q: Question): QuestionFormState {
    .split("|")
    .map((part) => part.trim())
    .filter(Boolean);
+ // image_hotspot stores the correct spot as "x,y" percentages.
+ const hotspotParts = (q.correctAnswer ?? "").split(",").map((n) => Number(n));
 return {
  questionText: q.questionText,
  questionType: q.questionType,
@@ -397,6 +409,8 @@ return {
           { left: "", right: "" },
          ],
  imageUrl: q.imageUrl ?? "",
+ hotspotX: q.questionType === "image_hotspot" && Number.isFinite(hotspotParts[0]) ? String(hotspotParts[0]) : "50",
+ hotspotY: q.questionType === "image_hotspot" && Number.isFinite(hotspotParts[1]) ? String(hotspotParts[1]) : "50",
  points: String(q.points),
  alternateAnswers: opts?.alternateAnswers?.join(", ") ?? "",
  source: q.source ?? "",
@@ -549,6 +563,18 @@ if (form.questionType === "true_false") {
      correctAnswer: form.correctAnswer === "false" ? "false" : "true",
     };
 }
+if (form.questionType === "image_hotspot") {
+    // Store the correct spot as "x,y" percentages (0–100), matching the web
+    // player's tap math and the server's percentage-based hotspot grading.
+    const x = Number(form.hotspotX);
+    const y = Number(form.hotspotY);
+    return {
+      ...base,
+      imageUrl: form.imageUrl.trim() || null,
+      options: null,
+      correctAnswer: `${(Number.isFinite(x) ? x : 50).toFixed(1)},${(Number.isFinite(y) ? y : 50).toFixed(1)}`,
+    };
+}
 // write_in / image_recognition
 const alternates = form.alternateAnswers
     .split(",")
@@ -652,6 +678,11 @@ export function validateForm(form: QuestionFormState): string | null {
     } else if (form.questionType === "true_false") {
         if (form.correctAnswer !== "true" && form.correctAnswer !== "false")
          return "Pick true or false";
+    } else if (form.questionType === "image_hotspot") {
+        if (!form.imageUrl.trim()) return COPY.questionEditor.validation.imageUrlRequired;
+        if (!isAllowedImageUrl(form.imageUrl.trim()))
+         return COPY.questionEditor.validation.imageUrlWikimedia;
+        // No correctAnswer check: the hotspot picker always yields a coordinate.
     } else {
         if (!form.correctAnswer.trim()) return COPY.questionEditor.validation.correctAnswerRequired;
         if (form.questionType === "image_recognition" && !form.imageUrl.trim())
@@ -1058,6 +1089,67 @@ return (
  placeholder='e.g. "Eiffel Tower, La Tour Eiffel"'
 />
 </div>
+      </div>
+  )}
+
+  {/* ── Image Hotspot ── */}
+  {form.questionType === "image_hotspot" && (
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label>{COPY.questionEditor.imageUrlLabel}</Label>
+          <Input
+            value={form.imageUrl}
+            onChange={(e) => set("imageUrl", e.target.value)}
+            placeholder={COPY.questionEditor.imageUrlPlaceholder}
+          />
+        </div>
+        {form.imageUrl.trim() ? (
+          <div className="space-y-2">
+            <Label>{COPY.questionEditor.hotspotLabel}</Label>
+            {/* Geometry mirrors the player's ImageHotspotQuestion (relative
+                wrapper, w-full object-contain image, click math on the wrapper
+                rect as 0–100 percentages) so the stored spot matches where the
+                player taps and how the server grades. */}
+            <div
+              className="relative overflow-hidden rounded-lg border border-border bg-muted/30"
+              style={{ cursor: "crosshair", userSelect: "none" }}
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
+                const y = Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100));
+                set("hotspotX", x.toFixed(2));
+                set("hotspotY", y.toFixed(2));
+              }}
+            >
+              <img
+                src={form.imageUrl.trim()}
+                alt="Set hotspot"
+                draggable={false}
+                className="w-full block"
+                style={{ maxHeight: 320, objectFit: "contain", display: "block" }}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  left: `${form.hotspotX}%`,
+                  top: `${form.hotspotY}%`,
+                  transform: "translate(-50%, -100%)",
+                  pointerEvents: "none",
+                }}
+              >
+                <svg width="28" height="36" viewBox="0 0 28 36" aria-hidden="true">
+                  <circle cx="14" cy="14" r="12" fill="#ff2d8e" stroke="white" strokeWidth="2" />
+                  <polygon points="14,36 7,22 21,22" fill="#ff2d8e" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">{COPY.questionEditor.hotspotHint}</p>
+        )}
       </div>
   )}
 
@@ -3388,6 +3480,72 @@ const AVATAR_COLORS: [string, string][] = [
   ["#35d07f", "#08130c"], ["#a78bfa", "#1a0f3d"], ["#ff8a4c", "#2b1200"],
 ];
 
+// Short-response answers the AI could not grade, shown to the host to award or
+// deny. Shared by the live view and the results detail view (parity with the
+// mobile live and results screens). Renders nothing when the queue is empty.
+// The correct answer is deliberately never shown on the card (mirrors mobile).
+function PendingReviewQueue({
+  reviews,
+  label,
+  onReview,
+  pendingAnswerId,
+}: {
+  reviews: PendingAnswerReview[];
+  label: string;
+  onReview: (review: PendingAnswerReview, award: boolean) => void;
+  pendingAnswerId?: number;
+}) {
+  if (reviews.length === 0) return null;
+  return (
+    <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl p-4 space-y-3">
+      <span className="text-[10px] font-bold tracking-[.16em] text-[#66728a]">{label}</span>
+      {reviews.map((review) => {
+        const pending = pendingAnswerId === review.id;
+        return (
+          <div key={review.id} className="rounded-xl border border-[#ffe500]/50 bg-white/[.03] p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-[#ffe500]/15 text-[9px] font-extrabold tracking-[.1em] text-[#ffe500]">
+                <Sparkles className="h-3 w-3" />{COPY.answerReview.aiUnavailable}
+              </span>
+              <span className="text-[12px] font-semibold text-[#9aa6bc] truncate">{review.userName}</span>
+            </div>
+            <p className="text-[15px] font-bold text-[#eef2f8] leading-snug">{review.questionText}</p>
+            <div className="rounded-lg border border-[#1b2740] bg-[#0b1220] p-3 space-y-1">
+              <span className="text-[9px] font-bold tracking-[.1em] text-[#66728a]">{COPY.answerReview.playerAnswerLabel}</span>
+              <p className="text-[14px] text-[#eef2f8]">{review.userAnswer}</p>
+            </div>
+            {review.rubric && (
+              <div className="space-y-1">
+                <span className="text-[9px] font-bold tracking-[.1em] text-[#66728a]">{COPY.answerReview.rubricLabel}</span>
+                <p className="text-[13px] text-[#9aa6bc]">{review.rubric}</p>
+              </div>
+            )}
+            <p className="text-[12px] font-semibold text-[#9aa6bc]">{COPY.answerReview.suggested(review.pointsEarned, review.points)}</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => onReview(review, false)}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-[10px] border border-[#ff6b6b]/40 bg-[#ff6b6b]/10 text-sm font-bold text-[#ff6b6b] hover:brightness-110 transition disabled:opacity-50"
+              >
+                <X className="h-4 w-4" />{COPY.answerReview.denyBtn}
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => onReview(review, true)}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-[10px] border border-[#35d07f]/50 bg-[#35d07f]/10 text-sm font-bold text-[#35d07f] hover:brightness-110 transition disabled:opacity-50"
+              >
+                <Check className="h-4 w-4" />{COPY.answerReview.awardBtn(review.points)}
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function LiveGameView({
   activeGame,
   endGame,
@@ -3598,6 +3756,34 @@ function LiveGameView({
       refetchInterval: 10000,
     },
   });
+
+  // Short-response answers the AI could not grade are parked for the host to
+  // review (award full points or deny). Web joins the player room only, so it
+  // never receives the answer:reviewed socket event — the 10s poll plus the
+  // mutation's on-success invalidation keep the queue fresh, matching mobile.
+  const { data: pendingReviews = [] } = useListPendingAnswerReviews(activeGame?.id ?? 0, {
+    query: {
+      enabled: !!activeGame,
+      queryKey: getListPendingAnswerReviewsQueryKey(activeGame?.id ?? 0),
+      refetchInterval: 10000,
+    },
+  });
+  const reviewAnswer = useReviewAnswer();
+  const handleReview = (review: PendingAnswerReview, award: boolean) => {
+    if (!activeGame || reviewAnswer.isPending) return;
+    reviewAnswer.mutate(
+      { gameId: activeGame.id, answerId: review.id, data: { award } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListPendingAnswerReviewsQueryKey(activeGame.id) });
+          refetchParts();
+          queryClient.invalidateQueries({ queryKey: ["admin-results", activeGame.id] });
+          queryClient.invalidateQueries({ queryKey: ["admin-question-stats", activeGame.id] });
+        },
+        onError: () => toast({ variant: "destructive", title: COPY.adminResults.reviewSaveErrorTitle }),
+      },
+    );
+  };
 
   // Live answer tracking from the same socket events that power player GamePlay.
   // The synchronous TallyStore (in a ref) is the single source of truth: it
@@ -3964,10 +4150,16 @@ function LiveGameView({
             </button>
           </div>
           )}
+          <PendingReviewQueue
+            reviews={pendingReviews}
+            label={COPY.adminLive.needsReviewLabel(pendingReviews.length)}
+            onReview={handleReview}
+            pendingAnswerId={reviewAnswer.isPending ? reviewAnswer.variables?.answerId : undefined}
+          />
         </div>
 
-        {/* ── RIGHT: answered + standings — hidden when host is playing along ── */}
-        {!activeGame.hostPlaysAlong && <div className="w-full lg:w-[300px] shrink-0 space-y-4">
+        {/* ── RIGHT: players (always shown, incl. kick) + standings (hidden when host plays along) ── */}
+        <div className="w-full lg:w-[300px] shrink-0 space-y-4">
           <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl p-4">
             <div className="flex items-baseline justify-between mb-3">
               <span className="text-[10px] font-bold tracking-[.16em] text-[#66728a]">ANSWERED</span>
@@ -4008,6 +4200,9 @@ function LiveGameView({
             </div>
           </div>
 
+          {/* Score-ranked standings stay hidden while the host plays along — a
+              playing host must not see peer scores or ranking (answer oracle). */}
+          {!activeGame.hostPlaysAlong && (
           <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl p-4">
             <div className="flex items-baseline justify-between mb-2.5">
               <span className="text-[10px] font-bold tracking-[.16em] text-[#66728a]">STANDINGS</span>
@@ -4042,7 +4237,8 @@ function LiveGameView({
               })}
             </div>
           </div>
-        </div>}
+          )}
+        </div>
       </div>
     </div>
   );
@@ -4519,6 +4715,8 @@ function BuildQuizView({
 }
 
 function NewResultsSection({ games, preferredGameId }: { games: Game[]; preferredGameId?: number }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const completedGames = [...games.filter((g) => g.status === "completed")]
     .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
 
@@ -4556,6 +4754,31 @@ function NewResultsSection({ games, preferredGameId }: { games: Game[]; preferre
     },
     enabled: selectedGameId !== null,
   });
+
+  // Short-response answers the AI could not grade, awaiting the host's decision
+  // (parity with the mobile results screen). Cleared once every one is reviewed.
+  const { data: pendingReviews = [] } = useListPendingAnswerReviews(selectedGameId ?? 0, {
+    query: {
+      enabled: selectedGameId !== null,
+      queryKey: getListPendingAnswerReviewsQueryKey(selectedGameId ?? 0),
+      refetchInterval: 10000,
+    },
+  });
+  const reviewAnswer = useReviewAnswer();
+  const handleReview = (review: PendingAnswerReview, award: boolean) => {
+    if (selectedGameId === null || reviewAnswer.isPending) return;
+    reviewAnswer.mutate(
+      { gameId: selectedGameId, answerId: review.id, data: { award } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListPendingAnswerReviewsQueryKey(selectedGameId) });
+          queryClient.invalidateQueries({ queryKey: ["admin-results", selectedGameId] });
+          queryClient.invalidateQueries({ queryKey: ["admin-question-stats", selectedGameId] });
+        },
+        onError: () => toast({ variant: "destructive", title: COPY.adminResults.reviewSaveErrorTitle }),
+      },
+    );
+  };
 
   if (completedGames.length === 0) {
     return (
@@ -4732,6 +4955,13 @@ function NewResultsSection({ games, preferredGameId }: { games: Game[]; preferre
                 })}
               </div>
             </div>
+
+            <PendingReviewQueue
+              reviews={pendingReviews}
+              label={COPY.adminResults.needingReviewLabel(pendingReviews.length)}
+              onReview={handleReview}
+              pendingAnswerId={reviewAnswer.isPending ? reviewAnswer.variables?.answerId : undefined}
+            />
           </div>
 
           {/* hardest questions */}
