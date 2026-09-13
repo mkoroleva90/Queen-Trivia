@@ -1,5 +1,6 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import helmet from "helmet";
 import pinoHttp from "pino-http";
 import router from "./routes/index.ts";
 import { logger } from "./lib/logger.ts";
@@ -21,6 +22,12 @@ const app: Express = express();
 // Trust the Replit reverse proxy so express-rate-limit can read real client IPs
 app.set("trust proxy", 1);
 
+app.use(helmet({
+ contentSecurityPolicy: false,
+ crossOriginEmbedderPolicy: false,
+ crossOriginOpenerPolicy: false,
+ crossOriginResourcePolicy: { policy: "cross-origin" },
+}));
 
 app.use(
  pinoHttp({
