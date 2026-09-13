@@ -9,6 +9,7 @@
  * owner can inspect and manage the platform without needing a host account.
  */
 import { Router } from "express";
+import { timingSafeEqual } from "node:crypto";
 import { isNull, eq, desc } from "drizzle-orm";
 import { getHostUsageSummaries, getOrphanedGames } from "../lib/usageLimits.ts";
 import { db, adminAccountsTable, gamesTable, contentReportsTable } from "@workspace/db";
@@ -27,7 +28,15 @@ function requireOwnerKey(
   }
   const auth = req.headers.authorization ?? "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-  if (token !== ownerKey) {
+  // Constant-time comparison to avoid leaking the key via response timing.
+  // timingSafeEqual throws on differing lengths, so a length mismatch is
+  // treated as an invalid key without ever calling it.
+  const tokenBuffer = Buffer.from(token);
+  const ownerKeyBuffer = Buffer.from(ownerKey);
+  if (
+    tokenBuffer.length !== ownerKeyBuffer.length ||
+    !timingSafeEqual(tokenBuffer, ownerKeyBuffer)
+  ) {
     res.status(401).json({ error: "Invalid owner key." });
     return;
   }
