@@ -10,7 +10,7 @@ description: How trivia and admin access codes are validated, stored, and rate-l
 - Case-insensitive on entry (server normalises to uppercase before storing; comparisons always use `.toUpperCase()`).
 - Generated without confusable chars (no 0/O, 1/I/l) — alphabet in `TRIVIA_CODE_ALPHABET`.
 - Generated game codes are 10 characters.
-- Rate limit: `triviaJoinRateLimit` — 120 per minute per source IP, PostgreSQL-backed across replicas, with successful requests excluded so groups can join at once.
+- Verification rate limit: the strict, success-counting authentication limiter — 8 requests per 15 minutes per source IP, PostgreSQL-backed across replicas.
 - Player admission and code verification refuse legacy codes shorter than 8 characters.
 
 ### Admin access code
@@ -24,19 +24,21 @@ description: How trivia and admin access codes are validated, stored, and rate-l
   development loopback traffic: the Replit preview proxy can present external
   anonymous requests as loopback.
 
-**Why:** Four-character host-selected codes have only 10,000 numeric possibilities and can be enumerated quickly. Eight characters preserve usability while making online guessing impractical. Admin codes are long-lived and control game content, so they must also resist offline attacks if the database is exposed.
+**Why:** Four-character host-selected codes have only 10,000 numeric possibilities and can be enumerated quickly. Eight characters preserve usability while making online guessing impractical. Code verification returns HTTP 200 for both valid and invalid guesses, so a limiter configured to skip successful HTTP responses does not protect it. Admin codes are long-lived and control game content, so they must also resist offline attacks if the database is exposed.
 
 **How to apply:** Do not add a development or loopback bypass to the strict
 authentication limiter. Test preview-facing authentication controls through the
-same proxy path used by anonymous visitors. Keep server validation, API schemas,
-host forms, seeded games, and test fixtures aligned to the 8-character minimum.
+same proxy path used by anonymous visitors. Do not use `skipSuccessfulRequests`
+on a verification route whose invalid-code response is HTTP 200. Keep server
+validation, API schemas, host forms, seeded games, and test fixtures aligned to
+the 8-character minimum.
 
 ## Bootstrap migration
 `bootstrapAccessCodes()` runs at server startup. If `adminAccessCode` does not start with `$2a$`/`$2b$` (i.e. was plain text), it rotates to a new random plaintext, hashes it, and logs the plaintext to the server console — operator must record it before the process exits. The plaintext is never stored.
 
 ## Files
 - Canonical validation: `artifacts/api-server/src/lib/accessCodeValidation.ts`
-- Rate limits: `artifacts/api-server/src/middleware/authRateLimit.ts` (`authRateLimit` + `triviaJoinRateLimit`)
+- Rate limits: `artifacts/api-server/src/middleware/authRateLimit.ts`
 - Settings route: `artifacts/api-server/src/routes/settings.ts`
 - Player join (case-insensitive): `artifacts/api-server/src/routes/session.ts` + `auth.ts`
 - Bootstrap + migration: `artifacts/api-server/src/lib/bootstrapAccessCodes.ts`
