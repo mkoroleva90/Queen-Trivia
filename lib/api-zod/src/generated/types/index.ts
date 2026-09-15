@@ -39,6 +39,8 @@ export * from './listGamesParams';
 export * from './listGamesStatus';
 export * from './mobileRegisterInput';
 export * from './mobileRegisterResult';
+export * from './mobileResendCodeInput';
+export * from './mobileResendCodeResult';
 export * from './mobileVerifyInput';
 export * from './mobileVerifyResult';
 export * from './openTdbImportInput';

@@ -37,6 +37,8 @@ import type {
   ListGamesParams,
   MobileRegisterInput,
   MobileRegisterResult,
+  MobileResendCodeInput,
+  MobileResendCodeResult,
   MobileVerifyInput,
   MobileVerifyResult,
   OpenTdbImportInput,
@@ -377,6 +379,78 @@ export const useMobileVerifyHostEmail = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getMobileVerifyHostEmailMutationOptions(options));
+    }
+
+export const getMobileResendVerificationCodeUrl = () => {
+
+
+
+
+  return `/api/auth/email/mobile-resend-code`
+}
+
+/**
+ * If an UNVERIFIED account exists for the email, re-issues a fresh 6-digit verification code (15-minute expiry) and emails it. Always responds 200 with a generic message whether or not an unverified account exists, so accounts cannot be enumerated.
+ * @summary Resend the 6-digit host email-verification code
+ */
+export const mobileResendVerificationCode = async (mobileResendCodeInput: MobileResendCodeInput, options?: RequestInit): Promise<MobileResendCodeResult> => {
+
+  return customFetch<MobileResendCodeResult>(getMobileResendVerificationCodeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(mobileResendCodeInput)
+  }
+);}
+
+
+
+
+
+export const getMobileResendVerificationCodeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mobileResendVerificationCode>>, TError,{data: BodyType<MobileResendCodeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof mobileResendVerificationCode>>, TError,{data: BodyType<MobileResendCodeInput>}, TContext> => {
+
+const mutationKey = ['mobileResendVerificationCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof mobileResendVerificationCode>>, {data: BodyType<MobileResendCodeInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  mobileResendVerificationCode(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MobileResendVerificationCodeMutationResult = NonNullable<Awaited<ReturnType<typeof mobileResendVerificationCode>>>
+    export type MobileResendVerificationCodeMutationBody = BodyType<MobileResendCodeInput>
+    export type MobileResendVerificationCodeMutationError = ErrorType<void>
+
+    /**
+ * @summary Resend the 6-digit host email-verification code
+ */
+export const useMobileResendVerificationCode = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mobileResendVerificationCode>>, TError,{data: BodyType<MobileResendCodeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof mobileResendVerificationCode>>,
+        TError,
+        {data: BodyType<MobileResendCodeInput>},
+        TContext
+      > => {
+      return useMutation(getMobileResendVerificationCodeMutationOptions(options));
     }
 
 export const getCreateUserUrl = () => {
@@ -2098,7 +2172,7 @@ export const getSubmitReportUrl = () => {
 }
 
 /**
- * Saves a player-submitted content report. No authentication required — players are anonymous. Returns 201 on success. Returns 422 if the optional note contains content that fails the server-side content filter.
+ * Saves a report from a player with a server-recorded access grant or participant record for the game. If a question is supplied, it must belong to that game. Returns 201 on success. Returns 422 if the optional note contains content that fails the server-side content filter.
  * @summary Submit a content report
  */
 export const submitReport = async (reportInput: ReportInput, options?: RequestInit): Promise<ReportSubmitted> => {
@@ -2116,7 +2190,7 @@ export const submitReport = async (reportInput: ReportInput, options?: RequestIn
 
 
 
-export const getSubmitReportMutationOptions = <TError = ErrorType<SubmitReport422>,
+export const getSubmitReportMutationOptions = <TError = ErrorType<void | SubmitReport422>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitReport>>, TError,{data: BodyType<ReportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof submitReport>>, TError,{data: BodyType<ReportInput>}, TContext> => {
 
@@ -2145,12 +2219,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type SubmitReportMutationResult = NonNullable<Awaited<ReturnType<typeof submitReport>>>
     export type SubmitReportMutationBody = BodyType<ReportInput>
-    export type SubmitReportMutationError = ErrorType<SubmitReport422>
+    export type SubmitReportMutationError = ErrorType<void | SubmitReport422>
 
     /**
  * @summary Submit a content report
  */
-export const useSubmitReport = <TError = ErrorType<SubmitReport422>,
+export const useSubmitReport = <TError = ErrorType<void | SubmitReport422>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitReport>>, TError,{data: BodyType<ReportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof submitReport>>,

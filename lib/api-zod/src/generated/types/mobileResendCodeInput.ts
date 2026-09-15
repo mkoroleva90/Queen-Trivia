@@ -6,11 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface MobileRegisterInput {
+export interface MobileResendCodeInput {
   email: string;
-  /**
-     * @minLength 8
-     * @maxLength 128
-     */
-  password: string;
 }

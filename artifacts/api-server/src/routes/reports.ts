@@ -1,6 +1,14 @@
 import { Router } from "express";
 import { SubmitReportBody } from "@workspace/api-zod";
-import { db, contentReportsTable } from "@workspace/db";
+import {
+  db,
+  contentReportsTable,
+  gameAccessGrantsTable,
+  gameParticipantsTable,
+  gamesTable,
+  questionsTable,
+} from "@workspace/db";
+import { and, eq } from "drizzle-orm";
 import { containsBannedContent, logFlaggedContent } from "../lib/contentFilter.ts";
 import { COPY } from "@workspace/copy";
 import { sendContentReportEmail } from "../lib/email.ts";
@@ -11,7 +19,8 @@ const router = Router();
 /**
  * POST /reports
  *
- * Public — no authentication required. Players are anonymous.
+ * Player session required. Players do not need a named account, but they must
+ * have a server-recorded room-code grant or participant row for the game.
  *
  * Saves a content report, then fires a notification email (best-effort).
  * Returns 201 { id } on success.
@@ -37,8 +46,65 @@ router.post("/reports", reportsRateLimit, async (req, res): Promise<void> => {
     return;
   }
 
-  // Capture the player's user ID from their session if available.
-  const reporterUserId = req.session.userId ?? null;
+  const reporterUserId = req.session.userId;
+  if (reporterUserId == null) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
+  const [game] = await db
+    .select({ id: gamesTable.id })
+    .from(gamesTable)
+    .where(eq(gamesTable.id, parsed.data.gameId))
+    .limit(1);
+  if (!game) {
+    res.status(404).json({ error: "Game not found" });
+    return;
+  }
+
+  const [[participant], [grant]] = await Promise.all([
+    db
+      .select({ userId: gameParticipantsTable.userId })
+      .from(gameParticipantsTable)
+      .where(
+        and(
+          eq(gameParticipantsTable.gameId, parsed.data.gameId),
+          eq(gameParticipantsTable.userId, reporterUserId),
+        ),
+      )
+      .limit(1),
+    db
+        .select({ userId: gameAccessGrantsTable.userId })
+        .from(gameAccessGrantsTable)
+        .where(
+          and(
+            eq(gameAccessGrantsTable.gameId, parsed.data.gameId),
+            eq(gameAccessGrantsTable.userId, reporterUserId),
+          ),
+        )
+        .limit(1),
+  ]);
+  if (!participant && !grant) {
+    res.status(403).json({ error: "Not authorized for this game" });
+    return;
+  }
+
+  if (parsed.data.questionId != null) {
+    const [question] = await db
+      .select({ id: questionsTable.id })
+      .from(questionsTable)
+      .where(
+        and(
+          eq(questionsTable.id, parsed.data.questionId),
+          eq(questionsTable.gameId, parsed.data.gameId),
+        ),
+      )
+      .limit(1);
+    if (!question) {
+      res.status(404).json({ error: "Question not found in this game" });
+      return;
+    }
+  }
 
   const [report] = await db
     .insert(contentReportsTable)

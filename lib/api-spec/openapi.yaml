@@ -651,9 +651,10 @@ paths:
       tags: [reports]
       summary: Submit a content report
       description: >
-        Saves a player-submitted content report. No authentication required —
-        players are anonymous. Returns 201 on success. Returns 422 if the
-        optional note contains content that fails the server-side content filter.
+        Saves a report from a player with a server-recorded access grant or
+        participant record for the game. If a question is supplied, it must
+        belong to that game. Returns 201 on success. Returns 422 if the optional
+        note contains content that fails the server-side content filter.
       requestBody:
         required: true
         content:
@@ -667,6 +668,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReportSubmitted"
+        "401":
+          description: Player is not authenticated
+        "403":
+          description: Player is not authorized for the game
+        "404":
+          description: Game not found or question does not belong to the game
         "422":
           description: Note blocked by content filter
           content:

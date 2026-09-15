@@ -40,8 +40,8 @@ export const VerifyAccessCodeResponse = zod.object({
  * @summary Register a host account from the mobile app
  */
 export const mobileRegisterHostBodyPasswordMin = 8;
-
 export const mobileRegisterHostBodyPasswordMax = 128;
+
 
 
 export const MobileRegisterHostBody = zod.object({
@@ -60,8 +60,9 @@ export const MobileRegisterHostResponse = zod.object({
  * @summary Verify a host email with the 6-digit code and sign in
  */
 export const mobileVerifyHostEmailBodyCodeMin = 6;
-
 export const mobileVerifyHostEmailBodyCodeMax = 6;
+
+
 export const mobileVerifyHostEmailBodyCodeRegExp = new RegExp('^[0-9]{6}$');
 
 
@@ -73,6 +74,20 @@ export const MobileVerifyHostEmailBody = zod.object({
 export const MobileVerifyHostEmailResponse = zod.object({
   "ok": zod.boolean(),
   "adminToken": zod.string()
+})
+
+
+/**
+ * If an UNVERIFIED account exists for the email, re-issues a fresh 6-digit verification code (15-minute expiry) and emails it. Always responds 200 with a generic message whether or not an unverified account exists, so accounts cannot be enumerated.
+ * @summary Resend the 6-digit host email-verification code
+ */
+export const MobileResendVerificationCodeBody = zod.object({
+  "email": zod.string().email()
+})
+
+export const MobileResendVerificationCodeResponse = zod.object({
+  "ok": zod.boolean(),
+  "message": zod.string()
 })
 
 
@@ -643,7 +658,7 @@ export const GetStatsSummaryResponse = zod.object({
 
 
 /**
- * Saves a player-submitted content report. No authentication required — players are anonymous. Returns 201 on success. Returns 422 if the optional note contains content that fails the server-side content filter.
+ * Saves a report from a player with a server-recorded access grant or participant record for the game. If a question is supplied, it must belong to that game. Returns 201 on success. Returns 422 if the optional note contains content that fails the server-side content filter.
  * @summary Submit a content report
  */
 export const submitReportBodyNoteMax = 1000;

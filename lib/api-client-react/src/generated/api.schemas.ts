@@ -35,9 +35,9 @@ export interface AccessCodeResult {
 export interface MobileRegisterInput {
   email: string;
   /**
-   * @minLength 8
-   * @maxLength 128
-   */
+     * @minLength 8
+     * @maxLength 128
+     */
   password: string;
 }
 
@@ -49,16 +49,25 @@ export interface MobileRegisterResult {
 export interface MobileVerifyInput {
   email: string;
   /**
-   * @minLength 6
-   * @maxLength 6
-   * @pattern ^[0-9]{6}$
-   */
+     * @minLength 6
+     * @maxLength 6
+     * @pattern ^[0-9]{6}$
+     */
   code: string;
 }
 
 export interface MobileVerifyResult {
   ok: boolean;
   adminToken: string;
+}
+
+export interface MobileResendCodeInput {
+  email: string;
+}
+
+export interface MobileResendCodeResult {
+  ok: boolean;
+  message: string;
 }
 
 export interface UserInput {
