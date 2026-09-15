@@ -8,7 +8,8 @@ import { sessionMiddleware } from "./lib/session.ts";
 import { corsOrigin, isOriginAllowed } from "./lib/cors.ts";
 import { injectMobileSession } from "./lib/mobileAuth.ts";
 import { globalErrorHandler } from "./lib/globalErrorHandler.ts";
-export { initSocket, revokeAdminSockets, revokePlayerFromGame, safeEmit } from "./lib/socket.ts";
+export { initSocket, revokeAdminSockets, revokeLogoutSockets, revokePlayerFromGame, safeEmit } from "./lib/socket.ts";
+export { generateAdminToken, generateMobileToken } from "./lib/mobileAuth.ts";
 
 // Export for integration tests: the router is mounted at /api before the
 // global error handler, so test routes added to it will have 500-handling.

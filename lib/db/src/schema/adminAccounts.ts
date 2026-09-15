@@ -25,6 +25,8 @@ export const adminAccountsTable = pgTable("admin_accounts", {
   plan: text("plan", { enum: ["free", "pro"] }).notNull().default("free"),
   // Used to invalidate mobile Bearer tokens issued before a password change.
   passwordChangedAt: timestamp("password_changed_at", { withTimezone: true }),
+  // Advanced on mobile logout to invalidate previously issued Bearer tokens.
+  mobileTokensRevokedAt: timestamp("mobile_tokens_revoked_at", { withTimezone: true }),
   // Apple only returns the user's name on the very first sign-in; store it here immediately.
   displayName: text("display_name"),
 });

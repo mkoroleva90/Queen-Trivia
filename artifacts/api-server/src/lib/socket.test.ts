@@ -16,8 +16,10 @@ const {
   router,
   initSocket,
   revokeAdminSockets,
+  revokeLogoutSockets,
   revokePlayerFromGame,
   safeEmit,
+  generateMobileToken,
 } = await import("../../dist/app.mjs") as {
   default: import("express").Express;
   router: IRouter;
@@ -27,7 +29,13 @@ const {
     adminEmail?: string | null;
     exceptSessionId?: string;
   }) => Promise<void>;
+  revokeLogoutSockets: (options: {
+    sessionId?: string;
+    userId?: number;
+    adminAccountId?: number;
+  }) => Promise<void>;
   revokePlayerFromGame: (gameId: number, userId: number) => Promise<void>;
+  generateMobileToken: (userId: number) => string;
   safeEmit: (
     room: string,
     event: "game:ended",
@@ -103,12 +111,13 @@ function listen(server: import("node:http").Server): Promise<number> {
   });
 }
 
-function connect(port: number, cookie: string): Promise<Socket> {
+function connect(port: number, cookie: string, token?: string): Promise<Socket> {
   return new Promise((resolve, reject) => {
     const client = createClient(`http://127.0.0.1:${port}`, {
       path: "/api/socket.io",
       transports: ["websocket"],
       extraHeaders: { Cookie: cookie },
+      auth: token ? { token } : undefined,
       timeout: 1_000,
     });
     client.once("connect", () => resolve(client));
@@ -387,5 +396,29 @@ describe("Socket.IO host game-room ownership", () => {
     safeEmit(`game:${ownGameId}`, "game:ended", { gameId: ownGameId });
     await new Promise((resolve) => setTimeout(resolve, 100));
     assert.equal(receivedFutureEvent, false, "removed player must not receive later room events");
+  });
+
+  it("disconnects logged-out sockets by authenticated identity across replicas", async () => {
+    assert.equal(playerSocket.connected, true);
+    await revokeLogoutSockets({ userId: playerId });
+    assert.equal(
+      await waitFor(() => playerSocket.disconnected),
+      true,
+      "player logout must disconnect sockets carrying the revoked identity",
+    );
+  });
+
+  it("rejects a bearer identity that does not match cookie-derived socket privileges", async () => {
+    const mixedSocket = await connect(
+      port,
+      ownerCookie,
+      generateMobileToken(playerId),
+    );
+    mixedSocket.emit("lobby:join");
+    assert.equal(
+      await waitFor(() => mixedSocket.disconnected),
+      true,
+      "player bearer validation must not preserve admin cookie privileges",
+    );
   });
 });

@@ -18,8 +18,8 @@
 
 import { createHmac } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
-import { db, gameParticipantsTable, adminAccountsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, usersTable, adminAccountsTable } from "@workspace/db";
+import { and, eq, isNull, lt, or } from "drizzle-orm";
 
 const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -39,6 +39,10 @@ interface AdminTokenPayload {
 }
 
 type AnyTokenPayload = PlayerTokenPayload | AdminTokenPayload;
+
+export type MobileTokenIdentity =
+  | { role: "player"; userId: number }
+  | { role: "admin"; adminAccountId: number };
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -109,6 +113,100 @@ export function generateAdminToken(
   return makeToken({ role: "admin", adminAccountId, iat }, iat);
 }
 
+/**
+ * Revoke every mobile token issued for the Bearer identity before this call.
+ * Invalid/malformed tokens do not identify a subject and are ignored.
+ */
+export async function revokeMobileBearerToken(
+  authorization: string | undefined,
+): Promise<MobileTokenIdentity | null> {
+  if (!authorization?.startsWith("Bearer ")) return null;
+  const payload = parseToken(authorization.slice(7));
+  if (!payload) return null;
+
+  const revokedAt = new Date();
+  if (payload.role === "admin") {
+    if (!Number.isSafeInteger(payload.adminAccountId) || payload.adminAccountId <= 0) return null;
+    const revoked = await db
+      .update(adminAccountsTable)
+      .set({ mobileTokensRevokedAt: revokedAt })
+      .where(and(
+        eq(adminAccountsTable.id, payload.adminAccountId),
+        or(
+          isNull(adminAccountsTable.passwordChangedAt),
+          lt(adminAccountsTable.passwordChangedAt, new Date(payload.iat)),
+        ),
+        or(
+          isNull(adminAccountsTable.mobileTokensRevokedAt),
+          lt(adminAccountsTable.mobileTokensRevokedAt, new Date(payload.iat)),
+        ),
+      ))
+      .returning({ id: adminAccountsTable.id });
+    if (revoked.length === 0) return null;
+    return { role: "admin", adminAccountId: payload.adminAccountId };
+  }
+
+  if (!Number.isSafeInteger(payload.userId) || payload.userId <= 0) return null;
+  const revoked = await db
+    .update(usersTable)
+    .set({ mobileTokensRevokedAt: revokedAt })
+    .where(and(
+      eq(usersTable.id, payload.userId),
+      or(
+        isNull(usersTable.mobileTokensRevokedAt),
+        lt(usersTable.mobileTokensRevokedAt, new Date(payload.iat)),
+      ),
+    ))
+    .returning({ id: usersTable.id });
+  if (revoked.length === 0) return null;
+  return { role: "player", userId: payload.userId };
+}
+
+/** Re-check a Bearer token and return its current persisted identity. */
+export async function getActiveMobileBearerIdentity(
+  token: string,
+): Promise<MobileTokenIdentity | null> {
+  const payload = parseToken(token);
+  if (!payload) return null;
+  try {
+    if (payload.role === "admin") {
+      if (!Number.isSafeInteger(payload.adminAccountId) || payload.adminAccountId <= 0) {
+        return null;
+      }
+      const [acct] = await db
+        .select({
+          passwordChangedAt: adminAccountsTable.passwordChangedAt,
+          mobileTokensRevokedAt: adminAccountsTable.mobileTokensRevokedAt,
+        })
+        .from(adminAccountsTable)
+        .where(eq(adminAccountsTable.id, payload.adminAccountId))
+        .limit(1);
+      return (
+        acct
+        && (!acct.passwordChangedAt || payload.iat > acct.passwordChangedAt.getTime())
+        && (!acct.mobileTokensRevokedAt || payload.iat > acct.mobileTokensRevokedAt.getTime())
+      )
+        ? { role: "admin", adminAccountId: payload.adminAccountId }
+        : null;
+    }
+
+    if (!Number.isSafeInteger(payload.userId) || payload.userId <= 0) return null;
+    const [user] = await db
+      .select({ mobileTokensRevokedAt: usersTable.mobileTokensRevokedAt })
+      .from(usersTable)
+      .where(eq(usersTable.id, payload.userId))
+      .limit(1);
+    return (
+      user
+      && (!user.mobileTokensRevokedAt || payload.iat > user.mobileTokensRevokedAt.getTime())
+    )
+      ? { role: "player", userId: payload.userId }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Express middleware ───────────────────────────────────────────────────
 
 /**
@@ -158,12 +256,19 @@ export async function injectMobileSession(
       let revoked = false;
       try {
         const [acct] = await db
-          .select({ passwordChangedAt: adminAccountsTable.passwordChangedAt })
+          .select({
+            passwordChangedAt: adminAccountsTable.passwordChangedAt,
+            mobileTokensRevokedAt: adminAccountsTable.mobileTokensRevokedAt,
+          })
           .from(adminAccountsTable)
           .where(eq(adminAccountsTable.id, payload.adminAccountId))
           .limit(1);
         // Fail closed: account not found, or token predates the last password change.
-        if (!acct || (acct.passwordChangedAt && payload.iat <= acct.passwordChangedAt.getTime())) {
+        if (
+          !acct
+          || (acct.passwordChangedAt && payload.iat <= acct.passwordChangedAt.getTime())
+          || (acct.mobileTokensRevokedAt && payload.iat <= acct.mobileTokensRevokedAt.getTime())
+        ) {
           revoked = true;
         }
       } catch {
@@ -191,9 +296,25 @@ export async function injectMobileSession(
   // prior admin token). Admin sessions are never overwritten by a player token.
   if (!req.session?.userId && !req.session?.isAdmin) {
     const p = payload as PlayerTokenPayload;
-    if (!p.userId) {
+    if (!Number.isSafeInteger(p.userId) || p.userId <= 0) {
       return next(); // malformed
     }
+    let revoked = false;
+    try {
+      const [user] = await db
+        .select({ mobileTokensRevokedAt: usersTable.mobileTokensRevokedAt })
+        .from(usersTable)
+        .where(eq(usersTable.id, p.userId))
+        .limit(1);
+      revoked = !user
+        || Boolean(
+          user.mobileTokensRevokedAt
+          && p.iat <= user.mobileTokensRevokedAt.getTime(),
+        );
+    } catch {
+      revoked = true;
+    }
+    if (revoked) return next();
     req.session.userId = p.userId;
     req.session.isAdmin = false;
 

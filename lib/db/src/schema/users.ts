@@ -10,6 +10,7 @@ export const usersTable = pgTable("users", {
  createdAt: timestamp("created_at", { withTimezone: true })
   .notNull()
   .defaultNow(),
+ mobileTokensRevokedAt: timestamp("mobile_tokens_revoked_at", { withTimezone: true }),
 });
 
 

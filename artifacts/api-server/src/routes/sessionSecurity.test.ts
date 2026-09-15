@@ -22,8 +22,18 @@ if (!process.env["DATABASE_URL"]) {
 const { default: app } = await import("../../dist/app.mjs") as {
   default: import("express").Express;
 };
+const {
+  generateAdminToken,
+  generateMobileToken,
+} = await import("../../dist/app.mjs") as {
+  generateAdminToken: (adminAccountId: number) => string;
+  generateMobileToken: (userId: number) => string;
+};
 
 const pool = new pg.Pool({ connectionString: process.env["DATABASE_URL"] });
+after(async () => {
+  await pool.end();
+});
 const password = "session-security-test-password";
 const passwordChanged = "session-security-test-password-changed";
 const accounts = [
@@ -64,7 +74,6 @@ describe("email-admin session revocation", () => {
       await pool.query("DELETE FROM sessions WHERE sess->>'adminEmail' = $1", [email]);
       await pool.query("DELETE FROM admin_accounts WHERE email = $1", [email]);
     }
-    await pool.end();
   });
 
   it("revokes other browser sessions after a password change but preserves the current session", async () => {
@@ -107,5 +116,116 @@ describe("email-admin session revocation", () => {
 
     const staleAccess = await stolenBrowser.get("/api/account/display-name");
     assert.equal(staleAccess.status, 403);
+  });
+});
+
+describe("mobile bearer logout revocation", () => {
+  let playerId: number;
+  let adminAccountId: number;
+  const mobileEmail = "session-security-mobile-logout@example.invalid";
+
+  before(async () => {
+    const player = await pool.query<{ id: number }>(
+      "INSERT INTO users (name) VALUES ($1) RETURNING id",
+      ["session-security-mobile-player"],
+    );
+    playerId = player.rows[0]!.id;
+    const admin = await pool.query<{ id: number }>(
+      `INSERT INTO admin_accounts (email, email_verified)
+       VALUES ($1, TRUE) RETURNING id`,
+      [mobileEmail],
+    );
+    adminAccountId = admin.rows[0]!.id;
+  });
+
+  after(async () => {
+    await pool.query("DELETE FROM users WHERE id = $1", [playerId]);
+    await pool.query("DELETE FROM admin_accounts WHERE id = $1", [adminAccountId]);
+  });
+
+  it("rejects a copied player token after player logout", async () => {
+    const token = generateMobileToken(playerId);
+    const beforeLogout = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${token}`);
+    assert.equal(beforeLogout.body.user.id, playerId);
+
+    const logout = await request(app)
+      .post("/api/auth/logout")
+      .set("Authorization", `Bearer ${token}`);
+    assert.equal(logout.status, 200);
+
+    const afterLogout = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${token}`);
+    assert.equal(afterLogout.body.user, null);
+
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    const replacementToken = generateMobileToken(playerId);
+    const replay = await request(app)
+      .post("/api/auth/logout")
+      .set("Authorization", `Bearer ${token}`);
+    assert.equal(replay.status, 200);
+
+    const replacementAccess = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${replacementToken}`);
+    assert.equal(
+      replacementAccess.body.user.id,
+      playerId,
+      "a stale logout replay must not revoke a newer player login",
+    );
+
+    const replacementLogout = await request(app)
+      .post("/api/auth/logout")
+      .set("Authorization", `Bearer ${replacementToken}`);
+    assert.equal(replacementLogout.status, 200);
+    const replacementAfterLogout = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${replacementToken}`);
+    assert.equal(replacementAfterLogout.body.user, null);
+  });
+
+  it("rejects a copied admin token after admin logout", async () => {
+    const token = generateAdminToken(adminAccountId);
+    const beforeLogout = await request(app)
+      .get("/api/admin/me")
+      .set("Authorization", `Bearer ${token}`);
+    assert.equal(beforeLogout.body.isAdmin, true);
+
+    const logout = await request(app)
+      .post("/api/admin/logout")
+      .set("Authorization", `Bearer ${token}`);
+    assert.equal(logout.status, 200);
+
+    const afterLogout = await request(app)
+      .get("/api/admin/me")
+      .set("Authorization", `Bearer ${token}`);
+    assert.equal(afterLogout.body.isAdmin, false);
+
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    const replacementToken = generateAdminToken(adminAccountId);
+    const replay = await request(app)
+      .post("/api/admin/logout")
+      .set("Authorization", `Bearer ${token}`);
+    assert.equal(replay.status, 200);
+
+    const replacementAccess = await request(app)
+      .get("/api/admin/me")
+      .set("Authorization", `Bearer ${replacementToken}`);
+    assert.equal(
+      replacementAccess.body.isAdmin,
+      true,
+      "a stale logout replay must not revoke a newer admin login",
+    );
+
+    const replacementLogout = await request(app)
+      .post("/api/admin/logout")
+      .set("Authorization", `Bearer ${replacementToken}`);
+    assert.equal(replacementLogout.status, 200);
+    const replacementAfterLogout = await request(app)
+      .get("/api/admin/me")
+      .set("Authorization", `Bearer ${replacementToken}`);
+    assert.equal(replacementAfterLogout.body.isAdmin, false);
   });
 });

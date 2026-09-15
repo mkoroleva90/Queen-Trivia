@@ -104,12 +104,14 @@ export function AdminAuthProvider({
   const logoutAdmin = async () => {
     const token = await storage.getItem(ADMIN_TOKEN_KEY).catch(() => null);
     try {
-      await fetch(`${baseUrl}/api/admin/logout`, {
+      const response = await fetch(`${baseUrl}/api/admin/logout`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
+      if (!response.ok) return;
     } catch {
-      // ignore
+      // Keep the credential so server-side revocation can be retried.
+      return;
     }
     await storage.deleteItem(ADMIN_TOKEN_KEY).catch(() => {});
     // Restore player token getter and clear admin-fetched cache.

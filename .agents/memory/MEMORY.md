@@ -20,7 +20,7 @@
 - [Mobile OTP reset limits](mobile-otp-reset-limits.md) — OTP attempts need a rolling, account-stable HMAC key; fixed windows or per-token keys can be reset by timing or code reissue.
 - [OpenTDB supplement compatibility](opentdb-supplement-compatibility.md) — import modes are server-validated locally so existing OpenAPI/Orval clients and standard imports remain unchanged.
 - [Development database migration drift](development-database-migration-drift.md) — player login can 500 when the development DB lacks the game access-grants migration.
-- [Admin session revocation](admin-session-revocation.md) — database revocation must disconnect active Socket.IO hosts; email-only migration sessions are account-backed, not legacy code sessions.
+- [Session revocation](admin-session-revocation.md) — persist bearer logout epochs, disconnect sockets, and revalidate room joins to close handshake races.
 - [Expo Launch App Store state](expo-launch-app-state.md) — guided submission can retain a stale App Store record; compare Launch IDs with app.json/eas.json before changing bundle identifiers.
 - [API eval worker flags](api-eval-worker-flags.md) — avoid `node --input-type=module` for one-off scripts importing the built API; Pino workers inherit the flag and crash.
 - [Live gameplay confidentiality](live-gameplay-confidentiality.md) — active players may see identities and their own score, never correctness aggregates, peer scores, or score-ranked ordering.

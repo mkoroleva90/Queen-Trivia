@@ -9,7 +9,7 @@ import { db, gameParticipantsTable, gamesTable, pool } from "@workspace/db";
 import { logger } from "./logger.ts";
 import { sessionMiddleware } from "./session.ts";
 import { corsOrigin, isOriginAllowed } from "./cors.ts";
-import { injectMobileSession } from "./mobileAuth.ts";
+import { getActiveMobileBearerIdentity, injectMobileSession } from "./mobileAuth.ts";
 import type { ServerToClientEvents, ClientToServerEvents } from "@workspace/socket-contract";
 
 export type { ServerToClientEvents, ClientToServerEvents };
@@ -67,6 +67,7 @@ export function initSocket(server: HTTPServer): IO {
     logger.debug({ socketId: socket.id }, "Socket connected");
 
     const req = socket.request as Request;
+    const bearerToken = (socket.handshake.auth as { token?: string })?.token;
     socket.data.userId = req.session.userId;
     socket.data.isAdmin = req.session.isAdmin === true;
     socket.data.adminAccountId = req.session.adminAccountId;
@@ -76,6 +77,32 @@ export function initSocket(server: HTTPServer): IO {
     const recentGameJoinAt: number[] = [];
     const pendingGameJoins = new Set<number>();
     let inFlightGameJoins = 0;
+
+    async function refreshAuthorization(): Promise<boolean> {
+      if (bearerToken) {
+        const identity = await getActiveMobileBearerIdentity(bearerToken);
+        const matchesSocket = identity?.role === "admin"
+          ? socket.data.isAdmin === true
+            && socket.data.adminAccountId === identity.adminAccountId
+          : identity?.role === "player"
+            && socket.data.isAdmin !== true
+            && socket.data.userId === identity.userId;
+        if (matchesSocket) return true;
+      } else {
+        const reloaded = await new Promise<boolean>((resolve) => {
+          req.session.reload((err) => resolve(!err));
+        });
+        if (reloaded && (req.session.userId || req.session.isAdmin)) {
+          socket.data.userId = req.session.userId;
+          socket.data.isAdmin = req.session.isAdmin === true;
+          socket.data.adminAccountId = req.session.adminAccountId;
+          socket.data.adminEmail = req.session.adminEmail;
+          return true;
+        }
+      }
+      socket.disconnect(true);
+      return false;
+    }
 
     function reserveGameJoin(gameId: number): boolean {
       // A room join is idempotent. Avoid even rate-limit accounting for the
@@ -106,7 +133,8 @@ export function initSocket(server: HTTPServer): IO {
       inFlightGameJoins = Math.max(0, inFlightGameJoins - 1);
     }
 
-    socket.on("lobby:join", () => {
+    socket.on("lobby:join", async () => {
+      if (!(await refreshAuthorization())) return;
       if (!req.session.userId && !req.session.isAdmin) {
         logger.debug({ socketId: socket.id }, "Unauthenticated lobby:join rejected");
         return;
@@ -123,6 +151,7 @@ export function initSocket(server: HTTPServer): IO {
     });
 
     socket.on("game:join", async (gameId: number) => {
+      if (!(await refreshAuthorization())) return;
       if (!req.session.userId && !req.session.isAdmin) {
         logger.debug({ socketId: socket.id }, "Unauthenticated game:join rejected");
         return;
@@ -287,6 +316,35 @@ export async function revokeAdminSockets(options: {
     }
   } catch (err) {
     logger.error({ err, ...options }, "Failed to revoke host sockets");
+    throw err;
+  }
+}
+
+/** Disconnect sockets whose authorization was ended by an explicit logout. */
+export async function revokeLogoutSockets(options: {
+  sessionId?: string;
+  userId?: number;
+  adminAccountId?: number;
+}): Promise<void> {
+  const activeIo = io;
+  if (!activeIo) return;
+
+  try {
+    const sockets = await activeIo.fetchSockets();
+    for (const socket of sockets) {
+      if (
+        (options.sessionId != null && socket.data.sessionId === options.sessionId)
+        || (options.userId != null && socket.data.userId === options.userId)
+        || (
+          options.adminAccountId != null
+          && socket.data.adminAccountId === options.adminAccountId
+        )
+      ) {
+        socket.disconnect(true);
+      }
+    }
+  } catch (err) {
+    logger.error({ err, ...options }, "Failed to revoke logged-out sockets");
     throw err;
   }
 }

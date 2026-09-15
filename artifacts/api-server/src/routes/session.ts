@@ -10,7 +10,8 @@ import {
 } from "@workspace/db";
 import { toJsonSafe } from "../lib/serialize.ts";
 import { triviaJoinRateLimit } from "../middleware/authRateLimit.ts";
-import { generateMobileToken } from "../lib/mobileAuth.ts";
+import { generateMobileToken, revokeMobileBearerToken } from "../lib/mobileAuth.ts";
+import { revokeLogoutSockets } from "../lib/socket.ts";
 import { containsBannedContent, logFlaggedContent } from "../lib/contentFilter.ts";
 import { COPY } from "@workspace/copy";
 import { PlayerLoginBody } from "@workspace/api-zod";
@@ -195,11 +196,36 @@ router.get("/auth/me", async (req, res): Promise<void> => {
 
 
 // POST /api/auth/logout — clear player session
-router.post("/auth/logout", (req, res): void => {
- req.session.destroy(() => {
-     res.clearCookie("connect.sid");
-     res.json({ ok: true });
- });
+router.post("/auth/logout", async (req, res): Promise<void> => {
+ const sessionId = req.sessionID;
+ const sessionUserId = req.session.userId;
+ let bearerIdentity: Awaited<ReturnType<typeof revokeMobileBearerToken>> = null;
+ let bearerError = false;
+ try {
+     bearerIdentity = await revokeMobileBearerToken(req.headers.authorization);
+ } catch {
+     bearerError = true;
+ }
+ const [socketResult, sessionResult] = await Promise.allSettled([
+     revokeLogoutSockets({
+         sessionId,
+         userId: bearerIdentity?.role === "player"
+             ? bearerIdentity.userId
+             : sessionUserId,
+         adminAccountId: bearerIdentity?.role === "admin"
+             ? bearerIdentity.adminAccountId
+             : undefined,
+     }),
+     new Promise<void>((resolve, reject) => {
+         req.session.destroy((err) => err ? reject(err) : resolve());
+     }),
+ ]);
+ res.clearCookie("connect.sid");
+ if (bearerError || socketResult.status === "rejected" || sessionResult.status === "rejected") {
+     res.status(503).json({ error: "Unable to securely end session" });
+     return;
+ }
+ res.json({ ok: true });
 });
 
 
@@ -219,11 +245,36 @@ router.get("/admin/me", (req, res): void => {
 
 
 // POST /api/admin/logout — clear admin session
-router.post("/admin/logout", (req, res): void => {
- req.session.destroy(() => {
-     res.clearCookie("connect.sid");
-     res.json({ ok: true });
- });
+router.post("/admin/logout", async (req, res): Promise<void> => {
+ const sessionId = req.sessionID;
+ const sessionAdminAccountId = req.session.adminAccountId;
+ let bearerIdentity: Awaited<ReturnType<typeof revokeMobileBearerToken>> = null;
+ let bearerError = false;
+ try {
+     bearerIdentity = await revokeMobileBearerToken(req.headers.authorization);
+ } catch {
+     bearerError = true;
+ }
+ const [socketResult, sessionResult] = await Promise.allSettled([
+     revokeLogoutSockets({
+         sessionId,
+         userId: bearerIdentity?.role === "player"
+             ? bearerIdentity.userId
+             : undefined,
+         adminAccountId: bearerIdentity?.role === "admin"
+             ? bearerIdentity.adminAccountId
+             : sessionAdminAccountId,
+     }),
+     new Promise<void>((resolve, reject) => {
+         req.session.destroy((err) => err ? reject(err) : resolve());
+     }),
+ ]);
+ res.clearCookie("connect.sid");
+ if (bearerError || socketResult.status === "rejected" || sessionResult.status === "rejected") {
+     res.status(503).json({ error: "Unable to securely end session" });
+     return;
+ }
+ res.json({ ok: true });
 });
 
 
