@@ -153,10 +153,11 @@ router.get("/games", requireAuth, async (req, res): Promise<void> => {
      .groupBy(gameParticipantsTable.gameId);
  const countMap = new Map(participantCounts.map((c) => [c.gameId, c.value]));
 
- // Access codes are admin-only — never expose them to players
+ // Access codes and AI-generation briefs are admin-only — never expose them to players.
  const sanitized = games.map((g) => ({
      ...g,
      accessCode: req.session.isAdmin === true ? g.accessCode : null,
+     brief: req.session.isAdmin === true ? g.brief : null,
      participantCount: countMap.get(g.id) ?? 0,
  }));
  res.json(ListGamesResponse.parse(toJsonSafe(sanitized)));
@@ -305,6 +306,7 @@ res.json(
     GetGameResponse.parse(toJsonSafe({
      ...game,
      accessCode: req.session.isAdmin === true ? game.accessCode : null,
+     brief: req.session.isAdmin === true ? game.brief : null,
      participantCount: participants?.value ?? 0,
     })),
 );

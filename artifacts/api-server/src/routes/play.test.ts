@@ -245,10 +245,12 @@ describe("player game-data authorization", () => {
   let playerUserId: number;
   const JOINED_CODE = "TISOL100";
   const OTHER_CODE = "TISOL200";
+  const PRIVATE_BRIEF = "Private host guidance: make the answer Saturn.";
 
   before(async () => {
     ({ game: joinedGame } = await seedGameWithQuestions(JOINED_CODE, 1));
     ({ game: otherGame } = await seedGameWithQuestions(OTHER_CODE, 1));
+    await pool.query("UPDATE games SET brief = $1 WHERE id = $2", [PRIVATE_BRIEF, joinedGame.id]);
 
     playerAgent = request.agent(app);
     const loginRes = await playerAgent
@@ -279,6 +281,26 @@ describe("player game-data authorization", () => {
     });
   }
 
+  it("redacts the host's private AI brief from player game list and detail responses", async () => {
+    const [listRes, detailRes] = await Promise.all([
+      playerAgent.get("/api/games"),
+      playerAgent.get(`/api/games/${joinedGame.id}`),
+    ]);
+
+    assert.equal(listRes.status, 200, `game list failed: ${JSON.stringify(listRes.body)}`);
+    const listedGame = listRes.body.find((game: { id: number }) => game.id === joinedGame.id);
+    assert.ok(listedGame, "joined game must appear in the player's game list");
+    assert.equal(listedGame.brief, null);
+
+    assert.equal(detailRes.status, 200, `game detail failed: ${JSON.stringify(detailRes.body)}`);
+    assert.equal(detailRes.body.brief, null);
+    assert.equal(
+      JSON.stringify([listRes.body, detailRes.body]).includes(PRIVATE_BRIEF),
+      false,
+      "player game responses must not expose the host's private AI brief",
+    );
+  });
+
   it("withholds live results, then allows completed results with a redacted access code", async () => {
     const activeRes = await playerAgent.get(`/api/games/${joinedGame.id}/results`);
     assert.equal(
@@ -296,10 +318,12 @@ describe("player game-data authorization", () => {
       `expected 200 but got ${completedRes.status}: ${JSON.stringify(completedRes.body)}`,
     );
     assert.equal(completedRes.body.game.accessCode, null);
+    assert.equal(completedRes.body.game.brief, null);
     assert.equal(
-      JSON.stringify(completedRes.body).includes(JOINED_CODE),
+      JSON.stringify(completedRes.body).includes(JOINED_CODE)
+        || JSON.stringify(completedRes.body).includes(PRIVATE_BRIEF),
       false,
-      "must not expose the joined game's access code",
+      "must not expose the joined game's access code or private AI brief",
     );
   });
 

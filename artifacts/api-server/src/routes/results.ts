@@ -94,7 +94,7 @@ const enriched = participants.map((p, i) => {
 
   const responseGame = req.session.isAdmin === true
     ? game
-    : { ...game, accessCode: null };
+    : { ...game, accessCode: null, brief: null };
   res.json(toJsonSafe({ game: responseGame, participants: enriched, totalQuestions }));
 });
 
