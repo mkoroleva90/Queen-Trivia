@@ -347,13 +347,22 @@ export function WriteInQ({
 // ─── Ordering ─────────────────────────────────────────────────────────────────
 
 export function OrderingQ({
-  question, onSubmit, disabled, lockedAnswer,
-}: { question: Question; onSubmit: (a: string) => void; disabled: boolean; lockedAnswer: string | null }) {
+  question, onSubmit, disabled, lockedAnswer, shuffleItems = false,
+}: { question: Question; onSubmit: (a: string) => void; disabled: boolean; lockedAnswer: string | null;
+  /**
+   * Player payloads arrive pre-arranged by the server (never the grading
+   * order, identical for every player), so they render as-is. The host
+   * live screen receives the unredacted admin payload, whose items ARE in
+   * grading order — it opts into a local shuffle so the question is not
+   * presented pre-solved.
+   */
+  shuffleItems?: boolean;
+}) {
   const colors = useColors();
   const opts = question.options as { items?: string[] } | null;
   const correct = opts?.items ?? [];
-  const [items, setItems] = useState<string[]>(() => shuffle(correct));
-  useEffect(() => { setItems(shuffle(correct)); }, [question.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [items, setItems] = useState<string[]>(() => (shuffleItems ? shuffle(correct) : [...correct]));
+  useEffect(() => { setItems(shuffleItems ? shuffle(correct) : [...correct]); }, [question.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const answered = !!lockedAnswer;
   const display = answered ? lockedAnswer.split('|').map((s) => s.trim()).filter(Boolean) : items;
 

@@ -475,18 +475,26 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 export function OrderingQuestion({
-  question, onSubmit, disabled, feedbackResult,
+  question, onSubmit, disabled, feedbackResult, shuffleItems = false,
 }: {
   question: Question;
   onSubmit: (a: string) => void;
   disabled: boolean;
   feedbackResult: FeedbackResult | null;
+  /**
+   * Player payloads arrive pre-arranged by the server (never the grading
+   * order, identical for every player), so they render as-is. The host
+   * play-along card receives the unredacted admin payload, whose items ARE
+   * in grading order — it opts into a local shuffle so the question is not
+   * presented pre-solved.
+   */
+  shuffleItems?: boolean;
 }) {
   const opts    = question.options as { items?: string[] } | null;
   const correct = (opts?.items ?? []);
 
-  const [items, setItems] = useState<string[]>(() => shuffle(correct));
-  useEffect(() => { setItems(shuffle(correct)); }, [question.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [items, setItems] = useState<string[]>(() => (shuffleItems ? shuffle(correct) : [...correct]));
+  useEffect(() => { setItems(shuffleItems ? shuffle(correct) : [...correct]); }, [question.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const answered = !!feedbackResult;
   const lockedItems = answered
