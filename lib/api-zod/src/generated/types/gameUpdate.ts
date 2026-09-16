@@ -22,7 +22,7 @@ export interface GameUpdate {
      */
   brief?: string | null;
   /**
-     * @minLength 8
+     * @minLength 4
      * @maxLength 12
      * @pattern ^[A-Za-z0-9]+$
      */

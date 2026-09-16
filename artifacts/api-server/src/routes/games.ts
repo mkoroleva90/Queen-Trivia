@@ -334,7 +334,7 @@ router.patch("/games/:gameId", requireAdmin, async (req, res): Promise<void> => 
      return;
  }
 
- // Newly entered custom room codes must match the shared 8–12 character rule.
+ // Newly entered custom room codes must match the shared 4–12 character rule.
  if (parsed.data.accessCode !== undefined
      && !GAME_ACCESS_CODE_PATTERN.test(parsed.data.accessCode.trim())) {
      res.status(400).json({ error: INVALID_GAME_ACCESS_CODE_MESSAGE, code: "invalid_access_code" });

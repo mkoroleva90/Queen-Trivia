@@ -166,7 +166,7 @@ export default function ResultsScreen() {
     retry: false,
   });
 
-  const sortedQuestions = useMemo(() => [...questions].sort((a, b) => a.orderIndex - b.orderIndex), [questions]);
+  const sortedQuestions = useMemo(() => [...questions].sort((a, b) => a.orderIndex - b.orderIndex || a.id - b.id), [questions]);
   const answerMap = useMemo(() => new Map(myAnswers.map((a) => [a.questionId, a])), [myAnswers]);
   const statsMap = useMemo(() => new Map(questionStats.map((s) => [s.id, s])), [questionStats]);
 

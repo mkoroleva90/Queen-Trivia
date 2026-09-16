@@ -447,6 +447,29 @@ describe("mid-game re-entry — answered questions preserved", () => {
   });
 });
 
+// ─── Short room codes — the custom-code minimum is 4 characters ───────────────
+
+describe("POST /api/auth/login — 4-character room code", () => {
+  let game: TestGame;
+  const ACCESS_CODE = "AB12";
+  const PLAYER_NAME = "__test__short_code";
+
+  before(async () => {
+    ({ game } = await seedGameWithQuestions(ACCESS_CODE, 1));
+  });
+
+  after(async () => {
+    await cleanupGame(game.id);
+  });
+
+  it("accepts a 4-character code at player login", async () => {
+    const res = await request(app)
+      .post("/api/auth/login")
+      .send({ code: ACCESS_CODE, name: PLAYER_NAME });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+  });
+});
+
 // ─── Suite 3: re-login with active session restores same user ─────────────────
 
 describe("POST /api/auth/login — active session returns existing user", () => {

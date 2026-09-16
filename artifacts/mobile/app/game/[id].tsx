@@ -816,7 +816,7 @@ export default function GamePlayScreen() {
   });
 
   const sorted = useMemo(
-    () => [...(questions ?? [])].sort((a, b) => a.orderIndex - b.orderIndex),
+    () => [...(questions ?? [])].sort((a, b) => a.orderIndex - b.orderIndex || a.id - b.id),
     [questions],
   );
   // The server's answer row per question; a userAnswer of '' is a skip.

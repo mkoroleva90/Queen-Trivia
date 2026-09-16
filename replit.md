@@ -6,7 +6,7 @@ The web and mobile apps must have identical flows, features, and wording; every 
 
 ## Product notes
 
-- Every game has its own unique `access_code`, auto-generated on creation (10 characters from an unambiguous alphabet, CSPRNG-backed). The host may replace it with a custom 8–12 character code before going live. Players entering a per-game code are bound to that game only. There is no shared player code.
+- Every game has its own unique `access_code`, auto-generated on creation (10 characters from an unambiguous alphabet, CSPRNG-backed). The host may replace it with a custom 4–12 character code before going live. Players entering a per-game code are bound to that game only. There is no shared player code.
 - The shared admin access-code login is removed (`POST /api/admin/login` returns 410). `ADMIN_ACCESS_KEY` is used only as the Bearer token for the owner dashboard (`/api/owner/*`). Do not document actual code values in the repo.
 - Host accounts are self-service: email + password (verified by link on web, by 6-digit code on mobile), Sign in with Apple, or Google. Web uses cookie sessions; mobile uses HMAC-signed Bearer tokens.
 - Real-time updates use Socket.IO at path `/api/socket.io` (routed under the existing `/api` proxy path).
