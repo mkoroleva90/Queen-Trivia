@@ -86,7 +86,7 @@ overrides:
 
 patchedDependencies:
   '@expo/plist@0.4.9':
-    hash: 7873db92409331bc03d62f4d8cd1f1bb42bf34a021951d65e94eb6f671548e39
+    hash: c59606518c6bdd77967d91e79090e9d8375160515862cc8e2115caf6663d4980
     path: patches/@expo__plist@0.4.9.patch
   decode-uri-component@0.5.0:
     hash: 790f61f6f8d3bcdd9e8da8248ed727d5ed6087f3805db8d4cba4d4adad800838
@@ -1588,7 +1588,7 @@ packages:
 
   '@expo/bunyan@4.0.1':
     resolution: {integrity: sha512-+Lla7nYSiHZirgK+U/uYzsLv/X+HaJienbD5AKX1UQZHYfWaP+9uuQluRB4GrEVWF0GZ7vEVp/jzaOT9k/SQlg==}
-    engines: {node: '>=0.10.0'}
+    engines: {'0': node >=0.10.0}
 
   '@expo/cli@54.0.23':
     resolution: {integrity: sha512-km0h72SFfQCmVycH/JtPFTVy69w6Lx1cHNDmfLfQqgKFYeeHTjx7LVDP4POHCtNxFP2UeRazrygJhlh4zz498g==}
@@ -8350,7 +8350,7 @@ snapshots:
       '@expo/metro-config': 54.0.17(expo@54.0.36)
       '@expo/osascript': 2.7.1
       '@expo/package-manager': 1.13.1
-      '@expo/plist': 0.4.9(patch_hash=7873db92409331bc03d62f4d8cd1f1bb42bf34a021951d65e94eb6f671548e39)
+      '@expo/plist': 0.4.9(patch_hash=c59606518c6bdd77967d91e79090e9d8375160515862cc8e2115caf6663d4980)
       '@expo/prebuild-config': 54.0.9(expo@54.0.36)(typescript@5.9.3)
       '@expo/schema-utils': 0.1.9
       '@expo/spawn-async': 1.8.0
@@ -8426,7 +8426,7 @@ snapshots:
       '@expo/metro-config': 54.0.17(expo@54.0.36)
       '@expo/osascript': 2.7.1
       '@expo/package-manager': 1.13.1
-      '@expo/plist': 0.4.9(patch_hash=7873db92409331bc03d62f4d8cd1f1bb42bf34a021951d65e94eb6f671548e39)
+      '@expo/plist': 0.4.9(patch_hash=c59606518c6bdd77967d91e79090e9d8375160515862cc8e2115caf6663d4980)
       '@expo/prebuild-config': 54.0.9(expo@54.0.36)(typescript@5.9.3)
       '@expo/schema-utils': 0.1.9
       '@expo/spawn-async': 1.8.0
@@ -8520,7 +8520,7 @@ snapshots:
     dependencies:
       '@expo/config-types': 54.0.10
       '@expo/json-file': 10.0.16
-      '@expo/plist': 0.4.9(patch_hash=7873db92409331bc03d62f4d8cd1f1bb42bf34a021951d65e94eb6f671548e39)
+      '@expo/plist': 0.4.9(patch_hash=c59606518c6bdd77967d91e79090e9d8375160515862cc8e2115caf6663d4980)
       '@expo/sdk-runtime-versions': 1.0.0
       chalk: 4.1.2
       debug: 4.4.3(supports-color@8.1.1)
@@ -8899,7 +8899,7 @@ snapshots:
       base64-js: 1.5.1
       xmlbuilder: 15.1.1
 
-  '@expo/plist@0.4.9(patch_hash=7873db92409331bc03d62f4d8cd1f1bb42bf34a021951d65e94eb6f671548e39)':
+  '@expo/plist@0.4.9(patch_hash=c59606518c6bdd77967d91e79090e9d8375160515862cc8e2115caf6663d4980)':
     dependencies:
       '@xmldom/xmldom': 0.9.12
       base64-js: 1.5.1
@@ -12192,7 +12192,7 @@ snapshots:
   expo-updates@29.0.20(expo@54.0.36)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0):
     dependencies:
       '@expo/code-signing-certificates': 0.0.6
-      '@expo/plist': 0.4.9(patch_hash=7873db92409331bc03d62f4d8cd1f1bb42bf34a021951d65e94eb6f671548e39)
+      '@expo/plist': 0.4.9(patch_hash=c59606518c6bdd77967d91e79090e9d8375160515862cc8e2115caf6663d4980)
       '@expo/spawn-async': 1.8.0
       arg: 4.1.0
       chalk: 4.1.2

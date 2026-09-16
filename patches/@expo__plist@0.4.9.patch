@@ -1,13 +1,18 @@
 diff --git a/build/parse.js b/build/parse.js
-index 5901272..2dd312f 100644
+index 572d7f8e6c005a105de5d016befee35f834b1a59..d41ffad959e442d43164b771d3576ff5b22a5aed 100644
 --- a/build/parse.js
 +++ b/build/parse.js
-@@ -66,7 +66,7 @@ function isEmptyNode(node) {
+@@ -65,8 +65,12 @@ function isEmptyNode(node) {
+  * @api public
   */
  function parse(xml) {
++    // Strict XML parsers (@xmldom/xmldom >= 0.9) reject a BOM or leading
++    // whitespace before the XML declaration; plist files in the wild carry
++    // both, so strip them before parsing.
++    const cleaned = String(xml).replace(/^﻿/, '').replace(/^\s+/, '');
      // prevent the parser from logging non-fatal errors
 -    const doc = new xmldom_1.DOMParser({ errorHandler() { } }).parseFromString(xml);
-+    const doc = new xmldom_1.DOMParser({ errorHandler() { } }).parseFromString(xml, 'application/xml');
++    const doc = new xmldom_1.DOMParser({ errorHandler() { } }).parseFromString(cleaned, 'application/xml');
      (0, assert_1.default)(doc.documentElement.nodeName === 'plist', 'malformed document. First element should be <plist>');
      let plist = parsePlistXML(doc.documentElement);
      // the root <plist> node gets interpreted as an Array,
