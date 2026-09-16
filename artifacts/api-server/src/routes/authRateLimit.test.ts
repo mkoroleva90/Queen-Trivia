@@ -28,32 +28,34 @@ const { default: app } = await import("../../dist/app.mjs") as {
 
 const pool = new pg.Pool({ connectionString: process.env["DATABASE_URL"] });
 const VERIFY_IP = "198.51.100.250";
+const SUCCESS_VERIFY_IP = "198.51.100.249";
 const LOGIN_IP = "198.51.100.251";
 const CLEANUP_AUTH_IP = "198.51.100.252";
 const REPORT_COUNTER_IP = "198.51.100.253";
 
 async function clearRateLimitHits(...ips: string[]): Promise<void> {
-  // /auth/verify and email senders use the success-counting auth limiter;
-  // host login/verify use the failed-attempt auth-verify limiter.
-  const prefixes = ["auth", "auth-verify", "trivia-join"];
+  // /auth/verify uses the failure-counting room-verify limiter; email senders
+  // use the success-counting auth limiter; host login/verify use the
+  // failed-attempt auth-verify limiter.
+  const prefixes = ["auth", "auth-verify", "trivia-join", "room-verify"];
   const keys = ips.flatMap((ip) => prefixes.map((p) => `${p}:${ipKeyGenerator(ip)}`));
   await pool.query(`DELETE FROM rate_limit_hits WHERE key = ANY($1::text[])`, [keys]);
 }
 
 describe("anonymous authentication rate limiting", () => {
   before(async () => {
-    await clearRateLimitHits(VERIFY_IP, LOGIN_IP, CLEANUP_AUTH_IP);
+    await clearRateLimitHits(VERIFY_IP, SUCCESS_VERIFY_IP, LOGIN_IP, CLEANUP_AUTH_IP);
     await pool.query("DELETE FROM rate_limit_hits WHERE key = $1", [REPORT_COUNTER_IP]);
   });
 
   after(async () => {
-    await clearRateLimitHits(VERIFY_IP, LOGIN_IP, CLEANUP_AUTH_IP);
+    await clearRateLimitHits(VERIFY_IP, SUCCESS_VERIFY_IP, LOGIN_IP, CLEANUP_AUTH_IP);
     await pool.query("DELETE FROM rate_limit_hits WHERE key = $1", [REPORT_COUNTER_IP]);
     await pool.end();
   });
 
   it("limits repeated anonymous game-code guesses", async () => {
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 30; i++) {
       const res = await request(app)
         .post("/api/auth/verify")
         .set("X-Forwarded-For", VERIFY_IP)
@@ -62,7 +64,7 @@ describe("anonymous authentication rate limiting", () => {
       assert.equal(
         res.status,
         200,
-        `request ${i + 1}/8 should reach verification: ${JSON.stringify(res.body)}`,
+        `request ${i + 1}/30 should reach verification: ${JSON.stringify(res.body)}`,
       );
       assert.equal(res.body.valid, false);
     }
@@ -76,6 +78,35 @@ describe("anonymous authentication rate limiting", () => {
     assert.equal(typeof limited.body.error, "string");
     assert.ok(limited.headers["ratelimit"]);
     assert.ok(limited.headers["retry-after"]);
+  });
+
+  it("never limits successful room-code verifications", async () => {
+    // Regression test: whole rooms of players join from one shared IP, so
+    // successful verifications must not consume the rate-limit budget.
+    const code = "RLTESTOK99";
+    await pool.query(
+      `INSERT INTO games (topic, difficulty, status, access_code)
+       VALUES ('rate-limit test', 'easy', 'waiting', $1)
+       ON CONFLICT (access_code) DO NOTHING`,
+      [code],
+    );
+    try {
+      for (let i = 0; i < 35; i++) {
+        const res = await request(app)
+          .post("/api/auth/verify")
+          .set("X-Forwarded-For", SUCCESS_VERIFY_IP)
+          .send({ code });
+
+        assert.equal(
+          res.status,
+          200,
+          `successful verify ${i + 1}/35 should never be limited: ${JSON.stringify(res.body)}`,
+        );
+        assert.equal(res.body.valid, true);
+      }
+    } finally {
+      await pool.query("DELETE FROM games WHERE access_code = $1", [code]);
+    }
   });
 
   it("limits repeated host login attempts", async () => {
