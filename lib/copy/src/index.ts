@@ -70,7 +70,7 @@ export const COPY = {
     /** Card / section heading */
     sectionTitle: 'Access codes',
     /** Validation errors */
-    validationTrivia: 'Trivia access code must be at least 8 characters',
+    validationTrivia: 'Trivia access code must be at least 4 characters',
   },
 
   /** Question-source labels. */
@@ -407,13 +407,13 @@ export const COPY = {
     /** Label above the code input. */
     inputLabel:   'Player join code',
     /** Helper text beneath the input once the host starts typing a code. */
-    helper:       '8–12 letters or numbers. No spaces.',
+    helper:       '4–12 letters or numbers. No spaces.',
     /** Helper text beneath the input while it is empty — names the auto-assigned code that will be kept. */
     blankHelper:  (code: string) => `Leave blank to use ${code}`,
     /** Continue button. */
     continueBtn:  'Continue',
-    /** Field-level error for a code that fails the 8–12 A–Z 0–9 format. */
-    invalidError: 'Use 8–12 letters and numbers only.',
+    /** Field-level error for a code that fails the 4–12 A–Z 0–9 format. */
+    invalidError: 'Use 4–12 letters and numbers only.',
     /** Field-level error when another game already uses the code (409 code_taken). */
     takenError:   "That code's taken — try another.",
   },

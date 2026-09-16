@@ -109,10 +109,10 @@ describe("POST /api/auth/email/verify — login CSRF protection", () => {
 // response when validation fails — before any database interaction.
 
 describe("POST /api/auth/login — Zod validation", () => {
-  it("rejects low-entropy legacy room codes before database lookup", async () => {
+  it("rejects room codes below the 4-character minimum before database lookup", async () => {
     const res = await request(app)
       .post("/api/auth/login")
-      .send({ code: "0000", name: "Alice" });
+      .send({ code: "000", name: "Alice" });
 
     assert.equal(res.status, 400);
     assert.equal(res.body.code, "invalid_access_code");

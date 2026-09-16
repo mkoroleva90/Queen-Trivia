@@ -217,7 +217,7 @@ export const updateGameBodyTopicMax = 120;
 
 export const updateGameBodyBriefMax = 2000;
 
-export const updateGameBodyAccessCodeMin = 8;
+export const updateGameBodyAccessCodeMin = 4;
 export const updateGameBodyAccessCodeMax = 12;
 
 

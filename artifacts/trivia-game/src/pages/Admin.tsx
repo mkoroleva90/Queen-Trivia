@@ -4273,7 +4273,7 @@ function GamesView({
 
   const saveCode = (game: Game) => {
     const code = codeDraft.trim().toUpperCase();
-    if (!/^[A-Z0-9]{8,12}$/.test(code)) {
+    if (!/^[A-Z0-9]{4,12}$/.test(code)) {
       setCodeError(COPY.joinCode.invalidError);
       return;
     }
