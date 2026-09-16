@@ -352,7 +352,7 @@ export const COPY = {
     nextPromptDismiss:  'Not yet',
     /** Banner on the host's live screen while they look back at a question before their own progress (web and mobile). */
     viewingEarlier:     'Viewing an earlier question',
-    /** Link in that banner — jumps the view back to the host's first unanswered question. Same wording as gameplay.backToCurrent. */
+    /** Link in that banner — jumps the view back to the host's first unanswered question. */
     backToCurrent:      'Back to current question',
     /** Screen-reader label for the chevron that steps the view back one question (host live screen and player screen). */
     viewBackLabel:      'Back',
@@ -625,8 +625,6 @@ export const COPY = {
     questionIndicator: (n: number, total: number) => `Q${n} of ${total}`,
     /** Label above a previously skipped question the player has come back to; it is answerable again. */
     skippedEarlier:    'You skipped this earlier — you can still answer it',
-    /** Link that jumps the view to the player's first unanswered question. */
-    backToCurrent:     'Back to current question',
     /** Title of the error shown when an answer cannot be submitted (toast on web, alert on mobile). */
     submitErrorTitle:  'Could not submit answer',
     /** Body of that error. */

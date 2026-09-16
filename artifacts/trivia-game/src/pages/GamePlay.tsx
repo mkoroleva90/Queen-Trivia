@@ -1636,16 +1636,6 @@ export default function GamePlay() {
                 >
                   {current.points} PTS
                 </span>
-                {firstOpenIndex >= 0 && viewIndex !== firstOpenIndex && (
-                  <button
-                    type="button"
-                    onClick={() => setView(firstOpenIndex)}
-                    className="ml-auto text-xs font-semibold underline underline-offset-2 transition hover:opacity-70"
-                    style={{ color: "#ffe500", background: "none", border: "none", cursor: "pointer" }}
-                  >
-                    {COPY.gameplay.backToCurrent}
-                  </button>
-                )}
               </div>
             )}
 

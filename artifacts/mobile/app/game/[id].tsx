@@ -1170,15 +1170,6 @@ export default function GamePlayScreen() {
             </Text>
           </View>
         )}
-        {firstOpenIndex >= 0 && viewIndex !== firstOpenIndex && (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setView(firstOpenIndex)}
-            hitSlop={8}
-          >
-            <Text style={[styles.backToCurrent, { color: colors.accent }]}>{COPY.gameplay.backToCurrent}</Text>
-          </Pressable>
-        )}
         {!current ? (
           /* No questions yet — the game hasn't started. */
           <View style={styles.doneState}>
@@ -1352,7 +1343,6 @@ const styles = StyleSheet.create({
   // Back/Forward through questions, and the labels that go with them
   questionNav: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   navBtn: { width: 28, height: 28, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,.12)', alignItems: 'center', justifyContent: 'center' },
-  backToCurrent: { fontSize: 12, fontWeight: '700', textDecorationLine: 'underline', alignSelf: 'flex-start' },
   skippedLabel: { fontSize: 12, fontWeight: '600' },
   yourAnswer: { fontSize: 13, textAlign: 'center' },
   questionText: { fontSize: 22, fontWeight: '800', lineHeight: 30, letterSpacing: -0.4, fontFamily: 'Manrope_800ExtraBold' },
