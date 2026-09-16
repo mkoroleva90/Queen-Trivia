@@ -21,8 +21,8 @@ export function normalize(value: string): string {
         .trim()
         // 1. citation markers anywhere in the string
         .replace(/\[\w+\]/g, " ")
-        // 2. decompose unicode then strip combining diacritical marks (U+0300–U+036F)
-        .normalize("NFD")
+        // 2. compatibility-decompose unicode, then strip combining diacritical marks
+        .normalize("NFKD")
         .replace(/[\u0300-\u036f]/g, "")
         // 3. lowercase
         .toLowerCase()
@@ -46,23 +46,31 @@ export function surnameOf(normalizedCorrect: string): string | null {
     return parts.length >= 2 ? parts[parts.length - 1]! : null;
 }
 
+function normalizeForDisclosureCheck(value: string): string {
+    return normalize(
+        decodeHtml(value)
+            // Ignore markup boundaries so "<strong>Spider</strong> Man" is
+            // compared as the same visible text as "Spider-Man".
+            .replace(/<[^>]*>/g, ""),
+    ).replace(/\s+/g, "");
+}
+
 /**
  * Server-side safeguard for AI grader feedback shown to players mid-game.
  *
- * If the feedback text contains the correct answer (compared case-insensitively
- * after HTML-decoding both sides), the feedback is replaced with the neutral
- * COPY.gameplay.feedbackNeutral string so the answer is never disclosed before
- * the end-of-game results. Feedback that does not contain the answer is
- * returned unchanged.
+ * If the feedback text contains the correct answer after HTML, Unicode,
+ * punctuation, citation, and whitespace normalization, the feedback is replaced
+ * with the neutral COPY.gameplay.feedbackNeutral string so formatting changes
+ * cannot disclose the answer before the end-of-game results.
  */
 export function redactAnswerFromFeedback(
     feedback: string | undefined,
     correctAnswer: string,
 ): string | undefined {
     if (!feedback) return feedback;
-    const answer = decodeHtml(correctAnswer).trim().toLowerCase();
+    const answer = normalizeForDisclosureCheck(correctAnswer);
     if (answer.length === 0) return feedback;
-    const text = decodeHtml(feedback).toLowerCase();
+    const text = normalizeForDisclosureCheck(feedback);
     return text.includes(answer) ? COPY.gameplay.feedbackNeutral : feedback;
 }
 

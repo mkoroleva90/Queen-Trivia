@@ -4,7 +4,13 @@
  */
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { normalize, surnameOf, gradeAnswer } from "./grading.ts";
+import {
+    normalize,
+    surnameOf,
+    gradeAnswer,
+    redactAnswerFromFeedback,
+} from "./grading.ts";
+import { COPY } from "@workspace/copy";
 
 // ─── normalize ────────────────────────────────────────────────────────────────
 
@@ -197,6 +203,40 @@ describe("gradeAnswer short_response", () => {
                 process.env.GOOGLE_API_KEY = previousApiKey;
             }
         }
+    });
+});
+
+describe("redactAnswerFromFeedback", () => {
+    const neutral = COPY.gameplay.feedbackNeutral;
+
+    it("redacts punctuation and spacing variants of the answer", () => {
+        assert.equal(
+            redactAnswerFromFeedback("The correct answer is Spider Man.", "Spider-Man"),
+            neutral,
+        );
+        assert.equal(
+            redactAnswerFromFeedback("It was O Connor.", "O'Connor"),
+            neutral,
+        );
+    });
+
+    it("redacts markup, citation, and Unicode presentation variants", () => {
+        assert.equal(
+            redactAnswerFromFeedback(
+                "The answer is <strong>Spider</strong> [1] Man.",
+                "Spider-Man",
+            ),
+            neutral,
+        );
+        assert.equal(
+            redactAnswerFromFeedback("The answer is Ｓｐｉｄｅｒ‑Ｍａｎ.", "Spider-Man"),
+            neutral,
+        );
+    });
+
+    it("preserves feedback that does not contain the answer", () => {
+        const feedback = "Close, but not accepted.";
+        assert.equal(redactAnswerFromFeedback(feedback, "Spider-Man"), feedback);
     });
 });
 

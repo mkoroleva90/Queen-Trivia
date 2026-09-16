@@ -379,7 +379,7 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
       feedbackGameId = game.rows[0]!.id;
       const questions = await pool.query<{ id: number }>(
         `INSERT INTO questions (game_id, question_text, question_type, correct_answer, points, order_index)
-         VALUES ($1, 'Why does the Moon always show the same face?', 'short_response', 'Tidal locking', 10, 0),
+         VALUES ($1, 'Who is the web-slinging superhero?', 'short_response', 'Spider-Man', 10, 0),
                 ($1, 'What keeps the Moon in orbit?', 'short_response', 'Gravity', 10, 1)
          RETURNING id`,
         [feedbackGameId],
@@ -392,11 +392,10 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
       );
 
       // Stub the Gemini grader. The first grading call returns feedback that
-      // quotes the correct answer (upper-cased and HTML-encoded, so the
-      // safeguard's case-insensitive, HTML-decoded match is exercised); the
-      // second returns feedback that only comments on the player's answer.
+      // quotes a punctuation/spacing variant of the correct answer inside
+      // HTML markup; the second only comments on the player's answer.
       const graderFeedback = [
-        "Not quite. The correct answer is &quot;TIDAL LOCKING&quot;, not what you wrote.",
+        "Not quite. The correct answer is <strong>Spider Man</strong>, not what you wrote.",
         "Close, but not accepted.",
       ];
       let graderCalls = 0;
@@ -434,7 +433,7 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
         "feedback containing the correct answer must be replaced with the neutral copy",
       );
       assert.equal(
-        JSON.stringify(leaking.body).toLowerCase().includes("tidal locking"),
+        JSON.stringify(leaking.body).toLowerCase().includes("spider man"),
         false,
         "active-game answer response must not disclose the correct answer via feedback",
       );
