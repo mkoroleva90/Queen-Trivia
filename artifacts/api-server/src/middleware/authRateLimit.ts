@@ -31,6 +31,38 @@ export const authRateLimit = rateLimit({
   // preview proxy presents anonymous traffic to the server as loopback.
 });
 
+/**
+ * Rate limit for anonymous room-code verification (POST /api/auth/verify).
+ *
+ * This endpoint is the player-facing front door: whole groups enter a room
+ * code from one venue/household IP (or a carrier-NAT IP shared by thousands),
+ * so counting successful verifications would lock legitimate players out.
+ * Only FAILED verifications accumulate — but the invalid-code response is
+ * HTTP 200, so status-based success detection cannot be used here. The route
+ * records the outcome in res.locals["roomCodeValid"] and the limiter reads it
+ * via requestWasSuccessful.
+ *
+ * 30 failed guesses per 15 minutes per IP keeps online enumeration of the
+ * 8+ character code space impractical (36^8 ≈ 2.8e12 codes) while a room of
+ * players who occasionally mistype are never blocked. Uses its own key
+ * namespace so player traffic can never exhaust the strict `auth:` counter
+ * shared by the email register/forgot-password endpoints.
+ *
+ * No development or loopback bypass: the Replit preview proxy can present
+ * external anonymous requests as loopback.
+ */
+export const roomCodeVerifyRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many attempts. Please wait 15 minutes before trying again." },
+  skipSuccessfulRequests: true,
+  requestWasSuccessful: (_req, res) => res.locals["roomCodeValid"] === true,
+  store: new PgRateLimitStore(),
+  keyGenerator: (req) => `room-verify:${ipKeyGenerator(req.ip ?? "0.0.0.0")}`,
+});
+
 export const authVerifyRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 8,
