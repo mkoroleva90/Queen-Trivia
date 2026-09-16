@@ -119,7 +119,8 @@ router.get("/games/:gameId/questions/stats", requireAdmin, async (req, res):Prom
  })
  .from(questionsTable)
  .where(eq(questionsTable.gameId, gameId))
- .orderBy(asc(questionsTable.orderIndex));
+ // id breaks orderIndex ties so results match the in-game question order.
+ .orderBy(asc(questionsTable.orderIndex), asc(questionsTable.id));
 
 
 const answerStats = await db

@@ -1840,7 +1840,7 @@ export default function GameDetailScreen() {
   const updateGame = useUpdateGame();
 
   const sortedQs: Question[] = useMemo(
-    () => [...(questions ?? [])].sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0)),
+    () => [...(questions ?? [])].sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0) || a.id - b.id),
     [questions],
   );
 

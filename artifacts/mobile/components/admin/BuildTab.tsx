@@ -1114,7 +1114,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                 )}
 
                 {selectedGame && [...questions]
-                  .sort((a, b) => a.orderIndex - b.orderIndex)
+                  .sort((a, b) => a.orderIndex - b.orderIndex || a.id - b.id)
                   .map((q, idx) => (
                     <View key={q.id} style={[s.qCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                       <View style={[s.qIndex, { backgroundColor: colors.muted }]}>

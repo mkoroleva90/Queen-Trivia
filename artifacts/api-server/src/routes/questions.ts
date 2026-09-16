@@ -299,7 +299,8 @@ router.get("/games/:gameId/questions", requireAuth, async (req, res): Promise<vo
         db.select()
             .from(questionsTable)
             .where(eq(questionsTable.gameId, params.data.gameId))
-            .orderBy(asc(questionsTable.orderIndex)),
+            // id breaks orderIndex ties so every player sees the same sequence.
+            .orderBy(asc(questionsTable.orderIndex), asc(questionsTable.id)),
     ]);
 
     if (!game) {

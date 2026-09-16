@@ -137,7 +137,7 @@ export default function Results() {
   const totalQ     = results?.totalQuestions ?? 0;
   const accuracy   = totalQ > 0 ? Math.round((myCorrect / totalQ) * 100) : 0;
   const sortedQuestions = useMemo(
-    () => [...questions].sort((a, b) => a.orderIndex - b.orderIndex),
+    () => [...questions].sort((a, b) => a.orderIndex - b.orderIndex || a.id - b.id),
     [questions],
   );
   const answerMap = useMemo(

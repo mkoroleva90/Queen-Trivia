@@ -201,7 +201,7 @@ export default function AdminLiveScreen() {
   }, [seedStats, seeded]);
 
   const sortedQs: Question[] = [...(questions ?? [])].sort(
-    (a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0),
+    (a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0) || a.id - b.id,
   );
   // First question the host hasn't answered (-1 when every question has one).
   const firstOpenIndex = sortedQs.findIndex((q) => hostAnswers[q.id] === undefined);
