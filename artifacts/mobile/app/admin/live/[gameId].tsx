@@ -93,20 +93,18 @@ export default function AdminLiveScreen() {
   const [hostResultById, setHostResultById] = useState<Record<number, { answer: string; result: { isCorrect: boolean; pointsEarned: number; totalScore: number; feedback?: string } }>>({});
   const [completionModalVisible, setCompletionModalVisible] = useState(false);
   const completionAlertShownRef = useRef(false);
-  // "Ready for the next question?" popup — opens the moment the advance control
-  // becomes available; "Not yet" hides it until the released question changes.
-  const [nextPromptDismissed, setNextPromptDismissed] = useState(false);
-  // Locally-monitored question index (mirrors qIndex on web). It follows the
-  // released question, but Back/Forward may move it to an earlier question
-  // without touching what the server released.
+  // "Ready for the next question?" popup — opens when the host submits an
+  // answer; "Not yet" hides it until they reopen it or answer again.
+  const [nextPromptDismissed, setNextPromptDismissed] = useState(true);
+  // Locally-monitored question index (mirrors qIndex on web). Play is
+  // self-paced: Back/Forward move it freely through every question.
   const [qIndex, setQIndex] = useState(0);
+  // Set when the host-answer seed lands, so the view can jump to the first
+  // unanswered question once the question list is available.
+  const seedJumpRef = useRef(false);
 
   const { data: games, isLoading: gamesLoading, isError: gamesError } = useListGames();
   const game = games?.find((g) => g.id === gameId);
-  // A newly released question gets a fresh popup.
-  useEffect(() => {
-    setNextPromptDismissed(false);
-  }, [game?.currentQuestionId]);
   const { data: questions } = useListGameQuestions(gameId);
   const { data: participants, refetch: refetchParticipants } = useListGameParticipants(gameId);
   const updateGame = useUpdateGame();
@@ -205,13 +203,15 @@ export default function AdminLiveScreen() {
   const sortedQs: Question[] = [...(questions ?? [])].sort(
     (a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0),
   );
-  // Index of the question the server has released (-1 until one is). The
-  // effect depends on the raw query data because sortedQs is rebuilt on
-  // every render.
-  const releasedIndex = sortedQs.findIndex((q) => q.id === game?.currentQuestionId);
+  // First question the host hasn't answered (-1 when every question has one).
+  const firstOpenIndex = sortedQs.findIndex((q) => hostAnswers[q.id] === undefined);
+  // After the host-answer seed lands, jump the view to the host's first
+  // unanswered question (or the last one when everything is answered).
   useEffect(() => {
-    if (releasedIndex >= 0) setQIndex(releasedIndex);
-  }, [game?.currentQuestionId, questions]);
+    if (!seedJumpRef.current || sortedQs.length === 0) return;
+    seedJumpRef.current = false;
+    setQIndex(firstOpenIndex >= 0 ? firstOpenIndex : sortedQs.length - 1);
+  }, [questions, hostAnswers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Real-time answer tracking via Socket.IO.
   // Before the persisted seed resolves, events go into a ref buffer so they
@@ -271,15 +271,13 @@ export default function AdminLiveScreen() {
   // ── Host play-along ──
   const playAlong = !!game?.hostPlaysAlong;
   const unansweredForHost = sortedQs.filter((q) => hostAnswers[q.id] === undefined);
-  const currentPlayingQ = playAlong
-    ? sortedQs.find((question) => question.id === game?.currentQuestionId)
-    : undefined;
+  // The playing host answers the question they are viewing, at their own pace.
+  const currentPlayingQ = playAlong ? sortedQs[qIndex] : undefined;
   const hostCanSkip = unansweredForHost.length > 1;
   // Host & play: seed the host's own answers from the server once, so questions
   // answered before this screen loaded render locked straight away.
   useEffect(() => {
     if (!playAlong || isNaN(gameId)) return;
-    const releasedId = game?.currentQuestionId;
     let cancelled = false;
     (async () => {
       try {
@@ -307,62 +305,47 @@ export default function AdminLiveScreen() {
           ...prev,
         }));
         // Seeded answers count as acknowledged — never pop the prompt because of them.
-        if (rows.some((row) => row.questionId === releasedId)) setNextPromptDismissed(true);
+        setNextPromptDismissed(true);
+        // Self-paced: jump the view to the first question the host hasn't
+        // answered yet, once the question list is available.
+        seedJumpRef.current = true;
       } catch {
         // Fall back to discovering answers through the 409 on submit.
       }
     })();
     return () => { cancelled = true; };
   }, [gameId, playAlong, baseUrl]); // eslint-disable-line react-hooks/exhaustive-deps
-  // The released question is the last one by orderIndex — there is nothing left
-  // to advance to, so the primary action ends the game instead.
-  const isOnLastQuestion =
-    sortedQs.length > 0 && game?.currentQuestionId === sortedQs[sortedQs.length - 1].id;
-  // View-only navigation: Back/Forward move qIndex between the first question
-  // and the released one. They never call advance-question, never change
-  // currentQuestionId, and never submit an answer.
-  const isViewingEarlier = releasedIndex >= 0 && qIndex < releasedIndex;
-  const canGoBack = releasedIndex >= 0 && qIndex > 0;
+  // On the last question there is nothing left to advance to, so the primary
+  // action ends the game instead.
+  const isOnLastQuestion = sortedQs.length > 0 && qIndex === sortedQs.length - 1;
+  // "Earlier" now means before the host's own progress (their first unanswered
+  // question) — used for the look-back banner only; navigation is unrestricted.
+  const isViewingEarlier = firstOpenIndex >= 0 && qIndex < firstOpenIndex;
+  const canGoBack = qIndex > 0;
+  const canGoForward = qIndex < sortedQs.length - 1;
   const viewedQ: Question | undefined = sortedQs[qIndex];
-  const isViewingReleased = !!currentPlayingQ && !!viewedQ && viewedQ.id === currentPlayingQ.id;
   // Host & play: what the host has on record for the VIEWED question. A blank
-  // recorded on the released question is its "Unanswered" feedback; on an
+  // recorded at the host's own progress is its "Unanswered" feedback; on an
   // earlier question it means skipped, which stays answerable.
   const viewedAnswer = viewedQ ? hostAnswers[viewedQ.id] : undefined;
   const viewedStored = viewedQ ? hostResultById[viewedQ.id] : undefined;
-  const viewedResult = viewedStored && (viewedStored.answer !== '' || isViewingReleased) ? viewedStored : null;
+  const viewedResult = viewedStored && (viewedStored.answer !== '' || !isViewingEarlier) ? viewedStored : null;
   const hostFeedback = viewedResult?.result ?? null;
   const pendingAnswer = viewedResult?.answer ?? null;
   const viewedSkipped = !viewedResult && viewedAnswer === '';
   const viewedKnownOnly = !viewedResult && viewedAnswer !== undefined && viewedAnswer !== '';
-  // The RELEASED question's record drives the next-question popup.
+  // The VIEWED question's record drives the next-question popup.
   const releasedResult = currentPlayingQ ? hostResultById[currentPlayingQ.id] : undefined;
   const releasedAnswer = currentPlayingQ ? hostAnswers[currentPlayingQ.id] : undefined;
 
+  // Self-paced: advancing only moves the host's own view; players advance
+  // through the quiz on their own time.
   const releaseNextQuestion = async () => {
     if (isOnLastQuestion) {
       await handleEndGame();
       return;
     }
-    try {
-      const token = await getItem(ADMIN_TOKEN_KEY).catch(() => null);
-      const response = await fetch(`${baseUrl}/api/games/${gameId}/advance-question`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (response.status === 409) {
-        const body = await response.json().catch(() => null) as { error?: string } | null;
-        // Server reports no next question — treat as end of game.
-        if (body?.error?.includes('no next question')) {
-          await handleEndGame();
-          return;
-        }
-      }
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      await qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
-    } catch {
-      setAnswerError(COPY.hostPlayAlong.releaseNextError);
-    }
+    setQIndex((i) => Math.min(sortedQs.length - 1, i + 1));
   };
 
   /** Submits the host's answer. On success, sets feedback state; feedback
@@ -383,17 +366,12 @@ export default function AdminLiveScreen() {
         body: JSON.stringify({ questionId, userAnswer: answer }),
       });
       if (r.status === 409) {
-        // 409 covers two distinct server responses — see /host-answer in play.ts.
+        // Already answered (e.g. the seed missed it) — adopt the stored answer
+        // and show the answered block so the host can advance.
         const body = await r.json().catch(() => null) as { existingAnswer?: string } | null;
         const existingAnswer = body?.existingAnswer;
         if (existingAnswer !== undefined) {
-          // Already answered (e.g. the seed missed it) — adopt the stored answer
-          // and show the answered block so the host can advance.
           setHostAnswers((prev) => ({ ...prev, [questionId]: existingAnswer }));
-        } else {
-          // Not the released question — refetch the game so currentPlayingQ
-          // resyncs to the server's currentQuestionId.
-          void qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
         }
         return;
       }
@@ -409,6 +387,8 @@ export default function AdminLiveScreen() {
       };
       setHostResultById((prev) => ({ ...prev, [questionId]: { answer, result } }));
       setHostAnswers((prev) => ({ ...prev, [questionId]: answer }));
+      // A fresh answer opens the result popup with its advance action.
+      setNextPromptDismissed(false);
       if (isLastQuestion && questionId === currentPlayingQ.id && !completionAlertShownRef.current) {
         completionAlertShownRef.current = true;
         setCompletionModalVisible(true);
@@ -428,12 +408,11 @@ export default function AdminLiveScreen() {
     void releaseNextQuestion();
   };
 
-  // The popup mirrors the old inline advance controls: after feedback
-  // (advanceToNext), when the server already holds the host's answer
-  // (releaseNextQuestion), or — for a monitoring host — whenever the release
-  // control is available. Null means there is nothing to advance right now.
+  // The popup shows the playing host their result with the advance action;
+  // a monitoring host has no popup (the question list is always live).
+  // Null means there is nothing to advance right now.
   const nextPromptAction: (() => void) | null = (() => {
-    if (!playAlong) return () => void releaseNextQuestion();
+    if (!playAlong) return null;
     if (!currentPlayingQ) return null;
     if (releasedResult) return advanceToNext;
     if (releasedAnswer !== undefined) return () => void releaseNextQuestion();
@@ -571,9 +550,9 @@ export default function AdminLiveScreen() {
               <>
                 <View style={s.viewNav}>
                   <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>
-                    YOUR QUESTION — {isViewingEarlier ? qIndex + 1 : sortedQs.findIndex((q) => q.id === currentPlayingQ.id) + 1}/{sortedQs.length}
+                    YOUR QUESTION — {qIndex + 1}/{sortedQs.length}
                   </Text>
-                  {/* View-only Back / Forward — look at earlier questions without touching the released one */}
+                  {/* Back / Forward — move freely through every question */}
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={COPY.hostPlayAlong.viewBackLabel}
@@ -587,10 +566,10 @@ export default function AdminLiveScreen() {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={COPY.hostPlayAlong.viewForwardLabel}
-                    disabled={!isViewingEarlier}
-                    onPress={() => setQIndex((i) => Math.min(releasedIndex, i + 1))}
+                    disabled={!canGoForward}
+                    onPress={() => setQIndex((i) => Math.min(sortedQs.length - 1, i + 1))}
                     hitSlop={8}
-                    style={[s.viewNavBtn, { borderColor: colors.border, opacity: isViewingEarlier ? 1 : 0.3 }]}
+                    style={[s.viewNavBtn, { borderColor: colors.border, opacity: canGoForward ? 1 : 0.3 }]}
                   >
                     <Ionicons name="chevron-forward" size={16} color={colors.foreground} />
                   </Pressable>
@@ -598,15 +577,14 @@ export default function AdminLiveScreen() {
                 {isViewingEarlier && (
                   <View style={[s.viewBanner, { backgroundColor: colors.accent + '18', borderColor: colors.accent + '55' }]}>
                     <Text style={[s.viewBannerText, { color: colors.accent }]}>{COPY.hostPlayAlong.viewingEarlier}</Text>
-                    <Pressable accessibilityRole="button" onPress={() => setQIndex(releasedIndex)} hitSlop={8}>
+                    <Pressable accessibilityRole="button" onPress={() => setQIndex(firstOpenIndex)} hitSlop={8}>
                       <Text style={[s.viewBannerLink, { color: colors.accent }]}>{COPY.hostPlayAlong.backToCurrent}</Text>
                     </Pressable>
                   </View>
                 )}
                 {/* The answer card follows the VIEWED question. Answered → locked with its
-                    feedback; skipped → answerable again; only the released question can
-                    advance the game. */}
-                <View style={[s.qCard, { backgroundColor: colors.card, borderColor: isViewingReleased ? colors.primary + '66' : colors.border }]}>
+                    feedback; skipped → answerable again. Advancing only moves the view. */}
+                <View style={[s.qCard, { backgroundColor: colors.card, borderColor: !isViewingEarlier ? colors.primary + '66' : colors.border }]}>
                   <Text style={[s.playMeta, { color: colors.mutedForeground }]}>
                     {COPY.gameplay.ptsLine(viewedQ.points)}
                   </Text>
@@ -614,9 +592,9 @@ export default function AdminLiveScreen() {
                     /* Came back to a skipped question — it can still be answered */
                     <Text style={[s.playMeta, { color: colors.accent }]}>{COPY.gameplay.skippedEarlier}</Text>
                   )}
-                  {viewedSkipped && isViewingReleased && (
-                    /* A skip already on record for the released question (seeded on load)
-                       keeps the advance control reachable without answering first */
+                  {viewedSkipped && (
+                    /* A skip already on record (seeded on load) keeps the
+                       advance control reachable without answering first */
                     <Pressable
                       style={[s.reopenBtn, { borderColor: colors.primary, backgroundColor: colors.primary + '22' }]}
                       onPress={() => setNextPromptDismissed(false)}
@@ -630,7 +608,7 @@ export default function AdminLiveScreen() {
 
                   {renderHostQuestion(viewedQ)}
 
-                  {/* Feedback block — the result shown at submission; the reopen control only on the released question */}
+                  {/* Feedback block — the result shown at submission, with the reopen control */}
                   {hostFeedback && (
                     <View style={[s.feedbackBlock, { backgroundColor: hostFeedback.isCorrect ? '#00ddff18' : '#ff008018', borderColor: hostFeedback.isCorrect ? '#00ddff55' : '#ff008055' }]}>
                       <Text style={[s.feedbackTitle, { color: hostFeedback.isCorrect ? '#00ddff' : '#ff5aa8' }]}>
@@ -644,17 +622,15 @@ export default function AdminLiveScreen() {
                       {!!hostFeedback.feedback && (
                         <Text style={[s.feedbackText, { color: colors.mutedForeground }]}>{hostFeedback.feedback}</Text>
                       )}
-                      {isViewingReleased && (
-                        /* Small reopen control — the advance action itself lives in the popup */
-                        <Pressable
-                          style={[s.reopenBtn, { borderColor: hostFeedback.isCorrect ? '#00ddff' : colors.border, backgroundColor: hostFeedback.isCorrect ? '#00ddff22' : colors.card }]}
-                          onPress={() => setNextPromptDismissed(false)}
-                        >
-                          <Text style={[s.reopenBtnText, { color: hostFeedback.isCorrect ? '#00ddff' : colors.foreground }]}>
-                            {isOnLastQuestion ? COPY.hostPlayAlong.endGameBtn : COPY.hostPlayAlong.nextQuestionBtn}
-                          </Text>
-                        </Pressable>
-                      )}
+                      {/* Small reopen control — the advance action itself lives in the popup */}
+                      <Pressable
+                        style={[s.reopenBtn, { borderColor: hostFeedback.isCorrect ? '#00ddff' : colors.border, backgroundColor: hostFeedback.isCorrect ? '#00ddff22' : colors.card }]}
+                        onPress={() => setNextPromptDismissed(false)}
+                      >
+                        <Text style={[s.reopenBtnText, { color: hostFeedback.isCorrect ? '#00ddff' : colors.foreground }]}>
+                          {isOnLastQuestion ? COPY.hostPlayAlong.endGameBtn : COPY.hostPlayAlong.nextQuestionBtn}
+                        </Text>
+                      </Pressable>
                     </View>
                   )}
 
@@ -667,17 +643,15 @@ export default function AdminLiveScreen() {
                       <Text style={[s.feedbackPts, { color: colors.mutedForeground }]}>
                         {COPY.results.yourAnswer}: {viewedAnswer}
                       </Text>
-                      {isViewingReleased && (
-                        /* Small reopen control — the advance action itself lives in the popup */
-                        <Pressable
-                          style={[s.reopenBtn, { borderColor: colors.accent, backgroundColor: colors.accent + '22' }]}
-                          onPress={() => setNextPromptDismissed(false)}
-                        >
-                          <Text style={[s.reopenBtnText, { color: colors.accent }]}>
-                            {isOnLastQuestion ? COPY.hostPlayAlong.endGameBtn : COPY.hostPlayAlong.nextQuestionBtn}
-                          </Text>
-                        </Pressable>
-                      )}
+                      {/* Small reopen control — the advance action itself lives in the popup */}
+                      <Pressable
+                        style={[s.reopenBtn, { borderColor: colors.accent, backgroundColor: colors.accent + '22' }]}
+                        onPress={() => setNextPromptDismissed(false)}
+                      >
+                        <Text style={[s.reopenBtnText, { color: colors.accent }]}>
+                          {isOnLastQuestion ? COPY.hostPlayAlong.endGameBtn : COPY.hostPlayAlong.nextQuestionBtn}
+                        </Text>
+                      </Pressable>
                     </View>
                   )}
 
@@ -685,12 +659,12 @@ export default function AdminLiveScreen() {
                     <Text style={[s.qText, { color: colors.destructive }]}>{answerError}</Text>
                   )}
 
-                  {isViewingReleased && !hostFeedback && !viewedKnownOnly && hostCanSkip && (
+                  {!hostFeedback && !viewedKnownOnly && hostCanSkip && (
                     <Pressable
                       disabled={submittingAnswer}
                       onPress={() => {
-                        setHostSkippedIds((prev) => new Set([...prev, currentPlayingQ.id]));
-                        void submitHostAnswer(currentPlayingQ.id, '');
+                        setHostSkippedIds((prev) => new Set([...prev, viewedQ.id]));
+                        void submitHostAnswer(viewedQ.id, '');
                       }}
                     >
                       <Text style={[s.playMeta, { color: colors.mutedForeground, textAlign: 'center', paddingVertical: 4 }]}>
@@ -710,18 +684,10 @@ export default function AdminLiveScreen() {
           </>
         )}
 
-        {/* ANSWER PROGRESS — hidden when host is playing along */}
+        {/* ANSWER PROGRESS — hidden when host is playing along. Players advance
+            on their own, so there is no release control here. */}
         {!playAlong && (
           <>
-            {/* Small reopen control — the advance action itself lives in the popup */}
-            <Pressable
-              style={[s.reopenBtn, { borderColor: colors.primary, backgroundColor: colors.primary + '22', marginBottom: 12 }]}
-              onPress={() => setNextPromptDismissed(false)}
-            >
-              <Text style={[s.reopenBtnText, { color: colors.primary }]}>
-                {isOnLastQuestion ? COPY.hostPlayAlong.endGameBtn : COPY.hostPlayAlong.nextQuestionBtn}
-              </Text>
-            </Pressable>
             <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>{COPY.adminLive.answerProgressLabel}</Text>
             {sortedQs.length === 0 ? (
               <Text style={[s.emptyText, { color: colors.mutedForeground }]}>{COPY.adminLive.noQuestions}</Text>
@@ -863,8 +829,8 @@ export default function AdminLiveScreen() {
         visible={completionModalVisible}
         onDismiss={() => setCompletionModalVisible(false)}
       />
-      {/* Result popup — the released question's result (or the plain heading) with the
-          advance action; same trigger as the old inline advance control */}
+      {/* Result popup — the viewed question's result (or the plain heading) with the
+          advance action; advancing only moves the host's own view */}
       <Modal
         visible={nextPromptVisible}
         transparent

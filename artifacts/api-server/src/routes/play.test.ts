@@ -373,11 +373,7 @@ describe("mid-game re-entry — answered questions preserved", () => {
       .send({ questionId: q1.id, userAnswer: "true" });
     assert.equal(ans1.status, 201, `answer Q1 failed: ${JSON.stringify(ans1.body)}`);
 
-    // A host release, not a client-side cursor, authorizes the next question.
-    await pool.query(
-      "UPDATE games SET current_question_id = $1 WHERE id = $2",
-      [q2.id, game.id],
-    );
+    // Self-paced play: no host release is needed for the next question.
     const ans2 = await agent
       .post(`/api/games/${game.id}/answers`)
       .send({ questionId: q2.id, userAnswer: "true" });

@@ -1,10 +1,9 @@
 
 import { Router, type IRouter } from "express";
-import { and, or, eq, desc, asc, gt, count, countDistinct, inArray, isNull } from "drizzle-orm";
+import { and, or, eq, desc, count, countDistinct, inArray, isNull } from "drizzle-orm";
 import {
  db,
  gamesTable,
-  questionsTable,
  gameParticipantsTable,
   gameAccessGrantsTable,
  adminAccountsTable,
@@ -399,25 +398,6 @@ router.patch("/games/:gameId", requireAdmin, async (req, res): Promise<void> => 
      return;
  }
 
- // Starting a game releases its first question. Persist this separately from
- // the host screen so participants cannot choose their own sequence.
- if (game.status === "active" && game.currentQuestionId == null) {
-     const [firstQuestion] = await db
-         .select({ id: questionsTable.id })
-         .from(questionsTable)
-         .where(eq(questionsTable.gameId, game.id))
-         .orderBy(asc(questionsTable.orderIndex))
-         .limit(1);
-     if (firstQuestion) {
-         const [updated] = await db
-             .update(gamesTable)
-             .set({ currentQuestionId: firstQuestion.id })
-             .where(eq(gamesTable.id, game.id))
-             .returning();
-         if (updated) game = updated;
-     }
- }
-
  // Play-along: when the game just went active with hostPlaysAlong on and the
  // host player record hasn't been created yet, auto-create a player-user for
  // the admin and register them as a game participant.
@@ -458,45 +438,13 @@ router.patch("/games/:gameId", requireAdmin, async (req, res): Promise<void> => 
  }
 });
 
-// ─── Host question advance ────────────────────────────────────────────────────
-router.post("/games/:gameId/advance-question", requireAdmin, async (req, res): Promise<void> => {
-  const params = GetGameParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  if (!await assertGameOwnership(req, res, params.data.gameId)) return;
-
-  const [game] = await db.select().from(gamesTable)
-    .where(eq(gamesTable.id, params.data.gameId)).limit(1);
-  if (!game) {
-    res.status(404).json({ error: "Game not found" });
-    return;
-  }
-  if (game.status !== "active") {
-    res.status(409).json({ error: "Questions can only advance in an active game" });
-    return;
-  }
-
-  const [currentQuestion] = game.currentQuestionId == null
-    ? [undefined]
-    : await db.select({ orderIndex: questionsTable.orderIndex }).from(questionsTable)
-      .where(and(eq(questionsTable.id, game.currentQuestionId), eq(questionsTable.gameId, game.id)))
-      .limit(1);
-  const [nextQuestion] = await db.select({ id: questionsTable.id }).from(questionsTable)
-    .where(currentQuestion
-      ? and(eq(questionsTable.gameId, game.id), gt(questionsTable.orderIndex, currentQuestion.orderIndex))
-      : eq(questionsTable.gameId, game.id))
-    .orderBy(asc(questionsTable.orderIndex))
-    .limit(1);
-  if (!nextQuestion) {
-    res.status(409).json({ error: "There is no next question to release" });
-    return;
-  }
-
-  await db.update(gamesTable).set({ currentQuestionId: nextQuestion.id })
-    .where(eq(gamesTable.id, game.id));
-  res.json({ currentQuestionId: nextQuestion.id });
+// ─── Host question advance (retired) ─────────────────────────────────────────
+// Gameplay is self-paced: players and the playing host move through the quiz
+// on their own, so there is no host release step anymore.
+router.post("/games/:gameId/advance-question", requireAdmin, async (_req, res): Promise<void> => {
+  res.status(410).json({
+    error: "Question release is retired. Players advance through the quiz on their own.",
+  });
 });
 
 // ─── Bridge-to-next (retired) ─────────────────────────────────────────────────

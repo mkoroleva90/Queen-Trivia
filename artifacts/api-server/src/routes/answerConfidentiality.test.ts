@@ -231,7 +231,7 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
     }
   });
 
-  it("lists every released question, without matching or ordering solutions", async () => {
+  it("lists every question of an active game, without matching or ordering solutions", async () => {
     const code = `R${String(Date.now()).slice(-7)}`;
     let redactionGameId: number | undefined;
     let playerName: string | undefined;
@@ -268,20 +268,20 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
       const matchingId = questions.rows[0]!.id;
       const orderingId = questions.rows[1]!.id;
       const writeInId = questions.rows[2]!.id;
-      await pool.query(
-        "UPDATE games SET current_question_id = $1 WHERE id = $2",
-        [matchingId, redactionGameId],
-      );
 
       playerName = `__test__question_redaction_${Date.now()}`;
       const agent = request.agent(app);
       assert.equal((await agent.post("/api/auth/login").send({ code, name: playerName })).status, 200);
       assert.equal((await agent.post(`/api/games/${redactionGameId}/join`)).status, 201);
 
+      // Self-paced play: every question of an active game is listed at once.
       const released = await agent.get(`/api/games/${redactionGameId}/questions`);
       assert.equal(released.status, 200, JSON.stringify(released.body));
-      assert.equal(released.body.length, 1, "future questions must not be listed");
-      assert.equal(released.body[0].id, matchingId);
+      assert.deepEqual(
+        released.body.map((question: { id: number }) => question.id),
+        [matchingId, orderingId, writeInId],
+        "every question is listed in order",
+      );
       assert.equal(released.body[0].correctAnswer, undefined);
       assert.equal(released.body[0].options.pairs, undefined);
       assert.deepEqual([...released.body[0].options.leftItems].sort(), ["A", "B", "C"]);
@@ -293,26 +293,17 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
         "repeated reads must not expose alternate arrangements to aggregate",
       );
 
-      const earlyAnswer = await agent
-        .post(`/api/games/${redactionGameId}/answers`)
-        .send({ questionId: orderingId, userAnswer: "first|second|third" });
-      assert.equal(earlyAnswer.status, 409, JSON.stringify(earlyAnswer.body));
-
-      await pool.query(
-        "UPDATE games SET current_question_id = $1 WHERE id = $2",
-        [orderingId, redactionGameId],
-      );
-      const ordering = await agent.get(`/api/games/${redactionGameId}/questions`);
-      assert.deepEqual(
-        ordering.body.map((question: { id: number }) => question.id),
-        [matchingId, orderingId],
-        "every released question is listed in order; the unreleased one is not",
-      );
-      const orderingQuestion = ordering.body.find((question: { id: number }) => question.id === orderingId);
+      const orderingQuestion = released.body.find((question: { id: number }) => question.id === orderingId);
       assert.equal(orderingQuestion.correctAnswer, undefined);
       assert.notDeepEqual(orderingQuestion.options.items, ["first", "second", "third"]);
 
-      // An earlier released question stays answerable, and a recorded skip may
+      // Questions can be answered in any order.
+      const earlyAnswer = await agent
+        .post(`/api/games/${redactionGameId}/answers`)
+        .send({ questionId: orderingId, userAnswer: "first|second|third" });
+      assert.equal(earlyAnswer.status, 201, JSON.stringify(earlyAnswer.body));
+
+      // A question stays answerable after moving on, and a recorded skip may
       // be replaced exactly once by a real answer.
       const skipEarlier = await agent
         .post(`/api/games/${redactionGameId}/answers`)
@@ -328,15 +319,7 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
         .post(`/api/games/${redactionGameId}/answers`)
         .send({ questionId: matchingId, userAnswer: "A:1|B:2|C:3" });
       assert.equal(replaceAgain.status, 409, JSON.stringify(replaceAgain.body));
-      const stillLocked = await agent
-        .post(`/api/games/${redactionGameId}/answers`)
-        .send({ questionId: writeInId, userAnswer: "Paris" });
-      assert.equal(stillLocked.status, 409, JSON.stringify(stillLocked.body));
 
-      await pool.query(
-        "UPDATE games SET current_question_id = $1 WHERE id = $2",
-        [writeInId, redactionGameId],
-      );
       const writeIn = await agent.get(`/api/games/${redactionGameId}/questions`);
       assert.equal(writeIn.status, 200, JSON.stringify(writeIn.body));
       assert.deepEqual(
@@ -464,7 +447,7 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
     }
   });
 
-  it("rejects host play-along answers for an unreleased question and lists the host's answers to the owner only", async () => {
+  it("accepts host play-along answers in any order and lists the host's answers to the owner only", async () => {
     let hostUserId: number | undefined;
     let hostGameId: number | undefined;
     let otherAdminId: number | undefined;
@@ -489,29 +472,21 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
         [hostGameId],
       );
       await pool.query(
-        "UPDATE games SET current_question_id = $1 WHERE id = $2",
-        [questions.rows[0]!.id, hostGameId],
-      );
-      await pool.query(
         "INSERT INTO game_participants (game_id, user_id) VALUES ($1, $2)",
         [hostGameId, hostUserId],
       );
 
       const admin = request.agent(app);
       assert.equal((await admin.post("/api/test-set-confidentiality-admin-session")).status, 200);
+      // Self-paced play: the host may answer questions in any order.
       const response = await admin
         .post(`/api/games/${hostGameId}/host-answer`)
         .send({ questionId: questions.rows[1]!.id, userAnswer: "true" });
-      assert.equal(response.status, 409, JSON.stringify(response.body));
+      assert.equal(response.status, 201, JSON.stringify(response.body));
 
+      // The question-release endpoint is retired.
       const advanced = await admin.post(`/api/games/${hostGameId}/advance-question`);
-      assert.equal(advanced.status, 200, JSON.stringify(advanced.body));
-      assert.equal(advanced.body.currentQuestionId, questions.rows[1]!.id);
-
-      const releasedAnswer = await admin
-        .post(`/api/games/${hostGameId}/host-answer`)
-        .send({ questionId: questions.rows[1]!.id, userAnswer: "true" });
-      assert.equal(releasedAnswer.status, 201, JSON.stringify(releasedAnswer.body));
+      assert.equal(advanced.status, 410, JSON.stringify(advanced.body));
 
       // The live host screen seeds its state from this list on load: exactly
       // the rows the host has on record, with no answer-revealing fields.
@@ -521,8 +496,8 @@ describe("POST /api/games/:gameId/answers — active-game answer confidentiality
         {
           questionId: questions.rows[1]!.id,
           userAnswer: "true",
-          isCorrect: releasedAnswer.body.isCorrect,
-          pointsEarned: releasedAnswer.body.pointsEarned,
+          isCorrect: response.body.isCorrect,
+          pointsEarned: response.body.pointsEarned,
         },
       ]);
 

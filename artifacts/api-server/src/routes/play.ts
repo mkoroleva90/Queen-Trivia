@@ -270,22 +270,6 @@ if (!question || question.gameId !== params.data.gameId) {
     return;
 }
 
-// Release gating: the host releases questions in orderIndex order, so the
-// released question and every earlier one are open; later ones stay locked.
-const releasedId = game.currentQuestionId;
-const [released] = releasedId == null
-    ? []
-    : await db
-        .select({ orderIndex: questionsTable.orderIndex })
-        .from(questionsTable)
-        .where(eq(questionsTable.id, releasedId));
-
-if (!released || question.orderIndex > released.orderIndex) {
-    res.status(409).json({ error: "This question has not been released by the host" });
-    return;
-}
-
-
 const [already] = await db
     .select()
     .from(answersTable)
@@ -846,20 +830,6 @@ router.post(
             res.status(404).json({ error: "Question not found in this game" });
             return;
         }
-        // Release gating: the host releases questions in orderIndex order, so the
-        // released question and every earlier one are open; later ones stay locked.
-        const releasedId = game.currentQuestionId;
-        const [released] = releasedId == null
-            ? []
-            : await db
-                .select({ orderIndex: questionsTable.orderIndex })
-                .from(questionsTable)
-                .where(eq(questionsTable.id, releasedId));
-        if (!released || question.orderIndex > released.orderIndex) {
-            res.status(409).json({ error: "This question has not been released by the host" });
-            return;
-        }
-
         // Duplicate check — host may only answer each question once
         const [existing] = await db
             .select({ id: answersTable.id, userAnswer: answersTable.userAnswer })
