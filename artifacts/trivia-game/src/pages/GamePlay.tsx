@@ -1257,7 +1257,7 @@ export default function GamePlay() {
 
   // ── Existing state ──
   // Feedback and locked answers are keyed by question id so moving between
-  // released questions never leaks one question's result into another.
+  // questions never leaks one question’s result into another.
   // feedbackById holds this session's results until "Next" dismisses them;
   // lockedAnswerById keeps every answer submitted this session.
   const [feedbackById, setFeedbackById] = useState<Record<number, Feedback>>({});
@@ -1265,10 +1265,9 @@ export default function GamePlay() {
 
   // ── New display state (UI only) ──
   const [lockedAnswerById, setLockedAnswerById] = useState<Record<number, string>>({});
-  // Which released question the player is looking at. Only trusted while it
-  // belongs to the current release, so a new release snaps the view to the
-  // newest question with no stale frame.
-  const [view, setView] = useState<{ releasedId: number; index: number } | null>(null);
+  // Which question the player is looking at. Play is self-paced: until the
+  // player navigates, the view defaults to the first unanswered question.
+  const [view, setView] = useState<number | null>(null);
 
   // ── Skip (defer) state — client-side only, no server submission ──
   const [skippedIds, setSkippedIds] = useState<Set<number>>(new Set());
@@ -1323,16 +1322,16 @@ export default function GamePlay() {
     [myAnswers],
   );
 
-  // The server sends every question released so far; the newest is the released one.
-  const released         = sorted[sorted.length - 1];
-  const releasedIndex    = sorted.length - 1;
-  // viewIndex defaults to the released question and snaps back to it whenever
-  // a new question is released (a stale `view` belongs to an older release).
-  const viewIndex        = released && view?.releasedId === released.id ? view.index : releasedIndex;
+  // The server sends every question of the game; play is self-paced.
+  const lastIndex        = sorted.length - 1;
+  // First question with no answer on record (-1 when every question has one).
+  const firstOpenIndex   = sorted.findIndex((q) => !answerById.has(q.id));
+  // viewIndex defaults to the first open question (or the last one when all
+  // are answered) until the player navigates on their own.
+  const viewIndex        = view ?? (firstOpenIndex >= 0 ? firstOpenIndex : Math.max(lastIndex, 0));
   const current          = sorted[viewIndex];
-  const isViewingReleased = !!current && !!released && current.id === released.id;
-  const isViewingEarlier = !!current && !!released && viewIndex < releasedIndex;
-  const canGoBack        = !!released && viewIndex > 0;
+  const canGoForward     = !!current && viewIndex < lastIndex;
+  const canGoBack        = sorted.length > 0 && viewIndex > 0;
   const currentImageUrl  = getSafeImageUrl(current?.imageUrl);
   const answeredCount    = (myAnswers ?? []).length;
   const total            = game?.questionCount ?? 0;
@@ -1346,13 +1345,9 @@ export default function GamePlay() {
   const feedback         = current ? feedbackById[current.id] ?? null : null;
   // Locked while this session's feedback is showing, or while viewing a real answer again.
   const lockedAnswer     = feedback ? (sessionAnswer ?? null) : viewAnsweredReal ? (viewAnswer as string) : null;
-  const releasedAnswer   = released ? lockedAnswerById[released.id] ?? answerById.get(released.id)?.userAnswer : undefined;
-  const releasedUnanswered = !!released && releasedAnswer === undefined;
-  const awaitingHost     = !current || (isViewingReleased && viewAnswer !== undefined && !feedback);
-  const isLastQuestion   = !!released && released.orderIndex === total - 1;
-  // A skip cannot defer the released question — it records a blank (zero-point)
-  // answer; the player can come back to it with Back once the host moves on.
-  const canSkip          = !!released && !isLastQuestion;
+  // A skip records a blank (zero-point) answer; the player can come back to it
+  // with Back and replace it with a real answer while the game is live.
+  const canSkip          = canGoForward;
 
   const sortedParticipants = useMemo(
     () => [...(participants ?? [])].sort((a, b) => (b.totalScore ?? 0) - (a.totalScore ?? 0)),
@@ -1413,6 +1408,10 @@ export default function GamePlay() {
           };
           setFeedbackById((prev) => ({ ...prev, [question.id]: result }));
           setLockedAnswerById((prev) => ({ ...prev, [question.id]: userAnswer })); // store for inline reveal
+          // Pin the view: the default view follows the first unanswered
+          // question, so without this the refetched answer rows would move
+          // the player off the feedback they are reading.
+          setView(viewIndex);
           queryClient.invalidateQueries({ queryKey: getListGameParticipantsQueryKey(gameId) });
           // Refresh the answer rows too, so a replaced skip and the score update at once.
           queryClient.invalidateQueries({ queryKey: getListUserAnswersQueryKey(gameId, userId) });
@@ -1420,7 +1419,7 @@ export default function GamePlay() {
         onError: (err: unknown) => {
           const status = err && typeof err === "object" && "status" in err ? (err as { status: number }).status : 0;
           if (status === 409) {
-            // Already answered, or not released: resync and tell the player instead of moving on.
+            // Already answered: resync and tell the player instead of moving on.
             queryClient.invalidateQueries({ queryKey: getListUserAnswersQueryKey(gameId, userId) });
             queryClient.invalidateQueries({ queryKey: getListGameQuestionsQueryKey(gameId) });
             toast({ variant: "destructive", title: COPY.gameplay.submitErrorTitle, description: COPY.gameplay.submitErrorBody });
@@ -1451,7 +1450,7 @@ export default function GamePlay() {
       });
     }
     queryClient.invalidateQueries({ queryKey: getListUserAnswersQueryKey(gameId, userId) });
-    if (released && isViewingEarlier) setView({ releasedId: released.id, index: viewIndex + 1 });
+    if (canGoForward) setView(viewIndex + 1);
   };
 
   const renderQuestion = (q: Question) => {
@@ -1595,8 +1594,8 @@ export default function GamePlay() {
               </div>
             )}
 
-            {/* Question nav — "Q3 of 10" with Back/Forward through the questions released so far.
-                Shown while waiting too, so the player can look back at earlier questions. */}
+            {/* Question nav — "Q3 of 10" with Back/Forward through every question.
+                Play is self-paced, so the player moves freely in both directions. */}
             {current && total > 0 && game?.status !== "completed" && (
               <div className="flex items-center gap-2 flex-wrap">
                 <span
@@ -1609,7 +1608,7 @@ export default function GamePlay() {
                   type="button"
                   aria-label={COPY.hostPlayAlong.viewBackLabel}
                   disabled={!canGoBack}
-                  onClick={() => released && setView({ releasedId: released.id, index: viewIndex - 1 })}
+                  onClick={() => canGoBack && setView(viewIndex - 1)}
                   className="h-6 w-6 flex items-center justify-center rounded-md cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition hover:brightness-125"
                   style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.12)", color: "#a3aec2" }}
                 >
@@ -1618,8 +1617,8 @@ export default function GamePlay() {
                 <button
                   type="button"
                   aria-label={COPY.hostPlayAlong.viewForwardLabel}
-                  disabled={!isViewingEarlier}
-                  onClick={() => released && setView({ releasedId: released.id, index: viewIndex + 1 })}
+                  disabled={!canGoForward}
+                  onClick={() => canGoForward && setView(viewIndex + 1)}
                   className="h-6 w-6 flex items-center justify-center rounded-md cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition hover:brightness-125"
                   style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.12)", color: "#a3aec2" }}
                 >
@@ -1637,10 +1636,10 @@ export default function GamePlay() {
                 >
                   {current.points} PTS
                 </span>
-                {isViewingEarlier && releasedUnanswered && (
+                {firstOpenIndex >= 0 && viewIndex !== firstOpenIndex && (
                   <button
                     type="button"
-                    onClick={() => released && setView({ releasedId: released.id, index: releasedIndex })}
+                    onClick={() => setView(firstOpenIndex)}
                     className="ml-auto text-xs font-semibold underline underline-offset-2 transition hover:opacity-70"
                     style={{ color: "#ffe500", background: "none", border: "none", cursor: "pointer" }}
                   >
@@ -1692,7 +1691,7 @@ export default function GamePlay() {
                   </div>
                 </motion.div>
 
-              ) : current && !awaitingHost ? (
+              ) : current ? (
                 <motion.div
                   key={current.id}
                   initial={{ opacity: 0, y: 16 }}
@@ -1726,8 +1725,8 @@ export default function GamePlay() {
                   {/* Answer choices */}
                   {renderQuestion(current)}
 
-                  {/* Skip button — only on the released question, while it is still unanswered */}
-                  {isViewingReleased && !feedback && viewAnswer === undefined && canSkip && (
+                  {/* Skip button — on any unanswered question with more to go */}
+                  {!feedback && viewAnswer === undefined && canSkip && (
                     <button
                       onClick={() => setSkipConfirm(true)}
                       className="w-full text-center text-xs font-semibold transition hover:opacity-70"
@@ -1802,7 +1801,8 @@ export default function GamePlay() {
                           </p>
                         )}
 
-                        {/* Advance CTA */}
+                        {/* Advance CTA — hidden on the last question, where there is nothing to advance to */}
+                        {canGoForward && (
                         <button
                           onClick={nextQuestion}
                           className="w-full font-extrabold uppercase text-[15px]"
@@ -1816,6 +1816,7 @@ export default function GamePlay() {
                         >
                           {COPY.gameplay.feedbackNext}
                         </button>
+                        )}
                       </motion.div>
                     ) : (
                       <motion.p

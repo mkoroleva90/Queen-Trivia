@@ -739,15 +739,14 @@ export default function GamePlayScreen() {
   const questionStartRef = useRef(Date.now());
 
   // Feedback and locked answers are keyed by question id so moving between
-  // released questions never leaks one question's result into another.
+  // questions never leaks one question's result into another.
   // feedbackById holds this session's results until "Next" dismisses them;
   // lockedAnswerById keeps every answer submitted this session.
   const [feedbackById, setFeedbackById] = useState<Record<number, Feedback>>({});
   const [lockedAnswerById, setLockedAnswerById] = useState<Record<number, string>>({});
-  // Which released question the player is looking at. Only trusted while it
-  // belongs to the current release, so a new release snaps the view to the
-  // newest question with no stale frame.
-  const [view, setView] = useState<{ releasedId: number; index: number } | null>(null);
+  // Which question the player is looking at. Play is self-paced: until the
+  // player navigates, the view defaults to the first unanswered question.
+  const [view, setView] = useState<number | null>(null);
   const [skippedIds, setSkippedIds] = useState<Set<number>>(new Set());
   const [skipConfirm, setSkipConfirm] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -822,16 +821,16 @@ export default function GamePlayScreen() {
   );
   // The server's answer row per question; a userAnswer of '' is a skip.
   const answerById = useMemo(() => new Map((myAnswers ?? []).map((a) => [a.questionId, a] as const)), [myAnswers]);
-  // The server sends every question released so far; the newest is the released one.
-  const released = sorted[sorted.length - 1];
-  const releasedIndex = sorted.length - 1;
-  // viewIndex defaults to the released question and snaps back to it whenever
-  // a new question is released (a stale `view` belongs to an older release).
-  const viewIndex = released && view?.releasedId === released.id ? view.index : releasedIndex;
+  // The server sends every question of the game; play is self-paced.
+  const lastIndex = sorted.length - 1;
+  // First question with no answer on record (-1 when every question has one).
+  const firstOpenIndex = sorted.findIndex((q) => !answerById.has(q.id));
+  // viewIndex defaults to the first open question (or the last one when all
+  // are answered) until the player navigates on their own.
+  const viewIndex = view ?? (firstOpenIndex >= 0 ? firstOpenIndex : Math.max(lastIndex, 0));
   const current = sorted[viewIndex];
-  const isViewingReleased = !!current && !!released && current.id === released.id;
-  const isViewingEarlier = !!current && !!released && viewIndex < releasedIndex;
-  const canGoBack = !!released && viewIndex > 0;
+  const canGoForward = !!current && viewIndex < lastIndex;
+  const canGoBack = sorted.length > 0 && viewIndex > 0;
   const answeredCount = (myAnswers ?? []).length;
   const total = game?.questionCount ?? 0;
   // What the player has on record for the viewed question: this session's
@@ -844,13 +843,10 @@ export default function GamePlayScreen() {
   const feedback = current ? feedbackById[current.id] ?? null : null;
   // Locked while this session's feedback is showing, or while viewing a real answer again.
   const lockedAnswer = feedback ? (sessionAnswer ?? null) : viewAnsweredReal ? (viewAnswer as string) : null;
-  const releasedAnswer = released ? lockedAnswerById[released.id] ?? answerById.get(released.id)?.userAnswer : undefined;
-  const releasedUnanswered = !!released && releasedAnswer === undefined;
-  const awaitingHost = !current || (isViewingReleased && viewAnswer !== undefined && !feedback);
-  const isLastQuestion = !!released && released.orderIndex === total - 1;
-  // A skip cannot defer the released question — it records a blank (zero-point)
-  // answer; the player can come back to it with Back once the host moves on.
-  const canSkip = !!released && !isLastQuestion;
+  const isLastQuestion = !!current && viewIndex === lastIndex;
+  // A skip records a blank (zero-point) answer; the player can come back to it
+  // with Back and replace it with a real answer while the game is live.
+  const canSkip = canGoForward;
   // A skipped question has no answer to lock the components with — disable them
   // explicitly; a real answer on record is locked too.
   const questionDisabled = submitAnswer.isPending || (!!feedback && lockedAnswer === '') || viewAnsweredReal;
@@ -906,11 +902,15 @@ export default function GamePlayScreen() {
           };
           setFeedbackById((prev) => ({ ...prev, [current.id]: result }));
           setLockedAnswerById((prev) => ({ ...prev, [current.id]: answer }));
+          // Pin the view: the default view follows the first unanswered
+          // question, so without this the refetched answer rows would move
+          // the player off the feedback they are reading.
+          setView(viewIndex);
           Haptics.notificationAsync(res.isCorrect ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error);
           queryClient.invalidateQueries({ queryKey: getListGameParticipantsQueryKey(gameId) });
           // Refresh the answer rows too, so a replaced skip and the score update at once.
           queryClient.invalidateQueries({ queryKey: getListUserAnswersQueryKey(gameId, userId) });
-          if (isLastQuestion && current.id === released?.id && !completionAlertShownRef.current) {
+          if (current.orderIndex === total - 1 && !completionAlertShownRef.current) {
             completionAlertShownRef.current = true;
             setCompletionModalVisible(true);
           }
@@ -926,7 +926,7 @@ export default function GamePlayScreen() {
             return;
           }
           if (status === 409) {
-            // Already answered, or not released: resync and tell the player instead of moving on.
+            // Already answered: resync and tell the player instead of moving on.
             queryClient.invalidateQueries({ queryKey: getListUserAnswersQueryKey(gameId, userId) });
             queryClient.invalidateQueries({ queryKey: getListGameQuestionsQueryKey(gameId) });
             Alert.alert(COPY.gameplay.submitErrorTitle, COPY.gameplay.submitErrorBody);
@@ -957,7 +957,7 @@ export default function GamePlayScreen() {
         return rest;
       });
     }
-    if (released && isViewingEarlier) setView({ releasedId: released.id, index: viewIndex + 1 });
+    if (canGoForward) setView(viewIndex + 1);
   };
 
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
@@ -1136,8 +1136,8 @@ export default function GamePlayScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Question nav — "Q3 of 10" with Back/Forward through the questions released so far.
-            Shown while waiting too, so the player can look back at earlier questions. */}
+        {/* Question nav — "Q3 of 10" with Back/Forward through every question.
+            Play is self-paced, so the player moves freely in both directions. */}
         {current && total > 0 && (
           <View style={styles.questionMeta}>
             <View style={styles.questionNav}>
@@ -1148,7 +1148,7 @@ export default function GamePlayScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={COPY.hostPlayAlong.viewBackLabel}
                 disabled={!canGoBack}
-                onPress={() => released && setView({ releasedId: released.id, index: viewIndex - 1 })}
+                onPress={() => canGoBack && setView(viewIndex - 1)}
                 hitSlop={8}
                 style={[styles.navBtn, { opacity: canGoBack ? 1 : 0.3 }]}
               >
@@ -1157,10 +1157,10 @@ export default function GamePlayScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={COPY.hostPlayAlong.viewForwardLabel}
-                disabled={!isViewingEarlier}
-                onPress={() => released && setView({ releasedId: released.id, index: viewIndex + 1 })}
+                disabled={!canGoForward}
+                onPress={() => canGoForward && setView(viewIndex + 1)}
                 hitSlop={8}
-                style={[styles.navBtn, { opacity: isViewingEarlier ? 1 : 0.3 }]}
+                style={[styles.navBtn, { opacity: canGoForward ? 1 : 0.3 }]}
               >
                 <Ionicons name="chevron-forward" size={16} color={colors.foreground} />
               </Pressable>
@@ -1170,17 +1170,17 @@ export default function GamePlayScreen() {
             </Text>
           </View>
         )}
-        {isViewingEarlier && releasedUnanswered && (
+        {firstOpenIndex >= 0 && viewIndex !== firstOpenIndex && (
           <Pressable
             accessibilityRole="button"
-            onPress={() => released && setView({ releasedId: released.id, index: releasedIndex })}
+            onPress={() => setView(firstOpenIndex)}
             hitSlop={8}
           >
             <Text style={[styles.backToCurrent, { color: colors.accent }]}>{COPY.gameplay.backToCurrent}</Text>
           </Pressable>
         )}
-        {awaitingHost ? (
-          /* The host controls when the next question is released. */
+        {!current ? (
+          /* No questions yet — the game hasn't started. */
           <View style={styles.doneState}>
             <Ionicons name="time-outline" size={64} color={colors.secondary} />
             <Text style={[styles.doneTitle, { color: colors.foreground }]}>{COPY.gameplay.waitingHostTitle}</Text>
@@ -1235,8 +1235,8 @@ export default function GamePlayScreen() {
               )}
             </View>
 
-            {/* Skip button — only on the released question, while it is still unanswered */}
-            {isViewingReleased && !feedback && viewAnswer === undefined && canSkip && (
+            {/* Skip button — on any unanswered question with more to go */}
+            {!feedback && viewAnswer === undefined && canSkip && (
               <TouchableOpacity
                 onPress={() => setSkipConfirm(true)}
                 style={styles.skipBtn}
@@ -1256,7 +1256,7 @@ export default function GamePlayScreen() {
 
             {/* Feedback */}
             {viewFeedback && (
-              <FeedbackCard feedback={viewFeedback} onNext={handleNext} isLast={isLastQuestion && isViewingReleased} skipped={lockedAnswer === ''} />
+              <FeedbackCard feedback={viewFeedback} onNext={handleNext} isLast={isLastQuestion} skipped={lockedAnswer === ''} />
             )}
           </>
         )}
@@ -1349,7 +1349,7 @@ const styles = StyleSheet.create({
   questionMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   questionNum: { fontSize: 11, fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase' },
   questionType: { fontSize: 11, fontWeight: '600', textTransform: 'capitalize' },
-  // Back/Forward through released questions, and the labels that go with them
+  // Back/Forward through questions, and the labels that go with them
   questionNav: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   navBtn: { width: 28, height: 28, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,.12)', alignItems: 'center', justifyContent: 'center' },
   backToCurrent: { fontSize: 12, fontWeight: '700', textDecorationLine: 'underline', alignSelf: 'flex-start' },

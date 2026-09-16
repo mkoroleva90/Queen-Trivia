@@ -68,13 +68,13 @@ The web and mobile apps must have identical flows, features, and wording; every 
 - Per-question AI tools: regenerate, enhance, fact-check (Google Search grounded). Bulk regenerate all AI questions.
 - Choose a run mode: host only, or host & play (the host answers alongside players and appears in the standings).
 - Choose the player join code before going live; a random code is assigned if left blank.
-- Live control: release questions one at a time, watch answer progress per question, manually review short-response answers when AI grading was unavailable, remove abusive players (removed players cannot rejoin), end the game.
+- Live control: watch answer progress per question (players advance through the quiz on their own time), manually review short-response answers when AI grading was unavailable, remove abusive players (removed players cannot rejoin), end the game.
 - Results: leaderboard, per-question breakdown with correct answers, CSV export (mobile shares the file).
 - Account: display name shown on the leaderboard, change password (password accounts only), sign out, delete account (revokes Apple tokens and prior sessions), legal links. Reached from the person icon in the admin header on both platforms.
 
 **Players.**
 - Join with a game code and a display name; no account needed. Names and free-text answers pass a content filter.
-- Answer the released question against the clock; speed earns bonus points. Skip and come back to a question while the game is live. Look back at earlier questions.
+- Answer the questions at their own pace, in any order, against the clock; speed earns bonus points. Skip and come back to a question while the game is live. Look back at earlier questions.
 - See only whether an answer was right and the points earned mid-game; correct answers appear only in the end-of-game results.
 - Results screen: final standings, per-question breakdown, share results, jump to the host's next live game.
 - Report content from in-game and results screens (hateful, sexual, harassment, spam, other, with an optional note).

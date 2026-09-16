@@ -328,7 +328,7 @@ export const COPY = {
     nextQuestionBtn:    'Next question →',
     /** CTA shown after answering the last question. */
     seeResultsBtn:      'See results →',
-    /** Primary CTA on the last question — ends the game instead of releasing a next question (web and mobile). */
+    /** Primary CTA on the last question — ends the game, since there is nothing left to advance to (web and mobile). */
     endGameBtn:         'End game',
     /** Shown when the host has answered every question. */
     allAnsweredMsg:     "You've answered every question! End the game when your players are done.",
@@ -340,26 +340,24 @@ export const COPY = {
     playAlongDesc:      "Answer questions from this screen — you'll appear in the standings alongside your players",
     /**
      * Heading of the advance popup when there is no answer result to show — a
-     * monitoring host, or a playing host whose answer the server holds without
-     * feedback. When the host has just answered or skipped the released question
-     * the popup shows the result instead: gameplay.feedbackCorrect /
-     * gameplay.feedbackWrongHeading / results.skipped as the heading, the points line
+     * playing host whose answer the server holds without feedback. When the
+     * host has just answered or skipped a question the popup shows the result
+     * instead: gameplay.feedbackCorrect / gameplay.feedbackWrongHeading /
+     * results.skipped as the heading, the points line
      * (gameplay.scorePtsSuffix + gameplay.feedbackTotalLabel), any AI feedback,
      * then nextQuestionBtn / endGameBtn (web and mobile).
      */
     nextPromptTitle:    'Ready for the next question?',
     /** Secondary button on that popup — closes it without advancing; the host can reopen it from the small next-question button in the question card. */
     nextPromptDismiss:  'Not yet',
-    /** Banner on the host's live screen while they look back at a question that is not the released one (web and mobile). */
+    /** Banner on the host's live screen while they look back at a question before their own progress (web and mobile). */
     viewingEarlier:     'Viewing an earlier question',
-    /** Link in that banner — jumps the view back to the released question. Same wording as gameplay.backToCurrent. */
+    /** Link in that banner — jumps the view back to the host's first unanswered question. Same wording as gameplay.backToCurrent. */
     backToCurrent:      'Back to current question',
     /** Screen-reader label for the chevron that steps the view back one question (host live screen and player screen). */
     viewBackLabel:      'Back',
-    /** Screen-reader label for the chevron that steps the view forward, up to the released question (host live screen and player screen). */
+    /** Screen-reader label for the chevron that steps the view forward one question (host live screen and player screen). */
     viewForwardLabel:   'Forward',
-    /** Shown when releasing the next question fails. Both platforms. */
-    releaseNextError:   'Could not release the next question — please retry',
     /** Shown when the host's own play-along answer fails to submit (mobile). */
     submitAnswerError:  'Could not submit your answer — please retry',
   },
@@ -619,7 +617,7 @@ export const COPY = {
     /** Confirm action in the player skip dialog. */
     skipDialogConfirm:   'Skip for now',
 
-    // ── Moving between released questions ─────────────────────────────────
+    // ── Moving between questions ──────────────────────────────────────────
     /**
      * "Q3 of 10" indicator beside the Back/Forward chevrons on the player
      * screen (web and mobile). n is 1-based; total is the game's question count.
@@ -627,7 +625,7 @@ export const COPY = {
     questionIndicator: (n: number, total: number) => `Q${n} of ${total}`,
     /** Label above a previously skipped question the player has come back to; it is answerable again. */
     skippedEarlier:    'You skipped this earlier — you can still answer it',
-    /** Link shown while looking back at an earlier question when the released one is still unanswered. */
+    /** Link that jumps the view to the player's first unanswered question. */
     backToCurrent:     'Back to current question',
     /** Title of the error shown when an answer cannot be submitted (toast on web, alert on mobile). */
     submitErrorTitle:  'Could not submit answer',
@@ -654,9 +652,9 @@ export const COPY = {
     leaveBody:         "You'll lose your progress on the current question. You can rejoin with a room code.",
     leaveStay:         'Stay',
     leaveConfirm:      'Leave',
-    /** Shown while the host has not yet released the next question. Both platforms. */
+    /** Shown while the game has no questions to play yet (it has not started). Both platforms. */
     waitingHostTitle:  'Waiting for the host',
-    waitingHostBody:   'The next question will appear here when the host releases it.',
+    waitingHostBody:   'The quiz will appear here when the host starts the game.',
     /** Quiz-complete modal (mobile). */
     quizCompleteTitle: 'Quiz complete!',
     quizCompleteBody:  "You've reached the end of the game and answered all the questions in this quiz.",

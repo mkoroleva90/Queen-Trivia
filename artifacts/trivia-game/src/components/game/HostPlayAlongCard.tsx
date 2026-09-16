@@ -62,8 +62,8 @@ interface HostPlayAlongCardProps {
   /** Called after every successful submit so the parent can keep results per question. */
   onAnswered?: (questionId: number, answer: string, result: HostAnswerResult) => void;
   /**
-   * True when this card shows the released question. Only then does answering
-   * open the next-question popup, and only then is the small reopen button shown.
+   * True when answering opens the next-question popup and the small reopen
+   * button is shown. Play is self-paced, so this is normally always true.
    */
   canAdvance?: boolean;
 }
@@ -233,8 +233,7 @@ export function HostPlayAlongCard({
             </p>
           )}
 
-          {/* Small reopen control — the advance action itself lives in the popup,
-              and only the released question can advance the game */}
+          {/* Small reopen control — the advance action itself lives in the popup */}
           {canAdvance && (
             <button
               type="button"
@@ -249,7 +248,7 @@ export function HostPlayAlongCard({
         </div>
       )}
 
-      {/* ── Result popup — opens with the feedback on the released question and carries the
+      {/* ── Result popup — opens with the feedback on the answered question and carries the
              advance action; "Not yet" leaves the inline feedback and reopen button in place ── */}
       <NextQuestionPrompt
         open={canAdvance && answered && localAnswer !== null && !nextPromptDismissed}

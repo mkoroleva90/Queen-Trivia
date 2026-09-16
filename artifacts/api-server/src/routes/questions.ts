@@ -291,7 +291,6 @@ router.get("/games/:gameId/questions", requireAuth, async (req, res): Promise<vo
     const [game, questions] = await Promise.all([
         db.select({
             status: gamesTable.status,
-            currentQuestionId: gamesTable.currentQuestionId,
         })
             .from(gamesTable)
             .where(eq(gamesTable.id, params.data.gameId))
@@ -316,19 +315,13 @@ router.get("/games/:gameId/questions", requireAuth, async (req, res): Promise<vo
         ...question,
         imageUrl: safePlayerImageUrl(question.imageUrl),
     }));
-    // Players receive every question the host has released so far — the released
-    // question and everything before it by orderIndex (the list is already sorted
-    // by orderIndex) — so they can revisit a skipped question. Waiting games have
-    // no released question; completed games safely reveal the full review.
-    const releasedQuestion = game.status === "active" && game.currentQuestionId != null
-        ? questions.find((question) => question.id === game.currentQuestionId)
-        : undefined;
+    // Players receive every question of an active or completed game — play is
+    // self-paced, so nothing is held back for a host release. Waiting games
+    // still expose nothing.
     const visibleQuestions = isAdmin
         ? decoded
-        : game.status === "completed"
+        : game.status === "completed" || game.status === "active"
             ? playerSafeQuestions
-        : releasedQuestion
-            ? playerSafeQuestions.filter((question) => question.orderIndex <= releasedQuestion.orderIndex)
             : [];
     const response = isAdmin || game.status === "completed"
         ? visibleQuestions
