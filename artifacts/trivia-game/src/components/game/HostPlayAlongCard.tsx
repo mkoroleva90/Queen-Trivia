@@ -150,6 +150,7 @@ export function HostPlayAlongCard({
             {...sub}
             onSubmit={handleSubmit}
             feedbackResult={feedbackResult}
+            shuffleItems
           />
         );
       case "true_false":

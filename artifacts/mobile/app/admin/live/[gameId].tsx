@@ -464,7 +464,7 @@ export default function AdminLiveScreen() {
       case 'true_false':      return <TrueFalseQ key={q.id} onSubmit={props.onSubmit} disabled={props.disabled} lockedAnswer={props.lockedAnswer} />;
       case 'write_in':        return <WriteInQ key={q.id} onSubmit={props.onSubmit} disabled={props.disabled} lockedAnswer={props.lockedAnswer} />;
       case 'short_response':  return <WriteInQ key={q.id} onSubmit={props.onSubmit} disabled={props.disabled} lockedAnswer={props.lockedAnswer} multiline />;
-      case 'ordering':        return <OrderingQ key={q.id} {...props} />;
+      case 'ordering':        return <OrderingQ key={q.id} {...props} shuffleItems />;
       case 'slider':          return <SliderQ key={q.id} {...props} />;
       case 'image_recognition': return <ImageRecognitionQ key={q.id} {...props} />;
       case 'image_hotspot':   return <ImageHotspotQ key={q.id} {...props} />;
