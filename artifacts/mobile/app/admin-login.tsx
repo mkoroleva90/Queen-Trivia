@@ -293,12 +293,6 @@ export default function AdminLoginScreen() {
             </Pressable>
           </View>
 
-          <Pressable onPress={() => router.replace('/')} style={s.footerLink}>
-            <Text style={[s.footerText, { color: colors.mutedForeground }]}>
-              <Text style={{ color: colors.primary }}>{COPY.hostLogin.backToPlayer}</Text>
-            </Text>
-          </Pressable>
-
           <Pressable onPress={() => router.push('/admin-register')} style={s.footerLink}>
             <Text style={[s.footerText, { color: colors.mutedForeground }]}>
               {COPY.hostLogin.noAccount}{' '}
