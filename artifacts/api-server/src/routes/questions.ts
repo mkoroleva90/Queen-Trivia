@@ -50,15 +50,21 @@ function isFiniteNumber(value: unknown): value is number {
     return typeof value === "number" && Number.isFinite(value);
 }
 
-const WIKIMEDIA_IMAGE_HOSTNAME = "upload.wikimedia.org";
+// Originals are served from upload.wikimedia.org; since 2026 Wikimedia serves
+// thumbnails (the /thumb/ paths the Commons API returns) from thumb.wikimedia.org.
+const WIKIMEDIA_IMAGE_HOSTNAMES = ["upload.wikimedia.org", "thumb.wikimedia.org"];
 const WIKIMEDIA_IMAGE_PATH_PREFIX = "/wikipedia/commons/";
+const WIKIMEDIA_THUMBNAIL_PATH_PREFIX = "/wikipedia/commons/thumb/";
+// Wikimedia only renders thumbnails at these widths ($wgThumbnailSteps); any
+// other width now fails with HTTP 400.
+const WIKIMEDIA_THUMBNAIL_STEPS = [20, 40, 60, 120, 250, 330, 500, 960, 1280, 1920, 3840];
 
 function isAllowedImageUrl(value: unknown): value is string {
     if (typeof value !== "string" || !value) return false;
     try {
         const url = new URL(value);
         return url.protocol === "https:"
-            && url.hostname === WIKIMEDIA_IMAGE_HOSTNAME
+            && WIKIMEDIA_IMAGE_HOSTNAMES.includes(url.hostname)
             && url.port === ""
             && !url.username
             && !url.password
@@ -68,8 +74,30 @@ function isAllowedImageUrl(value: unknown): value is string {
     }
 }
 
+/**
+ * Questions stored before Wikimedia restricted thumbnail sizes point at widths
+ * (e.g. 1000px) that no longer render. Round such widths down to the nearest
+ * standard step so the stored image keeps loading without touching the row.
+ */
+function normalizeWikimediaThumbnailWidth(value: string): string {
+    const url = new URL(value);
+    if (!url.pathname.startsWith(WIKIMEDIA_THUMBNAIL_PATH_PREFIX)) return value;
+    const segments = url.pathname.split("/");
+    const fileSegment = segments[segments.length - 1] ?? "";
+    const match = fileSegment.match(/^(.*?)(\d+)px-(.+)$/);
+    if (!match) return value;
+    const width = Number(match[2]);
+    if (WIKIMEDIA_THUMBNAIL_STEPS.includes(width)) return value;
+    const step = [...WIKIMEDIA_THUMBNAIL_STEPS].reverse().find((s) => s <= width)
+        ?? WIKIMEDIA_THUMBNAIL_STEPS[0]!;
+    segments[segments.length - 1] = `${match[1]}${step}px-${match[3]}`;
+    url.pathname = segments.join("/");
+    return url.toString();
+}
+
 function safePlayerImageUrl(value: string | null): string | null {
-    return value === null || isAllowedImageUrl(value) ? value : null;
+    if (value === null) return null;
+    return isAllowedImageUrl(value) ? normalizeWikimediaThumbnailWidth(value) : null;
 }
 
 function displayOrder(items: string[], seed: string): string[] {

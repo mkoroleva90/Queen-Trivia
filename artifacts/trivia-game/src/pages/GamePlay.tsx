@@ -129,13 +129,17 @@ function getImageAttribution(options: unknown): { creditLine: string; licenseNam
     : null;
 }
 
+// Originals live on upload.wikimedia.org; Wikimedia serves thumbnails from
+// thumb.wikimedia.org since 2026. Mirrors the server's allow-list.
+const WIKIMEDIA_IMAGE_HOSTNAMES = ["upload.wikimedia.org", "thumb.wikimedia.org"];
+
 function getSafeImageUrl(imageUrl: string | null | undefined): string | null {
   if (!imageUrl) return null;
   try {
     const url = new URL(imageUrl);
     if (
       url.protocol !== "https:"
-      || url.hostname !== "upload.wikimedia.org"
+      || !WIKIMEDIA_IMAGE_HOSTNAMES.includes(url.hostname)
       || url.port
       || url.username
       || url.password
