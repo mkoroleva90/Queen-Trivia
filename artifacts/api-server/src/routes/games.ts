@@ -362,16 +362,24 @@ router.patch("/games/:gameId", requireAdmin, async (req, res): Promise<void> => 
           .for("update");
       if (!lockedGame) return undefined;
 
-      let updates = parsed.data;
+      const updates: Partial<typeof gamesTable.$inferInsert> = { ...parsed.data };
       if (parsed.data.accessCode !== undefined) {
           const normalizedAccessCode = parsed.data.accessCode.trim().toUpperCase();
           const codeActuallyChanged =
               lockedGame.accessCode?.toUpperCase() !== normalizedAccessCode;
-          updates = {
-              ...parsed.data,
-              accessCode: normalizedAccessCode,
-              ...(codeActuallyChanged ? { accessCodeChangedAt: new Date() } : {}),
-          };
+          updates.accessCode = normalizedAccessCode;
+          if (codeActuallyChanged) updates.accessCodeChangedAt = new Date();
+      }
+
+      // Releasing the access code on completion frees it for reuse: the
+      // access_code column is UNIQUE, so a finished game that keeps its code
+      // would reserve it forever and block any new game from taking it.
+      // Player admission and code verification already refuse completed games,
+      // so clearing the code here does not change who can join this game — it
+      // only returns the code to the pool. This runs last so it also wins over
+      // any accessCode supplied in the same request as the completion.
+      if (parsed.data.status === "completed") {
+          updates.accessCode = null;
       }
 
       const [updatedGame] = await tx
