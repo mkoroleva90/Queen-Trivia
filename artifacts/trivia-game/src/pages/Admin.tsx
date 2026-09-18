@@ -3502,8 +3502,10 @@ type LiveQuestionStat = {
 // ─── Live results (host-only live view; mirrors mobile app/admin/live) ────────
 
 // Answer distribution rows for one question. Rows come from buildAnswerRows so
-// the content is identical to the mobile live screen.
-function LiveAnswerRows({ rows, totalAnswered, size }: { rows: AnswerRow[]; totalAnswered: number; size: "lg" | "sm" }) {
+// the content is identical to the mobile live screen. Until `revealed`, every
+// row renders neutrally so the host sees how players are answering without the
+// correct answer being given away.
+function LiveAnswerRows({ rows, totalAnswered, size, revealed }: { rows: AnswerRow[]; totalAnswered: number; size: "lg" | "sm"; revealed: boolean }) {
   const lg = size === "lg";
   if (rows.length === 0) {
     return <p className={`text-[#66728a] ${lg ? "text-sm py-2" : "text-xs"}`}>{COPY.liveResults.noAnswersYet}</p>;
@@ -3512,31 +3514,32 @@ function LiveAnswerRows({ rows, totalAnswered, size }: { rows: AnswerRow[]; tota
     <div className={lg ? "space-y-2.5" : "space-y-1.5"}>
       {rows.map((r, i) => {
         const pct = totalAnswered > 0 ? Math.min(100, Math.round((r.count / totalAnswered) * 100)) : 0;
+        const correct = revealed && r.isCorrect;
         return (
           <div
             key={`${r.answer}-${i}`}
-            title={r.isCorrect ? COPY.liveResults.correctAnswerLabel : undefined}
+            title={correct ? COPY.liveResults.correctAnswerLabel : undefined}
             className={`flex items-center gap-3 rounded-xl border ${lg ? "px-4 py-3" : "px-3 py-2"} ${
-              r.isCorrect ? "border-[#35d07f]/50 bg-[#35d07f]/10" : "border-[#1b2740] bg-white/[.03]"
+              correct ? "border-[#35d07f]/50 bg-[#35d07f]/10" : "border-[#1b2740] bg-white/[.03]"
             }`}
           >
             <span
               className={`${lg ? "w-[27px] h-[27px] text-xs" : "w-5 h-5 text-[10px]"} shrink-0 rounded-full flex items-center justify-center font-extrabold ${
-                r.isCorrect ? "bg-[#35d07f] text-[#08130c]" : "border-[1.5px] border-[#3a4a63] text-[#9aa6bc]"
+                correct ? "bg-[#35d07f] text-[#08130c]" : "border-[1.5px] border-[#3a4a63] text-[#9aa6bc]"
               }`}
             >
               {String.fromCharCode(65 + (i % 26))}
             </span>
-            <span className={`flex-1 min-w-0 truncate ${lg ? "text-[15px]" : "text-[13px]"} ${r.isCorrect ? "font-bold text-[#eef2f8]" : "font-semibold text-[#c9d1e0]"}`}>
+            <span className={`flex-1 min-w-0 truncate ${lg ? "text-[15px]" : "text-[13px]"} ${correct ? "font-bold text-[#eef2f8]" : "font-semibold text-[#c9d1e0]"}`}>
               {r.label}
             </span>
             <div className={`hidden sm:block ${lg ? "w-20" : "w-14"} h-1.5 rounded-full bg-white/10 overflow-hidden`}>
-              <div className={`h-full rounded-full ${r.isCorrect ? "bg-[#35d07f]" : "bg-[#66728a]"}`} style={{ width: `${pct}%` }} />
+              <div className={`h-full rounded-full ${correct ? "bg-[#35d07f]" : revealed ? "bg-[#66728a]" : "bg-[#00ddff]"}`} style={{ width: `${pct}%` }} />
             </div>
-            <span className={`font-mono ${lg ? "text-[13px]" : "text-xs"} font-extrabold tabular-nums ${r.isCorrect ? "text-[#35d07f]" : "text-[#9aa6bc]"}`}>
+            <span className={`font-mono ${lg ? "text-[13px]" : "text-xs"} font-extrabold tabular-nums ${correct ? "text-[#35d07f]" : revealed ? "text-[#9aa6bc]" : "text-[#eef2f8]"}`}>
               {COPY.liveResults.answerCount(r.count)}
             </span>
-            {r.isCorrect && <span className="text-[#35d07f]">✓</span>}
+            {correct && <span className="text-[#35d07f]">✓</span>}
           </div>
         );
       })}
@@ -3544,15 +3547,38 @@ function LiveAnswerRows({ rows, totalAnswered, size }: { rows: AnswerRow[]; tota
   );
 }
 
-// Every question with its live answered / correct figures and top answers.
+// Per-question toggle that reveals or hides the correct answer in the live breakdown.
+function RevealAnswerButton({ revealed, onToggle, size }: { revealed: boolean; onToggle: () => void; size: "lg" | "sm" }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={revealed}
+      className={`font-bold rounded-[10px] border transition hover:brightness-110 ${size === "lg" ? "text-xs px-3.5 py-2" : "text-[11px] px-3 py-1.5"} ${
+        revealed
+          ? "text-[#9aa6bc] bg-white/[.04] border-[#1b2740]"
+          : "text-[#00ddff] bg-[#00ddff]/10 border-[#00ddff]/30"
+      }`}
+    >
+      {revealed ? COPY.liveResults.hideAnswerBtn : COPY.liveResults.showAnswerBtn}
+    </button>
+  );
+}
+
+// Every question with its live answered figures and top answers. The correct
+// answer and correct count appear only for questions the host has revealed.
 function LiveResultsBreakdown({
   questions,
   statById,
   totalPlayers,
+  revealedIds,
+  onToggleReveal,
 }: {
   questions: Question[];
   statById: Map<number, LiveQuestionStat>;
   totalPlayers: number;
+  revealedIds: Set<number>;
+  onToggleReveal: (questionId: number) => void;
 }) {
   return (
     <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl p-4 sm:p-5">
@@ -3567,18 +3593,22 @@ function LiveResultsBreakdown({
           const answered = st?.totalAnswered ?? 0;
           const correct = st?.correctCount ?? 0;
           const pct = st?.percentCorrect ?? (answered > 0 ? Math.round((correct / answered) * 100) : 0);
+          const revealed = revealedIds.has(q.id);
           return (
             <div key={q.id} className="rounded-xl border border-[#1b2740] bg-white/[.02] px-4 py-3 space-y-2">
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-[10px] font-bold tracking-[.22em] text-[#66728a]">Q{idx + 1}</span>
                 <span className="text-xs font-semibold text-[#dfe5f0]">{COPY.adminLive.answeredCount(answered, totalPlayers)}</span>
-                {answered > 0 && (
+                {revealed && answered > 0 && (
                   <span className="text-xs font-semibold text-[#35d07f]">{COPY.liveResults.correctPct(correct, pct)}</span>
                 )}
+                <span className="ml-auto">
+                  <RevealAnswerButton revealed={revealed} onToggle={() => onToggleReveal(q.id)} size="sm" />
+                </span>
               </div>
               <p className="text-[13px] font-semibold text-[#c9d1e0] leading-snug line-clamp-2">{q.questionText}</p>
               {answered > 0 ? (
-                <LiveAnswerRows rows={buildAnswerRows(q, st?.answerBreakdown, 4)} totalAnswered={answered} size="sm" />
+                <LiveAnswerRows rows={buildAnswerRows(q, st?.answerBreakdown, 4)} totalAnswered={answered} size="sm" revealed={revealed} />
               ) : (
                 <p className="text-xs text-[#66728a]">{COPY.liveResults.noAnswersYet}</p>
               )}
@@ -3734,6 +3764,16 @@ function LiveGameView({
   // Host monitors a question locally; there is no host-advance endpoint yet
   // (players drive their own pace) — Prev/Next just move the monitored question.
   const [qIndex, setQIndex] = useState(0);
+  // Questions whose correct answer the host chose to reveal in the live
+  // results. Everything else shows the live distribution only.
+  const [revealedIds, setRevealedIds] = useState<Set<number>>(new Set());
+  const toggleReveal = (questionId: number) => {
+    setRevealedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(questionId)) next.delete(questionId); else next.add(questionId);
+      return next;
+    });
+  };
 
   // Play-along: track answers the host has submitted for the current game.
   const [hostAnswers, setHostAnswers] = useState<Record<number, string>>({});
@@ -3798,6 +3838,7 @@ function LiveGameView({
     resetTallyStore(tallyStore.current);
     setAnsweredBy({});
     setCorrectCount({});
+    setRevealedIds(new Set());
     setHostAnswers({});
     setHostSkippedIds(new Set());
     setHostResultById({});
@@ -4200,14 +4241,33 @@ function LiveGameView({
             </h2>
 
             {/* ── Live answer breakdown for the viewed question — every choice with its
-                   live count, the correct one highlighted. Host-only: a playing host
-                   must not see correctness aggregates mid-game. ── */}
+                   live count; the correct one is highlighted only after the host taps
+                   Show answer. Host-only: a playing host must not see correctness
+                   aggregates mid-game. ── */}
             {!activeGame.hostPlaysAlong && currentQ && (
-              <LiveAnswerRows
-                rows={buildAnswerRows(currentQ, liveStatById.get(currentQ.id)?.answerBreakdown)}
-                totalAnswered={liveStatById.get(currentQ.id)?.totalAnswered ?? 0}
-                size="lg"
-              />
+              <>
+                <LiveAnswerRows
+                  rows={buildAnswerRows(currentQ, liveStatById.get(currentQ.id)?.answerBreakdown)}
+                  totalAnswered={liveStatById.get(currentQ.id)?.totalAnswered ?? 0}
+                  size="lg"
+                  revealed={revealedIds.has(currentQ.id)}
+                />
+                <div className="mt-4 flex items-center gap-3 flex-wrap">
+                  <RevealAnswerButton
+                    revealed={revealedIds.has(currentQ.id)}
+                    onToggle={() => toggleReveal(currentQ.id)}
+                    size="lg"
+                  />
+                  {revealedIds.has(currentQ.id) && (liveStatById.get(currentQ.id)?.totalAnswered ?? 0) > 0 && (
+                    <span className="text-xs font-semibold text-[#35d07f]">
+                      {COPY.liveResults.correctPct(
+                        liveStatById.get(currentQ.id)?.correctCount ?? 0,
+                        liveStatById.get(currentQ.id)?.percentCorrect ?? 0,
+                      )}
+                    </span>
+                  )}
+                </div>
+              </>
             )}
 
             {/* ── Playing-host answer card — follows the VIEWED question. Answered → locked with
@@ -4305,7 +4365,13 @@ function LiveGameView({
           )}
           {/* Live results for every question — host-only, refreshed as players answer */}
           {!activeGame.hostPlaysAlong && (
-            <LiveResultsBreakdown questions={questions} statById={liveStatById} totalPlayers={parts.length} />
+            <LiveResultsBreakdown
+              questions={questions}
+              statById={liveStatById}
+              totalPlayers={parts.length}
+              revealedIds={revealedIds}
+              onToggleReveal={toggleReveal}
+            />
           )}
           <PendingReviewQueue
             reviews={pendingReviews}
