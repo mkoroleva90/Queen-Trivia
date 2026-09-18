@@ -4342,16 +4342,6 @@ function LiveGameView({
           {/* transport bar — hidden when host is playing along */}
           {!activeGame.hostPlaysAlong && (
           <div className="flex flex-wrap items-center gap-2 bg-[#0f1724] border border-[#1b2740] rounded-2xl px-3.5 py-3">
-            {/* TODO: pause / reveal / lock need host-control endpoints — not in the API yet */}
-            <button disabled title="Coming soon — needs a host-control endpoint" className="text-xs font-bold text-[#ffe500] bg-[#ffe500]/10 border border-[#ffe500]/30 rounded-[10px] px-3.5 py-2.5 opacity-50 cursor-not-allowed">
-              ⏸ Pause timer
-            </button>
-            <button disabled title="Coming soon — needs a host-control endpoint" className="text-xs font-bold text-[#00ddff] bg-[#00ddff]/10 border border-[#00ddff]/30 rounded-[10px] px-3.5 py-2.5 opacity-50 cursor-not-allowed">
-              ◎ Reveal answer
-            </button>
-            <button disabled title="Coming soon — needs a host-control endpoint" className="text-xs font-bold text-[#9aa6bc] bg-white/[.04] border border-[#1b2740] rounded-[10px] px-3.5 py-2.5 opacity-50 cursor-not-allowed">
-              🔒 Lock
-            </button>
             {/* Advance control — moves the monitored question (End game on the last one) */}
             <button
               type="button"
