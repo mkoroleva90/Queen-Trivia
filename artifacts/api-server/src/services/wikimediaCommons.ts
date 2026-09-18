@@ -3,7 +3,9 @@ const WIKIMEDIA_USER_AGENT =
     "TriviaNightApp/1.0 (safe Wikimedia Commons image sourcing; contact: support@queentrivia.app)";
 const SEARCH_RESULT_LIMIT = 8;
 const LOOKUP_TIMEOUT_MS = 5000;
-const THUMBNAIL_WIDTH = 1000;
+// Must be one of Wikimedia's standard thumbnail widths ($wgThumbnailSteps):
+// 20, 40, 60, 120, 250, 330, 500, 960, 1280, 1920, 3840. Other widths return HTTP 400.
+const THUMBNAIL_WIDTH = 960;
 const CREDIT_LINE_MAX_LENGTH = 200;
 
 export interface WikimediaImageAttribution {

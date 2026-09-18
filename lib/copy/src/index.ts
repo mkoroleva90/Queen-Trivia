@@ -1282,7 +1282,7 @@ export const COPY = {
       imageUrlRequired:      'Image URL is required',
       correctAnswerRequired: 'Correct answer is required',
       /** Client-side check mirroring the server's Wikimedia-only image rule. Both platforms. */
-      imageUrlWikimedia:     'Image URL must be a Wikimedia Commons link (starts with https://upload.wikimedia.org/wikipedia/commons/)',
+      imageUrlWikimedia:     'Image URL must be a Wikimedia Commons image link (https://upload.wikimedia.org/wikipedia/commons/… or https://thumb.wikimedia.org/wikipedia/commons/…)',
     },
     /** Field labels and placeholders in the question form (mobile; web shares the ones marked). */
     typeLabel:                'Question type',
