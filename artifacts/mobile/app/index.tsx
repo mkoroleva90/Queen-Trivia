@@ -159,6 +159,11 @@ export default function WelcomeScreen() {
       {/* Ambient glow blobs */}
       <View style={[styles.blob, { top: 80, left: -60, backgroundColor: colors.primary }]} />
       <View style={[styles.blob2, { top: 300, right: -80, backgroundColor: colors.secondary }]} />
+      <View style={[styles.ambientCard, styles.ambientCardTop, { borderColor: colors.accent }]} />
+      <View style={[styles.ambientCard, styles.ambientCardBottom, { borderColor: colors.primary }]} />
+      <View style={[styles.sparkle, { top: '14%', left: '16%', backgroundColor: colors.accent }]} />
+      <View style={[styles.sparkle, { top: '28%', right: '20%', backgroundColor: colors.primary }]} />
+      <View style={[styles.sparkle, { bottom: '22%', left: '30%', backgroundColor: colors.accent }]} />
 
       {/* ── Progress dots ── */}
       <View style={styles.dotsRow}>
@@ -188,8 +193,8 @@ export default function WelcomeScreen() {
             <View style={styles.stepContainer}>
               <View style={{ alignItems: 'center' }}><CrownMark size={72} /></View>
               <Text style={[styles.heroTitle, { color: colors.foreground }]}>
-                <Text style={{ color: colors.accent }}>{COPY.brand.queen}</Text>{'\n'}
-                <Text style={{ color: colors.primary }}>{COPY.brand.trivia}</Text>
+                <Text style={[styles.heroTitleWeight, { color: colors.accent }]}>{COPY.brand.queen}</Text>{'\n'}
+                <Text style={[styles.heroTitleWeight, { color: colors.primary }]}>{COPY.brand.trivia}</Text>
               </Text>
               <Text style={[styles.tagline, { color: colors.mutedForeground }]}>
                 {COPY.join.tagline}
@@ -432,11 +437,24 @@ const styles = StyleSheet.create({
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   blob: { position: 'absolute', width: 220, height: 220, borderRadius: 110, opacity: 0.08 },
   blob2: { position: 'absolute', width: 180, height: 180, borderRadius: 90, opacity: 0.07 },
+  ambientCard: {
+    position: 'absolute',
+    width: 170,
+    height: 135,
+    borderRadius: 24,
+    borderWidth: 1,
+    backgroundColor: 'rgba(255,255,255,.015)',
+    opacity: 0.16,
+  },
+  ambientCardTop: { top: 122, left: -52, transform: [{ rotate: '-14deg' }] },
+  ambientCardBottom: { bottom: 92, right: -62, transform: [{ rotate: '14deg' }] },
+  sparkle: { position: 'absolute', width: 4, height: 4, borderRadius: 2, opacity: 0.5 },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   content: { flex: 1 },
   scrollContent: { flexGrow: 1, paddingHorizontal: 22 },
   stepContainer: { flex: 1, justifyContent: 'center', gap: 20, paddingTop: 16, paddingBottom: 32 },
   heroTitle: { fontSize: 56, fontWeight: '900', letterSpacing: -2, lineHeight: 58, textAlign: 'center', fontFamily: 'Manrope_800ExtraBold' },
+  heroTitleWeight: { fontFamily: 'Manrope_800ExtraBold', fontWeight: '800' },
   tagline: { fontSize: 15, fontWeight: '500', textAlign: 'center', lineHeight: 22 },
   card: { borderRadius: 20, padding: 20, borderWidth: 1, gap: 14 },
   cardLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 2, textAlign: 'center' },

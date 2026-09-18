@@ -15,6 +15,7 @@ import {
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as SecureStore from 'expo-secure-store';
+import * as SystemUI from 'expo-system-ui';
 import { setBaseUrl, setAuthTokenGetter } from '@workspace/api-client-react';
 import { API_BASE_URL } from '@/lib/apiBase';
 import { AuthProvider } from '@/context/AuthContext';
@@ -67,6 +68,10 @@ export default function RootLayout() {
     Manrope_700Bold,
     Manrope_800ExtraBold,
   });
+
+  useEffect(() => {
+    SystemUI.setBackgroundColorAsync('#0d0f15');
+  }, []);
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
