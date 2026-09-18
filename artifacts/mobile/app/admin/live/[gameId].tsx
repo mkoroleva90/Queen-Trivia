@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -30,6 +30,7 @@ import { useColors } from '@/hooks/useColors';
 import { useAdminGameSocket } from '@/hooks/useSocket';
 import { API_BASE_URL } from '@/lib/apiBase';
 import { COPY } from '@workspace/copy';
+import { buildAnswerRows, type AnswerBreakdownEntry, type AnswerRow } from '@workspace/live-tally';
 import {
   MultipleChoiceQ,
   MultiSelectQ,
@@ -43,12 +44,30 @@ import {
   QuizCompleteModal,
 } from '../../game/[id]';
 
-type AnswerCounts = Record<number, number>; // questionId → total submitted
-
+// Per-question snapshot from /questions/stats: the live answered / correct
+// figures and the answer breakdown, refetched as players answer.
 type QuestionStat = {
   id: number;
   totalAnswered: number;
   correctCount: number;
+  percentCorrect: number | null;
+  answerBreakdown?: AnswerBreakdownEntry[];
+};
+
+// Ranked players from /results — the same ordering the results screen shows.
+type LiveStandingEntry = {
+  id: number;
+  userId: number;
+  userName: string;
+  totalScore: number;
+  rank: number;
+  correctCount: number;
+  totalAnswered: number;
+};
+
+type LiveResults = {
+  participants: LiveStandingEntry[];
+  totalQuestions: number;
 };
 
 async function fetchAdminJson<T>(url: string): Promise<T> {
@@ -68,16 +87,6 @@ export default function AdminLiveScreen() {
   const { gameId: gameIdStr } = useLocalSearchParams<{ gameId: string }>();
   const gameId = parseInt(gameIdStr ?? '', 10);
 
-  const [answerCounts, setAnswerCounts] = useState<AnswerCounts>({});
-  const [correctCounts, setCorrectCounts] = useState<AnswerCounts>({});
-  // Track whether we've seeded from persisted stats.
-  const [seeded, setSeeded] = useState(false);
-  // Buffer socket events that arrive before the initial stats seed resolves.
-  // When the seed arrives, we apply baseline + buffer so no events are lost.
-  const preSeedBuffer = useRef<{ answers: AnswerCounts; corrects: AnswerCounts }>({
-    answers: {},
-    corrects: {},
-  });
   const [refreshing, setRefreshing] = useState(false);
   const [ending, setEnding] = useState(false);
   const [endGameError, setEndGameError] = useState<string | null>(null);
@@ -137,8 +146,9 @@ export default function AdminLiveScreen() {
       await Promise.all([
         refetchPendingReviews(),
         refetchParticipants(),
+        refetchLiveStats(),
+        refetchLiveResults(),
       ]);
-      qc.invalidateQueries({ queryKey: ['admin-results', gameId] });
       qc.invalidateQueries({ queryKey: ['admin-q-stats', gameId] });
     } catch {
       Alert.alert(COPY.adminResults.reviewSaveErrorTitle, COPY.adminResults.reviewSaveErrorBody);
@@ -165,6 +175,7 @@ export default function AdminLiveScreen() {
               });
               if (!r.ok) throw new Error(`HTTP ${r.status}`);
               void refetchParticipants();
+              void refetchLiveResults();
             } catch {
               Alert.alert(COPY.common.error, COPY.kick.removeError);
             }
@@ -174,31 +185,43 @@ export default function AdminLiveScreen() {
     );
   };
 
-  // Fetch persisted per-question stats to seed the answer counts on mount.
-  // After seeding, socket events increment incrementally from the baseline.
-  const { data: seedStats } = useQuery<QuestionStat[]>({
+  // Live per-question results: the persisted snapshot, refetched after every
+  // socket event (plus a 10s fallback poll) so the figures and the answer
+  // breakdown follow the players as they answer. Same source as the web view.
+  const { data: liveStats, refetch: refetchLiveStats } = useQuery<QuestionStat[]>({
     queryKey: ['live-seed-stats', gameId],
     queryFn: () => fetchAdminJson<QuestionStat[]>(`${baseUrl}/api/games/${gameId}/questions/stats`),
     enabled: !isNaN(gameId),
-    staleTime: Infinity, // seed once on mount; socket events keep it live
+    refetchInterval: 10000,
+  });
+  const liveStatById = useMemo(
+    () => new Map((liveStats ?? []).map((st): [number, QuestionStat] => [st.id, st])),
+    [liveStats],
+  );
+
+  // Live standings: the ranked results the end-of-game screen shows.
+  const { data: liveResults, refetch: refetchLiveResults } = useQuery<LiveResults>({
+    queryKey: ['admin-results', gameId],
+    queryFn: () => fetchAdminJson<LiveResults>(`${baseUrl}/api/games/${gameId}/results`),
+    enabled: !isNaN(gameId),
+    refetchInterval: 10000,
   });
 
-  // Apply persisted baseline + any pre-seed socket events (additive, not max).
-  // Events buffered in preSeedBuffer before stats resolved are added on top so
-  // no answer is lost regardless of which resolves first.
-  useEffect(() => {
-    if (!seedStats || seeded) return;
-    const buf = preSeedBuffer.current;
-    const answers: AnswerCounts = {};
-    const corrects: AnswerCounts = {};
-    for (const s of seedStats) {
-      answers[s.id] = s.totalAnswered + (buf.answers[s.id] ?? 0);
-      corrects[s.id] = s.correctCount + (buf.corrects[s.id] ?? 0);
-    }
-    setAnswerCounts(answers);
-    setCorrectCounts(corrects);
-    setSeeded(true);
-  }, [seedStats, seeded]);
+  // Answers arrive in bursts; coalesce the server refreshes they trigger into
+  // one round of requests per short window instead of one per player.
+  const liveRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleLiveRefresh = useCallback(() => {
+    if (liveRefreshTimer.current) return;
+    liveRefreshTimer.current = setTimeout(() => {
+      liveRefreshTimer.current = null;
+      void refetchParticipants();
+      void refetchLiveStats();
+      void refetchLiveResults();
+    }, 500);
+  }, [refetchParticipants, refetchLiveStats, refetchLiveResults]);
+  useEffect(() => () => {
+    if (liveRefreshTimer.current) clearTimeout(liveRefreshTimer.current);
+  }, []);
 
   const sortedQs: Question[] = [...(questions ?? [])].sort(
     (a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0) || a.id - b.id,
@@ -213,45 +236,26 @@ export default function AdminLiveScreen() {
     setQIndex(firstOpenIndex >= 0 ? firstOpenIndex : sortedQs.length - 1);
   }, [questions, hostAnswers]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Real-time answer tracking via Socket.IO.
-  // Before the persisted seed resolves, events go into a ref buffer so they
-  // can be applied additively on top of the baseline without being overwritten.
-  // After seeding, events increment React state directly.
+  // Real-time updates via Socket.IO: every graded answer refreshes the live
+  // results from the server (answers are persisted before the event is
+  // emitted, so the refetch always includes the answer that triggered it).
   const onAnswerGraded = useCallback(
     (p: { gameId: number; questionId: number; playerName: string; isCorrect: boolean }) => {
       if (p.gameId !== gameId) return;
-      if (!seeded) {
-        // Buffer pre-seed events in the ref — no state update needed yet.
-        preSeedBuffer.current.answers[p.questionId] =
-          (preSeedBuffer.current.answers[p.questionId] ?? 0) + 1;
-        if (p.isCorrect) {
-          preSeedBuffer.current.corrects[p.questionId] =
-            (preSeedBuffer.current.corrects[p.questionId] ?? 0) + 1;
-        }
-      } else {
-        setAnswerCounts((prev) => ({ ...prev, [p.questionId]: (prev[p.questionId] ?? 0) + 1 }));
-        if (p.isCorrect) {
-          setCorrectCounts((prev) => ({ ...prev, [p.questionId]: (prev[p.questionId] ?? 0) + 1 }));
-        }
-      }
-      refetchParticipants();
+      scheduleLiveRefresh();
     },
-    [gameId, seeded, refetchParticipants],
+    [gameId, scheduleLiveRefresh],
   );
 
   const onAnswerReviewed = useCallback(
     (p: { gameId: number; questionId: number; playerName: string; isCorrect: boolean }) => {
       if (p.gameId !== gameId) return;
-      // A review changes the score for an existing submission; do not increment
-      // the answer count a second time. Only an awarded review raises corrects.
-      if (p.isCorrect) {
-        setCorrectCounts((prev) => ({ ...prev, [p.questionId]: (prev[p.questionId] ?? 0) + 1 }));
-      }
-      void refetchParticipants();
+      // A review changes an existing answer's correctness and score: refresh
+      // the review queue and the live results from the server.
       void refetchPendingReviews();
-      qc.invalidateQueries({ queryKey: ['admin-results', gameId] });
+      scheduleLiveRefresh();
     },
-    [gameId, qc, refetchParticipants, refetchPendingReviews],
+    [gameId, refetchPendingReviews, scheduleLiveRefresh],
   );
 
   const onGameEnded = useCallback(
@@ -488,9 +492,19 @@ export default function AdminLiveScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await refetchParticipants();
+    await Promise.all([refetchParticipants(), refetchLiveStats(), refetchLiveResults()]);
     setRefreshing(false);
   };
+
+  // Ranked from the live results; until they load, the participant list
+  // ordered by score stands in (without the per-player progress line).
+  const liveStandings: (Partial<LiveStandingEntry> & { id: number; userId: number; userName: string; totalScore: number; rank: number })[] =
+    liveResults
+      ? liveResults.participants
+      : [...(participants ?? [])]
+          .sort((a, b) => (b.totalScore ?? 0) - (a.totalScore ?? 0))
+          .map((p, i) => ({ id: p.id, userId: p.userId, userName: p.userName, totalScore: p.totalScore ?? 0, rank: i + 1 }));
+  const liveTotalQuestions = liveResults?.totalQuestions ?? sortedQs.length;
 
   const s = styles(colors);
 
@@ -684,28 +698,35 @@ export default function AdminLiveScreen() {
           </>
         )}
 
-        {/* ANSWER PROGRESS — hidden when host is playing along. Players advance
-            on their own, so there is no release control here. */}
+        {/* LIVE RESULTS — every question with its live answered / correct figures
+            and answer breakdown. Hidden when the host plays along: a playing host
+            must not see correctness aggregates mid-game. Players advance on their
+            own, so there is no release control here. */}
         {!playAlong && (
           <>
-            <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>{COPY.adminLive.answerProgressLabel}</Text>
+            <View style={s.sectionHead}>
+              <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>{COPY.liveResults.breakdownLabel}</Text>
+              <Text style={[s.sectionHint, { color: colors.mutedForeground }]}>{COPY.liveResults.updatesHint}</Text>
+            </View>
             {sortedQs.length === 0 ? (
               <Text style={[s.emptyText, { color: colors.mutedForeground }]}>{COPY.adminLive.noQuestions}</Text>
             ) : (
               sortedQs.map((q, idx) => {
-                const total = answerCounts[q.id] ?? 0;
-                const correct = correctCounts[q.id] ?? 0;
-                const pct = totalPlayers > 0 ? total / totalPlayers : 0;
+                const st = liveStatById.get(q.id);
+                const answered = st?.totalAnswered ?? 0;
+                const correct = st?.correctCount ?? 0;
+                const pct = st?.percentCorrect ?? (answered > 0 ? Math.round((correct / answered) * 100) : 0);
+                const progress = totalPlayers > 0 ? Math.min(1, answered / totalPlayers) : 0;
                 return (
                   <View key={q.id} style={[s.qCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     <View style={s.qTop}>
                       <Text style={[s.qNum, { color: colors.mutedForeground }]}>Q{idx + 1}</Text>
                       <Text style={[s.qAnswered, { color: colors.foreground }]}>
-                        {COPY.adminLive.answeredCount(total, totalPlayers)}
+                        {COPY.adminLive.answeredCount(answered, totalPlayers)}
                       </Text>
-                      {total > 0 && (
+                      {answered > 0 && (
                         <Text style={[s.qCorrect, { color: colors.secondary }]}>
-                          {COPY.adminLive.correctCount(correct)}
+                          {COPY.liveResults.correctPct(correct, pct)}
                         </Text>
                       )}
                     </View>
@@ -715,9 +736,18 @@ export default function AdminLiveScreen() {
                     {/* Progress bar */}
                     <View style={[s.progressBg, { backgroundColor: colors.border }]}>
                       <View
-                        style={[s.progressFill, { backgroundColor: colors.secondary, width: `${Math.round(pct * 100)}%` }]}
+                        style={[s.progressFill, { backgroundColor: colors.secondary, width: `${Math.round(progress * 100)}%` }]}
                       />
                     </View>
+                    {answered > 0 ? (
+                      <LiveAnswerRows
+                        rows={buildAnswerRows(q, st?.answerBreakdown, 4)}
+                        totalAnswered={answered}
+                        colors={colors}
+                      />
+                    ) : (
+                      <Text style={[s.noAnswers, { color: colors.mutedForeground }]}>{COPY.liveResults.noAnswersYet}</Text>
+                    )}
                   </View>
                 );
               })
@@ -780,8 +810,45 @@ export default function AdminLiveScreen() {
           </>
         )}
 
-        {/* Players */}
-        {(participants?.length ?? 0) > 0 && (
+        {/* LIVE STANDINGS — ranked players with live score and progress; tap a
+            player to remove them. Score-ranked standings stay hidden while the
+            host plays along (a playing host must not see peer scores or ranking). */}
+        {!playAlong && (
+          <>
+            <View style={s.sectionHead}>
+              <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>{COPY.liveResults.standingsLabel}</Text>
+              <Text style={[s.sectionHint, { color: colors.mutedForeground }]}>{COPY.liveResults.updatesHint}</Text>
+            </View>
+            {liveStandings.length === 0 && (
+              <Text style={[s.emptyText, { color: colors.mutedForeground }]}>{COPY.liveResults.noPlayers}</Text>
+            )}
+            {liveStandings.map((p) => {
+              const win = p.rank === 1;
+              return (
+                <TouchableOpacity
+                  key={p.id}
+                  style={[s.playerRow, { borderColor: colors.border, backgroundColor: win ? colors.primary + '14' : 'transparent' }]}
+                  onPress={() => handleKickPlayer(p.userId, p.userName)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.playerRank, { color: win ? colors.primary : colors.mutedForeground }]}>{p.rank}</Text>
+                  <View style={s.playerInfo}>
+                    <Text style={[s.playerName, { color: colors.foreground }]} numberOfLines={1}>{p.userName}</Text>
+                    {p.correctCount !== undefined && p.totalAnswered !== undefined && (
+                      <Text style={[s.playerSub, { color: colors.mutedForeground }]}>
+                        {COPY.liveResults.playerLine(p.correctCount, p.totalAnswered, liveTotalQuestions)}
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={[s.playerScore, { color: win ? colors.foreground : colors.accent }]}>{p.totalScore}</Text>
+                  <Ionicons name="close-circle-outline" size={18} color={colors.destructive} style={{ marginLeft: 4 }} />
+                </TouchableOpacity>
+              );
+            })}
+          </>
+        )}
+        {/* While the host plays along, the player list stays score-free (tap to remove). */}
+        {playAlong && (participants?.length ?? 0) > 0 && (
           <>
             {participants!.map((p) => (
               <TouchableOpacity
@@ -792,7 +859,6 @@ export default function AdminLiveScreen() {
               >
                 <Ionicons name="person-circle-outline" size={20} color={colors.mutedForeground} />
                 <Text style={[s.playerName, { color: colors.foreground }]}>{p.userName}</Text>
-                <Text style={[s.playerScore, { color: colors.accent }]}>{COPY.gameplay.ptsLine(p.totalScore)}</Text>
                 <Ionicons name="close-circle-outline" size={18} color={colors.destructive} style={{ marginLeft: 4 }} />
               </TouchableOpacity>
             ))}
@@ -887,6 +953,69 @@ export default function AdminLiveScreen() {
   );
 }
 
+// Answer distribution rows for one question. Rows come from buildAnswerRows so
+// the content is identical to the web live view.
+function LiveAnswerRows({
+  rows,
+  totalAnswered,
+  colors,
+}: {
+  rows: AnswerRow[];
+  totalAnswered: number;
+  colors: ReturnType<typeof useColors>;
+}) {
+  if (rows.length === 0) {
+    return <Text style={[rowStyles.empty, { color: colors.mutedForeground }]}>{COPY.liveResults.noAnswersYet}</Text>;
+  }
+  return (
+    <View style={rowStyles.list}>
+      {rows.map((r, i) => {
+        const pct = totalAnswered > 0 ? Math.min(100, Math.round((r.count / totalAnswered) * 100)) : 0;
+        const tint = r.isCorrect ? colors.secondary : colors.mutedForeground;
+        return (
+          <View
+            key={`${r.answer}-${i}`}
+            accessibilityLabel={r.isCorrect ? `${COPY.liveResults.correctAnswerLabel}: ${r.label}` : r.label}
+            style={[
+              rowStyles.row,
+              { borderColor: r.isCorrect ? colors.secondary + '77' : colors.border, backgroundColor: r.isCorrect ? colors.secondary + '14' : 'transparent' },
+            ]}
+          >
+            <View style={[rowStyles.letter, { borderColor: tint, backgroundColor: r.isCorrect ? colors.secondary : 'transparent' }]}>
+              <Text style={[rowStyles.letterText, { color: r.isCorrect ? colors.secondaryForeground : colors.mutedForeground }]}>
+                {String.fromCharCode(65 + (i % 26))}
+              </Text>
+            </View>
+            <View style={rowStyles.body}>
+              <Text style={[rowStyles.label, { color: r.isCorrect ? colors.foreground : colors.cardForeground }]} numberOfLines={1}>
+                {r.label}
+              </Text>
+              <View style={[rowStyles.barBg, { backgroundColor: colors.border }]}>
+                <View style={[rowStyles.barFill, { backgroundColor: tint, width: `${pct}%` }]} />
+              </View>
+            </View>
+            <Text style={[rowStyles.count, { color: tint }]}>{COPY.liveResults.answerCount(r.count)}</Text>
+            {r.isCorrect && <Ionicons name="checkmark" size={14} color={colors.secondary} />}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+const rowStyles = StyleSheet.create({
+  list: { gap: 6, marginTop: 2 },
+  empty: { fontSize: 12, fontFamily: 'Manrope_600SemiBold' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 10, paddingVertical: 6, paddingHorizontal: 8 },
+  letter: { width: 22, height: 22, borderRadius: 11, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  letterText: { fontSize: 10, fontFamily: 'Manrope_800ExtraBold' },
+  body: { flex: 1, gap: 4 },
+  label: { fontSize: 13, fontFamily: 'Manrope_600SemiBold' },
+  barBg: { height: 3, borderRadius: 2, overflow: 'hidden' },
+  barFill: { height: 3, borderRadius: 2 },
+  count: { fontSize: 13, fontFamily: 'Manrope_800ExtraBold', minWidth: 18, textAlign: 'right' },
+});
+
 const styles = (colors: ReturnType<typeof useColors>) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
@@ -900,6 +1029,12 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     codeText: { fontSize: 13, fontFamily: 'Manrope_700Bold', letterSpacing: 2 },
     list: { paddingHorizontal: 16, gap: 10 },
     sectionLabel: { fontSize: 11, fontFamily: 'Manrope_700Bold', letterSpacing: 2, textTransform: 'uppercase', marginTop: 8, marginBottom: 4 },
+    sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 },
+    sectionHint: { fontSize: 11, fontFamily: 'Manrope_600SemiBold', marginTop: 8, marginBottom: 4 },
+    noAnswers: { fontSize: 12, fontFamily: 'Manrope_600SemiBold' },
+    playerRank: { width: 20, textAlign: 'center', fontSize: 13, fontFamily: 'Manrope_800ExtraBold' },
+    playerInfo: { flex: 1, gap: 1 },
+    playerSub: { fontSize: 11, fontFamily: 'Manrope_600SemiBold' },
     emptyText: { fontSize: 14, textAlign: 'center' },
     qCard: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 8 },
     reviewCard: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 10 },
@@ -929,7 +1064,7 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     progressBg: { height: 4, borderRadius: 2, overflow: 'hidden' },
     progressFill: { height: 4, borderRadius: 2 },
     playerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1 },
-    playerName: { flex: 1, fontSize: 14 },
+    playerName: { flex: 1, fontSize: 14, fontFamily: 'Manrope_700Bold' },
     playerScore: { fontSize: 14, fontFamily: 'Manrope_700Bold' },
     footer: { paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#222' },
     endBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, paddingVertical: 16 },

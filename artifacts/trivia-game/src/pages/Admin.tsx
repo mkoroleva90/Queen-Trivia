@@ -9,7 +9,10 @@ import {
   recordAnswerEvent,
   applySeed,
   resetTallyStore,
+  buildAnswerRows,
   type TallyStore,
+  type AnswerBreakdownEntry,
+  type AnswerRow,
 } from "@workspace/live-tally";
 import { COPY } from "@workspace/copy";
 import { RunModeScreen, type RunMode } from "@/components/RunModeScreen";
@@ -3480,6 +3483,164 @@ const AVATAR_COLORS: [string, string][] = [
   ["#35d07f", "#08130c"], ["#a78bfa", "#1a0f3d"], ["#ff8a4c", "#2b1200"],
 ];
 
+// Per-question snapshot from /questions/stats used by the host live view: it
+// seeds the tallies once and, refetched as answers arrive, carries the live
+// answer breakdown.
+type LiveQuestionStat = {
+  id: number;
+  totalAnswered: number;
+  correctCount: number;
+  percentCorrect: number | null;
+  answeredBy?: string[];
+  answerBreakdown?: AnswerBreakdownEntry[];
+};
+
+// ─── Live results (host-only live view; mirrors mobile app/admin/live) ────────
+
+// Answer distribution rows for one question. Rows come from buildAnswerRows so
+// the content is identical to the mobile live screen.
+function LiveAnswerRows({ rows, totalAnswered, size }: { rows: AnswerRow[]; totalAnswered: number; size: "lg" | "sm" }) {
+  const lg = size === "lg";
+  if (rows.length === 0) {
+    return <p className={`text-[#66728a] ${lg ? "text-sm py-2" : "text-xs"}`}>{COPY.liveResults.noAnswersYet}</p>;
+  }
+  return (
+    <div className={lg ? "space-y-2.5" : "space-y-1.5"}>
+      {rows.map((r, i) => {
+        const pct = totalAnswered > 0 ? Math.min(100, Math.round((r.count / totalAnswered) * 100)) : 0;
+        return (
+          <div
+            key={`${r.answer}-${i}`}
+            title={r.isCorrect ? COPY.liveResults.correctAnswerLabel : undefined}
+            className={`flex items-center gap-3 rounded-xl border ${lg ? "px-4 py-3" : "px-3 py-2"} ${
+              r.isCorrect ? "border-[#35d07f]/50 bg-[#35d07f]/10" : "border-[#1b2740] bg-white/[.03]"
+            }`}
+          >
+            <span
+              className={`${lg ? "w-[27px] h-[27px] text-xs" : "w-5 h-5 text-[10px]"} shrink-0 rounded-full flex items-center justify-center font-extrabold ${
+                r.isCorrect ? "bg-[#35d07f] text-[#08130c]" : "border-[1.5px] border-[#3a4a63] text-[#9aa6bc]"
+              }`}
+            >
+              {String.fromCharCode(65 + (i % 26))}
+            </span>
+            <span className={`flex-1 min-w-0 truncate ${lg ? "text-[15px]" : "text-[13px]"} ${r.isCorrect ? "font-bold text-[#eef2f8]" : "font-semibold text-[#c9d1e0]"}`}>
+              {r.label}
+            </span>
+            <div className={`hidden sm:block ${lg ? "w-20" : "w-14"} h-1.5 rounded-full bg-white/10 overflow-hidden`}>
+              <div className={`h-full rounded-full ${r.isCorrect ? "bg-[#35d07f]" : "bg-[#66728a]"}`} style={{ width: `${pct}%` }} />
+            </div>
+            <span className={`font-mono ${lg ? "text-[13px]" : "text-xs"} font-extrabold tabular-nums ${r.isCorrect ? "text-[#35d07f]" : "text-[#9aa6bc]"}`}>
+              {COPY.liveResults.answerCount(r.count)}
+            </span>
+            {r.isCorrect && <span className="text-[#35d07f]">✓</span>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Every question with its live answered / correct figures and top answers.
+function LiveResultsBreakdown({
+  questions,
+  statById,
+  totalPlayers,
+}: {
+  questions: Question[];
+  statById: Map<number, LiveQuestionStat>;
+  totalPlayers: number;
+}) {
+  return (
+    <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl p-4 sm:p-5">
+      <div className="flex items-baseline justify-between gap-3 mb-3">
+        <span className="text-[10px] font-bold tracking-[.16em] text-[#66728a]">{COPY.liveResults.breakdownLabel}</span>
+        <span className="text-[10px] font-semibold text-[#66728a]">{COPY.liveResults.updatesHint}</span>
+      </div>
+      {questions.length === 0 && <p className="text-sm text-[#66728a] py-2">{COPY.adminLive.noQuestions}</p>}
+      <div className="space-y-3">
+        {questions.map((q, idx) => {
+          const st = statById.get(q.id);
+          const answered = st?.totalAnswered ?? 0;
+          const correct = st?.correctCount ?? 0;
+          const pct = st?.percentCorrect ?? (answered > 0 ? Math.round((correct / answered) * 100) : 0);
+          return (
+            <div key={q.id} className="rounded-xl border border-[#1b2740] bg-white/[.02] px-4 py-3 space-y-2">
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-[10px] font-bold tracking-[.22em] text-[#66728a]">Q{idx + 1}</span>
+                <span className="text-xs font-semibold text-[#dfe5f0]">{COPY.adminLive.answeredCount(answered, totalPlayers)}</span>
+                {answered > 0 && (
+                  <span className="text-xs font-semibold text-[#35d07f]">{COPY.liveResults.correctPct(correct, pct)}</span>
+                )}
+              </div>
+              <p className="text-[13px] font-semibold text-[#c9d1e0] leading-snug line-clamp-2">{q.questionText}</p>
+              {answered > 0 ? (
+                <LiveAnswerRows rows={buildAnswerRows(q, st?.answerBreakdown, 4)} totalAnswered={answered} size="sm" />
+              ) : (
+                <p className="text-xs text-[#66728a]">{COPY.liveResults.noAnswersYet}</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+type LiveStandingEntry = {
+  userId: number;
+  userName: string;
+  totalScore: number;
+  rank: number;
+  correctCount?: number;
+  totalAnswered?: number;
+};
+
+// Ranked players with their live score and progress — the same ordering the
+// end-of-game leaderboard uses.
+function LiveStandings({ entries, totalQuestions }: { entries: LiveStandingEntry[]; totalQuestions: number }) {
+  return (
+    <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl p-4">
+      <div className="flex items-baseline justify-between gap-3 mb-2.5">
+        <span className="text-[10px] font-bold tracking-[.16em] text-[#66728a]">{COPY.liveResults.standingsLabel}</span>
+        <span className="text-[10px] font-semibold text-[#66728a]">{COPY.liveResults.updatesHint}</span>
+      </div>
+      <div className="space-y-0.5">
+        {entries.length === 0 && (
+          <p className="text-sm text-[#66728a] text-center py-4">{COPY.liveResults.noPlayers}</p>
+        )}
+        {entries.map((p, i) => {
+          const [av, avtx] = AVATAR_COLORS[i % AVATAR_COLORS.length];
+          const win = p.rank === 1;
+          return (
+            <div key={p.userId} className={`flex items-center gap-2.5 px-1.5 py-2 rounded-lg ${win ? "bg-[#ff0080]/[.08]" : ""}`}>
+              <span className={`w-4 text-center font-mono text-xs font-extrabold ${win ? "text-[#ff5aa8]" : "text-[#66728a]"}`}>
+                {p.rank}
+              </span>
+              <span
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-extrabold shrink-0"
+                style={{ background: av, color: avtx }}
+              >
+                {p.userName.substring(0, 1).toUpperCase()}
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className={`truncate text-[13px] font-bold ${win ? "text-[#eef2f8]" : "text-[#dfe5f0]"}`}>{p.userName}</div>
+                {p.correctCount !== undefined && p.totalAnswered !== undefined && (
+                  <div className="text-[11px] text-[#66728a]">
+                    {COPY.liveResults.playerLine(p.correctCount, p.totalAnswered, totalQuestions)}
+                  </div>
+                )}
+              </div>
+              <span className={`font-mono text-[13px] tabular-nums ${win ? "font-extrabold text-[#eef2f8]" : "font-bold text-[#9aa6bc]"}`}>
+                {p.totalScore}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // Short-response answers the AI could not grade, shown to the host to award or
 // deny. Shared by the live view and the results detail view (parity with the
 // mobile live and results screens). Renders nothing when the queue is empty.
@@ -3774,10 +3935,10 @@ function LiveGameView({
   };
 
   // Seed tallies from persisted answers so opening the Live view mid-game
-  // shows correct totals immediately; socket events increment on top.
-  const { data: seedStats } = useQuery<
-    { id: number; correctCount: number; answeredBy?: string[] }[]
-  >({
+  // shows correct totals immediately; socket events increment on top. The
+  // same snapshot, refetched after every socket event (plus a 10s fallback
+  // poll), carries the live answer breakdown — applySeed ignores the repeats.
+  const { data: seedStats, refetch: refetchLiveStats } = useQuery<LiveQuestionStat[]>({
     queryKey: ["live-view-seed-stats", activeGame?.id],
     queryFn: async () => {
       const res = await fetch(`/api/games/${activeGame!.id}/questions/stats`, {
@@ -3787,8 +3948,39 @@ function LiveGameView({
       return res.json();
     },
     enabled: !!activeGame,
-    staleTime: Infinity, // seed once per game; socket events keep it live
+    staleTime: Infinity, // the seed is applied once; explicit refetches keep the breakdown live
+    refetchInterval: 10000,
   });
+  const liveStatById = new Map((seedStats ?? []).map((st): [number, LiveQuestionStat] => [st.id, st]));
+
+  // Live standings: the ranked results the end-of-game screen shows, refetched
+  // as answers arrive so the host watches the leaderboard move.
+  const { data: liveResults, refetch: refetchLiveResults } = useQuery<GameResultsData>({
+    queryKey: ["admin-results", activeGame?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/games/${activeGame!.id}/results`, { credentials: "include" });
+      if (!res.ok) throw new Error("results");
+      return res.json();
+    },
+    enabled: !!activeGame,
+    refetchInterval: 10000,
+  });
+
+  // Answers arrive in bursts; coalesce the server refreshes they trigger into
+  // one round of requests per short window instead of one per player.
+  const liveRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleLiveRefresh = () => {
+    if (liveRefreshTimer.current) return;
+    liveRefreshTimer.current = setTimeout(() => {
+      liveRefreshTimer.current = null;
+      void refetchParts();
+      void refetchLiveStats();
+      void refetchLiveResults();
+    }, 500);
+  };
+  useEffect(() => () => {
+    if (liveRefreshTimer.current) clearTimeout(liveRefreshTimer.current);
+  }, []);
 
   // Apply the persisted snapshot: applySeed merges baseline + buffered events
   // (name-deduped) and switches the store to live synchronously, so a socket
@@ -3807,7 +3999,15 @@ function LiveGameView({
       if (recordAnswerEvent(tallyStore.current, p.questionId, p.playerName, p.isCorrect)) {
         syncTallies();
       }
-      refetchParts();
+      scheduleLiveRefresh();
+    },
+    onAnswerReviewed: () => {
+      // A review changes an existing answer's correctness and score: refresh
+      // the review queue and the live results from the server.
+      if (activeGame) {
+        queryClient.invalidateQueries({ queryKey: getListPendingAnswerReviewsQueryKey(activeGame.id) });
+      }
+      scheduleLiveRefresh();
     },
     onGameEnded: () => {
       queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
@@ -3834,6 +4034,7 @@ function LiveGameView({
       }
       setKickTarget(null);
       refetchParts();
+      void refetchLiveResults();
     } catch {
       setKickError(COPY.kick.removeError);
     } finally {
@@ -3841,7 +4042,13 @@ function LiveGameView({
     }
   };
 
-  const sortedParticipants = [...parts].sort((a, b) => (b.totalScore ?? 0) - (a.totalScore ?? 0)).slice(0, 6);
+  // Ranked from the live results; until they load, the participant list
+  // ordered by score stands in (without the per-player progress line).
+  const liveStandings: LiveStandingEntry[] = liveResults
+    ? liveResults.participants
+    : [...parts]
+        .sort((a, b) => (b.totalScore ?? 0) - (a.totalScore ?? 0))
+        .map((p, i) => ({ userId: p.userId, userName: p.userName, totalScore: p.totalScore ?? 0, rank: i + 1 }));
 
   if (!activeGame) {
     return (
@@ -3856,7 +4063,6 @@ function LiveGameView({
   const answeredNames = currentQ ? (answeredBy[currentQ.id] ?? []) : [];
   const answeredCount = answeredNames.length;
   const answeredPct = parts.length > 0 ? Math.round((answeredCount / parts.length) * 100) : 0;
-  const qCorrect = currentQ ? (correctCount[currentQ.id] ?? 0) : 0;
   // The popup shows only for a playing host whose answer the server already
   // holds without feedback (the feedback-card case lives inside
   // HostPlayAlongCard); a monitoring host advances directly from the
@@ -3989,42 +4195,15 @@ function LiveGameView({
               {displayQ?.questionText || "Waiting for game to start…"}
             </h2>
 
-            {/* ── Monitoring choices — visible only when host is not playing along ── */}
-            {!activeGame.hostPlaysAlong && (
-              <div className="space-y-2.5">
-                {(currentQ?.options as any)?.choices?.map((c: string, i: number) => {
-                  const isCorrect = currentQ.correctAnswer === c;
-                  const tallyPct = isCorrect && parts.length > 0 ? Math.round((qCorrect / parts.length) * 100) : 0;
-                  return (
-                    <div
-                      key={i}
-                      className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${
-                        isCorrect ? "border-[#35d07f]/50 bg-[#35d07f]/10" : "border-[#1b2740] bg-white/[.03]"
-                      }`}
-                    >
-                      <span
-                        className={`w-[27px] h-[27px] shrink-0 rounded-full flex items-center justify-center text-xs font-extrabold ${
-                          isCorrect ? "bg-[#35d07f] text-[#08130c]" : "border-[1.5px] border-[#3a4a63] text-[#9aa6bc]"
-                        }`}
-                      >
-                        {String.fromCharCode(65 + i)}
-                      </span>
-                      <span className={`flex-1 text-[15px] ${isCorrect ? "font-bold text-[#eef2f8]" : "font-semibold text-[#c9d1e0]"}`}>
-                        {c}
-                      </span>
-                      {isCorrect && (
-                        <>
-                          <div className="hidden sm:block w-20 h-1.5 rounded-full bg-white/10 overflow-hidden">
-                            <div className="h-full rounded-full bg-[#35d07f]" style={{ width: `${tallyPct}%` }} />
-                          </div>
-                          <span className="font-mono text-[13px] font-extrabold text-[#35d07f] tabular-nums">{qCorrect}</span>
-                          <span className="text-[#35d07f]">✓</span>
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+            {/* ── Live answer breakdown for the viewed question — every choice with its
+                   live count, the correct one highlighted. Host-only: a playing host
+                   must not see correctness aggregates mid-game. ── */}
+            {!activeGame.hostPlaysAlong && currentQ && (
+              <LiveAnswerRows
+                rows={buildAnswerRows(currentQ, liveStatById.get(currentQ.id)?.answerBreakdown)}
+                totalAnswered={liveStatById.get(currentQ.id)?.totalAnswered ?? 0}
+                size="lg"
+              />
             )}
 
             {/* ── Playing-host answer card — follows the VIEWED question. Answered → locked with
@@ -4120,6 +4299,10 @@ function LiveGameView({
             </button>
           </div>
           )}
+          {/* Live results for every question — host-only, refreshed as players answer */}
+          {!activeGame.hostPlaysAlong && (
+            <LiveResultsBreakdown questions={questions} statById={liveStatById} totalPlayers={parts.length} />
+          )}
           <PendingReviewQueue
             reviews={pendingReviews}
             label={COPY.adminLive.needsReviewLabel(pendingReviews.length)}
@@ -4173,40 +4356,10 @@ function LiveGameView({
           {/* Score-ranked standings stay hidden while the host plays along — a
               playing host must not see peer scores or ranking (answer oracle). */}
           {!activeGame.hostPlaysAlong && (
-          <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl p-4">
-            <div className="flex items-baseline justify-between mb-2.5">
-              <span className="text-[10px] font-bold tracking-[.16em] text-[#66728a]">STANDINGS</span>
-              <span className="text-[10px] font-semibold text-[#66728a]">top 6</span>
-            </div>
-            <div className="space-y-0.5">
-              {sortedParticipants.length === 0 && (
-                <p className="text-sm text-[#66728a] text-center py-4">No players yet</p>
-              )}
-              {sortedParticipants.map((p, i) => {
-                const [av, avtx] = AVATAR_COLORS[i % AVATAR_COLORS.length];
-                const win = i === 0;
-                return (
-                  <div key={p.id} className={`flex items-center gap-2.5 px-1.5 py-2 rounded-lg ${win ? "bg-[#ff0080]/[.08]" : ""}`}>
-                    <span className={`w-4 text-center font-mono text-xs font-extrabold ${win ? "text-[#ff5aa8]" : "text-[#66728a]"}`}>
-                      {i + 1}
-                    </span>
-                    <span
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-extrabold shrink-0"
-                      style={{ background: av, color: avtx }}
-                    >
-                      {p.userName.substring(0, 1).toUpperCase()}
-                    </span>
-                    <span className={`flex-1 truncate text-[13px] font-bold ${win ? "text-[#eef2f8]" : "text-[#dfe5f0]"}`}>
-                      {p.userName}
-                    </span>
-                    <span className={`font-mono text-[13px] tabular-nums ${win ? "font-extrabold text-[#eef2f8]" : "font-bold text-[#9aa6bc]"}`}>
-                      {p.totalScore}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+            <LiveStandings
+              entries={liveStandings}
+              totalQuestions={liveResults?.totalQuestions ?? questions.length}
+            />
           )}
         </div>
       </div>

@@ -68,7 +68,7 @@ The web and mobile apps must have identical flows, features, and wording; every 
 - Per-question AI tools: regenerate, enhance, fact-check (Google Search grounded). Bulk regenerate all AI questions.
 - Choose a run mode: host only, or host & play (the host answers alongside players and appears in the standings).
 - Choose the player join code before going live; a random code is assigned if left blank.
-- Live control: watch answer progress per question (players advance through the quiz on their own time), manually review short-response answers when AI grading was unavailable, remove abusive players (removed players cannot rejoin), end the game.
+- Live control: watch live results as players answer — per-question answered / correct figures with the answer breakdown (every choice with its count, the correct one highlighted) and ranked live standings, refreshed from socket events (players advance through the quiz on their own time); manually review short-response answers when AI grading was unavailable, remove abusive players (removed players cannot rejoin), end the game. Live results are hidden while the host plays along (a playing host must not see correctness aggregates or peer scores mid-game).
 - Results: leaderboard, per-question breakdown with correct answers, CSV export (mobile shares the file).
 - Account: display name shown on the leaderboard, change password (password accounts only), sign out, delete account (revokes Apple tokens and prior sessions), legal links. Reached from the person icon in the admin header on both platforms.
 

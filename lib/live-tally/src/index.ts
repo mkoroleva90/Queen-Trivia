@@ -154,3 +154,90 @@ export function resetTallyStore(store: TallyStore): void {
   store.answeredBy = {};
   store.correctCount = {};
 }
+
+// ─── Live answer breakdown ──────────────────────────────────────────────────
+//
+// The host's live results show, per question, how the submitted answers are
+// distributed. Both platforms build the rows through this helper so the
+// content is identical: choice questions list every choice (zero counts
+// included) in the order the players saw them; every other type lists the
+// distinct submitted answers, most chosen first.
+
+export type AnswerBreakdownEntry = {
+  answer: string;
+  count: number;
+  isCorrect: boolean;
+};
+
+export type AnswerRow = {
+  /** Raw stored answer (matches what players submitted). */
+  answer: string;
+  /** What to display — the raw answer, except true/false which reads "True" / "False". */
+  label: string;
+  count: number;
+  isCorrect: boolean;
+};
+
+/** Question types whose answer is exactly one of a fixed list of choices. */
+const CHOICE_QUESTION_TYPES = new Set(["multiple_choice", "true_false", "image_recognition"]);
+
+/**
+ * Build the rows of the live answer breakdown for one question.
+ *
+ * - `choices` is the fixed list the players pick from (multiple choice and
+ *   image questions store it in `options.choices`; true/false is always
+ *   `["true", "false"]`). For these types every choice is a row, the count
+ *   coming from the breakdown, and the correct one is flagged by comparing
+ *   with `correctAnswer`.
+ * - For every other type the breakdown entries themselves are the rows,
+ *   ordered by count, capped at `limit`.
+ */
+export function buildAnswerRows(
+  question: { questionType: string; correctAnswer?: string | null; options?: unknown },
+  breakdown: AnswerBreakdownEntry[] | undefined,
+  limit = 6,
+): AnswerRow[] {
+  const entries = breakdown ?? [];
+  if (CHOICE_QUESTION_TYPES.has(question.questionType)) {
+    const choices = choicesFor(question);
+    if (choices.length > 0) {
+      const counts = new Map<string, number>();
+      for (const e of entries) counts.set(e.answer, (counts.get(e.answer) ?? 0) + e.count);
+      const rows: AnswerRow[] = choices.map((choice) => ({
+        answer: choice,
+        label: labelFor(question.questionType, choice),
+        count: counts.get(choice) ?? 0,
+        isCorrect: question.correctAnswer != null && choice === question.correctAnswer,
+      }));
+      // Answers outside the choice list (legacy data) still deserve a row.
+      for (const e of entries) {
+        if (!choices.includes(e.answer)) {
+          rows.push({ answer: e.answer, label: labelFor(question.questionType, e.answer), count: e.count, isCorrect: e.isCorrect });
+        }
+      }
+      return rows;
+    }
+  }
+  return [...entries]
+    .sort((a, b) => b.count - a.count || a.answer.localeCompare(b.answer))
+    .slice(0, limit)
+    .map((e) => ({ answer: e.answer, label: labelFor(question.questionType, e.answer), count: e.count, isCorrect: e.isCorrect }));
+}
+
+function labelFor(questionType: string, answer: string): string {
+  if (questionType === "true_false") {
+    if (answer === "true") return "True";
+    if (answer === "false") return "False";
+  }
+  return answer;
+}
+
+function choicesFor(question: { questionType: string; options?: unknown }): string[] {
+  if (question.questionType === "true_false") return ["true", "false"];
+  const options = question.options;
+  if (options && typeof options === "object" && "choices" in options) {
+    const choices = (options as { choices?: unknown }).choices;
+    if (Array.isArray(choices)) return choices.filter((c): c is string => typeof c === "string");
+  }
+  return [];
+}

@@ -1,6 +1,6 @@
 
 import { Router, type IRouter } from "express";
-import { eq, and, sql, asc } from "drizzle-orm";
+import { eq, sql, asc } from "drizzle-orm";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { requireAuth } from "../middleware/requireAuth.ts";
 import {
@@ -154,22 +154,36 @@ for (const row of answeredRows) {
  answeredByMap.set(row.questionId, list);
 }
 
-// Most-chosen wrong answer per question
-const wrongAnswerStats = await db
+// Distribution of submitted answers per question. Feeds the most-chosen wrong
+// answer (results screens) and the live answer breakdown (host live screens).
+const answerDistribution = await db
  .select({
   questionId: answersTable.questionId,
   userAnswer: answersTable.userAnswer,
+  isCorrect: answersTable.isCorrect,
   count: sql<number>`count(*)::int`,
  })
  .from(answersTable)
- .where(and(eq(answersTable.gameId, gameId), eq(answersTable.isCorrect, false)))
- .groupBy(answersTable.questionId, answersTable.userAnswer);
+ .where(eq(answersTable.gameId, gameId))
+ .groupBy(answersTable.questionId, answersTable.userAnswer, answersTable.isCorrect)
+ .orderBy(sql`count(*) DESC`, asc(answersTable.userAnswer));
 
 const wrongMap = new Map<number, { answer: string; count: number }>();
-for (const w of wrongAnswerStats) {
- const existing = wrongMap.get(w.questionId);
- if (!existing || w.count > existing.count) {
-  wrongMap.set(w.questionId, { answer: w.userAnswer, count: w.count });
+const breakdownMap = new Map<number, { answer: string; count: number; isCorrect: boolean }[]>();
+const ANSWER_BREAKDOWN_LIMIT = 8;
+for (const row of answerDistribution) {
+ if (!row.isCorrect) {
+  const existing = wrongMap.get(row.questionId);
+  if (!existing || row.count > existing.count) {
+   wrongMap.set(row.questionId, { answer: row.userAnswer, count: row.count });
+  }
+ }
+ // Blank rows are skips, not answers — they never appear in the breakdown.
+ if (row.userAnswer === "") continue;
+ const list = breakdownMap.get(row.questionId) ?? [];
+ if (list.length < ANSWER_BREAKDOWN_LIMIT) {
+  list.push({ answer: row.userAnswer, count: row.count, isCorrect: row.isCorrect });
+  breakdownMap.set(row.questionId, list);
  }
 }
 
@@ -185,6 +199,7 @@ const result = questions.map((q) => {
   answeredBy: answeredByMap.get(q.id) ?? [],
   percentCorrect: totalAnswered > 0 ? Math.round((correctCount / totalAnswered) * 100) :null,
   mostChosenWrong: wrong ? { answer: wrong.answer, count: wrong.count } : null,
+  answerBreakdown: breakdownMap.get(q.id) ?? [],
   };
  });
 
