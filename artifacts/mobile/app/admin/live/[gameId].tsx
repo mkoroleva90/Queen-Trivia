@@ -88,6 +88,16 @@ export default function AdminLiveScreen() {
   const gameId = parseInt(gameIdStr ?? '', 10);
 
   const [refreshing, setRefreshing] = useState(false);
+  // Questions whose correct answer the host chose to reveal in the live
+  // results. Everything else shows the live distribution only.
+  const [revealedIds, setRevealedIds] = useState<Set<number>>(new Set());
+  const toggleReveal = (questionId: number) => {
+    setRevealedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(questionId)) next.delete(questionId); else next.add(questionId);
+      return next;
+    });
+  };
   const [ending, setEnding] = useState(false);
   const [endGameError, setEndGameError] = useState<string | null>(null);
   const [reviewingAnswerId, setReviewingAnswerId] = useState<number | null>(null);
@@ -698,10 +708,11 @@ export default function AdminLiveScreen() {
           </>
         )}
 
-        {/* LIVE RESULTS — every question with its live answered / correct figures
-            and answer breakdown. Hidden when the host plays along: a playing host
-            must not see correctness aggregates mid-game. Players advance on their
-            own, so there is no release control here. */}
+        {/* LIVE RESULTS — every question with its live answered figures and answer
+            breakdown; the correct answer and correct count appear only after the
+            host taps Show answer on that question. Hidden when the host plays
+            along: a playing host must not see correctness aggregates mid-game.
+            Players advance on their own, so there is no release control here. */}
         {!playAlong && (
           <>
             <View style={s.sectionHead}>
@@ -717,6 +728,7 @@ export default function AdminLiveScreen() {
                 const correct = st?.correctCount ?? 0;
                 const pct = st?.percentCorrect ?? (answered > 0 ? Math.round((correct / answered) * 100) : 0);
                 const progress = totalPlayers > 0 ? Math.min(1, answered / totalPlayers) : 0;
+                const revealed = revealedIds.has(q.id);
                 return (
                   <View key={q.id} style={[s.qCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     <View style={s.qTop}>
@@ -724,11 +736,27 @@ export default function AdminLiveScreen() {
                       <Text style={[s.qAnswered, { color: colors.foreground }]}>
                         {COPY.adminLive.answeredCount(answered, totalPlayers)}
                       </Text>
-                      {answered > 0 && (
+                      {revealed && answered > 0 && (
                         <Text style={[s.qCorrect, { color: colors.secondary }]}>
                           {COPY.liveResults.correctPct(correct, pct)}
                         </Text>
                       )}
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: revealed }}
+                        onPress={() => toggleReveal(q.id)}
+                        hitSlop={6}
+                        style={[
+                          s.revealBtn,
+                          revealed
+                            ? { borderColor: colors.border, backgroundColor: 'transparent' }
+                            : { borderColor: colors.secondary + '66', backgroundColor: colors.secondary + '18' },
+                        ]}
+                      >
+                        <Text style={[s.revealBtnText, { color: revealed ? colors.mutedForeground : colors.secondary }]}>
+                          {revealed ? COPY.liveResults.hideAnswerBtn : COPY.liveResults.showAnswerBtn}
+                        </Text>
+                      </Pressable>
                     </View>
                     <Text style={[s.qText, { color: colors.foreground }]} numberOfLines={2}>
                       {q.questionText}
@@ -744,6 +772,7 @@ export default function AdminLiveScreen() {
                         rows={buildAnswerRows(q, st?.answerBreakdown, 4)}
                         totalAnswered={answered}
                         colors={colors}
+                        revealed={revealed}
                       />
                     ) : (
                       <Text style={[s.noAnswers, { color: colors.mutedForeground }]}>{COPY.liveResults.noAnswersYet}</Text>
@@ -954,15 +983,19 @@ export default function AdminLiveScreen() {
 }
 
 // Answer distribution rows for one question. Rows come from buildAnswerRows so
-// the content is identical to the web live view.
+// the content is identical to the web live view. Until `revealed`, every row
+// renders neutrally so the host sees how players are answering without the
+// correct answer being given away.
 function LiveAnswerRows({
   rows,
   totalAnswered,
   colors,
+  revealed,
 }: {
   rows: AnswerRow[];
   totalAnswered: number;
   colors: ReturnType<typeof useColors>;
+  revealed: boolean;
 }) {
   if (rows.length === 0) {
     return <Text style={[rowStyles.empty, { color: colors.mutedForeground }]}>{COPY.liveResults.noAnswersYet}</Text>;
@@ -971,31 +1004,36 @@ function LiveAnswerRows({
     <View style={rowStyles.list}>
       {rows.map((r, i) => {
         const pct = totalAnswered > 0 ? Math.min(100, Math.round((r.count / totalAnswered) * 100)) : 0;
-        const tint = r.isCorrect ? colors.secondary : colors.mutedForeground;
+        const correct = revealed && r.isCorrect;
+        // Neutral cyan while hidden; after reveal the correct row keeps the
+        // accent and the others fall back to muted.
+        const tint = correct ? colors.secondary : revealed ? colors.mutedForeground : colors.secondary;
         return (
           <View
             key={`${r.answer}-${i}`}
-            accessibilityLabel={r.isCorrect ? `${COPY.liveResults.correctAnswerLabel}: ${r.label}` : r.label}
+            accessibilityLabel={correct ? `${COPY.liveResults.correctAnswerLabel}: ${r.label}` : r.label}
             style={[
               rowStyles.row,
-              { borderColor: r.isCorrect ? colors.secondary + '77' : colors.border, backgroundColor: r.isCorrect ? colors.secondary + '14' : 'transparent' },
+              { borderColor: correct ? colors.secondary + '77' : colors.border, backgroundColor: correct ? colors.secondary + '14' : 'transparent' },
             ]}
           >
-            <View style={[rowStyles.letter, { borderColor: tint, backgroundColor: r.isCorrect ? colors.secondary : 'transparent' }]}>
-              <Text style={[rowStyles.letterText, { color: r.isCorrect ? colors.secondaryForeground : colors.mutedForeground }]}>
+            <View style={[rowStyles.letter, { borderColor: correct ? colors.secondary : colors.mutedForeground, backgroundColor: correct ? colors.secondary : 'transparent' }]}>
+              <Text style={[rowStyles.letterText, { color: correct ? colors.secondaryForeground : colors.mutedForeground }]}>
                 {String.fromCharCode(65 + (i % 26))}
               </Text>
             </View>
             <View style={rowStyles.body}>
-              <Text style={[rowStyles.label, { color: r.isCorrect ? colors.foreground : colors.cardForeground }]} numberOfLines={1}>
+              <Text style={[rowStyles.label, { color: correct ? colors.foreground : colors.cardForeground }]} numberOfLines={1}>
                 {r.label}
               </Text>
               <View style={[rowStyles.barBg, { backgroundColor: colors.border }]}>
                 <View style={[rowStyles.barFill, { backgroundColor: tint, width: `${pct}%` }]} />
               </View>
             </View>
-            <Text style={[rowStyles.count, { color: tint }]}>{COPY.liveResults.answerCount(r.count)}</Text>
-            {r.isCorrect && <Ionicons name="checkmark" size={14} color={colors.secondary} />}
+            <Text style={[rowStyles.count, { color: correct ? colors.secondary : revealed ? colors.mutedForeground : colors.foreground }]}>
+              {COPY.liveResults.answerCount(r.count)}
+            </Text>
+            {correct && <Ionicons name="checkmark" size={14} color={colors.secondary} />}
           </View>
         );
       })}
@@ -1032,6 +1070,8 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 },
     sectionHint: { fontSize: 11, fontFamily: 'Manrope_600SemiBold', marginTop: 8, marginBottom: 4 },
     noAnswers: { fontSize: 12, fontFamily: 'Manrope_600SemiBold' },
+    revealBtn: { borderWidth: 1, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10 },
+    revealBtnText: { fontSize: 11, fontFamily: 'Manrope_700Bold' },
     playerRank: { width: 20, textAlign: 'center', fontSize: 13, fontFamily: 'Manrope_800ExtraBold' },
     playerInfo: { flex: 1, gap: 1 },
     playerSub: { fontSize: 11, fontFamily: 'Manrope_600SemiBold' },

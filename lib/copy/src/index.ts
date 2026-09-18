@@ -1779,7 +1779,10 @@ export const COPY = {
   /**
    * Live results on the host's live screen (web LiveGameView in Admin.tsx and
    * mobile app/admin/live/[gameId].tsx). Shown while the host monitors the
-   * game (not while playing along) and refreshed as players answer.
+   * game (not while playing along) and refreshed as players answer. The
+   * answer distribution is always live; which answer is correct (and the
+   * correct count) stays hidden on each question until the host taps
+   * showAnswerBtn for it.
    * Both platforms must use these keys so wording stays in sync.
    */
   liveResults: {
@@ -1799,8 +1802,12 @@ export const COPY = {
     playerLine:         (correct: number, answered: number, total: number) => `${correct} correct · ${answered}/${total} answered`,
     /** Player count next to an answer row in the breakdown. */
     answerCount:        (n: number) => `${n}`,
-    /** Screen-reader / tooltip label for the correct answer row. */
+    /** Screen-reader / tooltip label for the correct answer row (once revealed). */
     correctAnswerLabel: 'Correct answer',
+    /** Per-question toggle — reveals the correct answer and the correct count in the live breakdown. */
+    showAnswerBtn:      'Show answer',
+    /** The same toggle once the answer is revealed — hides it again. */
+    hideAnswerBtn:      'Hide answer',
   },
 
   /**
