@@ -1777,6 +1777,33 @@ export const COPY = {
   },
 
   /**
+   * Live results on the host's live screen (web LiveGameView in Admin.tsx and
+   * mobile app/admin/live/[gameId].tsx). Shown while the host monitors the
+   * game (not while playing along) and refreshed as players answer.
+   * Both platforms must use these keys so wording stays in sync.
+   */
+  liveResults: {
+    /** Section heading above the ranked players. */
+    standingsLabel:     'LIVE STANDINGS',
+    /** Section heading above the per-question answer breakdown. */
+    breakdownLabel:     'LIVE RESULTS',
+    /** Hint under the headings — the panels update on their own. */
+    updatesHint:        'Updates as players answer',
+    /** Empty state for the standings before anyone joins. */
+    noPlayers:          'No players yet',
+    /** Empty state for a question nobody has answered yet. */
+    noAnswersYet:       'No answers yet',
+    /** "{correct} correct · {pct}%" line on a question card once someone has answered. */
+    correctPct:         (correct: number, pct: number) => `${correct} correct · ${pct}%`,
+    /** "{correct} correct · {answered}/{total} answered" under each player in the standings. */
+    playerLine:         (correct: number, answered: number, total: number) => `${correct} correct · ${answered}/${total} answered`,
+    /** Player count next to an answer row in the breakdown. */
+    answerCount:        (n: number) => `${n}`,
+    /** Screen-reader / tooltip label for the correct answer row. */
+    correctAnswerLabel: 'Correct answer',
+  },
+
+  /**
    * Manual answer-review card shown when AI grading was unavailable
    * (mobile host live and admin results screens).
    */

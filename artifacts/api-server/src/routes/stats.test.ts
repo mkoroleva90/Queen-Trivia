@@ -128,7 +128,6 @@ describe("GET /api/stats/summary — host isolation", () => {
     await pool.query("DELETE FROM games WHERE id = ANY($1)", [[...ownerGameIds, foreignGameId]]);
     await pool.query("DELETE FROM users WHERE id = ANY($1)", [userIds]);
     await pool.query("DELETE FROM admin_accounts WHERE id = ANY($1)", [[ownerAdminId, foreignAdminId]]);
-    await pool.end();
   });
 
   async function statsFor(adminAccountId?: number) {
@@ -166,5 +165,103 @@ describe("GET /api/stats/summary — host isolation", () => {
 
     assert.equal(response.status, 403, JSON.stringify(response.body));
     assert.equal(response.body.error, "Account-backed admin access required");
+  });
+});
+describe("GET /api/games/:gameId/questions/stats — live answer breakdown", () => {
+  let adminId: number;
+  let gameId: number;
+  let questionId: number;
+  let userIds: number[];
+
+  before(async () => {
+    const suffix = `${process.pid}-${Date.now()}-breakdown`;
+    const account = await pool.query<{ id: number }>(
+      `INSERT INTO admin_accounts (email, email_verified) VALUES ($1, true) RETURNING id`,
+      [`__test__breakdown_${suffix}@example.test`],
+    );
+    adminId = account.rows[0]!.id;
+
+    const game = await pool.query<{ id: number }>(
+      `INSERT INTO games
+         (topic, difficulty, question_count, status, access_code, created_by_admin, owner_admin_id)
+       VALUES ($1, 'easy', 1, 'active', $2, true, $3)
+       RETURNING id`,
+      ["Breakdown game", `B${suffix.slice(-9)}`, adminId],
+    );
+    gameId = game.rows[0]!.id;
+
+    const question = await pool.query<{ id: number }>(
+      `INSERT INTO questions
+         (game_id, question_text, question_type, correct_answer, options, points, order_index)
+       VALUES ($1, 'Capital of France?', 'multiple_choice', 'Paris', $2::jsonb, 10, 0)
+       RETURNING id`,
+      [gameId, JSON.stringify({ choices: ["Rome", "Paris", "Oslo", "Bern"] })],
+    );
+    questionId = question.rows[0]!.id;
+
+    const users = await pool.query<{ id: number }>(
+      `INSERT INTO users (name) VALUES ($1), ($2), ($3), ($4) RETURNING id`,
+      [`bd_a_${suffix}`, `bd_b_${suffix}`, `bd_c_${suffix}`, `bd_d_${suffix}`],
+    );
+    userIds = users.rows.map((row) => row.id);
+
+    await pool.query(
+      `INSERT INTO game_participants (game_id, user_id)
+       VALUES ($1, $2), ($1, $3), ($1, $4), ($1, $5)`,
+      [gameId, ...userIds],
+    );
+    // Two correct, one wrong, and one blank row (a skip) that must never be
+    // listed as an answer.
+    await pool.query(
+      `INSERT INTO answers (user_id, game_id, question_id, user_answer, is_correct, points_earned)
+       VALUES
+         ($1, $5, $6, 'Paris', true, 10),
+         ($2, $5, $6, 'Paris', true, 10),
+         ($3, $5, $6, 'Oslo', false, 0),
+         ($4, $5, $6, '', false, 0)`,
+      [...userIds, gameId, questionId],
+    );
+  });
+
+  after(async () => {
+    await pool.query("DELETE FROM games WHERE id = $1", [gameId]);
+    await pool.query("DELETE FROM users WHERE id = ANY($1)", [userIds]);
+    await pool.query("DELETE FROM admin_accounts WHERE id = $1", [adminId]);
+    await pool.end();
+  });
+
+  it("returns each submitted answer with its count and correctness, most chosen first, skips excluded", async () => {
+    const agent = request.agent(app);
+    await agent.post("/api/test-set-stats-admin-session").send({ adminAccountId: adminId });
+    const response = await agent.get(`/api/games/${gameId}/questions/stats`);
+
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.equal(response.body.length, 1);
+    const stat = response.body[0];
+    assert.equal(stat.id, questionId);
+    assert.equal(stat.totalAnswered, 4);
+    assert.equal(stat.correctCount, 2);
+    assert.equal(stat.percentCorrect, 50);
+    assert.deepEqual(stat.answerBreakdown, [
+      { answer: "Paris", count: 2, isCorrect: true },
+      { answer: "Oslo", count: 1, isCorrect: false },
+    ]);
+    assert.equal(stat.mostChosenWrong.count, 1);
+  });
+
+  it("is withheld from a host who does not own the game", async () => {
+    const foreign = await pool.query<{ id: number }>(
+      `INSERT INTO admin_accounts (email, email_verified) VALUES ($1, true) RETURNING id`,
+      [`__test__breakdown_foreign_${process.pid}_${Date.now()}@example.test`],
+    );
+    try {
+      const agent = request.agent(app);
+      await agent.post("/api/test-set-stats-admin-session").send({ adminAccountId: foreign.rows[0]!.id });
+      const response = await agent.get(`/api/games/${gameId}/questions/stats`);
+      assert.notEqual(response.status, 200, JSON.stringify(response.body));
+      assert.equal(response.body.answerBreakdown, undefined);
+    } finally {
+      await pool.query("DELETE FROM admin_accounts WHERE id = $1", [foreign.rows[0]!.id]);
+    }
   });
 });

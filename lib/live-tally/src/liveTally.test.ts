@@ -125,3 +125,51 @@ test("store: reset returns to buffering for a new game", () => {
   assert.deepEqual(store.answeredBy[2], ["Bo"]);
   assert.equal(store.correctCount[2], 1);
 });
+
+// ─── buildAnswerRows: live answer breakdown ─────────────────────────────────
+
+import { buildAnswerRows } from "./index.ts";
+
+test("rows: multiple choice lists every choice in order with zero counts and the correct flag", () => {
+  const rows = buildAnswerRows(
+    { questionType: "multiple_choice", correctAnswer: "Paris", options: { choices: ["Rome", "Paris", "Oslo"] } },
+    [{ answer: "Paris", count: 3, isCorrect: true }, { answer: "Oslo", count: 1, isCorrect: false }],
+  );
+  assert.deepEqual(rows, [
+    { answer: "Rome", label: "Rome", count: 0, isCorrect: false },
+    { answer: "Paris", label: "Paris", count: 3, isCorrect: true },
+    { answer: "Oslo", label: "Oslo", count: 1, isCorrect: false },
+  ]);
+});
+
+test("rows: true/false always has both choices", () => {
+  const rows = buildAnswerRows({ questionType: "true_false", correctAnswer: "false", options: null }, undefined);
+  assert.deepEqual(rows, [
+    { answer: "true", label: "True", count: 0, isCorrect: false },
+    { answer: "false", label: "False", count: 0, isCorrect: true },
+  ]);
+});
+
+test("rows: free-text questions list distinct answers most chosen first, capped", () => {
+  const rows = buildAnswerRows(
+    { questionType: "write_in", correctAnswer: "Mercury", options: null },
+    [
+      { answer: "Venus", count: 2, isCorrect: false },
+      { answer: "Mercury", count: 4, isCorrect: true },
+      { answer: "Mars", count: 1, isCorrect: false },
+    ],
+    2,
+  );
+  assert.deepEqual(rows, [
+    { answer: "Mercury", label: "Mercury", count: 4, isCorrect: true },
+    { answer: "Venus", label: "Venus", count: 2, isCorrect: false },
+  ]);
+});
+
+test("rows: an answer outside the choice list is still shown after the choices", () => {
+  const rows = buildAnswerRows(
+    { questionType: "multiple_choice", correctAnswer: "A", options: { choices: ["A", "B"] } },
+    [{ answer: "C", count: 1, isCorrect: false }],
+  );
+  assert.deepEqual(rows.map((r) => r.answer), ["A", "B", "C"]);
+});

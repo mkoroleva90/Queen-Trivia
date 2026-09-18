@@ -50,6 +50,13 @@ export function useGameSocket(
          playerName: string;
          isCorrect: boolean;
      }) => void;
+     /** Host room only — a manual review resolved an answer's correctness. */
+     onAnswerReviewed?: (p: {
+         gameId: number;
+         questionId: number;
+         playerName: string;
+         isCorrect: boolean;
+     }) => void;
      onGameEnded?: (p: { gameId: number }) => void;
      onPlayerKicked?: (p: { gameId: number; userId: number }) => void;
     },
@@ -82,6 +89,15 @@ export function useGameSocket(
      }
 
 
+     function onAnswerReviewed(p: {
+         gameId: number;
+         questionId: number;
+         playerName: string;
+         isCorrect: boolean;
+     }) {
+         if (p.gameId === gameId) cbRef.current.onAnswerReviewed?.(p);
+     }
+
      function onGameEnded(p: { gameId: number }) {
          if (p.gameId === gameId) cbRef.current.onGameEnded?.(p);
      }
@@ -92,6 +108,7 @@ export function useGameSocket(
 
      socket.on("answer:submitted", onAnswerSubmitted);
      socket.on("answer:graded", onAnswerGraded);
+     socket.on("answer:reviewed", onAnswerReviewed);
      socket.on("game:ended", onGameEnded);
      socket.on("player:kicked", onPlayerKicked);
 
@@ -99,6 +116,7 @@ export function useGameSocket(
      return () => {
          socket.off("answer:submitted", onAnswerSubmitted);
           socket.off("answer:graded", onAnswerGraded);
+         socket.off("answer:reviewed", onAnswerReviewed);
          socket.off("game:ended", onGameEnded);
          socket.off("player:kicked", onPlayerKicked);
          socket.disconnect();
