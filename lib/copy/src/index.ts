@@ -281,12 +281,22 @@ export const COPY = {
     /** Filter tab that shows only draft (waiting) games. */
     filterDrafts: 'Drafts',
     /**
-     * Rename-quiz flow — host-facing errors and success messages.
-     * Used in web GamesView (Admin.tsx) and mobile GamesTab.tsx.
+     * Rename-quiz flow — host-facing labels, errors and success messages.
+     * Used in web GamesView + LiveGameView (Admin.tsx) and mobile GamesTab.tsx
+     * + app/admin/live/[gameId].tsx. The host can rename a quiz at any point,
+     * including from the live-control screen after it has gone live.
      * Both platforms must use these keys so wording stays in sync.
      */
+    /** Accessibility label on the pencil that opens the inline rename. */
+    renameLabel:    'Rename quiz',
+    /** Accessibility label on the confirm (check) button of the inline rename. */
+    renameSaveLabel: 'Save quiz name',
+    /** Accessibility label on the cancel (X) button of the inline rename. */
+    renameCancelLabel: 'Cancel renaming',
     renameEmpty:    'Name cannot be empty',
     renameFailed:   'Failed to rename quiz',
+    /** Toast shown when a quiz is renamed successfully. */
+    renamed:        (name: string) => `Quiz renamed to "${name}"`,
     /** Dynamic toast shown when a join code is saved successfully. */
     codeUpdated:    (code: string) => `Room code updated to ${code}`,
     /** Toast shown when the clipboard write fails. */
