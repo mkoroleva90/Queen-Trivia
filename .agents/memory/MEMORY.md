@@ -29,3 +29,4 @@
 - [Expo web completion dialogs](expo-web-completion-dialogs.md) — use an explicit React Native Modal for required dialogs; Alert.alert may not surface in Expo web previews.
 - [EAS internal iOS credentials](eas-internal-ios-credentials.md) — non-interactive dev builds cannot create missing ad hoc signing credentials; configure them interactively first.
 - [GitHub push authentication](github-push-authentication.md) — shell pushes may lack OAuth even with a GitHub remote; use the GitHub connector for safe fast-forward updates.
+- [Mobile/web font parity](mobile-web-font-parity.md) — same Manrope name hid different releases; compare font assets and all text weights, not just the hero.

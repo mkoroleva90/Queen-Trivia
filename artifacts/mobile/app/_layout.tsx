@@ -4,14 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import {
-  Manrope_400Regular,
-  Manrope_500Medium,
-  Manrope_600SemiBold,
-  Manrope_700Bold,
-  Manrope_800ExtraBold,
-  useFonts,
-} from '@expo-google-fonts/manrope';
+import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as SecureStore from 'expo-secure-store';
@@ -62,11 +55,13 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
-    Manrope_400Regular,
-    Manrope_500Medium,
-    Manrope_600SemiBold,
-    Manrope_700Bold,
-    Manrope_800ExtraBold,
+    Manrope_100Thin: require('../assets/fonts/manrope-thin.otf'),
+    Manrope_300Light: require('../assets/fonts/manrope-light.otf'),
+    Manrope_400Regular: require('../assets/fonts/manrope-regular.otf'),
+    Manrope_500Medium: require('../assets/fonts/manrope-medium.otf'),
+    Manrope_600SemiBold: require('../assets/fonts/manrope-semibold.otf'),
+    Manrope_700Bold: require('../assets/fonts/manrope-bold.otf'),
+    Manrope_800ExtraBold: require('../assets/fonts/manrope-extrabold.otf'),
   });
 
   useEffect(() => {

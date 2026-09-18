@@ -1,23 +1,26 @@
 /**
  * Text with the app's base font applied.
  *
- * React Native doesn't inherit fonts via CSS, so every Text needs a fontFamily.
- * This wrapper puts Manrope_400Regular first in the style array; any fontFamily
- * (or other property) in the caller's `style` overrides it. Import `Text` from
- * here instead of 'react-native' inside artifacts/mobile/app and /components.
+ * Selects the bundled web font face for each weight and preserves the face in
+ * nested text (for example, a colored span inside a bold heading).
  */
-import React, { forwardRef } from 'react';
+import React, { createContext, forwardRef, useContext } from 'react';
 import { Text as RNText, StyleSheet, type TextProps } from 'react-native';
+import { regularFont, resolveTypography } from '@/constants/typography';
 
-const base = StyleSheet.create({
-  text: { fontFamily: 'Manrope_400Regular' },
-});
+const FontContext = createContext(regularFont);
 
 export const ThemedText = forwardRef<RNText, TextProps>(function ThemedText(
   { style, ...rest },
   ref,
 ) {
-  return <RNText ref={ref} {...rest} style={[base.text, style]} />;
+  const inheritedFamily = useContext(FontContext);
+  const typography = resolveTypography(StyleSheet.flatten(style), inheritedFamily);
+  return (
+    <FontContext.Provider value={typography.fontFamily ?? inheritedFamily}>
+      <RNText ref={ref} {...rest} style={[style, typography]} />
+    </FontContext.Provider>
+  );
 });
 
 export { ThemedText as Text };
