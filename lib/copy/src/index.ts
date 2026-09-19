@@ -648,6 +648,16 @@ export const COPY = {
     answerPlaceholder: 'Type your answer',
     /** Placeholder for the multi-line short-response answer input (mobile). */
     answerPlaceholderMultiline: 'Your answer...',
+    /** Alt text / accessibility labels for question images. Both platforms. */
+    imageAlt:         'Question image',
+    hotspotImageAlt:  'Tap the correct location',
+    /** Link to the fact-check source shown in post-answer feedback (web). */
+    sourceLink:       'Source ↗',
+    /** Placeholder of the right-hand dropdown on the web matching board. */
+    matchWithPlaceholder: 'Match with…',
+    /** Lines on the all-done card. */
+    allDoneScore:     (score: number) => `You finished with ${score} points`,
+    allDoneRank:      (rank: number) => ` · Rank #${rank}`,
     /** Alert title when the content filter rejects a typed answer (mobile). */
     answerRejectedTitle: 'Answer not submitted',
     /**
@@ -910,6 +920,7 @@ export const COPY = {
     shareBtn:       'Share results',
     /** Share text when the viewer did not play. Both platforms. */
     shareFallback:  (topic: string) => `Check out the results for "${topic}" trivia!`,
+    copyFailed:     'Could not copy to clipboard',
     copiedTitle:    'Copied!',
     copiedBody:     'Your results were copied to the clipboard.',
     shareTitle:     'Share',
@@ -931,6 +942,8 @@ export const COPY = {
     notePlaceholder: 'Add details (optional)',
     /** Primary submit button label. */
     submit: 'Submit report',
+    /** Submit button while the report is being sent. */
+    submitting: 'Submitting…',
     /** Cancel / close button label. */
     cancel: 'Cancel',
     /** Heading shown after a successful submission. */
@@ -1776,6 +1789,8 @@ export const COPY = {
     optional: '(optional)',
     /** Generic alert title. */
     error:    'Error',
+    /** Generic inline loading label. */
+    loading:  'Loading…',
   },
 
   /**

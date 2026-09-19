@@ -1,31 +1,23 @@
-
-import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
 import { Link } from "wouter";
+import { COPY } from "@workspace/copy";
 
-
+/** Unmatched-route page. Same copy as the mobile +not-found screen. */
 export default function NotFound() {
-    return (
-     <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
-         <Card className="w-full max-w-md mx-4">
-         <CardContent className="pt-6">
-          <div className="flex mb-4 gap-2">
-           <AlertCircle className="h-8 w-8 text-red-500" />
-           <h1 className="text-2xl font-bold text-gray-900">Page Not Found</h1>
-          </div>
-
-          <p className="mt-4 text-sm text-gray-600">
-           Sorry, we couldn't find the page you were looking for.
-          </p>
-          <p className="mt-4">
-           <Link href="/" className="text-sm font-medium text-blue-600 hover:underline">
-             ← Back to home
-           </Link>
-          </p>
-         </CardContent>
-         </Card>
-     </div>
-    );
+  return (
+    <div className="min-h-[100dvh] w-full flex items-center justify-center bg-[#0a0c12] text-white px-4">
+      <div className="w-full max-w-md rounded-2xl border border-[#1b2740] bg-[#0a1019] p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <AlertCircle className="h-8 w-8 text-[#ff6b6b]" />
+          <h1 className="text-2xl font-bold">{COPY.notFound.title}</h1>
+        </div>
+        <p className="text-sm text-[#9aa6bc]">{COPY.notFound.body}</p>
+        <p className="mt-4">
+          <Link href="/" className="text-sm font-medium text-[#ff2d8e] hover:underline">
+            {COPY.notFound.link}
+          </Link>
+        </p>
+      </div>
+    </div>
+  );
 }
-
-

@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { ReportDialog } from "@/components/ReportDialog";
 import { COPY, buildShareText } from "@workspace/copy";
+import { formatCorrectAnswer } from "@/components/admin/QuestionBreakdown";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -60,27 +61,6 @@ type QuestionStat = {
 
 const QUESTION_TYPE_LABELS: Record<string, string> = COPY.questionType;
 
-function formatCorrectAnswer(questionType: string, correctAnswer: string): string {
-  if (!correctAnswer) return correctAnswer;
-  if (questionType === "image_hotspot") {
-    const parts = correctAnswer.split(",").map((s) => parseFloat(s).toFixed(1));
-    if (parts.length === 2) return `X: ${parts[0]}%, Y: ${parts[1]}%`;
-  }
-  if (questionType === "ordering") {
-    try {
-      const items = JSON.parse(correctAnswer) as string[];
-      if (Array.isArray(items)) return items.map((item, i) => `${i + 1}. ${item}`).join("\n");
-    } catch { /* fall through */ }
-  }
-  if (questionType === "matching") {
-    try {
-      const pairs = JSON.parse(correctAnswer) as [string, string][];
-      if (Array.isArray(pairs)) return pairs.map(([a, b]) => `${a} → ${b}`).join("\n");
-    } catch { /* fall through */ }
-  }
-  return correctAnswer;
-}
-
 // Avatar colours cycling for leaderboard rows
 const RANK_AVATAR_COLORS = ["#ff0080", "#00ddff", "#8b5cf6", "#22c55e", "#f97316", "#a78bfa", "#34d399"];
 function rankAvatarColor(idx: number) {
@@ -99,7 +79,7 @@ export default function Results() {
   const [expandedQuestions, setExpandedQuestions] = useState(true);
   const [reportOpen, setReportOpen] = useState(false);
 
-  const { data: results, isLoading: resultsLoading, error: resultsError } = useQuery<GameResults>({
+  const { data: results, isLoading: resultsLoading, error: resultsError, refetch: refetchResults } = useQuery<GameResults>({
     queryKey: ["game-results", gameId],
     queryFn: async () => {
       const r = await fetch(`/api/games/${gameId}/results`);
@@ -181,12 +161,23 @@ export default function Results() {
   const handleShare = async () => {
     const text = me
       ? buildShareText({ score: myScore, rank: myRank, playerCount: results!.participants.length, topic: results!.game.topic, correct: myCorrect, questions: totalQ })
-      : COPY.results.shareFallback(results?.game.topic ?? "Queen Trivia");
+      : COPY.results.shareFallback(results?.game.topic ?? `${COPY.brand.queen} ${COPY.brand.trivia}`);
+    // Native share sheet where the browser offers one (matches mobile);
+    // otherwise copy to the clipboard.
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ text });
+        return;
+      } catch {
+        // user dismissed the share sheet — nothing to do
+        return;
+      }
+    }
     try {
       await navigator.clipboard.writeText(text);
-      toast({ title: "Copied to clipboard!", description: text });
+      toast({ title: COPY.results.copiedTitle, description: COPY.results.copiedBody });
     } catch {
-      toast({ variant: "destructive", title: "Could not copy to clipboard" });
+      toast({ variant: "destructive", title: COPY.results.copyFailed });
     }
   };
 
@@ -197,8 +188,8 @@ export default function Results() {
         <div className="text-center space-y-3">
           <Trophy className="mx-auto h-12 w-12 text-destructive/40" />
           <p className="text-muted-foreground">{COPY.results.couldNotLoad}</p>
-          <p className="text-xs text-muted-foreground/60">{String(resultsError)}</p>
-          <button className="text-sm text-primary underline" onClick={() => window.location.reload()}>
+          <p className="text-xs text-muted-foreground/60">{COPY.results.loadFailedBody}</p>
+          <button className="text-sm text-primary underline" onClick={() => void refetchResults()}>
             {COPY.results.tryAgain}
           </button>
         </div>
@@ -247,7 +238,7 @@ export default function Results() {
             {game.topic}
           </h1>
           <p style={{ fontSize: 13, fontWeight: 500, color: "#a3aec2" }}>
-            {totalQ} question{totalQ !== 1 ? "s" : ""} · {participants.length} player{participants.length !== 1 ? "s" : ""}
+            {COPY.results.headerMeta(totalQ, participants.length)}
           </p>
         </motion.div>
 
@@ -258,7 +249,7 @@ export default function Results() {
               <div>
                 <p style={{ fontSize: 13, fontWeight: 800, letterSpacing: 0.5, color: "#ffe500", margin: 0 }}>#{myRank}</p>
                 <p style={{ fontSize: 20, fontWeight: 800, color: "#ffffff", marginTop: 2 }}>{me.userName}</p>
-                <p style={{ fontSize: 13, fontWeight: 500, color: "#a3aec2", marginTop: 2 }}>{myCorrect}/{totalQ} correct</p>
+                <p style={{ fontSize: 13, fontWeight: 500, color: "#a3aec2", marginTop: 2 }}>{COPY.results.correctOf(myCorrect, totalQ)}</p>
               </div>
               <p style={{ fontSize: 40, fontWeight: 900, color: "#ffe500", fontVariantNumeric: "tabular-nums", margin: 0 }}>{myScore}</p>
             </div>
@@ -445,7 +436,7 @@ export default function Results() {
                               {q.questionText}
                             </p>
                             <p className="text-[11px] text-muted-foreground mt-1">
-                              {QUESTION_TYPE_LABELS[q.questionType] ?? q.questionType} · {q.points}pts
+                              {QUESTION_TYPE_LABELS[q.questionType] ?? q.questionType} · {COPY.gameplay.ptsLine(q.points)}
                               {stat?.percentCorrect != null && (
                                 <>{COPY.results.gotItRightSuffix(stat.percentCorrect)}</>
                               )}
@@ -522,6 +513,8 @@ export default function Results() {
           {/* Share */}
           <button
             onClick={handleShare}
+            aria-label={COPY.results.shareBtn}
+            title={COPY.results.shareBtn}
             className="font-semibold text-sm flex items-center gap-2"
             style={{
               width: 52, height: 52, borderRadius: 14,

@@ -101,7 +101,7 @@ export function ReportDialog({ gameId, questionId, onClose }: ReportDialogProps)
                 cursor: "pointer",
               }}
             >
-              Close
+              {COPY.common.close}
             </button>
           </div>
         ) : (
@@ -191,7 +191,7 @@ export function ReportDialog({ gameId, questionId, onClose }: ReportDialogProps)
                   transition: "background .12s",
                 }}
               >
-                {submit.isPending ? "Submitting…" : COPY.report.submit}
+                {submit.isPending ? COPY.report.submitting : COPY.report.submit}
               </button>
             </div>
           </div>

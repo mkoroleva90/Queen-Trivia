@@ -282,7 +282,7 @@ export function MultipleChoiceQuestion({
                 bg="#ff0080"
                 color="#ffffff"
               >
-                Confirm: {selected}
+                {COPY.gameplay.confirmSelected(selected)}
               </ActionBtn>
             </motion.div>
           )}
@@ -395,7 +395,7 @@ export function MultiSelectQuestion({
                 bg="#ff0080"
                 color="#ffffff"
               >
-                Confirm {selected.length} selection{selected.length !== 1 ? "s" : ""}
+                {COPY.gameplay.confirmSelections(selected.length)}
               </ActionBtn>
             </motion.div>
           )}
@@ -633,7 +633,7 @@ export function TrueFalseQuestion({
               {val === "true" ? "T" : "F"}
             </span>
             <span className="flex-1 font-semibold text-[15px]">
-              {val === "true" ? "True" : "False"}
+              {val === "true" ? COPY.gameplay.tfTrue : COPY.gameplay.tfFalse}
             </span>
             {trailing}
           </motion.button>
@@ -652,7 +652,7 @@ export function TrueFalseQuestion({
                 bg="#ff0080"
                 color="#ffffff"
               >
-                Confirm: {selected === "true" ? "True" : "False"}
+                {COPY.gameplay.confirmSelected(selected === "true" ? COPY.gameplay.tfTrue : COPY.gameplay.tfFalse)}
               </ActionBtn>
             </motion.div>
           )}
@@ -723,7 +723,7 @@ export function ImageQuestion({
           animate={{ opacity: 1, scale: 1 }}
           className="overflow-hidden rounded-xl border border-border/50 bg-background/60"
         >
-          <img src={imageUrl} alt="Identify this"
+          <img src={imageUrl} alt={COPY.gameplay.imageAlt}
             className="w-full max-h-80 object-contain" />
           {imageAttribution && (
             <p className="px-3 pb-2 pt-1 text-[11px] leading-snug text-muted-foreground">
@@ -806,7 +806,7 @@ export function ImageHotspotQuestion({
       >
         <img
           src={imageUrl}
-          alt="Tap the correct location"
+          alt={COPY.gameplay.hotspotImageAlt}
           className="w-full block"
           style={{ maxHeight: 320, objectFit: "contain", display: "block" }}
           draggable={false}
@@ -908,7 +908,7 @@ export function ShortResponseQuestion({
           <textarea
             value={val}
             onChange={(e) => setVal(e.target.value)}
-            placeholder="Write your answer…"
+            placeholder={COPY.gameplay.answerPlaceholderMultiline}
             rows={3}
             disabled={disabled}
             autoFocus
@@ -1014,7 +1014,7 @@ export function SliderQuestion({
           bg="#ffe500"
           color="#0a0510"
         >
-          Lock in {fmtVal(value)} →
+          {COPY.gameplay.submitValue(fmtVal(value), "")}
         </ActionBtn>
       )}
     </div>
@@ -1094,7 +1094,7 @@ export function MatchingBoard({
             <SelectTrigger
               className={`flex-1 ${choices[left] ? "border-secondary/50 bg-secondary/5" : ""}`}
             >
-              <SelectValue placeholder="Match with…" />
+              <SelectValue placeholder={COPY.gameplay.matchWithPlaceholder} />
             </SelectTrigger>
             <SelectContent>
               {rightItems.map((r) => (
@@ -1527,7 +1527,7 @@ export default function GamePlay() {
                     borderRadius: 8, padding: "5px 10px",
                   }}
                 >
-                  {current.points} PTS
+                  {COPY.gameplay.ptsLine(current.points)}
                 </span>
               </div>
             )}
@@ -1645,7 +1645,7 @@ export default function GamePlay() {
                             {lockedAnswer === ""
                               ? COPY.results.unanswered
                               : viewFeedback.isCorrect ? COPY.gameplay.feedbackCorrect : COPY.gameplay.feedbackWrong}{" "}
-                            {viewFeedback.pointsEarned > 0 ? `+${viewFeedback.pointsEarned}` : "0"} pts
+                            {COPY.gameplay.feedbackPointsLine(viewFeedback.pointsEarned)}
                           </span>
                           {viewFeedback.timeTaken !== undefined && (
                             <>
@@ -1668,7 +1668,7 @@ export default function GamePlay() {
                                 rel="noopener noreferrer"
                                 className="text-xs text-muted-foreground hover:text-secondary underline underline-offset-2"
                               >
-                                Source ↗
+                                {COPY.gameplay.sourceLink}
                               </a>
                             </>
                           )}
@@ -1741,10 +1741,9 @@ export default function GamePlay() {
                     <div>
                       <h2 className="text-3xl font-extrabold text-white">{COPY.gameplay.allDoneTitle}</h2>
                       <p className="text-lg mt-2">
-                        You finished with{" "}
-                        <span className="font-bold text-accent">{myScore} points</span>
+                        <span className="font-bold text-accent">{COPY.gameplay.allDoneScore(myScore)}</span>
                         {myRank > 0 && (
-                          <span className="text-muted-foreground"> · Rank #{myRank}</span>
+                          <span className="text-muted-foreground">{COPY.gameplay.allDoneRank(myRank)}</span>
                         )}
                       </p>
                       <p className="text-muted-foreground text-sm mt-2 max-w-xs mx-auto">
@@ -1845,12 +1844,12 @@ export default function GamePlay() {
             >
               <div className="px-5 py-4 border-b border-white/10">
                 <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                  <Trophy className="h-4 w-4 text-accent" /> Live Leaderboard
+                  <Trophy className="h-4 w-4 text-accent" /> {COPY.liveResults.standingsLabel}
                 </p>
               </div>
               <div className="px-4 py-3 space-y-1">
                 {sortedParticipants.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-4 text-center">No players yet.</p>
+                  <p className="text-sm text-muted-foreground py-4 text-center">{COPY.liveResults.noPlayers}</p>
                 ) : (
                   sortedParticipants.map((p, i) => {
                     const isMe = p.userId === userId;
@@ -1875,7 +1874,7 @@ export default function GamePlay() {
                         </span>
                         <span className="flex-1 min-w-0 truncate text-sm font-medium" style={{ color: isMe ? "#ffe500" : undefined }}>
                           {p.userName}
-                          {isMe && <span className="text-[10px] ml-1 opacity-70">(you)</span>}
+                          {isMe && <span className="text-[10px] ml-1 opacity-70">{COPY.results.youTag}</span>}
                         </span>
                         <span
                           className="font-bold tabular-nums text-sm shrink-0"

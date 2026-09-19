@@ -223,7 +223,7 @@ export function HostPlayAlongCard({
                     : COPY.gameplay.feedbackWrong}
               </p>
               <p className="text-[12px] text-[#9aa6bc] mt-0.5">
-                +{result.pointsEarned} pts · total {result.totalScore}
+                {COPY.adminLive.feedbackPts(result.pointsEarned, result.totalScore)}
               </p>
             </div>
           </div>
