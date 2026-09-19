@@ -267,7 +267,7 @@ export default function AdminRegisterScreen() {
               style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: error ? colors.destructive : colors.border }]}
               value={email}
               onChangeText={(t) => { setEmail(t); setError(''); }}
-              placeholder={COPY.hostLogin.mobileEmailPlaceholder}
+              placeholder={COPY.hostLogin.emailPlaceholder}
               placeholderTextColor={colors.mutedForeground}
               keyboardType="email-address"
               autoCapitalize="none"

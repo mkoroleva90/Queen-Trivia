@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle, XCircle } from "lucide-react";
 import { useAuth } from "../lib/auth";
+import { COPY } from "@workspace/copy";
 
 type State = "verifying" | "success" | "error";
 
@@ -19,7 +20,7 @@ export default function VerifyEmail() {
 
     if (!token) {
       setState("error");
-      setMessage("No verification token found in the link.");
+      setMessage(COPY.hostRegister.error.invalidLink);
       return;
     }
 
@@ -32,23 +33,22 @@ export default function VerifyEmail() {
           body: JSON.stringify({ token }),
         });
 
-        const body = await res.json().catch(() => ({}));
-
         if (res.ok) {
+          // Signed in on success — same as the mobile verify step.
           loginAdmin();
           setState("success");
-          setMessage("Your email has been verified. Redirecting to admin…");
+          setMessage(COPY.hostRegister.verify.verifiedBody);
           setTimeout(() => setLocation("/admin"), 1800);
+        } else if (res.status === 429) {
+          setState("error");
+          setMessage(COPY.hostRegister.error.tooManyAttempts);
         } else {
           setState("error");
-          setMessage(
-            (body as { error?: string }).error ??
-              "Verification failed. The link may have expired."
-          );
+          setMessage(COPY.hostRegister.error.invalidLink);
         }
       } catch {
         setState("error");
-        setMessage("Connection error — please try again.");
+        setMessage(COPY.hostLogin.error.connectionError);
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -61,14 +61,14 @@ export default function VerifyEmail() {
           {state === "verifying" && (
             <>
               <Loader2 className="w-10 h-10 text-[#ff2d8e] animate-spin mx-auto" />
-              <p className="text-[#9aa6bc]">Verifying your email…</p>
+              <p className="text-[#9aa6bc]">{COPY.hostRegister.verify.verifying}</p>
             </>
           )}
 
           {state === "success" && (
             <>
               <CheckCircle className="w-12 h-12 text-[#35d07f] mx-auto" />
-              <h2 className="text-xl font-bold text-white">Email verified!</h2>
+              <h2 className="text-xl font-extrabold tracking-widest text-white">{COPY.hostRegister.verify.verifiedHeading}</h2>
               <p className="text-[#9aa6bc] text-sm">{message}</p>
             </>
           )}
@@ -76,13 +76,13 @@ export default function VerifyEmail() {
           {state === "error" && (
             <>
               <XCircle className="w-12 h-12 text-[#ff6b6b] mx-auto" />
-              <h2 className="text-xl font-bold text-white">Verification failed</h2>
+              <h2 className="text-xl font-extrabold tracking-widest text-white">{COPY.hostRegister.verify.failedHeading}</h2>
               <p className="text-[#9aa6bc] text-sm">{message}</p>
               <Button
                 className="bg-[#ff2d8e] hover:bg-[#e0207d] text-white"
                 onClick={() => setLocation("/register")}
               >
-                Register again
+                {COPY.hostRegister.verify.registerAgain}
               </Button>
             </>
           )}

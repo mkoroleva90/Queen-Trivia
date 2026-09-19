@@ -79,7 +79,7 @@ function PwField({
         type="button"
         onClick={() => setShow((s) => !s)}
         className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-        aria-label={show ? "Hide password" : "Show password"}
+        aria-label={show ? COPY.hostLogin.hidePassword : COPY.hostLogin.showPassword}
       >
         {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
       </button>

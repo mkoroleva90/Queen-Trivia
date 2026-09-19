@@ -1037,28 +1037,23 @@ export const COPY = {
    * Web wording is canonical where the platforms previously differed.
    */
   hostLogin: {
-    /** Main heading on the web host-login page. */
-    heading:                  'HOST LOGIN',
+    /** Main heading on the host-login page. Both platforms. */
+    heading:                  'HOST SIGN IN',
     /** Card heading inside the login form (web). */
     cardHeading:              'Sign In',
-    /** Helper text beneath the heading (web). */
-    helper:                   'Sign in with your email and password to manage your games',
-    /** Main heading on the mobile host-login page. */
-    mobileHeading:            'HOST SIGN IN',
-    /** Helper text beneath the mobile heading. */
-    mobileHelper:             'Sign in to manage your trivia games',
+    /** Helper text beneath the heading. Both platforms. */
+    helper:                   'Sign in to manage your trivia games',
     /** Email field label. Platforms apply uppercase styling. */
     emailLabel:               'EMAIL',
-    /** Email field placeholder (web). */
-    emailPlaceholder:         'Email address',
-    /** Email field placeholder (mobile). */
-    mobileEmailPlaceholder:   'your@email.com',
+    /** Email field placeholder. Both platforms. */
+    emailPlaceholder:         'you@example.com',
     /** Password field label. Platforms apply uppercase styling. */
     passwordLabel:            'PASSWORD',
-    /** Password field placeholder (web). */
+    /** Password field placeholder. Both platforms. */
     passwordPlaceholder:      'Password',
-    /** Password field placeholder (mobile). */
-    mobilePasswordPlaceholder: '••••••••',
+    /** Screen-reader labels for the show / hide password toggle. Both platforms. */
+    showPassword:             'Show password',
+    hidePassword:             'Hide password',
     /** Remember-me checkbox label (web). */
     rememberMe:               'Remember me for 30 days',
     /**
@@ -1108,22 +1103,33 @@ export const COPY = {
   },
 
   /**
-   * Forgot-password and reset-code screens (mobile only).
-   * The web reset flow uses a link and does not share these strings.
+   * Forgot-password and reset-password screens. Both platforms share these
+   * strings; the mechanism differs (web emails a link, mobile a 6-digit code)
+   * so a few keys exist in a link and a code variant.
    */
   hostForgotPassword: {
-    /** Main heading on the request-code screen. */
+    /** Main heading on the request screen. */
     heading:              'FORGOT PASSWORD',
-    /** Helper text beneath the heading. */
+    /** Helper text beneath the heading (mobile — code flow). */
     helper:               "Enter your email and we'll send a 6-digit reset code",
+    /** Helper text beneath the heading (web — link flow). */
+    helperLink:           "Enter your email and we'll send you a reset link",
     /** Email field label. */
     emailLabel:           'EMAIL ADDRESS',
     /** Email field placeholder. */
     emailPlaceholder:     'you@example.com',
-    /** Submit button while idle. */
+    /** Submit button while idle (mobile — code flow). */
     sendBtn:              'SEND CODE',
+    /** Submit button while idle (web — link flow). */
+    sendLinkBtn:          'SEND RESET LINK',
     /** Submit button while request is in flight. */
     sending:              'Sending…',
+    /** Confirmation screen after a reset link is requested (web — link flow). */
+    sentHeading:          'CHECK YOUR EMAIL',
+    /** Rendered as "{sentBodyPrefix} {email} {sentBodySuffix}". */
+    sentBodyPrefix:       'If',
+    sentBodySuffix:       "is registered, a password reset link is on its way. Check your spam folder if you don't see it within a minute.",
+    backToSignIn:         'Back to sign in',
     /** Back button label. */
     back:                 'Back',
     /** Footer prompt on the request-code screen. */
@@ -1133,8 +1139,10 @@ export const COPY = {
 
     /** Main heading on the enter-code + new-password screen. */
     resetHeading:         'RESET PASSWORD',
-    /** Helper text beneath the reset heading. */
+    /** Helper text beneath the reset heading (mobile — code flow). */
     resetHelper:          'Enter the 6-digit code from your email and choose a new password',
+    /** Helper text beneath the reset heading (web — link flow). */
+    resetHelperLink:      'Choose a new password for your account',
     /** Code field label. */
     codeLabel:            'RESET CODE',
     /** Code field placeholder. */
@@ -1142,7 +1150,7 @@ export const COPY = {
     /** New-password field label. */
     newPasswordLabel:     'NEW PASSWORD',
     /** New-password field placeholder. */
-    newPasswordPlaceholder: '••••••••',
+    newPasswordPlaceholder: 'At least 8 characters',
     /** Confirm-password field label. */
     confirmLabel:         'CONFIRM PASSWORD',
     /** Confirm-password field placeholder. */
@@ -1156,6 +1164,11 @@ export const COPY = {
     resendPrompt:         "Didn't get the code?",
     resendLink:           'Resend',
     resent:               'A new code is on its way.',
+    /** Invalid / expired reset link screen (web — link flow). */
+    requestNewLink:       'Request a new link',
+    /** Success screen after the password is changed. Both platforms. */
+    updatedHeading:       'PASSWORD UPDATED',
+    updatedBody:          'Your password has been changed. You can now sign in.',
 
     error: {
       /** Email field is empty. */
@@ -1176,6 +1189,8 @@ export const COPY = {
       passwordsNoMatch:  'Passwords do not match',
       /** API rejected the code (wrong or expired). */
       invalidCode:       'That code is invalid or has expired — request a new one',
+      /** Reset link is missing, wrong or expired (web — link flow). */
+      invalidLink:       'This reset link is invalid or has expired — request a new one',
       /** Unexpected server error. */
       somethingWrong:    'Something went wrong — please retry',
     },
@@ -1423,14 +1438,23 @@ export const COPY = {
    */
   hostRegister: {
     /**
-     * Code-entry step shown after the mobile registration form submits.
-     * The server emails a 6-digit code (POST /auth/email/mobile-register);
-     * the host types it here (POST /auth/email/mobile-verify) and is signed in.
+     * Verify step shown after the registration form submits. Mobile emails a
+     * 6-digit code (POST /auth/email/mobile-register) that the host types here;
+     * web emails a link (POST /auth/email/register) that opens /verify-email.
      */
     verify: {
       heading:        'VERIFY YOUR EMAIL',
-      /** Rendered as "{helperPrefix} {email}." */
+      /** Rendered as "{helperPrefix} {email}." (mobile — code flow). */
       helperPrefix:   'Enter the 6-digit code we sent to',
+      /** Rendered as "{linkHelperPrefix} {email}. {linkHelperSuffix}" (web — link flow). */
+      linkHelperPrefix: "We've sent a verification link to",
+      linkHelperSuffix: 'Open the link in that email to activate your account.',
+      /** /verify-email page states (web — link flow). */
+      verifying:      'Verifying your email…',
+      verifiedHeading: 'EMAIL VERIFIED',
+      verifiedBody:   'Your email has been verified. Taking you to your games…',
+      failedHeading:  'VERIFICATION FAILED',
+      registerAgain:  'Register again',
       codeLabel:      'VERIFICATION CODE',
       codePlaceholder: '6-digit code',
       submitBtn:      'VERIFY EMAIL',
@@ -1444,7 +1468,7 @@ export const COPY = {
       resending:      'Sending…',
       resent:         'A new email is on its way.',
     },
-    /** Form (mobile). */
+    /** Form. Both platforms. */
     heading:         'CREATE ACCOUNT',
     helper:          'Register as a host to create and manage trivia games',
     /** Both platforms. */
@@ -1460,6 +1484,8 @@ export const COPY = {
       enterPassword: 'Enter a password',
       /** Server rejected the verification code (400). */
       invalidCode:   'That code is invalid or has expired',
+      /** Verification link is missing, wrong or expired (web — link flow). */
+      invalidLink:   'This verification link is invalid or has expired',
       /** Per-account attempt limit or IP limit hit (429). */
       tooManyAttempts: 'Too many attempts — please wait a while and try again',
     },

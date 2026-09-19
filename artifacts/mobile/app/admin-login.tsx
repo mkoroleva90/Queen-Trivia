@@ -181,9 +181,9 @@ export default function AdminLoginScreen() {
           <View style={s.iconRow}>
             <Ionicons name="shield-checkmark" size={48} color={colors.primary} />
           </View>
-          <Text style={[s.title, { color: colors.foreground }]}>{COPY.hostLogin.mobileHeading}</Text>
+          <Text style={[s.title, { color: colors.foreground }]}>{COPY.hostLogin.heading}</Text>
           <Text style={[s.subtitle, { color: colors.mutedForeground }]}>
-            {COPY.hostLogin.mobileHelper}
+            {COPY.hostLogin.helper}
           </Text>
 
           <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -193,7 +193,7 @@ export default function AdminLoginScreen() {
               style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: error ? colors.destructive : colors.border }]}
               value={email}
               onChangeText={(t) => { setEmail(t); setError(''); }}
-              placeholder={COPY.hostLogin.mobileEmailPlaceholder}
+              placeholder={COPY.hostLogin.emailPlaceholder}
               placeholderTextColor={colors.mutedForeground}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -208,7 +208,7 @@ export default function AdminLoginScreen() {
                 style={[s.input, s.passwordInput, { backgroundColor: colors.background, color: colors.foreground, borderColor: error ? colors.destructive : colors.border }]}
                 value={password}
                 onChangeText={(t) => { setPassword(t); setError(''); }}
-                placeholder={COPY.hostLogin.mobilePasswordPlaceholder}
+                placeholder={COPY.hostLogin.passwordPlaceholder}
                 placeholderTextColor={colors.mutedForeground}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
