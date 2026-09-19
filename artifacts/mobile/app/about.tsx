@@ -9,13 +9,10 @@ import {
 import { Text } from '@/components/ThemedText';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as WebBrowser from 'expo-web-browser';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { CrownMark } from '@/components/CrownMark';
 import { COPY } from '@workspace/copy';
-
-const SUPPORT_URL = 'https://queen-trivia.com/support';
 
 interface LinkRowProps {
   icon: React.ComponentProps<typeof Ionicons>['name'];
@@ -51,36 +48,6 @@ function LinkRow({ icon, label, sublabel, accentColor, onPress, externalIcon = f
         <Ionicons name={externalIcon ? 'open-outline' : 'chevron-forward'} size={18} color={colors.mutedForeground} />
       )}
     </Pressable>
-  );
-}
-
-function SupportRow({ icon, label, sublabel, accentColor, url }: Omit<LinkRowProps, 'onPress' | 'externalIcon' | 'loading'> & { url: string }) {
-  const colors = useColors();
-  const [loading, setLoading] = React.useState(false);
-
-  const handlePress = async () => {
-    setLoading(true);
-    try {
-      await WebBrowser.openBrowserAsync(url, {
-        presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
-        toolbarColor: colors.background,
-        controlsColor: accentColor,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <LinkRow
-      icon={icon}
-      label={label}
-      sublabel={sublabel}
-      accentColor={accentColor}
-      onPress={handlePress}
-      externalIcon
-      loading={loading}
-    />
   );
 }
 
@@ -130,12 +97,12 @@ export default function AboutScreen() {
             accentColor={colors.accent}
             onPress={() => router.push('/terms')}
           />
-          <SupportRow
+          <LinkRow
             icon="chatbubble-ellipses-outline"
             label={COPY.footer.support}
             sublabel={COPY.about.supportSub}
             accentColor={colors.secondary}
-            url={SUPPORT_URL}
+            onPress={() => router.push('/support')}
           />
         </View>
       </View>

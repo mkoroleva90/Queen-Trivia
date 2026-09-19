@@ -1,15 +1,18 @@
 /**
- * Account screen — host account management, reached from the person icon in
- * the admin header. Mirrors the web Account page (AdminSettings.tsx) card for
- * card: display name, change password (accounts with a password only),
- * sign out, danger zone (delete account with confirmation), legal links.
+ * Account screen — host account management, reached from the Account tab and
+ * the person icon in the admin header. Mirrors the web Account page
+ * (AdminSettings.tsx) card for card: display name, change password (accounts
+ * with a password only), sign out, danger zone (delete account with
+ * confirmation), legal links.
+ *
+ * Rendered inside the Account tab with `embedded` (no header, tab-bar padding)
+ * and as a pushed route from the header icon (with its own back header).
  */
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
-  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -27,10 +30,6 @@ import { API_BASE_URL } from '@/lib/apiBase';
 import { useColors } from '@/hooks/useColors';
 import { COPY } from '@workspace/copy';
 
-const PRIVACY_URL = 'https://queen-trivia.com/privacy';
-const TERMS_URL   = 'https://queen-trivia.com/terms';
-const SUPPORT_URL = 'https://queen-trivia.com/support';
-
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function adminFetch(url: string, options?: RequestInit) {
@@ -45,7 +44,15 @@ async function adminFetch(url: string, options?: RequestInit) {
   });
 }
 
-export default function AdminAccountScreen() {
+export default function AdminAccountScreen({
+  embedded = false,
+  bottomPadding = 0,
+}: {
+  /** True when rendered inside the admin home's Account tab (no own header). */
+  embedded?: boolean;
+  /** Extra bottom padding so the content clears the tab bar when embedded. */
+  bottomPadding?: number;
+} = {}) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -214,20 +221,22 @@ export default function AdminAccountScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[s.container, { backgroundColor: colors.background, paddingTop: insets.top }]}
+      style={[s.container, { backgroundColor: colors.background, paddingTop: embedded ? 0 : insets.top }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {/* Header */}
-      <View style={[s.header, { borderBottomColor: colors.border }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn} accessibilityRole="button" accessibilityLabel={COPY.common.back}>
-          <Ionicons name="chevron-back" size={22} color={colors.foreground} />
-        </Pressable>
-        <Text style={[s.headerTitle, { color: colors.foreground }]}>{COPY.nav.rooms}</Text>
-        <View style={s.backBtn} />
-      </View>
+      {/* Header (the Account tab supplies its own via AdminHeader) */}
+      {!embedded && (
+        <View style={[s.header, { borderBottomColor: colors.border }]}>
+          <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn} accessibilityRole="button" accessibilityLabel={COPY.common.back}>
+            <Ionicons name="chevron-back" size={22} color={colors.foreground} />
+          </Pressable>
+          <Text style={[s.headerTitle, { color: colors.foreground }]}>{COPY.nav.rooms}</Text>
+          <View style={s.backBtn} />
+        </View>
+      )}
 
       <ScrollView
-        contentContainerStyle={[s.body, { paddingBottom: insets.bottom + 32 }]}
+        contentContainerStyle={[s.body, { paddingBottom: (embedded ? bottomPadding : insets.bottom) + 32 }]}
         keyboardShouldPersistTaps="handled"
       >
         <Text style={[s.subtitle, { color: colors.mutedForeground }]}>{COPY.account.subtitle}</Text>
@@ -482,19 +491,20 @@ export default function AdminAccountScreen() {
             <Ionicons name="document-text-outline" size={18} color={colors.primary} />
             <Text style={[s.sectionTitle, { color: colors.foreground }]}>{COPY.account.legalTitle}</Text>
           </View>
-          <Pressable style={s.legalRow} onPress={() => Linking.openURL(PRIVACY_URL)}>
+          {/* In-app legal screens, same as the player welcome footer and web. */}
+          <Pressable style={s.legalRow} onPress={() => router.push('/privacy')}>
             <Text style={[s.legalLink, { color: colors.primary }]}>{COPY.footer.privacyPolicy}</Text>
-            <Ionicons name="open-outline" size={15} color={colors.primary} />
+            <Ionicons name="chevron-forward" size={15} color={colors.primary} />
           </Pressable>
           <View style={[s.legalDivider, { backgroundColor: colors.border }]} />
-          <Pressable style={s.legalRow} onPress={() => Linking.openURL(TERMS_URL)}>
+          <Pressable style={s.legalRow} onPress={() => router.push('/terms')}>
             <Text style={[s.legalLink, { color: colors.primary }]}>{COPY.footer.termsOfService}</Text>
-            <Ionicons name="open-outline" size={15} color={colors.primary} />
+            <Ionicons name="chevron-forward" size={15} color={colors.primary} />
           </Pressable>
           <View style={[s.legalDivider, { backgroundColor: colors.border }]} />
-          <Pressable style={s.legalRow} onPress={() => Linking.openURL(SUPPORT_URL)}>
+          <Pressable style={s.legalRow} onPress={() => router.push('/support')}>
             <Text style={[s.legalLink, { color: colors.primary }]}>{COPY.footer.support}</Text>
-            <Ionicons name="open-outline" size={15} color={colors.primary} />
+            <Ionicons name="chevron-forward" size={15} color={colors.primary} />
           </Pressable>
         </View>
       </ScrollView>
