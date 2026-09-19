@@ -128,6 +128,51 @@ export default function AdminLiveScreen() {
   const { data: participants, refetch: refetchParticipants } = useListGameParticipants(gameId);
   const updateGame = useUpdateGame();
 
+  // ── Rename while live ──
+  // The host can change the quiz title after it has gone live. Same PATCH as
+  // the games list; players pick the new title up on their next game refetch.
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
+  const [titleError, setTitleError] = useState<string | null>(null);
+  const [titleSaving, setTitleSaving] = useState(false);
+
+  const startEditTitle = () => {
+    if (!game) return;
+    setTitleDraft(game.topic ?? '');
+    setTitleError(null);
+    setEditingTitle(true);
+  };
+
+  const cancelEditTitle = () => {
+    setEditingTitle(false);
+    setTitleError(null);
+  };
+
+  const saveTitle = async () => {
+    if (!game) return;
+    const name = titleDraft.trim();
+    if (!name) {
+      setTitleError(COPY.admin.renameEmpty);
+      return;
+    }
+    if (name === game.topic) { cancelEditTitle(); return; }
+    setTitleSaving(true);
+    try {
+      await updateGame.mutateAsync({ gameId, data: { topic: name } });
+      // Patch the cached list so the header reflects the new name right away.
+      qc.setQueryData(
+        getListGamesQueryKey(),
+        (old: typeof games) => old?.map((g) => (g.id === gameId ? { ...g, topic: name } : g)),
+      );
+      qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
+      cancelEditTitle();
+    } catch {
+      setTitleError(COPY.admin.renameFailed);
+    } finally {
+      setTitleSaving(false);
+    }
+  };
+
   const baseUrl = API_BASE_URL;
   const {
     data: pendingReviews = [],
@@ -551,16 +596,69 @@ export default function AdminLiveScreen() {
         <Pressable onPress={() => router.back()} style={s.backBtn} hitSlop={12}>
           <Ionicons name="chevron-back" size={22} color={colors.foreground} />
         </Pressable>
-        <View style={s.headerCenter}>
-          <View style={[s.liveDot, { backgroundColor: colors.secondary }]} />
-          <Text style={[s.headerTitle, { color: colors.foreground }]} numberOfLines={1}>
-            {game.topic}
-          </Text>
-        </View>
-        <View style={[s.codeChip, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[s.codeText, { color: colors.accent }]}>{game.accessCode}</Text>
-        </View>
+        {editingTitle ? (
+          <View style={s.headerCenter}>
+            <TextInput
+              style={[s.titleInput, { color: colors.foreground, borderColor: colors.primary, backgroundColor: colors.muted }]}
+              value={titleDraft}
+              onChangeText={(t) => { setTitleDraft(t); setTitleError(null); }}
+              autoFocus
+              maxLength={120}
+              returnKeyType="done"
+              editable={!titleSaving}
+              onSubmitEditing={saveTitle}
+              accessibilityLabel={COPY.gameEditor.quizNamePlaceholder}
+            />
+            {titleSaving ? (
+              <ActivityIndicator size="small" color={colors.primary} style={{ marginLeft: 8 }} />
+            ) : (
+              <>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={COPY.admin.renameSaveLabel}
+                  style={[s.titleIconBtn, { backgroundColor: colors.primary + '20' }]}
+                  onPress={saveTitle}
+                >
+                  <Ionicons name="checkmark" size={18} color={colors.primary} />
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={COPY.admin.renameCancelLabel}
+                  style={[s.titleIconBtn, { backgroundColor: colors.muted }]}
+                  onPress={cancelEditTitle}
+                >
+                  <Ionicons name="close" size={18} color={colors.mutedForeground} />
+                </Pressable>
+              </>
+            )}
+          </View>
+        ) : (
+          <>
+            <View style={s.headerCenter}>
+              <View style={[s.liveDot, { backgroundColor: colors.secondary }]} />
+              <Text style={[s.headerTitle, { color: colors.foreground }]} numberOfLines={1}>
+                {game.topic}
+              </Text>
+              {/* Hosts can rename a quiz at any status, including while it is live. */}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={COPY.admin.renameLabel}
+                style={s.titleEditBtn}
+                hitSlop={8}
+                onPress={startEditTitle}
+              >
+                <Ionicons name="pencil-outline" size={15} color={colors.mutedForeground} />
+              </Pressable>
+            </View>
+            <View style={[s.codeChip, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[s.codeText, { color: colors.accent }]}>{game.accessCode}</Text>
+            </View>
+          </>
+        )}
       </View>
+      {editingTitle && titleError && (
+        <Text style={[s.titleError, { color: colors.destructive }]}>{titleError}</Text>
+      )}
 
       {/* Question answer tracking */}
       <ScrollView
@@ -1063,6 +1161,10 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
     liveDot: { width: 8, height: 8, borderRadius: 4 },
     headerTitle: { flex: 1, fontSize: 18, fontFamily: 'Manrope_700Bold' },
+    titleEditBtn: { padding: 2 },
+    titleInput: { flex: 1, borderWidth: 1.5, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 15, fontFamily: 'Manrope_700Bold' },
+    titleIconBtn: { borderRadius: 8, padding: 6 },
+    titleError: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', paddingHorizontal: 16, marginBottom: 4 },
     codeChip: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4 },
     codeText: { fontSize: 13, fontFamily: 'Manrope_700Bold', letterSpacing: 2 },
     list: { paddingHorizontal: 16, gap: 10 },

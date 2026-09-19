@@ -3751,6 +3751,49 @@ function LiveGameView({
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  // ── Rename while live ─────────────────────────────────────────────────────
+  // The host can change the quiz title after it has gone live. Same PATCH as
+  // the games list; players pick the new title up on their next game refetch.
+  const updateGame = useUpdateGame();
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [titleError, setTitleError] = useState("");
+
+  const startEditTitle = () => {
+    if (!activeGame) return;
+    setTitleDraft(activeGame.topic);
+    setTitleError("");
+    setEditingTitle(true);
+  };
+
+  const cancelEditTitle = () => {
+    setEditingTitle(false);
+    setTitleError("");
+  };
+
+  const saveTitle = () => {
+    if (!activeGame) return;
+    const name = titleDraft.trim();
+    if (!name) {
+      setTitleError(COPY.admin.renameEmpty);
+      return;
+    }
+    if (name === activeGame.topic) { cancelEditTitle(); return; }
+    updateGame.mutate(
+      { gameId: activeGame.id, data: { topic: name } },
+      {
+        onSuccess: () => {
+          cancelEditTitle();
+          queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
+          toast({ title: COPY.admin.renamed(name) });
+        },
+        onError: (err: any) => {
+          setTitleError(err?.response?.data?.error ?? COPY.admin.renameFailed);
+        },
+      }
+    );
+  };
+
   // ── Player removal (kick) state ───────────────────────────────────────────
   const [kickTarget, setKickTarget] = useState<{ userId: number; userName: string } | null>(null);
   const [kicking, setKicking] = useState(false);
@@ -4169,7 +4212,57 @@ function LiveGameView({
           <span className="h-[7px] w-[7px] rounded-full bg-[#ff0080] animate-pulse" />
           <span className="text-[9px] font-extrabold tracking-[.16em] text-[#ff5aa8]">LIVE NOW</span>
         </div>
-        <h1 className="text-lg font-extrabold text-[#eef2f8] truncate">{activeGame.topic}</h1>
+        {editingTitle ? (
+          <div className="flex-1 min-w-[200px]">
+            <div className="flex items-center gap-1.5">
+              <Input
+                value={titleDraft}
+                onChange={(e) => { setTitleDraft(e.target.value); setTitleError(""); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveTitle();
+                  if (e.key === "Escape") cancelEditTitle();
+                }}
+                autoFocus
+                maxLength={120}
+                disabled={updateGame.isPending}
+                className="h-8 flex-1 text-sm font-bold bg-[#0a1019] border-[#1b2740] text-white"
+                aria-label={COPY.gameEditor.quizNamePlaceholder}
+              />
+              <Button
+                size="icon"
+                className="h-8 w-8 shrink-0 bg-[#35d07f] hover:bg-[#35d07f]/90 text-black"
+                aria-label={COPY.admin.renameSaveLabel}
+                disabled={updateGame.isPending}
+                onClick={saveTitle}
+              >
+                {updateGame.isPending ? <span className="w-3 h-3 border-2 border-black/40 border-t-black rounded-full animate-spin" /> : <Check className="w-4 h-4" />}
+              </Button>
+              <Button
+                size="icon"
+                variant="outline"
+                className="h-8 w-8 shrink-0 border-[#1b2740] bg-[#0a1019] text-[#9aa6bc] hover:bg-[#1b2740]"
+                aria-label={COPY.admin.renameCancelLabel}
+                disabled={updateGame.isPending}
+                onClick={cancelEditTitle}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            {titleError && <p className="text-xs text-[#ff6b6b] mt-1">{titleError}</p>}
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 min-w-0 group">
+            <h1 className="text-lg font-extrabold text-[#eef2f8] truncate">{activeGame.topic}</h1>
+            <button
+              type="button"
+              onClick={startEditTitle}
+              className="text-[#66728a] hover:text-white transition-colors p-1 shrink-0"
+              aria-label={COPY.admin.renameLabel}
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
         <div className="ml-auto flex items-center gap-3">
           <button
             onClick={() => endGame(activeGame.id)}
@@ -4474,7 +4567,7 @@ function GamesView({
         onSuccess: () => {
           setEditingNameId(null);
           invalidate();
-          toast({ title: `Quiz renamed to "${name}"` });
+          toast({ title: COPY.admin.renamed(name) });
         },
         onError: (err: any) => {
           const msg = err?.response?.data?.error ?? COPY.admin.renameFailed;
@@ -4650,7 +4743,7 @@ function GamesView({
                     <Button
                       size="icon"
                       className="h-8 w-8 shrink-0 bg-[#35d07f] hover:bg-[#35d07f]/90 text-black"
-                      aria-label="Save quiz name"
+                      aria-label={COPY.admin.renameSaveLabel}
                       disabled={updateGame.isPending}
                       onClick={() => saveName(game)}
                     >
@@ -4660,7 +4753,7 @@ function GamesView({
                       size="icon"
                       variant="outline"
                       className="h-8 w-8 shrink-0 border-[#1b2740] bg-[#0a1019] text-[#9aa6bc] hover:bg-[#1b2740]"
-                      aria-label="Cancel renaming"
+                      aria-label={COPY.admin.renameCancelLabel}
                       disabled={updateGame.isPending}
                       onClick={() => setEditingNameId(null)}
                     >
@@ -4672,15 +4765,14 @@ function GamesView({
               ) : (
                 <div className="flex items-center gap-1.5 mb-1 group">
                   <h3 className="text-lg font-bold text-white line-clamp-2 leading-tight">{game.topic}</h3>
-                  {!isLive && (
-                    <button
-                      onClick={() => startEditName(game)}
-                      className="text-[#66728a] hover:text-white transition-colors p-1 opacity-0 group-hover:opacity-100 shrink-0"
-                      aria-label="Rename quiz"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                  {/* Hosts can rename a quiz at any status, including while it is live. */}
+                  <button
+                    onClick={() => startEditName(game)}
+                    className="text-[#66728a] hover:text-white transition-colors p-1 opacity-0 group-hover:opacity-100 shrink-0"
+                    aria-label={COPY.admin.renameLabel}
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               )}
               <p className="text-[#9aa6bc] text-sm mb-1">
