@@ -453,6 +453,78 @@ export const useMobileResendVerificationCode = <TError = ErrorType<void>,
       return useMutation(getMobileResendVerificationCodeMutationOptions(options));
     }
 
+export const getResendVerificationLinkUrl = () => {
+
+
+
+
+  return `/api/auth/email/resend-verification`
+}
+
+/**
+ * Web counterpart of /auth/email/mobile-resend-code. If an UNVERIFIED account exists for the email, re-issues a fresh verification link (24-hour expiry) and emails it. Always responds 200 with a generic message whether or not an unverified account exists, so accounts cannot be enumerated.
+ * @summary Resend the host email-verification link (web)
+ */
+export const resendVerificationLink = async (mobileResendCodeInput: MobileResendCodeInput, options?: RequestInit): Promise<MobileResendCodeResult> => {
+
+  return customFetch<MobileResendCodeResult>(getResendVerificationLinkUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(mobileResendCodeInput)
+  }
+);}
+
+
+
+
+
+export const getResendVerificationLinkMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendVerificationLink>>, TError,{data: BodyType<MobileResendCodeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resendVerificationLink>>, TError,{data: BodyType<MobileResendCodeInput>}, TContext> => {
+
+const mutationKey = ['resendVerificationLink'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resendVerificationLink>>, {data: BodyType<MobileResendCodeInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  resendVerificationLink(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResendVerificationLinkMutationResult = NonNullable<Awaited<ReturnType<typeof resendVerificationLink>>>
+    export type ResendVerificationLinkMutationBody = BodyType<MobileResendCodeInput>
+    export type ResendVerificationLinkMutationError = ErrorType<void>
+
+    /**
+ * @summary Resend the host email-verification link (web)
+ */
+export const useResendVerificationLink = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendVerificationLink>>, TError,{data: BodyType<MobileResendCodeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resendVerificationLink>>,
+        TError,
+        {data: BodyType<MobileResendCodeInput>},
+        TContext
+      > => {
+      return useMutation(getResendVerificationLinkMutationOptions(options));
+    }
+
 export const getCreateUserUrl = () => {
 
 

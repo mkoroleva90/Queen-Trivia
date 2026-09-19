@@ -1438,11 +1438,11 @@ export const COPY = {
       /** Footer prompt + link that returns to the registration form. */
       wrongEmail:     'Wrong email?',
       startOver:      'Start over',
-      /** "Resend code" affordance on the verify step. Both platforms. */
-      resendPrompt:   "Didn't get the code?",
+      /** "Resend" affordance on the verify step. Both platforms (web resends the link, mobile the code). */
+      resendPrompt:   "Didn't get the email?",
       resendLink:     'Resend',
       resending:      'Sending…',
-      resent:         'A new code is on its way.',
+      resent:         'A new email is on its way.',
     },
     /** Form (mobile). */
     heading:         'CREATE ACCOUNT',

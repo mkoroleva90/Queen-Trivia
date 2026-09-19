@@ -14,8 +14,36 @@ export default function Register() {
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
+  const [resending, setResending] = useState(false);
+  const [resendMsg, setResendMsg] = useState("");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+
+  // Re-issues the verification link for the address just registered
+  // (mirrors the mobile verify step's resend-code affordance).
+  const handleResend = async () => {
+    if (resending) return;
+    setResendMsg("");
+    setResending(true);
+    try {
+      const res = await fetch(`${import.meta.env.BASE_URL}api/auth/email/resend-verification`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+      if (res.status === 503) {
+        toast({ variant: "destructive", title: COPY.hostForgotPassword.error.emailServiceDown });
+        return;
+      }
+      // Server always returns a generic ack (no enumeration).
+      setResendMsg(COPY.hostRegister.verify.resent);
+    } catch {
+      toast({ variant: "destructive", title: COPY.hostLogin.error.connectionError });
+    } finally {
+      setResending(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,12 +100,16 @@ export default function Register() {
               {COPY.hostRegister.verify.resendPrompt}{" "}
               <button
                 type="button"
-                className="text-[#ff2d8e] hover:underline"
-                onClick={() => setDone(false)}
+                className="text-[#ff2d8e] hover:underline disabled:opacity-60"
+                onClick={handleResend}
+                disabled={resending}
               >
-                {COPY.hostRegister.verify.resendLink}
+                {resending ? COPY.hostRegister.verify.resending : COPY.hostRegister.verify.resendLink}
               </button>
             </p>
+            {resendMsg && (
+              <p className="text-[#9aa6bc] text-xs">{resendMsg}</p>
+            )}
             <Button
               variant="outline"
               className="mt-4 border-[#1b2740] text-[#9aa6bc] hover:text-white"

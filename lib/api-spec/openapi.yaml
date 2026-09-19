@@ -136,6 +136,34 @@ paths:
           description: Invalid request body
         "429":
           description: Too many attempts from this IP
+  /auth/email/resend-verification:
+    post:
+      operationId: resendVerificationLink
+      tags: [auth]
+      summary: Resend the host email-verification link (web)
+      description: >-
+        Web counterpart of /auth/email/mobile-resend-code. If an UNVERIFIED
+        account exists for the email, re-issues a fresh verification link
+        (24-hour expiry) and emails it. Always responds 200 with a generic
+        message whether or not an unverified account exists, so accounts
+        cannot be enumerated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MobileResendCodeInput"
+      responses:
+        "200":
+          description: Generic acknowledgement (sent whether or not a link was issued)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MobileResendCodeResult"
+        "400":
+          description: Invalid request body
+        "429":
+          description: Too many attempts from this IP
   /users:
     post:
       operationId: createUser
