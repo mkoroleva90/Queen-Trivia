@@ -1767,8 +1767,8 @@ const handleSubmit = async (e: React.FormEvent) => {
     const status = err && typeof err === "object" && "status" in err ? (err as { status: number}).status : 0;
       toast({
        variant: "destructive",
-       title: status === 403 ? "Session expired" : "Failed to create game",
-   description: status === 403 ? "Please log out and log back in with the admin code." :undefined,
+       title: status === 403 ? COPY.admin.sessionExpiredTitle : COPY.build.error.createGame,
+       description: status === 403 ? COPY.admin.sessionExpiredBody : undefined,
       });
       setWorking(false);
       return;
@@ -1792,13 +1792,13 @@ const handleSubmit = async (e: React.FormEvent) => {
       queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
       setImportedCount(result.imported);
       setImportSource("opentdb");
-      toast({ title: `${result.imported} questions imported from Open Trivia Database!` });
+      toast({ title: COPY.build.importedToast(result.imported) });
   } catch (err: unknown) {
       const msg =
     err instanceof Error ? err.message : COPY.build.error.fetchOpenTdb;
       setImportError(msg);
       setImportSource("opentdb");
-      toast({ variant: "destructive", title: "Import failed — add questions manually" });
+      toast({ variant: "destructive", title: COPY.build.error.importQuestions });
   }
  } else {
   // Gemini path for custom topics
@@ -1811,7 +1811,7 @@ const handleSubmit = async (e: React.FormEvent) => {
           queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
           setImportedCount(result.imported);
           setImportSource("gemini");
-          toast({ title: `${result.imported} questions generated` });
+          toast({ title: COPY.build.generatedToast(result.imported) });
           if (result.contentFilteredCount && result.contentFilteredCount > 0 && result.contentFilteredMessage) {
               toast({ variant: "destructive", title: result.contentFilteredMessage });
           }
@@ -1821,20 +1821,20 @@ const handleSubmit = async (e: React.FormEvent) => {
           const errData = err && typeof err === "object" && "data" in err ? (err as { data: unknown }).data : null;
           const apiMsg = errData && typeof errData === "object" && "error" in errData ? String((errData as { error: unknown }).error) : null;
           const errCode = errData && typeof errData === "object" && "code" in errData ? String((errData as { code: unknown }).code) : null;
-          const msg = apiMsg ?? "Could not generate questions.";
+          const msg = apiMsg ?? COPY.build.error.generate;
           setImportError(msg);
           setImportSource("gemini");
      const { isDaily: _isDaily1, isPerMinute: _isPM1, countdown: _cd1 } = parseGeminiRateError(err);
           if (_isDaily1) {
               setDailyQuotaExhausted(true);
-              toast({ variant: "destructive", title: "Gemini daily quota exhausted — resets at midnight Pacific" });
+              toast({ variant: "destructive", title: COPY.build.error.dailyQuota });
           } else if (_isPM1) {
               setRetryCountdown(_cd1);
-              toast({ variant: "destructive", title: `Rate limited — retry unlocks in ${_cd1} s` });
+              toast({ variant: "destructive", title: COPY.build.error.rateLimitedRetry(_cd1) });
           } else if (errCode === "content_filtered_all" || errCode === "safety_block") {
               toast({ variant: "destructive", title: msg });
           } else {
-              toast({ variant: "destructive", title: "Generation failed — add questions manually" });
+              toast({ variant: "destructive", title: COPY.build.error.generate });
           }
       }
   }
@@ -1850,7 +1850,7 @@ const handleRetryGeneration = async () => {
  setWorking(true);
  setImportError(null);
  setImportedCount(null);
- setWorkingLabel("Retrying AI question generation… This may take up to 30 seconds");
+ setWorkingLabel(COPY.build.working.retrying);
   try {
    const result = await generateQuestions.mutateAsync({
     gameId: created.id,
@@ -1864,28 +1864,28 @@ const handleRetryGeneration = async () => {
    queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
    setImportedCount(result.imported);
    setImportSource("gemini");
-   toast({ title: `${result.imported} questions generated!` });
+   toast({ title: COPY.build.generatedToast(result.imported) });
   } catch (err: unknown) {
    const limitMsg2 = extractFreeTierLimitMsg(err);
    if (limitMsg2) { setUpgradeLimitMsg(limitMsg2); return; }
    const errData2 = err && typeof err === "object" && "data" in err ? (err as { data: unknown }).data : null;
    const apiMsg2 = errData2 && typeof errData2 === "object" && "error" in errData2 ? String((errData2 as { error: unknown }).error) : null;
    const errCode2 = errData2 && typeof errData2 === "object" && "code" in errData2 ? String((errData2 as { code: unknown }).code) : null;
-   const msg = apiMsg2 ?? "Could not generate questions.";
+   const msg = apiMsg2 ?? COPY.build.error.generate;
    setImportError(msg);
    setImportSource("gemini");
     const status = err && typeof err === "object" && "status" in err ? (err as { status: number}).status : 0;
    const { isDaily: _isDaily2, isPerMinute: _isPM2, countdown: _cd2 } = parseGeminiRateError(err);
    if (_isDaily2) {
        setDailyQuotaExhausted(true);
-       toast({ variant: "destructive", title: "Gemini daily quota exhausted — resets at midnight Pacific" });
+       toast({ variant: "destructive", title: COPY.build.error.dailyQuota });
    } else if (_isPM2) {
        setRetryCountdown(_cd2);
-       toast({ variant: "destructive", title: `Rate limited — retry unlocks in ${_cd2} s` });
+       toast({ variant: "destructive", title: COPY.build.error.rateLimitedRetry(_cd2) });
    } else if (errCode2 === "safety_block") {
        toast({ variant: "destructive", title: msg });
    } else {
-       toast({ variant: "destructive", title: "Generation failed — add questions manually" });
+       toast({ variant: "destructive", title: COPY.build.error.generate });
    }
  } finally {
      setWorking(false);
@@ -2039,7 +2039,7 @@ if (created && importedCount !== null && !working) {
             { gameId: created.id, data: { status: "active", hostPlaysAlong: playAlong } },
             {
               onSuccess: () => { queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() }); onGoLive?.(created); },
-              onError: () => toast({ variant: "destructive", title: "Couldn't go live — please try again." }),
+              onError: () => toast({ variant: "destructive", title: COPY.build.error.goLive }),
             }
           )}
         >
@@ -2068,16 +2068,15 @@ if (created) {
       <>
        <Loader2 className="mx-auto h-14 w-14 text-primary animate-spin" />
        <h3 className="text-2xl font-bold tracking-tight">{workingLabel}</h3>
-      <p className="text-muted-foreground text-sm">This may take a fewseconds…</p>
+      <p className="text-muted-foreground text-sm">{COPY.build.working.hint}</p>
       </>
      ) : importError ? (
       <>
        <AlertTriangle className="mx-auto h-14 w-14 text-orange-400" />
-       <h3 className="text-2xl font-bold tracking-tight">Game Created</h3>
+       <h3 className="text-2xl font-bold tracking-tight">{COPY.build.createdTitle}</h3>
        <p className="text-muted-foreground max-w-sm mx-auto text-sm">
-         <span className="font-semibold text-foreground">{created.topic}</span> isready, but
-        {importSource === "gemini" ? " Gemini" : " auto-import"} hit a snag:{" "}
-        {importError.includes("Too many requests") ? "rate limited by Gemini API" :importError}
+        {COPY.build.createdSnag(created.topic, importSource === "gemini" ? COPY.source.geminiAi : COPY.source.openTriviaDatabase)}{" "}
+        {importError.includes("Too many requests") ? COPY.build.error.rateLimitedShort : importError}
        </p>
        <div className="flex flex-col sm:flex-row justify-center gap-3 pt-2">
         {importSource === "gemini" && (
@@ -2087,11 +2086,11 @@ if (created) {
         disabled={working || retryCountdown > 0}
      >
         {working ? (
-         <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Retrying…</>
+         <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{COPY.build.retrying}</>
         ) : retryCountdown > 0 ? (
-         <><RefreshCw className="mr-2 h-4 w-4" />Retry in {retryCountdown}s</>
+         <><RefreshCw className="mr-2 h-4 w-4" />{COPY.build.retryIn(retryCountdown)}</>
         ):(
-         <><RefreshCw className="mr-2 h-4 w-4" />Retry Generation</>
+         <><RefreshCw className="mr-2 h-4 w-4" />{COPY.build.retryBtn}</>
         )}
      </Button>
    )}
@@ -2100,10 +2099,10 @@ if (created) {
      className="font-bold"
      onClick={() => onCreated(created)}
    >
-     <Pencil className="mr-2 h-4 w-4" /> Add Questions Manually
+     <Pencil className="mr-2 h-4 w-4" /> {COPY.build.addManuallyBtn}
    </Button>
    <Button variant="ghost" onClick={handleReset}>
-     Create Another
+     {COPY.build.createAnotherBtn}
    </Button>
   </div>
  </>
@@ -2126,7 +2125,7 @@ return (
 
          {/* Category / Topic */}
          <div className="space-y-2">
-          <Label>Category</Label>
+          <Label>{COPY.build.categoryLabel}</Label>
            <Select
             value={categoryId}
             onValueChange={(value) => {
@@ -2135,7 +2134,7 @@ return (
             }}
            >
            <SelectTrigger className="h-12">
-            <SelectValue placeholder="Select a category…" />
+            <SelectValue placeholder={COPY.build.selectCategory} />
            </SelectTrigger>
            <SelectContent>
       <SelectItem value="custom">{COPY.build.customTopicOption}</SelectItem>
@@ -2156,7 +2155,7 @@ return (
 {/* Custom topic text input */}
 {isCustom && (
  <div className="space-y-2">
-     <Label htmlFor="customTopic">Topic</Label>
+     <Label htmlFor="customTopic">{COPY.build.topicLabel}</Label>
      <Input
      id="customTopic"
      value={customTopic}
@@ -2169,7 +2168,7 @@ return (
 )}
 {isCustom && (
  <div className="space-y-2">
-  <Label htmlFor="createBrief">Brief <span className="text-muted-foreground font-normal">(optional)</span></Label>
+  <Label htmlFor="createBrief">{COPY.build.briefLabel} <span className="text-muted-foreground font-normal">{COPY.common.optional}</span></Label>
   <Textarea
    id="createBrief"
    value={brief}
@@ -2185,25 +2184,25 @@ return (
 
 <div className="grid grid-cols-2 gap-4">
     <div className="space-y-2">
-     <Label>Difficulty</Label>
+     <Label>{COPY.build.difficultyLabel}</Label>
     <Select value={difficulty} onValueChange={(v) => setDifficulty(v as Game["difficulty"])}>
       <SelectTrigger className="h-12"><SelectValue /></SelectTrigger>
       <SelectContent>
-       <SelectItem value="easy">Easy (5 pts each)</SelectItem>
-       <SelectItem value="medium">Medium (10 pts each)</SelectItem>
-       <SelectItem value="hard">Hard (15 pts each)</SelectItem>
+       <SelectItem value="easy">{COPY.difficulty.selector.easy}</SelectItem>
+       <SelectItem value="medium">{COPY.difficulty.selector.medium}</SelectItem>
+       <SelectItem value="hard">{COPY.difficulty.selector.hard}</SelectItem>
       </SelectContent>
      </Select>
     </div>
     <div className="space-y-2">
-     <Label>Questions to {isCustom ? "Generate" : "Import"}</Label>
+     <Label>{COPY.build.amountLabel}</Label>
      <Select value={amount} onValueChange={setAmount}>
       <SelectTrigger className="h-12"><SelectValue /></SelectTrigger>
       <SelectContent>
-       <SelectItem value="5">5 questions</SelectItem>
-       <SelectItem value="10">10 questions</SelectItem>
-       <SelectItem value="15">15 questions</SelectItem>
-       {!isCustom && <SelectItem value="20">20 questions</SelectItem>}
+       <SelectItem value="5">{COPY.admin.questionsCount(5)}</SelectItem>
+       <SelectItem value="10">{COPY.admin.questionsCount(10)}</SelectItem>
+       <SelectItem value="15">{COPY.admin.questionsCount(15)}</SelectItem>
+       {!isCustom && <SelectItem value="20">{COPY.admin.questionsCount(20)}</SelectItem>}
       </SelectContent>
      </Select>
     </div>
@@ -2215,11 +2214,11 @@ return (
           disabled={!canSubmit}
          >
           {createGame.isPending || working ? (
-     <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {workingLabel ||"Working…"}</>
+     <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {workingLabel || COPY.build.working.default}</>
           ) : isCustom ? (
-              <><Lightbulb className="mr-2 h-4 w-4" /> Create & Generate with Gemini</>
+              <><Lightbulb className="mr-2 h-4 w-4" /> {COPY.btn.createGame}</>
           ):(
-              <><Database className="mr-2 h-4 w-4" /> Save Game</>
+              <><Database className="mr-2 h-4 w-4" /> {COPY.btn.saveGame}</>
           )}
          </Button>
          </form>
@@ -2256,9 +2255,9 @@ function QuestionsSection({
  return (
    <div className="space-y-5">
 <div>
- <h2 className="text-xl font-bold tracking-tight">Add Questions</h2>
+ <h2 className="text-xl font-bold tracking-tight">{COPY.build.addQuestionsHeading}</h2>
  <p className="text-muted-foreground text-sm mt-1">
-  Select a game and build its question set manually.
+  {COPY.build.addQuestionsSub}
  </p>
 </div>
 
@@ -2267,23 +2266,22 @@ function QuestionsSection({
  <Card className="border-dashed border-primary/30 bg-card/40">
  <CardContent className="py-12 text-center space-y-2">
   <Gamepad2 className="mx-auto h-10 w-10 text-primary/40" />
-  <p className="font-semibold">No active games</p>
+  <p className="font-semibold">{COPY.build.noActiveGamesTitle}</p>
   <p className="text-sm text-muted-foreground">
-      Create a new game first. Completed games are archived and cannot
-      be edited.
+      {COPY.build.noActiveGamesBody}
   </p>
  </CardContent>
 </Card>
 ):(
 <>
  <div className="space-y-2">
-  <Label>Select Game</Label>
+  <Label>{COPY.build.selectGameLabel}</Label>
   <Select
       value={selectedId !== null ? String(selectedId) : ""}
       onValueChange={(v) => setSelectedId(Number(v))}
   >
       <SelectTrigger className="h-11 max-w-sm">
-       <SelectValue placeholder="Choose a game..." />
+       <SelectValue placeholder={COPY.build.selectGamePlaceholder} />
       </SelectTrigger>
       <SelectContent>
        {editableGames.map((g) => (
@@ -2294,7 +2292,7 @@ function QuestionsSection({
           )}
           {g.topic}
           <span className="text-muted-foreground text-xs">
-           ({g.questionCount} {g.questionCount === 1 ? "question" : "questions"}{g.status === "active" ? " · live" : ""})
+           ({COPY.admin.questionsCount(g.questionCount ?? 0)}{g.status === "active" ? ` · ${COPY.status.active}` : ""})
           </span>
          </span>
                     </SelectItem>
@@ -2307,7 +2305,7 @@ function QuestionsSection({
               {selectedGame ? (
                <QuestionManager game={selectedGame} />
               ):(
-               <p className="text-sm text-muted-foreground">Select a game above.</p>
+               <p className="text-sm text-muted-foreground">{COPY.build.selectGameHint}</p>
               )}
           </>
          )}
@@ -2633,7 +2631,7 @@ return (
 
      {/* Question list */}
      {selectedGameId === null ? (
-      <p className="text-sm text-muted-foreground">Select a game above.</p>
+      <p className="text-sm text-muted-foreground">{COPY.build.selectGameHint}</p>
     ) : displayList.length === 0 ? (
      <Card className="border-dashed border-card-border bg-card/30">
       <CardContent className="py-10 text-center text-muted-foreground text-sm">
@@ -3198,7 +3196,7 @@ function LiveGameView({
           toast({ title: COPY.admin.renamed(name) });
         },
         onError: (err: any) => {
-          setTitleError(err?.response?.data?.error ?? COPY.admin.renameFailed);
+          setTitleError(err?.data?.error ?? COPY.admin.renameFailed);
         },
       }
     );
@@ -3982,7 +3980,7 @@ function GamesView({
           toast({ title: COPY.admin.renamed(name) });
         },
         onError: (err: any) => {
-          const msg = err?.response?.data?.error ?? COPY.admin.renameFailed;
+          const msg = err?.data?.error ?? COPY.admin.renameFailed;
           toast({ variant: "destructive", title: msg });
         },
       }
@@ -4180,7 +4178,7 @@ function GamesView({
                   {/* Hosts can rename a quiz at any status, including while it is live. */}
                   <button
                     onClick={() => startEditName(game)}
-                    className="text-[#66728a] hover:text-white transition-colors p-1 opacity-0 group-hover:opacity-100 shrink-0"
+                    className="text-[#66728a] hover:text-white transition-colors p-1 shrink-0"
                     aria-label={COPY.admin.renameLabel}
                   >
                     <Pencil className="w-3.5 h-3.5" />
@@ -4188,12 +4186,12 @@ function GamesView({
                 </div>
               )}
               <p className="text-[#9aa6bc] text-sm mb-1">
-                {game.questionCount} {game.questionCount === 1 ? 'question' : 'questions'}
+                {COPY.admin.questionsCount(game.questionCount ?? 0)}
               </p>
               <div className="flex items-center gap-3 mb-3" style={{ color: "#66728a", fontSize: 12, fontWeight: 600 }}>
-                <span>{(game as any).participantCount ?? 0} players</span>
+                <span>{COPY.admin.playersCount((game as any).participantCount ?? 0)}</span>
                 <span>·</span>
-                <span>{game.difficulty ? game.difficulty.charAt(0).toUpperCase() + game.difficulty.slice(1) : '—'}</span>
+                <span>{game.difficulty ? (COPY.difficulty.display as Record<string, string>)[game.difficulty] ?? game.difficulty : '—'}</span>
               </div>
 
               <div className="mb-6 flex-1">
@@ -4209,12 +4207,12 @@ function GamesView({
                           }}
                           autoFocus
                           className="h-8 flex-1 font-mono text-sm tracking-widest bg-[#0a1019] border-[#1b2740] text-white"
-                          aria-label="Room code"
+                          aria-label={COPY.admin.codeInputLabel}
                         />
                         <Button
                           size="icon"
                           className="h-8 w-8 shrink-0 bg-[#35d07f] hover:bg-[#35d07f]/90 text-black"
-                          aria-label="Save room code"
+                          aria-label={COPY.admin.codeSaveLabel}
                           disabled={updateGame.isPending}
                           onClick={() => saveCode(game)}
                         >
@@ -4224,7 +4222,7 @@ function GamesView({
                           size="icon"
                           variant="outline"
                           className="h-8 w-8 shrink-0 border-[#1b2740] bg-[#0a1019] text-[#9aa6bc] hover:bg-[#1b2740]"
-                          aria-label="Cancel editing room code"
+                          aria-label={COPY.admin.codeCancelLabel}
                           onClick={() => { setEditingCodeId(null); setCodeError(null); }}
                         >
                           <X className="w-4 h-4" />
@@ -4234,11 +4232,11 @@ function GamesView({
                     </div>
                   ) : game.accessCode != null ? (
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-bold tracking-wider text-[#66728a]">CODE</span>
+                      <span className="text-[10px] font-bold tracking-wider text-[#66728a]">{COPY.admin.codeHeading}</span>
                       <button
                         onClick={() => copyCode(game)}
                         className="font-mono text-sm tracking-widest text-[#eef2f8] bg-[#0a1019] border border-[#1b2740] rounded-md px-2 py-0.5 hover:border-[#66728a] transition-colors inline-flex items-center gap-1.5"
-                        aria-label="Copy room code"
+                        aria-label={COPY.admin.codeCopyLabel}
                       >
                         {game.accessCode}
                         {copiedCodeId === game.id
@@ -4248,7 +4246,7 @@ function GamesView({
                       <button
                         onClick={() => startEditCode(game)}
                         className="text-[#66728a] hover:text-white transition-colors p-1"
-                        aria-label="Edit room code"
+                        aria-label={COPY.admin.codeEditLabel}
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
@@ -4258,7 +4256,7 @@ function GamesView({
                       onClick={() => startEditCode(game)}
                       className="text-xs font-bold text-[#9aa6bc] hover:text-white transition-colors inline-flex items-center gap-1.5 border border-dashed border-[#1b2740] rounded-md px-2 py-1"
                     >
-                      <Pencil className="w-3 h-3" /> Set room code
+                      <Pencil className="w-3 h-3" /> {COPY.admin.setCodeBtn}
                     </button>
                   )}
                 </div>
@@ -4266,16 +4264,16 @@ function GamesView({
               <div className="mt-auto">
                 {isLive && (
                   <Button className="w-full bg-[#ff0080] hover:bg-[#ff0080]/90 text-white" onClick={() => onNavigate("live", game.id)}>
-                    Open live control <ChevronRight className="w-4 h-4 ml-1" />
+                    {COPY.admin.liveBtn} <ChevronRight className="w-4 h-4 ml-1" />
                   </Button>
                 )}
                 {isDraft && (
                   <div className="flex gap-2">
                     <Button variant="outline" className="flex-1 border-[#1b2740] bg-[#0a1019] text-[#eef2f8] hover:bg-[#1b2740]" onClick={() => onNavigate("build", game.id)}>
-                      <Pencil className="w-4 h-4 mr-2" /> Edit
+                      <Pencil className="w-4 h-4 mr-2" /> {COPY.common.edit}
                     </Button>
                     <Button className="flex-1 bg-[#35d07f] hover:bg-[#35d07f]/90 text-black font-bold" onClick={() => handleGoLive(game)} disabled={game.questionCount === 0}>
-                      <Play className="w-4 h-4 mr-2" /> Go Live
+                      <Play className="w-4 h-4 mr-2" /> {COPY.admin.startBtn}
                     </Button>
                     <Button variant="outline" size="icon" aria-label={COPY.admin.deleteGameLabel} className="shrink-0 border-[#1b2740] bg-[#0a1019] text-[#ff6b6b] hover:bg-[#ff6b6b]/10 hover:text-[#ff6b6b]" onClick={() => handleDelete(game)}>
                       <Trash2 className="w-4 h-4" />
@@ -4285,7 +4283,7 @@ function GamesView({
                 {isCompleted && (
                   <div className="flex gap-2">
                     <Button variant="outline" className="flex-1 border-[#1b2740] bg-[#0a1019] text-[#eef2f8] hover:bg-[#1b2740]" onClick={() => onNavigate("results", game.id)}>
-                      <BarChart3 className="w-4 h-4 mr-2" /> Results
+                      <BarChart3 className="w-4 h-4 mr-2" /> {COPY.admin.resultsBtn}
                     </Button>
                     <Button variant="outline" size="icon" aria-label={COPY.admin.deleteGameLabel} className="shrink-0 border-[#1b2740] bg-[#0a1019] text-[#ff6b6b] hover:bg-[#ff6b6b]/10 hover:text-[#ff6b6b]" onClick={() => handleDelete(game)}>
                       <Trash2 className="w-4 h-4" />
@@ -4368,17 +4366,21 @@ function BuildQuizView({
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-1 bg-[#0a1019] p-1.5 rounded-xl border border-[#1b2740]">
-        {["setup", "questions", "review"].map(t => (
+        {([
+          { id: "setup", label: COPY.build.stepSetup },
+          { id: "questions", label: COPY.build.stepQuestions },
+          { id: "review", label: COPY.build.stepReview },
+        ] as const).map(({ id: t, label }) => (
           <button
             key={t}
-            onClick={() => setSubTab(t as any)}
-            className={`flex-1 py-2 px-3 rounded-lg text-sm font-bold capitalize transition-all ${
+            onClick={() => setSubTab(t)}
+            className={`flex-1 py-2 px-3 rounded-lg text-sm font-bold transition-all ${
               subTab === t
                 ? 'bg-[#1b2740] text-white shadow-sm'
                 : 'text-[#66728a] hover:text-[#9aa6bc]'
             }`}
           >
-            {t}
+            {label}
           </button>
         ))}
       </div>

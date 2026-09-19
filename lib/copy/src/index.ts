@@ -155,14 +155,15 @@ export const COPY = {
   build: {
     /** Placeholder for the quiz title / topic input, which starts blank. */
     titlePlaceholder: 'Name your quiz',
-    /** Step-indicator labels on the mobile Build tab (web has no step indicator). */
-    stepSetup:  'Setup',
-    stepReview: 'Review',
+    /** Step labels on the Build tab (mobile step indicator; web sub-tabs). */
+    stepSetup:     'Setup',
+    stepQuestions: 'Questions',
+    stepReview:    'Review',
     /** Validation error when the AI topic field is blank (mobile setup form). */
     enterTopic: 'Enter a topic',
     /** Category selector option that switches the source to Gemini AI. Both platforms. */
     customTopicOption: 'Custom topic — Gemini AI generates questions',
-    /** Category selector placeholder before a category is chosen (mobile). */
+    /** Category selector placeholder before a category is chosen. Both platforms. */
     selectCategory: 'Select a category',
     /** Accessibility labels for the Build tab back buttons (mobile). */
     backToGameMode:    'Back to game mode',
@@ -176,11 +177,15 @@ export const COPY = {
     error: {
       /** Both platforms. */
       fetchOpenTdb:    'Could not fetch questions from Open Trivia Database',
-      /** Mobile setup / review flow. */
+      /** Setup / review flow. Both platforms. */
       goLive:          'Could not go live — please retry',
       importQuestions: 'Could not import questions — please retry',
       createGame:      'Failed to create game — please retry',
       generate:        'Generation failed — try again or add questions manually',
+      /** Gemini quota / rate-limit states surfaced after a game is created. Both platforms. */
+      dailyQuota:      'Gemini daily quota exhausted — resets at midnight Pacific',
+      rateLimitedRetry: (seconds: number) => `Rate limited — retry unlocks in ${seconds} s`,
+      rateLimitedShort: 'rate limited by Gemini AI',
       regenerate:      'Regeneration failed — try again',
       saveRegenerated: 'Could not save regenerated question',
       enhance:         'Enhancement failed — try again',
@@ -191,22 +196,47 @@ export const COPY = {
       creating:  'Creating game…',
       generating: 'Generating questions…',
       importing: 'Importing questions…',
+      retrying:  'Retrying AI question generation… This may take up to 30 seconds',
+      hint:      'This may take a few seconds…',
       default:   'Working…',
     },
+    /** Success toasts after the setup form imports or generates questions (web). */
+    importedToast:  (n: number) => `${n} question${n === 1 ? '' : 's'} imported from Open Trivia Database`,
+    generatedToast: (n: number) => `${n} question${n === 1 ? '' : 's'} generated`,
+    /**
+     * "Game created" card shown when the game row exists but the question
+     * import / generation failed (web). Both platforms use the same actions.
+     */
+    createdTitle:      'Game created',
+    /** "{topic} is ready, but {source} hit a snag: {error}" */
+    createdSnag:       (topic: string, source: string) => `${topic} is ready, but ${source} hit a snag:`,
+    retryBtn:          'Retry generation',
+    retryIn:           (seconds: number) => `Retry in ${seconds}s`,
+    retrying:          'Retrying…',
+    addManuallyBtn:    'Add questions manually',
+    createAnotherBtn:  'Create another',
     /** Go-live button label while the status PATCH is in flight. Both platforms. */
     goingLive:        'Going live…',
-    /** Setup-form field labels (mobile). */
+    /** Setup-form field labels. Both platforms. */
     categoryLabel:    'Category',
     topicLabel:       'Topic',
     briefLabel:       'Brief',
     /** Placeholder for the optional AI brief. Both platforms. */
     briefPlaceholder: 'e.g. Focus on the 1990s. Players are experts — skip the obvious. No chart position questions.',
     difficultyLabel:  'Difficulty',
-    amountLabel:      'Questions to Import',
+    amountLabel:      'Number of questions',
     /** Accessibility label for the run-mode screen back button (mobile). */
     backToGames:      'Back to games',
-    /** Review step (mobile). */
+    /** Questions step (web sub-tab). */
+    addQuestionsHeading:  'Add questions',
+    addQuestionsSub:      'Select a game and build its question set.',
+    noActiveGamesTitle:   'No active games',
+    noActiveGamesBody:    'Create a new game first. Completed games are archived and cannot be edited.',
+    selectGamePlaceholder: 'Choose a game…',
+    selectGameHint:       'Select a game above.',
+    /** Review step. Both platforms. */
     reviewHeading:        'Review questions',
+    reviewSub:            'Edit and manage questions across all games.',
     regenAllBtn:          'Regen all',
     nothingToReviewTitle: 'Nothing to review',
     nothingToReviewBody:  'Create a game and add questions first.',
@@ -301,6 +331,17 @@ export const COPY = {
     codeUpdated:    (code: string) => `Room code updated to ${code}`,
     /** Toast shown when the clipboard write fails. */
     copyCodeFailed: "Couldn't copy code",
+    /** Join-code controls on a game card. Both platforms. */
+    codeHeading:     'CODE',
+    codeInputLabel:  'Room code',
+    codeSaveLabel:   'Save room code',
+    codeCancelLabel: 'Cancel editing room code',
+    codeCopyLabel:   'Copy room code',
+    codeEditLabel:   'Edit room code',
+    setCodeBtn:      'Set room code',
+    /** Shown when the host's session is no longer valid. Both platforms. */
+    sessionExpiredTitle: 'Session expired',
+    sessionExpiredBody:  'Please sign in again.',
     /** Sub-text on the dashed empty-state tile (mobile GamesTab). */
     emptyCardSub:   'Tap to set up your first trivia game',
     /** Error state when the games list fails to load (mobile GamesTab). */
