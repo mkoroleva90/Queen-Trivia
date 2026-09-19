@@ -74,14 +74,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     const token = await storage.getItem(PLAYER_TOKEN_KEY).catch(() => null);
     try {
-      const response = await fetch(`${baseUrl}/api/auth/logout`, {
+      await fetch(`${baseUrl}/api/auth/logout`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      if (!response.ok) return;
     } catch {
-      // Keep the credential so server-side revocation can be retried.
-      return;
+      // ignore network errors — clear client state regardless (matches web)
     }
     await Promise.all([
       storage.deleteItem(USER_KEY).catch(() => {}),
