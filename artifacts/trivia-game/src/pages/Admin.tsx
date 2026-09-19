@@ -3744,9 +3744,12 @@ function PendingReviewQueue({
 function LiveGameView({
   activeGame,
   endGame,
+  onGameEnded,
 }: {
   activeGame?: Game;
   endGame: (id: number) => void;
+  /** Called when the server reports the game ended (e.g. from another device). */
+  onGameEnded?: (id: number) => void;
 }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -3981,9 +3984,9 @@ function LiveGameView({
   });
 
   // Short-response answers the AI could not grade are parked for the host to
-  // review (award full points or deny). Web joins the player room only, so it
-  // never receives the answer:reviewed socket event — the 10s poll plus the
-  // mutation's on-success invalidation keep the queue fresh, matching mobile.
+  // review (award full points or deny). The answer:reviewed socket event plus
+  // the 10s poll and the mutation's on-success invalidation keep the queue
+  // fresh, matching mobile.
   const { data: pendingReviews = [] } = useListPendingAnswerReviews(activeGame?.id ?? 0, {
     query: {
       enabled: !!activeGame,
@@ -4099,6 +4102,8 @@ function LiveGameView({
     },
     onGameEnded: () => {
       queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
+      // Go to this game's results, matching the mobile live screen.
+      if (activeGame) onGameEnded?.(activeGame.id);
     },
   });
 
@@ -5282,7 +5287,12 @@ function NewAdminDashboard() {
     query: { queryKey: getListGamesQueryKey(), refetchInterval: 10000 },
   });
 
-  const activeGame = games.find((g) => g.status === "active");
+  // Control the game the host opened from the games list when it is live;
+  // otherwise the first live game (matches the mobile live screen, which is
+  // always scoped to one game).
+  const activeGame =
+    games.find((g) => g.status === "active" && g.id === preferredGameId) ??
+    games.find((g) => g.status === "active");
 
   const navigate = (s: Section, gameId?: number) => {
     setSection(s);
@@ -5310,7 +5320,8 @@ function NewAdminDashboard() {
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
-          navigate("results");
+          // Straight to this game's results, matching mobile.
+          navigate("results", id);
         },
         onError: () => toast({ variant: "destructive", title: COPY.adminLive.endGameError }),
       }
@@ -5327,7 +5338,7 @@ function NewAdminDashboard() {
   const renderSection = () => {
     switch (section) {
       case "games": return <GamesView games={games} onNavigate={navigate} />;
-      case "live": return <LiveGameView activeGame={activeGame} endGame={endGame} />;
+      case "live": return <LiveGameView activeGame={activeGame} endGame={endGame} onGameEnded={(id) => navigate("results", id)} />;
       case "build": return <BuildQuizView key={buildResetKey} games={games} preferGameId={preferredGameId} onNavigate={navigate} />;
       case "results": return <NewResultsSection games={games} preferredGameId={preferredGameId} />;
       case "rooms": return <AdminSettings />;
