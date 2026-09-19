@@ -163,7 +163,7 @@ export function HostPlayAlongCard({
         );
       case "matching":
         return (
-          <MatchingBoard key={question.id} {...sub} onSubmit={handleSubmit} />
+          <MatchingBoard key={question.id} {...sub} onSubmit={handleSubmit} shuffleRight />
         );
       case "image_recognition":
         return <ImageQuestion {...sub} onSubmit={handleSubmit} />;

@@ -1,5 +1,6 @@
 
 import { Router, type IRouter } from "express";
+import { isAdminRequest } from "../lib/playerContext.ts";
 import { createHmac } from "node:crypto";
 import { eq, asc, count } from "drizzle-orm";
 import { db, gamesTable, questionsTable } from "@workspace/db";
@@ -337,7 +338,9 @@ router.get("/games/:gameId/questions", requireAuth, async (req, res): Promise<vo
     }
 
     const decoded = questions.map(decodeQuestionFields);
-    const isAdmin = req.session.isAdmin === true;
+    // A host's own player screen (web shares one cookie session) must be
+    // treated as a player: see lib/playerContext.ts.
+    const isAdmin = isAdminRequest(req);
     // Never pass legacy or otherwise invalid image URLs to player clients.
     // Admins still receive the stored value so they can repair old questions.
     const playerSafeQuestions = decoded.map((question) => ({

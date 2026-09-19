@@ -1022,12 +1022,30 @@ export function SliderQuestion({
 }
 
 // ─── Matching board (unchanged logic, refreshed style) ────────────────────────
+/** Deterministic Fisher–Yates shuffle so the order is stable across re-renders. */
+function seededShuffle<T>(items: T[], seed: number): T[] {
+  const out = [...items];
+  let x = (seed * 9301 + 49297) % 233280 || 1;
+  for (let i = out.length - 1; i > 0; i--) {
+    x = (x * 9301 + 49297) % 233280;
+    const j = Math.floor((x / 233280) * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
+}
+
 export function MatchingBoard({
-  question, onSubmit, disabled,
+  question, onSubmit, disabled, shuffleRight = false,
 }: {
   question: Question;
   onSubmit: (a: string) => void;
   disabled: boolean;
+  /**
+   * Shuffle the right-hand options. Players get server-shuffled columns; the
+   * host's play-along card receives the unredacted pairs in grading order and
+   * must shuffle them locally so the i-th option does not answer the i-th item.
+   */
+  shuffleRight?: boolean;
 }) {
   const { leftItems, rightItems } = useMemo(() => {
     const opts = question.options as {
@@ -1036,11 +1054,12 @@ export function MatchingBoard({
       rightItems?: string[];
     } | null;
     const pairs = opts?.pairs ?? [];
+    const rights = opts?.rightItems ?? pairs.map((pair) => pair.right);
     return {
       leftItems: opts?.leftItems ?? pairs.map((pair) => pair.left),
-      rightItems: opts?.rightItems ?? pairs.map((pair) => pair.right),
+      rightItems: shuffleRight ? seededShuffle(rights, question.id) : rights,
     };
-  }, [question.options]);
+  }, [question.options, question.id, shuffleRight]);
 
   const [choices, setChoices] = useState<Record<string, string>>({});
   const allChosen = leftItems.length > 0 && leftItems.every((left) => choices[left]);
@@ -1147,19 +1166,29 @@ export default function GamePlay() {
     },
   });
 
+  // Web shares one cookie session between host and player. A host who joins
+  // their own game must still get the redacted PLAYER payload mid-game, so
+  // every request from this screen is marked as a player request (mobile
+  // achieves the same with a separate player token).
+  const playerRequest = useMemo(() => ({ headers: { "X-Trivia-Role": "player" } }), []);
+
   // Poll the game status as a fallback for a missed game:ended socket event,
   // matching the mobile player screen.
   const { data: game, isError: gameLoadError, error: gameError } = useGetGame(gameId, {
     query: { enabled: !!gameId, queryKey: getGetGameQueryKey(gameId), refetchInterval: 10000 },
+    request: playerRequest,
   });
   const { data: questions, isError: questionsLoadError, error: questionsError } = useListGameQuestions(gameId, {
     query: { enabled: !!gameId, queryKey: getListGameQuestionsQueryKey(gameId), refetchInterval: 10000 },
+    request: playerRequest,
   });
   const { data: myAnswers } = useListUserAnswers(gameId, userId, {
     query: { enabled: !!gameId && !!userId, queryKey: getListUserAnswersQueryKey(gameId, userId) },
+    request: playerRequest,
   });
   const { data: participants } = useListGameParticipants(gameId, {
     query: { enabled: !!gameId, queryKey: getListGameParticipantsQueryKey(gameId), refetchInterval: 5000 },
+    request: playerRequest,
   });
 
   const submitAnswer = useSubmitAnswer();
