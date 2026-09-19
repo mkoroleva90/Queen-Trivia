@@ -481,6 +481,7 @@ function QuestionFormModal({
   title,
   gameId,
   gameTopic,
+  isEditing = false,
 }: {
   visible: boolean;
   initial: QForm;
@@ -490,6 +491,8 @@ function QuestionFormModal({
   title: string;
   gameId: number;
   gameTopic?: string;
+  /** True when editing an existing question (submit reads "Save changes"). */
+  isEditing?: boolean;
 }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -1087,7 +1090,7 @@ function QuestionFormModal({
             onPress={handleSave}
             disabled={pending}
           >
-            {pending ? <ActivityIndicator color="#fff" /> : <Text style={s.saveRowText}>{COPY.questionEditor.saveQuestionBtn}</Text>}
+            {pending ? <ActivityIndicator color="#fff" /> : <Text style={s.saveRowText}>{isEditing ? COPY.btn.saveChanges : COPY.btn.addQuestion}</Text>}
           </Pressable>
 
           <View style={{ height: insets.bottom + 24 }} />
@@ -2332,6 +2335,7 @@ export default function GameDetailScreen() {
         onSave={handleSave}
         pending={createQuestion.isPending || updateQuestion.isPending}
         title={editingQuestion ? COPY.questionEditor.editTitle : COPY.questionEditor.newTitle}
+        isEditing={!!editingQuestion}
         gameId={gameId}
         gameTopic={game?.topic}
       />

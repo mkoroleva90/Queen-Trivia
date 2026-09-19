@@ -1331,14 +1331,18 @@ export const COPY = {
       correctAnswerRequired: 'Correct answer is required',
       /** Client-side check mirroring the server's Wikimedia-only image rule. Both platforms. */
       imageUrlWikimedia:     'Image URL must be a Wikimedia Commons image link (https://upload.wikimedia.org/wikipedia/commons/… or https://thumb.wikimedia.org/wikipedia/commons/…)',
+      /** True/false question with no answer picked. Both platforms. */
+      pickTrueFalse:         'Pick true or false',
     },
-    /** Field labels and placeholders in the question form (mobile; web shares the ones marked). */
+    /** Field labels and placeholders in the question form. Both platforms. */
     typeLabel:                'Question type',
     questionLabel:            'Question',
     /** Both platforms. */
     questionPlaceholder:      'Type the question players will see...',
     choicesLabel:             'Choices (tap to mark correct)',
     choicePlaceholder:        (letter: string) => `Choice ${letter}`,
+    /** Screen-reader label on the letter button that marks a choice correct. */
+    markCorrectLabel:         'Mark as correct',
     correctAnswerLabel:       'Correct answer',
     tfTrue:                   'TRUE ✓',
     tfFalse:                  'FALSE ✗',
@@ -1350,6 +1354,9 @@ export const COPY = {
     pairRightPlaceholder:     'Right',
     /** Both platforms. */
     addPair:                  'Add pair',
+    removePair:               'Remove pair',
+    /** Alt text of the image preview in the form (web). */
+    imagePreviewAlt:          'Image preview',
     /** Both platforms. */
     imageUrlLabel:            'Image URL',
     imageUrlPlaceholder:      'https://upload.wikimedia.org/wikipedia/commons/…',
@@ -1361,6 +1368,8 @@ export const COPY = {
     sourceLabel:              'Source (optional)',
     sourcePlaceholder:        'e.g. Wikipedia — Capital cities',
     saveQuestionBtn:          'Save Question',
+    /** Submit button while the question is being saved. Both platforms. */
+    saving:                   'Saving…',
     /** Fallback shown when saving a question fails and the server gave no specific message. Both platforms. */
     saveFailed:               'Could not save the question. Please try again.',
     /** Fill-with-AI button. Both platforms; mobile appends the game topic. */

@@ -643,19 +643,19 @@ export function validateForm(form: QuestionFormState): string | null {
          return COPY.questionEditor.validation.answerMustBeChoice;
     } else if (form.questionType === "ordering") {
         const items = form.orderingItems.map((item) => item.trim());
-        if (items.length < 3) return "Add at least 3 items";
-        if (items.some((item) => !item)) return "Every ordering item must be non-empty";
+        if (items.length < 3) return COPY.questionEditor.specialist.ordering.minError;
+        if (items.some((item) => !item)) return COPY.questionEditor.specialist.ordering.emptyError;
         if (new Set(items.map((item) => item.toLocaleLowerCase())).size !== items.length)
-            return "Ordering items must be unique";
+            return COPY.questionEditor.specialist.ordering.uniqueError;
     } else if (form.questionType === "multi_select") {
         const choices = form.multiSelectChoices.map((choice) => choice.text.trim());
-        if (choices.length < 3) return "Add at least 3 choices";
-        if (choices.some((choice) => !choice)) return "Every choice must be non-empty";
+        if (choices.length < 3) return COPY.questionEditor.specialist.multiSelect.minError;
+        if (choices.some((choice) => !choice)) return COPY.questionEditor.specialist.multiSelect.emptyError;
         if (new Set(choices.map((choice) => choice.toLocaleLowerCase())).size !== choices.length)
-            return "Choices must be unique";
+            return COPY.questionEditor.specialist.multiSelect.uniqueError;
         const correctCount = form.multiSelectChoices.filter((choice) => choice.correct).length;
         if (correctCount < 2 || correctCount >= choices.length)
-            return "Choose at least 2 correct choices and leave at least 1 incorrect choice";
+            return COPY.questionEditor.specialist.multiSelect.correctnessError;
     } else if (form.questionType === "slider") {
         const min = finiteFormNumber(form.sliderMin);
         const max = finiteFormNumber(form.sliderMax);
@@ -663,28 +663,28 @@ export function validateForm(form: QuestionFormState): string | null {
         const tolerance = finiteFormNumber(form.sliderTolerance);
         const answer = finiteFormNumber(form.sliderAnswer);
         if (min === null || max === null || min >= max)
-            return "Minimum must be a finite number less than maximum";
+            return COPY.questionEditor.specialist.slider.rangeError;
         if (step === null || step <= 0)
-            return "Step must be a finite number greater than 0";
+            return COPY.questionEditor.specialist.slider.stepError;
         if (tolerance === null || tolerance < 0)
-            return "Tolerance must be a finite number 0 or greater";
-        if (!form.sliderUnit.trim()) return "Unit is required";
+            return COPY.questionEditor.specialist.slider.toleranceError;
+        if (!form.sliderUnit.trim()) return COPY.questionEditor.specialist.slider.unitError;
         if (answer === null || answer < min || answer > max)
-            return "Correct answer must be a finite number within minimum and maximum";
+            return COPY.questionEditor.specialist.slider.answerError;
     } else if (form.questionType === "short_response") {
-        if (!form.shortResponseRubric.trim()) return "A grading rubric is required";
+        if (!form.shortResponseRubric.trim()) return COPY.questionEditor.specialist.shortResponse.rubricError;
         if (!form.shortResponseAnswer.trim()) return COPY.questionEditor.specialist.shortResponse.answerError;
         if (form.shortResponseMaxWords.trim()) {
             const maxWords = Number(form.shortResponseMaxWords);
             if (!Number.isFinite(maxWords) || !Number.isInteger(maxWords) || maxWords <= 0)
-                return "Maximum words must be a positive integer";
+                return COPY.questionEditor.specialist.shortResponse.maxWordsError;
         }
     } else if (form.questionType === "matching") {
         const pairs = form.pairs.filter((p) => p.left.trim() && p.right.trim());
         if (pairs.length < 2) return COPY.questionEditor.validation.addTwoPairs;
     } else if (form.questionType === "true_false") {
         if (form.correctAnswer !== "true" && form.correctAnswer !== "false")
-         return "Pick true or false";
+         return COPY.questionEditor.validation.pickTrueFalse;
     } else if (form.questionType === "image_hotspot") {
         if (!form.imageUrl.trim()) return COPY.questionEditor.validation.imageUrlRequired;
         if (!isAllowedImageUrl(form.imageUrl.trim()))
@@ -792,7 +792,7 @@ return (
   <FreeTierLimitModal msg={upgradeLimitMsg} onClose={() => setUpgradeLimitMsg(null)} />
   {/* Type selector */}
   <div className="space-y-2">
-   <Label>Question Type</Label>
+   <Label>{COPY.questionEditor.typeLabel}</Label>
    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
     {(Object.keys(TYPE_META) as QuestionType[]).map((t) => {
      const { label, Icon, color } = TYPE_META[t];
@@ -836,16 +836,12 @@ return (
 {/* Question text */}
 <div className="space-y-2">
  <Label>
-  {form.questionType === "image_recognition" ? "Caption / Prompt" : "Question"}
+  {COPY.questionEditor.questionLabel}
  </Label>
  <Textarea
   value={form.questionText}
   onChange={(e) => set("questionText", e.target.value)}
-  placeholder={
-      form.questionType === "image_recognition"
-       ? 'e.g. "Name this landmark" or "Which country is this flag from?"'
-       : COPY.questionEditor.questionPlaceholder
-  }
+  placeholder={COPY.questionEditor.questionPlaceholder}
   rows={3}
  />
 </div>
@@ -854,7 +850,7 @@ return (
 {/* ── Multiple Choice ── */}
 {form.questionType === "multiple_choice" && (
  <div className="space-y-3">
-  <Label>Answer Choices</Label>
+  <Label>{COPY.questionEditor.choicesLabel}</Label>
     <div className="space-y-2">
      {form.choices.map((choice, i) => {
       const isCorrect = form.correctAnswer === choice.trim() && choice.trim();
@@ -868,7 +864,7 @@ return (
              ? "border-secondary bg-secondary text-secondary-foreground"
              : "border-border text-muted-foreground hover:border-muted-foreground/60"
          }`}
-         title="Click to mark as correct"
+         aria-label={COPY.questionEditor.markCorrectLabel}
         >
          {CHOICE_LABELS[i]}
         </button>
@@ -884,7 +880,7 @@ return (
      }
      setForm(updated);
  }}
- placeholder={`Choice ${CHOICE_LABELS[i]}`}
+ placeholder={COPY.questionEditor.choicePlaceholder(CHOICE_LABELS[i] ?? "")}
  className={isCorrect ? "border-secondary/60 bg-secondary/5" : ""}
 />
 {form.choices.length > 2 && (
@@ -924,14 +920,10 @@ return (
 )}
 
 
-{form.correctAnswer ? (
+{form.correctAnswer && (
  <p className="text-sm text-secondary font-medium flex items-center gap-1.5">
      <CheckCircle2 className="h-4 w-4" />
-     Correct: "{form.correctAnswer}"
- </p>
-):(
- <p className="text-xs text-muted-foreground">
-     Click a letter button to mark the correct answer.
+     {COPY.questionEditor.correctAnswerLabel}: {form.correctAnswer}
  </p>
 )}
    </div>
@@ -998,7 +990,7 @@ return (
   {/* ── True / False ── */}
   {form.questionType === "true_false" && (
    <div className="space-y-2">
-       <Label>Correct Answer</Label>
+       <Label>{COPY.questionEditor.correctAnswerLabel}</Label>
        <div className="grid grid-cols-2 gap-3">
        {(["true", "false"] as const).map((val) => (
         <button
@@ -1013,7 +1005,7 @@ return (
              : "border-border text-muted-foreground hover:border-muted-foreground/50"
          }`}
         >
-         {val === "true" ? "✓ TRUE" : "✗ FALSE"}
+         {val === "true" ? COPY.questionEditor.tfTrue : COPY.questionEditor.tfFalse}
         </button>
        ))}
        </div>
@@ -1025,28 +1017,23 @@ return (
 {form.questionType === "write_in" && (
  <div className="space-y-4">
      <div className="space-y-2">
-     <Label>Correct Answer</Label>
+     <Label>{COPY.questionEditor.correctAnswerLabel}</Label>
      <Input
       value={form.correctAnswer}
       onChange={(e) => set("correctAnswer", e.target.value)}
-      placeholder="Primary correct answer (case-insensitive)"
+      placeholder={COPY.questionEditor.writeInPlaceholder}
      />
      </div>
      <div className="space-y-2">
      <Label>
-      Alternate Acceptable Answers
-      <span className="ml-1.5 text-xs text-muted-foreground font-normal">
-       (optional, comma-separated)
-      </span>
+      {COPY.questionEditor.alternateAnswersLabel}
+      <span className="ml-1.5 text-xs text-muted-foreground font-normal">{COPY.common.optional}</span>
      </Label>
      <Input
       value={form.alternateAnswers}
       onChange={(e) => set("alternateAnswers", e.target.value)}
-      placeholder='e.g. "New York, NYC, The Big Apple"'
+      placeholder={COPY.questionEditor.alternateAnswersPlaceholder}
      />
-       <p className="text-xs text-muted-foreground">
-        Any of these will be accepted as correct.
-       </p>
        </div>
    </div>
   )}
@@ -1066,7 +1053,7 @@ return (
       <div className="rounded-lg overflow-hidden border border-border max-h-48 flexitems-center justify-center bg-muted/30">
          <img
             src={form.imageUrl.trim()}
-            alt="Preview"
+            alt={COPY.questionEditor.imagePreviewAlt}
             className="max-h-48 object-contain"
             onError={(e) => {
              (e.target as HTMLImageElement).style.display = "none";
@@ -1076,24 +1063,22 @@ return (
 )}
 </div>
 <div className="space-y-2">
-<Label>Correct Answer</Label>
+<Label>{COPY.questionEditor.correctAnswerLabel}</Label>
 <Input
  value={form.correctAnswer}
  onChange={(e) => set("correctAnswer", e.target.value)}
- placeholder="What the image shows (case-insensitive)"
+ placeholder={COPY.questionEditor.imageAnswerPlaceholder}
 />
 </div>
 <div className="space-y-2">
 <Label>
- Alternate Answers
- <span className="ml-1.5 text-xs text-muted-foreground font-normal">
-     (optional, comma-separated)
- </span>
+ {COPY.questionEditor.alternateAnswersLabel}
+ <span className="ml-1.5 text-xs text-muted-foreground font-normal">{COPY.common.optional}</span>
 </Label>
 <Input
  value={form.alternateAnswers}
  onChange={(e) => set("alternateAnswers", e.target.value)}
- placeholder='e.g. "Eiffel Tower, La Tour Eiffel"'
+ placeholder={COPY.questionEditor.imageAltPlaceholder}
 />
 </div>
       </div>
@@ -1130,7 +1115,7 @@ return (
             >
               <img
                 src={form.imageUrl.trim()}
-                alt="Set hotspot"
+                alt={COPY.questionEditor.hotspotLabel}
                 draggable={false}
                 className="w-full block"
                 style={{ maxHeight: 320, objectFit: "contain", display: "block" }}
@@ -1164,10 +1149,7 @@ return (
   {/* ── Matching ── */}
   {form.questionType === "matching" && (
       <div className="space-y-3">
-     <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs font-semibold uppercasetracking-widest text-muted-foreground px-9">
-        <span>Left</span>
-        <span>Matches with</span>
-       </div>
+       <Label>{COPY.questionEditor.matchingPairsLabel}</Label>
        {form.pairs.map((pair, i) => (
         <div key={i} className="flex items-center gap-2">
          <span className="w-7 text-center text-sm font-bold text-muted-foreground shrink-0">
@@ -1181,7 +1163,7 @@ return (
            );
            set("pairs", next);
           }}
-          placeholder="Left item"
+          placeholder={COPY.questionEditor.pairLeftPlaceholder}
          />
   <ArrowLeftRight className="h-4 w-4 text-muted-foreground shrink-0" />
   <Input
@@ -1192,7 +1174,7 @@ return (
        );
        set("pairs", next);
       }}
-      placeholder="Right item"
+      placeholder={COPY.questionEditor.pairRightPlaceholder}
   />
   {form.pairs.length > 2 && (
       <Button
@@ -1201,6 +1183,7 @@ return (
        size="icon"
        className="shrink-0"
        onClick={() => set("pairs", form.pairs.filter((_, j) => j !== i))}
+       aria-label={COPY.questionEditor.removePair}
       >
        <X className="h-4 w-4" />
       </Button>
@@ -1224,27 +1207,24 @@ return (
 
   {/* Source / Citation */}
   <div className="space-y-1.5 pt-1">
-   <Label>
-       Source / Citation
-    <span className="ml-1.5 text-xs text-muted-foreground font-normal">(optional)</span>
-   </Label>
+   <Label>{COPY.questionEditor.sourceLabel}</Label>
    <Input
        value={form.source}
        onChange={(e) => set("source", e.target.value)}
-       placeholder='e.g. "Wikipedia: Eiffel Tower" or "Britannica"'
+       placeholder={COPY.questionEditor.sourcePlaceholder}
    />
   </div>
   {/* Fact-check URL */}
   <div className="space-y-1.5">
    <Label>
-    Fact-check URL
-    <span className="ml-1.5 text-xs text-muted-foreground font-normal">(optional)</span>
+    {COPY.questionEditor.factCheckUrl}
+    <span className="ml-1.5 text-xs text-muted-foreground font-normal">{COPY.common.optional}</span>
    </Label>
    <Input
     type="url"
     value={form.factCheckUrl}
     onChange={(e) => set("factCheckUrl", e.target.value)}
-    placeholder="https://en.wikipedia.org/wiki/..."
+    placeholder={COPY.questionEditor.factCheckUrlPlaceholder}
    />
   </div>
 
@@ -1252,19 +1232,15 @@ return (
   {/* Points */}
   <div className="flex items-center gap-3 pt-1">
    <div className="space-y-1">
-    <Label>Points</Label>
+    <Label>{COPY.questionEditor.pointsLabel}</Label>
     <Input
      type="number"
      min={1}
-     max={100}
      value={form.points}
      onChange={(e) => set("points", e.target.value)}
      className="w-28"
              />
          </div>
-         <p className="text-xs text-muted-foreground mt-5 max-w-[200px]">
-    Default for {TYPE_META[form.questionType].label}:{DEFAULT_POINTS[form.questionType]} pts
-         </p>
          </div>
 
 
@@ -1281,7 +1257,7 @@ return (
              onSubmit(form);
          }}
          >
-         {pending ? "Saving..." : submitLabel}
+         {pending ? COPY.questionEditor.saving : submitLabel}
          </Button>
      </div>
     );
@@ -1572,7 +1548,7 @@ return (
  key={editing?.id ?? "new"}
  initial={editing ? formFromQuestion(editing) : emptyForm}
  pending={createQuestion.isPending || updateQuestion.isPending}
- submitLabel={editing ? "Save changes" : "Add question"}
+ submitLabel={editing ? COPY.btn.saveChanges : COPY.btn.addQuestion}
  onFillWithAi={editing ? undefined : async (type) => {
   const res = await fetch(`/api/games/${game.id}/questions/generate-preview`, {
    method: "POST",
@@ -2843,7 +2819,7 @@ return (
          key={editingQuestion.id}
                 initial={formFromQuestion(editingQuestion)}
                 pending={updateQuestion.isPending}
-                submitLabel="Save changes"
+                submitLabel={COPY.btn.saveChanges}
                 onSubmit={(form) => {
                  updateQuestion.mutate(
          { questionId: editingQuestion.id, data: buildPayload(form,editingQuestion.orderIndex) },
