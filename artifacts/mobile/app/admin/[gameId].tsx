@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -439,6 +439,14 @@ function HotspotPicker({ imageUrl, x, y, onChange, colors }: {
   colors: ReturnType<typeof useColors>;
 }) {
   const [size, setSize] = useState({ w: 0, h: 0 });
+  // Match the picture's own aspect ratio so the stored percentages line up
+  // with what players see (web uses object-contain at natural aspect).
+  const [aspect, setAspect] = useState(16 / 9);
+  useEffect(() => {
+    let cancelled = false;
+    Image.getSize(imageUrl, (w, h) => { if (!cancelled && w > 0 && h > 0) setAspect(w / h); }, () => {});
+    return () => { cancelled = true; };
+  }, [imageUrl]);
   return (
     <View
       style={{ borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}
@@ -453,7 +461,7 @@ function HotspotPicker({ imageUrl, x, y, onChange, colors }: {
           }
         }}
       >
-        <Image source={{ uri: imageUrl }} style={{ width: '100%', aspectRatio: 16 / 9 }} resizeMode="cover" />
+        <Image source={{ uri: imageUrl }} style={{ width: '100%', aspectRatio: aspect }} resizeMode="contain" />
         {size.w > 0 && (
           <View pointerEvents="none" style={[StyleSheet.absoluteFill]}>
             <View style={{

@@ -3266,8 +3266,10 @@ function LiveGameView({
         }
         return null;
       }
+      toast({ variant: "destructive", title: COPY.hostPlayAlong.submitAnswerError });
       return null;
     } catch {
+      toast({ variant: "destructive", title: COPY.hostPlayAlong.submitAnswerError });
       return null;
     } finally {
       setSubmittingHostAnswer(false);

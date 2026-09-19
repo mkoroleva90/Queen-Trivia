@@ -72,7 +72,7 @@ function rankAvatarColor(idx: number) {
 export default function Results() {
   const params = useParams<{ gameId: string }>();
   const gameId = Number(params.gameId);
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const userId = user?.id ?? 0;
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -551,6 +551,19 @@ export default function Results() {
         </motion.div>
 
       </div>
+        {/* ── Sign out (matches mobile) ── */}
+        <div className="flex justify-center pt-2">
+          <button
+            onClick={() => {
+              if (!window.confirm(`${COPY.results.signOutTitle}\n\n${COPY.results.signOutBody}`)) return;
+              void logout().finally(() => setLocation("/"));
+            }}
+            className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-2"
+            style={{ background: "none", border: "none", cursor: "pointer" }}
+          >
+            {COPY.results.signOutConfirm}
+          </button>
+        </div>
       {reportOpen && (
         <ReportDialog
           gameId={gameId}

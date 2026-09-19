@@ -62,6 +62,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { COPY } from "@workspace/copy";
+import { QuizCompleteModal } from "@/components/game/QuizCompleteModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1148,6 +1149,9 @@ export default function GamePlay() {
   const [skipConfirm, setSkipConfirm] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [kicked, setKicked] = useState(false);
+  // Shown once after the last question is answered (matches mobile).
+  const [completionModalVisible, setCompletionModalVisible] = useState(false);
+  const completionAlertShownRef = useRef(false);
 
   useGameSocket(gameId || null, {
     onAnswerSubmitted: ({ playerName }) => {
@@ -1301,6 +1305,10 @@ export default function GamePlay() {
             feedback: (res as typeof res & { feedback?: string }).feedback,
           };
           setFeedbackById((prev) => ({ ...prev, [question.id]: result }));
+          if (question.orderIndex === total - 1 && !completionAlertShownRef.current) {
+            completionAlertShownRef.current = true;
+            setCompletionModalVisible(true);
+          }
           setLockedAnswerById((prev) => ({ ...prev, [question.id]: userAnswer })); // store for inline reveal
           // Pin the view: the default view follows the first unanswered
           // question, so without this the refetched answer rows would move
@@ -1421,13 +1429,18 @@ export default function GamePlay() {
             {/* Back button + topic centre + report row */}
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setLocation("/")}
+                onClick={() => {
+                  // Confirm before leaving mid-game while questions are still open (matches mobile).
+                  const unanswered = game?.status === "active" && total > 0 && answeredCount < total;
+                  if (unanswered && !window.confirm(`${COPY.gameplay.leaveTitle}\n\n${COPY.gameplay.leaveBody}`)) return;
+                  setLocation("/");
+                }}
                 className="flex items-center justify-center shrink-0"
                 style={{
                   width: 36, height: 36, borderRadius: "50%",
                   background: "rgba(255,255,255,.08)", border: "none", cursor: "pointer",
                 }}
-                aria-label="Back to lobby"
+                aria-label={COPY.results.backToLobby}
               >
                 <ArrowLeft className="h-5 w-5 text-white" />
               </button>
@@ -1892,6 +1905,7 @@ export default function GamePlay() {
 
         </div>
       </div>
+      <QuizCompleteModal open={completionModalVisible} onDismiss={() => setCompletionModalVisible(false)} />
       {reportOpen && (
         <ReportDialog
           gameId={gameId}

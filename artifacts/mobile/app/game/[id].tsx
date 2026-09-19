@@ -310,13 +310,36 @@ export function TrueFalseQ({
 
 // ─── Write-In / Short Response ────────────────────────────────────────────────
 
+/** Natural aspect ratio of a remote image (defaults to 16:9 until known). */
+function useImageAspect(uri: string | null | undefined): number {
+  const [aspect, setAspect] = useState(16 / 9);
+  useEffect(() => {
+    if (!uri) return;
+    let cancelled = false;
+    Image.getSize(uri, (w, h) => { if (!cancelled && w > 0 && h > 0) setAspect(w / h); }, () => {});
+    return () => { cancelled = true; };
+  }, [uri]);
+  return aspect;
+}
+
+/** Full-width image shown at its own aspect ratio, never cropped (matches web object-contain). */
+function FittedImage({ uri, style }: { uri: string; style?: object }) {
+  const aspect = useImageAspect(uri);
+  return <Image source={{ uri }} style={[{ width: '100%', aspectRatio: aspect }, style]} resizeMode="contain" />;
+}
+
 export function WriteInQ({
-  onSubmit, disabled, lockedAnswer, multiline = false,
-}: { onSubmit: (a: string) => void; disabled: boolean; lockedAnswer: string | null; multiline?: boolean }) {
+  onSubmit, disabled, lockedAnswer, multiline = false, maxWords = null,
+}: { onSubmit: (a: string) => void; disabled: boolean; lockedAnswer: string | null; multiline?: boolean; maxWords?: number | null }) {
   const colors = useColors();
   const [value, setValue] = useState('');
-  useEffect(() => { setValue(''); }, [disabled]);
+  // Reset only when the answer is locked in; a failed submit keeps the text (matches web).
+  useEffect(() => { if (lockedAnswer) setValue(''); }, [lockedAnswer]);
   const answered = !!lockedAnswer;
+  // Short-response word limit — same rule as web: over the limit blocks submit.
+  const wordCount = value.trim() === '' ? 0 : value.trim().split(/\s+/).length;
+  const overLimit = maxWords !== null && maxWords !== undefined && wordCount > maxWords;
+  const canSubmit = !!value.trim() && !overLimit && !disabled;
 
   return (
     <View style={styles.writeInContainer}>
@@ -333,13 +356,18 @@ export function WriteInQ({
         editable={!answered && !disabled}
         multiline={multiline}
         returnKeyType={multiline ? 'default' : 'done'}
-        onSubmitEditing={!multiline ? () => value.trim() && onSubmit(value.trim()) : undefined}
+        onSubmitEditing={!multiline ? () => canSubmit && onSubmit(value.trim()) : undefined}
       />
+      {!answered && maxWords !== null && maxWords !== undefined && (
+        <Text style={{ alignSelf: 'flex-end', fontSize: 12, fontFamily: 'Manrope_600SemiBold', color: overLimit ? colors.primary : colors.mutedForeground }}>
+          {wordCount}/{maxWords}
+        </Text>
+      )}
       {!answered && (
         <TouchableOpacity
-          onPress={() => value.trim() && onSubmit(value.trim())}
-          disabled={!value.trim() || disabled}
-          style={[styles.confirmBtn, { backgroundColor: colors.secondary, opacity: !value.trim() ? 0.5 : 1 }]}
+          onPress={() => canSubmit && onSubmit(value.trim())}
+          disabled={!canSubmit}
+          style={[styles.confirmBtn, { backgroundColor: colors.secondary, opacity: !value.trim() || overLimit ? 0.5 : 1 }]}
         >
           <Text style={[styles.confirmBtnText, { color: colors.secondaryForeground }]}>{COPY.gameplay.btnLockItIn}</Text>
         </TouchableOpacity>
@@ -499,11 +527,7 @@ export function ImageRecognitionQ({
     <View style={styles.writeInContainer}>
       {imageUrl ? (
         <View style={{ width: '100%', overflow: 'hidden', borderRadius: 14 }}>
-          <Image
-            source={{ uri: imageUrl }}
-            style={{ width: '100%', height: 180 }}
-            resizeMode="cover"
-          />
+          <FittedImage uri={imageUrl} />
           {imageAttribution && (
             <Text style={{ color: colors.mutedForeground, fontSize: 11, lineHeight: 15, paddingHorizontal: 10, paddingVertical: 6 }}>
               {COPY.gameplay.imageCredit
@@ -564,6 +588,9 @@ export function ImageHotspotQ({
     : null;
 
   const displayPin = lockedPin ?? pin;
+  // Size the tap area to the picture's own aspect ratio so the stored
+  // percentages match the image (and the web player's object-contain view).
+  const hotspotAspect = useImageAspect(imageUrl);
 
   const handlePress = (e: { nativeEvent: { locationX: number; locationY: number } }) => {
     if (disabled || answered) return;
@@ -580,13 +607,13 @@ export function ImageHotspotQ({
       <TouchableOpacity
         activeOpacity={1}
         onPress={handlePress as never}
-        style={styles.hotspotImage}
+        style={[styles.hotspotImage, { aspectRatio: hotspotAspect }]}
         onLayout={(e) => {
           imgSize.current = { w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height };
         }}
       >
         {imageUrl ? (
-          <Image source={{ uri: imageUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          <Image source={{ uri: imageUrl }} style={StyleSheet.absoluteFill} resizeMode="contain" />
         ) : (
           <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.muted, alignItems: 'center', justifyContent: 'center' }]}>
             <Ionicons name="image-outline" size={40} color={colors.mutedForeground} />
@@ -1209,6 +1236,11 @@ export default function GamePlayScreen() {
               {current.questionText}
             </Text>
 
+            {/* Optional picture on any non-image question type (matches web) */}
+            {current.questionType !== 'image_recognition' && current.questionType !== 'image_hotspot' && getSafeImageUrl(current.imageUrl) && (
+              <FittedImage uri={getSafeImageUrl(current.imageUrl)!} style={{ borderRadius: 14, marginBottom: 12 }} />
+            )}
+
             {/* Question renderer */}
             <View key={current.id} style={styles.questionBody}>
               {current.questionType === 'multiple_choice' && (
@@ -1224,7 +1256,13 @@ export default function GamePlayScreen() {
                 <WriteInQ onSubmit={handleSubmit} disabled={questionDisabled} lockedAnswer={lockedAnswer} />
               )}
               {current.questionType === 'short_response' && (
-                <WriteInQ onSubmit={handleSubmit} disabled={questionDisabled} lockedAnswer={lockedAnswer} multiline />
+                <WriteInQ
+                  onSubmit={handleSubmit}
+                  disabled={questionDisabled}
+                  lockedAnswer={lockedAnswer}
+                  multiline
+                  maxWords={(current.options as { maxWords?: number } | null)?.maxWords ?? null}
+                />
               )}
               {current.questionType === 'ordering' && (
                 <OrderingQ question={current} onSubmit={handleSubmit} disabled={questionDisabled} lockedAnswer={lockedAnswer} />
@@ -1395,7 +1433,7 @@ const styles = StyleSheet.create({
   sliderLabel: { fontSize: 12, fontWeight: '600' },
   // Hotspot
   hotspotContainer: { gap: 12 },
-  hotspotImage: { height: 220, borderRadius: 14, overflow: 'hidden', position: 'relative' },
+  hotspotImage: { width: '100%', borderRadius: 14, overflow: 'hidden', position: 'relative' },
   hotspotPin: { position: 'absolute', width: 24, height: 24, borderRadius: 12, borderWidth: 3, borderColor: '#ffffff' },
   // Matching
   matchContainer: { gap: 12 },
