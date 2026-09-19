@@ -726,14 +726,18 @@ function FeedbackCard({ feedback, onNext, isLast, skipped = false }: { feedback:
       {feedback.feedback && (
         <Text style={[styles.feedbackAI, { color: colors.mutedForeground }]}>{feedback.feedback}</Text>
       )}
-      <TouchableOpacity
-        onPress={onNext}
-        style={[styles.feedbackBtn, { backgroundColor: feedback.isCorrect ? colors.secondary : colors.muted }]}
-      >
-        <Text style={[styles.feedbackBtnText, { color: feedback.isCorrect ? colors.secondaryForeground : colors.foreground }]}>
-          {isLast ? COPY.gameplay.feedbackSeeResults : COPY.gameplay.feedbackNext}
-        </Text>
-      </TouchableOpacity>
+      {/* Advance CTA — hidden on the last question, where there is nothing to
+          advance to (results open only once the host ends the game). Matches web. */}
+      {!isLast && (
+        <TouchableOpacity
+          onPress={onNext}
+          style={[styles.feedbackBtn, { backgroundColor: feedback.isCorrect ? colors.secondary : colors.muted }]}
+        >
+          <Text style={[styles.feedbackBtnText, { color: feedback.isCorrect ? colors.secondaryForeground : colors.foreground }]}>
+            {COPY.gameplay.feedbackNext}
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
