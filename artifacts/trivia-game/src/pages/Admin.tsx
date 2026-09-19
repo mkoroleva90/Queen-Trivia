@@ -766,7 +766,7 @@ function QuestionForm({
    if (msg.includes(COPY.usageLimit.title)) {
     setUpgradeLimitMsg(msg);
    } else {
-    toast({ variant: "destructive", title: "AI generation failed. Please try again." });
+    toast({ variant: "destructive", title: COPY.aiGenerate.formFailed });
    }
   } finally {
    setAiLoading(false);
@@ -2826,7 +2826,7 @@ return (
                           setEditingQuestion(null);
                           toast({ title: COPY.gameEditor.questionUpdated });
                          },
-                         onError: () => toast({ variant: "destructive", title: "Update failed" }),
+                         onError: () => toast({ variant: "destructive", title: COPY.questionEditor.saveFailed }),
                      },
                  );
                 }}

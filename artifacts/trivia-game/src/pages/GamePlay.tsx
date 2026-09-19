@@ -1580,9 +1580,9 @@ export default function GamePlay() {
                     style={{ background: "rgba(255,255,255,.04)", border: "1px dashed rgba(255,255,255,.1)" }}
                   >
                     <Sparkles className="mx-auto h-12 w-12" style={{ color: "rgba(255,0,128,.5)" }} />
-                    <h3 className="text-2xl font-bold">Questions loading soon</h3>
+                    <h3 className="text-2xl font-bold">{COPY.gameplay.noQuestionsTitle}</h3>
                     <p className="text-muted-foreground max-w-md mx-auto text-sm">
-                      The host hasn't added questions yet — this page checks automatically.
+                      {COPY.gameplay.noQuestionsBody}
                     </p>
                   </div>
                 </motion.div>
