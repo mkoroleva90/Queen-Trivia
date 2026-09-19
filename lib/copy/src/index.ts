@@ -310,8 +310,8 @@ export const COPY = {
     noneRightNow:   (what: string) => `No ${what} right now`,
     liveGamesNoun:  'live games',
     draftsNoun:     'drafts',
-    /** "{n} questions" meta on game cards / pickers (mobile). Always plural. */
-    questionsCount: (n: number) => `${n} questions`,
+    /** "{n} question(s)" meta on game cards / pickers. Both platforms. */
+    questionsCount: (n: number) => `${n} question${n === 1 ? '' : 's'}`,
     /** "{n} player(s)" meta on completed game cards (mobile ResultsTab). */
     playersCount:   (n: number) => `${n} player${n === 1 ? '' : 's'}`,
     /** Start-game confirmation (web GamesView dialog and mobile GamesTab sheet). */
@@ -1547,7 +1547,13 @@ export const COPY = {
     exportFailedBody:        'Could not export results.',
     /** Error / empty states. */
     loadFailed:              'Could not load results. Check your connection and try again.',
+    loading:                 'Loading results…',
     backToGames:             '← Back to games',
+    /** Back link from a game's results to the results list (web). */
+    allResults:              'All results',
+    /** CSV export button label (web) / accessibility label (mobile). */
+    exportBtn:               'Export CSV',
+    noParticipants:          'No participants recorded.',
     /** Summary card labels. */
     playersLabel:            'Players',
     avgScoreLabel:           'Avg Score',
@@ -1562,6 +1568,8 @@ export const COPY = {
     /** Per-question breakdown. */
     breakdownToggle:         'Question Breakdown',
     breakdownLoadFailed:     'Could not load question breakdown.',
+    /** "Q{n}" chip on each breakdown card (host results and live results). */
+    questionNumber:          (n: number) => `Q${n}`,
     correctLabel:            'correct',
     correctAnswerLabel:      'CORRECT ANSWER',
   },

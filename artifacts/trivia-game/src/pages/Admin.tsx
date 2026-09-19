@@ -15,6 +15,7 @@ import {
   type AnswerRow,
 } from "@workspace/live-tally";
 import { COPY } from "@workspace/copy";
+import { QuestionBreakdown } from "@/components/admin/QuestionBreakdown";
 import { RunModeScreen, type RunMode } from "@/components/RunModeScreen";
 import { JoinCodeScreen } from "@/components/JoinCodeScreen";
 import { OpenTdbQuestionMixSelector, type OpenTdbImportMode } from "@/components/OpenTdbQuestionMixSelector";
@@ -5006,6 +5007,7 @@ function NewResultsSection({ games, preferredGameId }: { games: Game[]; preferre
   const [selectedGameId, setSelectedGameId] = useState<number | null>(
     preferredGameId ?? null
   );
+  const [showStats, setShowStats] = useState(false);
 
   // React when the parent changes preferredGameId (e.g. Games tab "Results" shortcut)
   useEffect(() => {
@@ -5015,24 +5017,42 @@ function NewResultsSection({ games, preferredGameId }: { games: Game[]; preferre
     }
   }, [preferredGameId]);
 
-  const { data: resultsData, isLoading: loadingResults } = useQuery<GameResultsData>({
+  const {
+    data: resultsData,
+    isLoading: loadingResults,
+    isError: resultsError,
+    refetch: refetchResults,
+  } = useQuery<GameResultsData>({
     queryKey: ["admin-results", selectedGameId],
     queryFn: async () => {
       const res = await fetch(`/api/games/${selectedGameId}/results`);
-      if (!res.ok) throw new Error("Failed to fetch results");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     },
     enabled: selectedGameId !== null,
+    retry: 1,
   });
 
-  const { data: questionStats = [] } = useQuery<QuestionStat[]>({
+  const {
+    data: questionStats = [],
+    isLoading: statsLoading,
+    isError: statsError,
+    refetch: refetchStats,
+  } = useQuery<QuestionStat[]>({
     queryKey: ["admin-question-stats", selectedGameId],
     queryFn: async () => {
       const res = await fetch(`/api/games/${selectedGameId}/questions/stats`);
-      if (!res.ok) throw new Error("Failed to fetch stats");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     },
     enabled: selectedGameId !== null,
+    retry: 1,
+  });
+
+  // Questions carry the correct answers for the breakdown — the game is over,
+  // so this is the one place a host sees them (same as mobile).
+  const { data: questions = [] } = useListGameQuestions(selectedGameId ?? 0, {
+    query: { enabled: selectedGameId !== null, queryKey: getListGameQuestionsQueryKey(selectedGameId ?? 0) },
   });
 
   // Short-response answers the AI could not grade, awaiting the host's decision
@@ -5055,20 +5075,10 @@ function NewResultsSection({ games, preferredGameId }: { games: Game[]; preferre
           queryClient.invalidateQueries({ queryKey: ["admin-results", selectedGameId] });
           queryClient.invalidateQueries({ queryKey: ["admin-question-stats", selectedGameId] });
         },
-        onError: () => toast({ variant: "destructive", title: COPY.adminResults.reviewSaveErrorTitle }),
+        onError: () => toast({ variant: "destructive", title: COPY.adminResults.reviewSaveErrorTitle, description: COPY.adminResults.reviewSaveErrorBody }),
       },
     );
   };
-
-  if (completedGames.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-32 text-center">
-        <BarChart3 className="h-16 w-16 text-[#66728a] mb-4" />
-        <h2 className="text-xl font-bold text-[#eef2f8] mb-2">No completed games yet</h2>
-        <p className="text-[#9aa6bc]">Finish a game to see final results here.</p>
-      </div>
-    );
-  }
 
   // ── List view ──────────────────────────────────────────────────────────────
   if (resultsView === "list") {
@@ -5084,56 +5094,77 @@ function NewResultsSection({ games, preferredGameId }: { games: Game[]; preferre
 
     return (
       <div className="space-y-5">
-        {/* Summary bar */}
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { v: completedGames.length, l: "GAMES", c: "#ff5aa8" },
-            { v: totalPlayerSessions, l: "PLAYER SESSIONS", c: "#00ddff" },
-            { v: totalQuestions, l: "QUESTIONS ASKED", c: "#35d07f" },
-          ].map((t) => (
-            <div key={t.l} className="bg-[#0f1724] border border-[#1b2740] rounded-[14px] p-4">
-              <div className="font-mono text-[26px] font-extrabold tabular-nums" style={{ color: t.c }}>{t.v}</div>
-              <div className="text-[10px] font-semibold tracking-[.12em] text-[#66728a] mt-0.5">{t.l}</div>
-            </div>
-          ))}
+        {/* Heading */}
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-bold text-[#eef2f8]">{COPY.adminResultsList.heading}</h2>
+            {completedGames.length > 0 && (
+              <span className="rounded-full bg-[#1b2740] px-2 py-0.5 text-xs font-bold text-[#9aa6bc]">{completedGames.length}</span>
+            )}
+          </div>
+          <p className="text-sm text-[#9aa6bc] mt-1">{COPY.adminResultsList.subheading}</p>
         </div>
 
-        {/* Game cards */}
-        <div className="space-y-2">
-          {completedGames.map((game) => {
-            const date = formatDate((game as any).createdAt);
-            const players = (game as any).participantCount ?? 0;
-            const qCount = (game as any).questionCount ?? 0;
-            return (
-              <button
-                key={game.id}
-                onClick={() => { setSelectedGameId(game.id); setResultsView("detail"); }}
-                className="w-full flex items-center gap-4 bg-[#0f1724] border border-[#1b2740] rounded-2xl px-5 py-4 hover:border-[#2d4060] hover:bg-[#111d2e] transition text-left"
-              >
-                <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: "#ff5aa8" + "20" }}>
-                  <Trophy className="h-5 w-5 text-[#ff5aa8]" />
+        {completedGames.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <BarChart3 className="h-16 w-16 text-[#66728a] mb-4" />
+            <h3 className="text-lg font-bold text-[#eef2f8] mb-2">{COPY.adminResultsList.emptyTitle}</h3>
+            <p className="text-[#9aa6bc]">{COPY.adminResultsList.emptyBody}</p>
+          </div>
+        ) : (
+          <>
+            {/* Summary bar */}
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { v: completedGames.length, l: COPY.adminResultsList.statGames, c: "#ff5aa8" },
+                { v: totalPlayerSessions, l: COPY.adminResultsList.statPlayerSessions, c: "#00ddff" },
+                { v: totalQuestions, l: COPY.adminResultsList.statQuestionsAsked, c: "#35d07f" },
+              ].map((t) => (
+                <div key={t.l} className="bg-[#0f1724] border border-[#1b2740] rounded-[14px] p-4">
+                  <div className="font-mono text-[26px] font-extrabold tabular-nums" style={{ color: t.c }}>{t.v}</div>
+                  <div className="text-[10px] font-semibold tracking-[.12em] uppercase text-[#66728a] mt-0.5">{t.l}</div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[15px] font-bold text-[#eef2f8] truncate">{game.topic}</div>
-                  <div className="flex items-center gap-4 mt-1 flex-wrap">
-                    {date && (
-                      <span className="flex items-center gap-1 text-[12px] text-[#66728a]">
-                        <Calendar className="h-3 w-3" />{date}
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1 text-[12px] text-[#66728a]">
-                      <Users className="h-3 w-3" />{players} {players === 1 ? "player" : "players"}
-                    </span>
-                    <span className="flex items-center gap-1 text-[12px] text-[#66728a]">
-                      <HelpCircle className="h-3 w-3" />{qCount} {qCount === 1 ? "question" : "questions"}
-                    </span>
-                  </div>
-                </div>
-                <ChevronRight className="h-5 w-5 text-[#66728a] shrink-0" />
-              </button>
-            );
-          })}
-        </div>
+              ))}
+            </div>
+
+            {/* Game cards */}
+            <div className="space-y-2">
+              {completedGames.map((game) => {
+                const date = formatDate((game as any).createdAt);
+                const players = (game as any).participantCount ?? 0;
+                const qCount = (game as any).questionCount ?? 0;
+                return (
+                  <button
+                    key={game.id}
+                    onClick={() => { setSelectedGameId(game.id); setShowStats(false); setResultsView("detail"); }}
+                    className="w-full flex items-center gap-4 bg-[#0f1724] border border-[#1b2740] rounded-2xl px-5 py-4 hover:border-[#2d4060] hover:bg-[#111d2e] transition text-left"
+                  >
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: "#ff5aa8" + "20" }}>
+                      <Trophy className="h-5 w-5 text-[#ff5aa8]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[15px] font-bold text-[#eef2f8] truncate">{game.topic}</div>
+                      <div className="flex items-center gap-4 mt-1 flex-wrap">
+                        {date && (
+                          <span className="flex items-center gap-1 text-[12px] text-[#66728a]">
+                            <Calendar className="h-3 w-3" />{date}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1 text-[12px] text-[#66728a]">
+                          <Users className="h-3 w-3" />{COPY.admin.playersCount(players)}
+                        </span>
+                        <span className="flex items-center gap-1 text-[12px] text-[#66728a]">
+                          <HelpCircle className="h-3 w-3" />{COPY.admin.questionsCount(qCount)}
+                        </span>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-[#66728a] shrink-0" />
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
     );
   }
@@ -5144,17 +5175,17 @@ function NewResultsSection({ games, preferredGameId }: { games: Game[]; preferre
   const avgScore = participants.length
     ? Math.round(participants.reduce((s, p) => s + p.totalScore, 0) / participants.length)
     : 0;
-  const avgCorrect = (() => {
-    const answered = participants.filter((p) => p.totalAnswered > 0);
-    if (!answered.length) return null;
-    const pct = answered.reduce((s, p) => s + p.correctCount / p.totalAnswered, 0) / answered.length;
-    return Math.round(pct * 100);
+  const topScore = participants[0]?.totalScore ?? 0;
+  const hardestQuestion = (() => {
+    let best: QuestionStat | null = null;
+    for (const q of questionStats) {
+      if (q.totalAnswered === 0 || q.percentCorrect === null) continue;
+      if (!best || q.percentCorrect < (best.percentCorrect ?? Infinity)) best = q;
+    }
+    return best;
   })();
-  const hardest = [...questionStats]
-    .filter((q) => q.percentCorrect !== null)
-    .sort((a, b) => (a.percentCorrect ?? 0) - (b.percentCorrect ?? 0))
-    .slice(0, 5);
-  const pctColor = (pct: number) => (pct < 45 ? "#ff5aa8" : pct < 65 ? "#ffe500" : "#35d07f");
+
+  const backToList = () => { setResultsView("list"); setShowStats(false); };
 
   return (
     <div className="space-y-5">
@@ -5162,108 +5193,137 @@ function NewResultsSection({ games, preferredGameId }: { games: Game[]; preferre
       <div className="flex flex-wrap items-center gap-3 pb-4 border-b border-[#16223a]">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setResultsView("list")}
+            onClick={backToList}
             className="flex items-center gap-1.5 text-xs font-bold text-[#66728a] hover:text-[#c9d1e0] transition"
           >
             <ArrowLeft className="h-4 w-4" />
-            All results
+            {COPY.adminResults.allResults}
           </button>
           <div className="w-px h-4 bg-[#1b2740]" />
-          <div>
-            <div className="text-[10px] font-bold tracking-[.24em] text-[#66728a] mb-1">FINAL RESULTS</div>
-            <div className="text-[22px] font-extrabold text-[#eef2f8]">{resultsData?.game.topic ?? "…"}</div>
-          </div>
+          <div className="text-[22px] font-extrabold text-[#eef2f8]">{resultsData?.game.topic ?? COPY.nav.results}</div>
         </div>
         <div className="ml-auto">
           <button
             onClick={() => selectedGameId && window.open(`/api/games/${selectedGameId}/results/export.csv`, "_blank")}
-            className="text-xs font-bold text-[#c9d1e0] bg-white/[.05] border border-[#1b2740] rounded-[10px] px-4 py-2.5 hover:brightness-110 transition"
+            disabled={!resultsData}
+            className="flex items-center gap-1.5 text-xs font-bold text-[#c9d1e0] bg-white/[.05] border border-[#1b2740] rounded-[10px] px-4 py-2.5 hover:brightness-110 disabled:opacity-50 transition"
           >
-            Export CSV
+            <Download className="h-3.5 w-3.5" />
+            {COPY.adminResults.exportBtn}
           </button>
         </div>
       </div>
 
       {loadingResults ? (
-        <p className="text-sm text-[#66728a] text-center py-16">Loading results…</p>
+        <p className="text-sm text-[#66728a] text-center py-16">{COPY.adminResults.loading}</p>
+      ) : resultsError || !resultsData ? (
+        <div className="flex flex-col items-center gap-4 py-16 text-center">
+          <ShieldAlert className="h-10 w-10 text-[#ff6b6b]" />
+          <p className="text-sm text-[#9aa6bc] max-w-sm">{COPY.adminResults.loadFailed}</p>
+          <button
+            onClick={() => void refetchResults()}
+            className="rounded-xl bg-[#ff0080] px-6 py-2.5 text-sm font-bold text-white hover:brightness-110 transition"
+          >
+            {COPY.common.retry}
+          </button>
+          <button onClick={backToList} className="text-sm text-[#9aa6bc] hover:text-[#eef2f8]">
+            {COPY.adminResults.backToGames}
+          </button>
+        </div>
       ) : (
-        <div className="flex flex-col xl:flex-row gap-5 items-start">
-          <div className="flex-1 w-full min-w-0 space-y-4">
-            {/* stat tiles */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="max-w-3xl space-y-4">
+          {/* summary card */}
+          <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl p-4">
+            <div className="grid grid-cols-3 gap-3">
               {[
-                { v: participants.length, l: "PLAYERS", c: "#ff5aa8" },
-                { v: totalQ, l: "QUESTIONS", c: "#00ddff" },
-                { v: avgScore, l: "AVG SCORE", c: "#ffe500" },
-                { v: avgCorrect !== null ? `${avgCorrect}%` : "—", l: "AVG CORRECT", c: "#35d07f" },
+                { v: participants.length, l: COPY.adminResults.playersLabel, c: "#ff5aa8" },
+                { v: avgScore, l: COPY.adminResults.avgScoreLabel, c: "#00ddff" },
+                { v: topScore, l: COPY.adminResults.topScoreLabel, c: "#ffe500" },
               ].map((t) => (
-                <div key={t.l} className="bg-[#0f1724] border border-[#1b2740] rounded-[14px] p-4">
+                <div key={t.l} className="text-center">
                   <div className="font-mono text-[26px] font-extrabold tabular-nums" style={{ color: t.c }}>{t.v}</div>
-                  <div className="text-[10px] font-semibold tracking-[.12em] text-[#66728a] mt-0.5">{t.l}</div>
+                  <div className="text-[11px] font-semibold text-[#66728a] mt-0.5">{t.l}</div>
                 </div>
               ))}
             </div>
-
-            {/* leaderboard */}
-            <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl overflow-hidden">
-              <div className="px-4.5 py-3.5 border-b border-[#1b2740] text-[13px] font-extrabold text-[#eef2f8] px-5">
-                Final leaderboard
-              </div>
-              <div className="p-2">
-                {participants.length === 0 && (
-                  <p className="text-sm text-[#66728a] text-center py-6">No participants recorded.</p>
-                )}
-                {participants.map((p, idx) => {
-                  const win = p.rank === 1;
-                  const [av, avtx] = AVATAR_COLORS[idx % AVATAR_COLORS.length];
-                  return (
-                    <div key={p.userId} className={`flex items-center gap-3 px-2.5 py-2.5 rounded-[10px] ${win ? "bg-[#ff0080]/[.08]" : ""}`}>
-                      <span className={`w-5 text-center font-mono text-[13px] font-extrabold ${win ? "text-[#ff5aa8]" : "text-[#66728a]"}`}>{p.rank}</span>
-                      <span className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-extrabold shrink-0" style={{ background: av, color: avtx }}>
-                        {p.userName.substring(0, 1).toUpperCase()}
-                      </span>
-                      <span className={`flex-1 truncate text-sm ${win ? "font-extrabold text-[#eef2f8]" : "font-bold text-[#dfe5f0]"}`}>{p.userName}</span>
-                      <span className="text-xs font-semibold text-[#66728a]">
-                        {p.correctCount}/{totalQ}
-                        {resultsData?.game?.hostUserId && p.userId === resultsData.game.hostUserId && totalQ - p.totalAnswered > 0
-                          ? ` · ${totalQ - p.totalAnswered} unanswered`
-                          : ''}
-                      </span>
-                      <span className={`w-[70px] text-right font-mono text-[15px] font-extrabold tabular-nums ${win ? "text-[#eef2f8]" : "text-[#9aa6bc]"}`}>{p.totalScore}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <PendingReviewQueue
-              reviews={pendingReviews}
-              label={COPY.adminResults.needingReviewLabel(pendingReviews.length)}
-              onReview={handleReview}
-              pendingAnswerId={reviewAnswer.isPending ? reviewAnswer.variables?.answerId : undefined}
-            />
-          </div>
-
-          {/* hardest questions */}
-          <div className="w-full xl:w-[280px] shrink-0 bg-[#0f1724] border border-[#1b2740] rounded-2xl p-4.5 p-5">
-            <div className="text-[13px] font-extrabold text-[#eef2f8] mb-4">Hardest questions</div>
-            {hardest.length === 0 && <p className="text-sm text-[#66728a]">No question data yet.</p>}
-            {hardest.map((h) => {
-              const pct = h.percentCorrect ?? 0;
-              const c = pctColor(pct);
-              return (
-                <div key={h.id} className="mb-4 last:mb-0">
-                  <div className="flex justify-between gap-2 mb-1.5">
-                    <span className="flex-1 text-xs font-semibold text-[#c9d1e0] leading-snug line-clamp-2">{h.questionText}</span>
-                    <span className="font-mono text-xs font-extrabold tabular-nums" style={{ color: c }}>{pct}%</span>
+            {hardestQuestion && (
+              <div className="mt-4 pt-3 border-t border-[#1b2740] flex items-start gap-2">
+                <Lightbulb className="h-3.5 w-3.5 text-[#ff6b6b] mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold tracking-widest text-[#66728a]">
+                    {COPY.adminResults.hardestLabel(hardestQuestion.percentCorrect)}
                   </div>
-                  <div className="h-[5px] rounded-full bg-white/10 overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: c }} />
-                  </div>
+                  <p className="text-sm text-[#eef2f8] line-clamp-2">{hardestQuestion.questionText}</p>
                 </div>
-              );
-            })}
+              </div>
+            )}
           </div>
+
+          {/* leaderboard */}
+          <div>
+            <div className="text-[11px] font-bold tracking-widest text-[#66728a] mb-2">{COPY.adminResults.leaderboardLabel}</div>
+            <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl p-2">
+              {participants.length === 0 && (
+                <p className="text-sm text-[#66728a] text-center py-6">{COPY.adminResults.noParticipants}</p>
+              )}
+              {participants.map((p, idx) => {
+                const win = p.rank === 1;
+                const [av, avtx] = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+                const unanswered = totalQ - p.totalAnswered;
+                return (
+                  <div key={p.userId} className={`flex items-center gap-3 px-2.5 py-2.5 rounded-[10px] ${win ? "bg-[#ff0080]/[.08]" : ""}`}>
+                    <span className={`w-5 text-center font-mono text-[13px] font-extrabold ${win ? "text-[#ff5aa8]" : "text-[#66728a]"}`}>{p.rank}</span>
+                    <span className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-extrabold shrink-0" style={{ background: av, color: avtx }}>
+                      {p.userName.substring(0, 1).toUpperCase()}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className={`truncate text-sm ${win ? "font-extrabold text-[#eef2f8]" : "font-bold text-[#dfe5f0]"}`}>{p.userName}</div>
+                      <div className="text-xs font-semibold text-[#66728a]">
+                        {COPY.adminResults.correctOf(p.correctCount, totalQ || p.totalAnswered)}
+                        {totalQ > 0 ? COPY.adminResults.pctSuffix(Math.round((p.correctCount / totalQ) * 100)) : ""}
+                        {resultsData.game?.hostUserId && p.userId === resultsData.game.hostUserId && unanswered > 0
+                          ? COPY.adminResults.unansweredSuffix(unanswered)
+                          : ""}
+                      </div>
+                    </div>
+                    <span className={`w-[70px] text-right font-mono text-[15px] font-extrabold tabular-nums ${win ? "text-[#eef2f8]" : "text-[#9aa6bc]"}`}>{p.totalScore}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <PendingReviewQueue
+            reviews={pendingReviews}
+            label={COPY.adminResults.needingReviewLabel(pendingReviews.length)}
+            onReview={handleReview}
+            pendingAnswerId={reviewAnswer.isPending ? reviewAnswer.variables?.answerId : undefined}
+          />
+
+          {/* per-question breakdown */}
+          <button
+            type="button"
+            onClick={() => setShowStats((v) => !v)}
+            className="w-full flex items-center justify-between bg-[#0f1724] border border-[#1b2740] rounded-2xl px-4 py-3 text-sm font-bold text-[#eef2f8] hover:border-[#2d4060] transition"
+          >
+            {COPY.adminResults.breakdownToggle}
+            {showStats ? <ChevronUp className="h-4 w-4 text-[#9aa6bc]" /> : <ChevronDown className="h-4 w-4 text-[#9aa6bc]" />}
+          </button>
+          {showStats && (
+            statsLoading ? (
+              <p className="text-sm text-[#66728a] text-center py-6">{COPY.adminResults.loading}</p>
+            ) : statsError ? (
+              <div className="flex items-center gap-3 rounded-xl border border-[#ff6b6b]/30 bg-[#ff6b6b]/10 px-4 py-3 text-sm text-[#ff6b6b]">
+                <ShieldAlert className="h-4 w-4 shrink-0" />
+                <span className="flex-1">{COPY.adminResults.breakdownLoadFailed}</span>
+                <button onClick={() => void refetchStats()} className="rounded-lg border border-[#ff6b6b] px-3 py-1 text-xs font-bold">
+                  {COPY.common.retry}
+                </button>
+              </div>
+            ) : (
+              <QuestionBreakdown stats={questionStats} questions={questions} />
+            )
+          )}
         </div>
       )}
     </div>
