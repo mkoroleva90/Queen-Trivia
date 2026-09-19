@@ -100,7 +100,17 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
     try {
       await updateGame.mutateAsync({ gameId: game.id, data: { status, ...extra } });
       qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
-    } catch { /* silent */ }
+    } catch {
+      Alert.alert(COPY.common.error, status === 'completed' ? COPY.adminLive.endGameError : COPY.admin.startFailed);
+    }
+  };
+
+  // Confirm before ending a live game from the list (matches the live screen).
+  const confirmEnd = (game: Game) => {
+    Alert.alert(COPY.adminLive.endGameTitle, COPY.adminLive.endGameBody, [
+      { text: COPY.common.cancel, style: 'cancel' },
+      { text: COPY.adminLive.endGameConfirm, style: 'destructive', onPress: () => { void handleStatus(game, 'completed'); } },
+    ]);
   };
 
   const confirmStart = async () => {
@@ -467,7 +477,7 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
                     </Pressable>
                     <Pressable
                       style={[s.actionBtn, { backgroundColor: colors.muted + '22', borderColor: colors.muted + '44' }]}
-                      onPress={() => handleStatus(game, 'completed')}
+                      onPress={() => confirmEnd(game)}
                     >
                       <Ionicons name="flag" size={14} color={colors.mutedForeground} />
                       <Text style={[s.actionText, { color: colors.mutedForeground }]}>{COPY.admin.endBtn}</Text>
@@ -511,7 +521,7 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
               <Text style={[s.sheetTitle, { color: colors.foreground }]}>{COPY.admin.startGameTitle}</Text>
             </View>
             <Text style={{ fontSize: 14, color: colors.mutedForeground, lineHeight: 20, marginBottom: 16 }}>
-              {startTarget?.topic}
+              {startTarget ? COPY.admin.startGameBody(startTarget.topic) : ''}
             </Text>
             {/* Play-along toggle */}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.border, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, marginBottom: 16, backgroundColor: playAlongPending ? colors.primary + '10' : 'transparent' }}>

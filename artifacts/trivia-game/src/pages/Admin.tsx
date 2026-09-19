@@ -4268,7 +4268,7 @@ function LiveGameView({
             onClick={() => endGame(activeGame.id)}
             className="text-xs font-bold text-[#ff6b6b] bg-[#ff6b6b]/10 border border-[#ff6b6b]/30 rounded-lg px-3.5 py-2 hover:brightness-110 transition"
           >
-            End game
+            {COPY.adminLive.endGameBtn}
           </button>
         </div>
       </div>
@@ -4643,10 +4643,10 @@ function GamesView({
       {
         onSuccess: () => {
           invalidate();
-          toast({ title: `"${game.topic}" is now live!` });
+          toast({ title: COPY.admin.nowLive(game.topic) });
           setConfirmStartGame(null);
         },
-        onError: () => toast({ variant: "destructive", title: "Failed to start" }),
+        onError: () => toast({ variant: "destructive", title: COPY.admin.startFailed }),
       }
     );
   };
@@ -4893,10 +4893,10 @@ function GamesView({
           <div className="relative bg-[#0f1724] border border-[#1b2740] rounded-2xl p-6 w-full max-w-sm shadow-2xl">
             <div className="flex items-center gap-2 mb-1">
               <Play className="h-5 w-5 text-[#ff0080]" />
-              <span className="font-extrabold text-[#eef2f8] text-base">Ready to go live?</span>
+              <span className="font-extrabold text-[#eef2f8] text-base">{COPY.admin.startGameTitle}</span>
             </div>
             <p className="text-sm text-[#9aa6bc] mb-4">
-              <span className="font-semibold text-[#eef2f8]">"{confirmStartGame.topic}"</span> will be visible to players immediately.
+              {COPY.admin.startGameBody(confirmStartGame.topic)}
             </p>
 
             {/* Play along toggle */}
@@ -4920,7 +4920,7 @@ function GamesView({
                 onClick={() => setConfirmStartGame(null)}
                 className="flex-1 py-2.5 rounded-xl border border-[#1b2740] text-sm font-semibold text-[#9aa6bc] hover:brightness-110 transition"
               >
-                Cancel
+                {COPY.common.cancel}
               </button>
               <button
                 onClick={doGoLive}
@@ -4928,7 +4928,7 @@ function GamesView({
                 className="flex-1 py-2.5 rounded-xl bg-[#35d07f] text-black text-sm font-extrabold disabled:opacity-50 hover:brightness-110 transition"
               >
                 <Play className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />
-                Go live now
+                {COPY.admin.goLiveBtn}
               </button>
             </div>
           </div>
@@ -5299,8 +5299,12 @@ function NewAdminDashboard() {
 
   const updateGame = useUpdateGame();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const endGame = (id: number) => {
+    // Confirm before ending — every end-game entry point on both platforms
+    // goes through this confirmation.
+    if (!window.confirm(`${COPY.adminLive.endGameTitle}\n\n${COPY.adminLive.endGameBody}`)) return;
     updateGame.mutate(
       { gameId: id, data: { status: "completed" } },
       {
@@ -5308,6 +5312,7 @@ function NewAdminDashboard() {
           queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
           navigate("results");
         },
+        onError: () => toast({ variant: "destructive", title: COPY.adminLive.endGameError }),
       }
     );
   };

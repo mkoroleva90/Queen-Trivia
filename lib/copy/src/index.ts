@@ -314,9 +314,13 @@ export const COPY = {
     questionsCount: (n: number) => `${n} questions`,
     /** "{n} player(s)" meta on completed game cards (mobile ResultsTab). */
     playersCount:   (n: number) => `${n} player${n === 1 ? '' : 's'}`,
-    /** Start-game confirmation sheet (mobile GamesTab). */
+    /** Start-game confirmation (web GamesView dialog and mobile GamesTab sheet). */
     startGameTitle: 'Start game?',
+    startGameBody:  (topic: string) => `"${topic}" will be visible to players immediately.`,
     goLiveBtn:      'Go live',
+    /** Toast after a game goes live (web); mobile navigates to live control instead. */
+    nowLive:        (topic: string) => `"${topic}" is now live!`,
+    startFailed:    'Failed to start the game. Please try again.',
     /** Per-game action chips (mobile GamesTab and game editor header). */
     startBtn:       'Start',
     liveBtn:        'Live',
@@ -1790,7 +1794,11 @@ export const COPY = {
     answeredCount:      (n: number, total: number) => `${n}/${total} answered`,
     correctCount:       (n: number) => `${n} correct`,
     needsReviewLabel:   (n: number) => `NEEDS REVIEW · ${n}`,
-    endGameBtn:         'End Game',
+    endGameBtn:         'End game',
+    /** End-game confirmation shown before any end-game action on both platforms. */
+    endGameTitle:       'End game?',
+    endGameBody:        'Players will no longer be able to answer and the results will be final.',
+    endGameConfirm:     'End game',
     endGameError:       'Failed to end the game. Please try again.',
     /** "+{earned} pts · total {total}" under the host's own answer feedback. */
     feedbackPts:        (earned: number, total: number) => `+${earned} pts · total ${total}`,

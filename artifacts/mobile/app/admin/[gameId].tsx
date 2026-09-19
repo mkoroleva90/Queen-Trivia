@@ -1953,13 +1953,33 @@ export default function GameDetailScreen() {
   };
 
   const handleStatusChange = async (status: 'waiting' | 'active' | 'completed') => {
-    await updateGame.mutateAsync({
-      gameId,
-      data: status === 'active' ? { status, hostPlaysAlong: playAlong } : { status },
-    });
+    try {
+      await updateGame.mutateAsync({
+        gameId,
+        data: status === 'active' ? { status, hostPlaysAlong: playAlong } : { status },
+      });
+    } catch {
+      Alert.alert(COPY.common.error, status === 'completed' ? COPY.adminLive.endGameError : COPY.admin.startFailed);
+      return;
+    }
     qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
     if (status === 'active') router.push(`/admin/live/${gameId}`);
     if (status === 'completed') router.push(`/admin/results/${gameId}`);
+  };
+
+  // Start / End from the editor confirm exactly like the games list does.
+  const confirmStart = () => {
+    if (!game) return;
+    Alert.alert(COPY.admin.startGameTitle, COPY.admin.startGameBody(game.topic), [
+      { text: COPY.common.cancel, style: 'cancel' },
+      { text: COPY.admin.goLiveBtn, onPress: () => { void handleStatusChange('active'); } },
+    ]);
+  };
+  const confirmEnd = () => {
+    Alert.alert(COPY.adminLive.endGameTitle, COPY.adminLive.endGameBody, [
+      { text: COPY.common.cancel, style: 'cancel' },
+      { text: COPY.adminLive.endGameConfirm, style: 'destructive', onPress: () => { void handleStatusChange('completed'); } },
+    ]);
   };
 
   const handleConfirmDelete = (id: number) => {
@@ -2124,13 +2144,13 @@ export default function GameDetailScreen() {
       <View style={[s.roomRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={s.statusActions}>
           {game?.status === 'waiting' && (
-            <Pressable style={[s.actionChip, { backgroundColor: colors.secondary + '22' }]} onPress={() => handleStatusChange('active')}>
+            <Pressable style={[s.actionChip, { backgroundColor: colors.secondary + '22' }]} onPress={confirmStart}>
               <Ionicons name="play" size={14} color={colors.secondary} />
               <Text style={[s.actionChipText, { color: colors.secondary }]}>{COPY.admin.startBtn}</Text>
             </Pressable>
           )}
           {game?.status === 'active' && (
-            <Pressable style={[s.actionChip, { backgroundColor: colors.destructive + '22' }]} onPress={() => handleStatusChange('completed')}>
+            <Pressable style={[s.actionChip, { backgroundColor: colors.destructive + '22' }]} onPress={confirmEnd}>
               <Ionicons name="flag" size={14} color={colors.destructive} />
               <Text style={[s.actionChipText, { color: colors.destructive }]}>{COPY.admin.endBtn}</Text>
             </Pressable>

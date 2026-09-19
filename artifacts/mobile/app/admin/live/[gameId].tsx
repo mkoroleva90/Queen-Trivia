@@ -401,7 +401,7 @@ export default function AdminLiveScreen() {
   // through the quiz on their own time.
   const releaseNextQuestion = async () => {
     if (isOnLastQuestion) {
-      await handleEndGame();
+      handleEndGame();
       return;
     }
     setQIndex((i) => Math.min(sortedQs.length - 1, i + 1));
@@ -532,7 +532,7 @@ export default function AdminLiveScreen() {
     }
   };
 
-  const handleEndGame = async () => {
+  const doEndGame = async () => {
     setEnding(true);
     setEndGameError(null);
     try {
@@ -543,6 +543,15 @@ export default function AdminLiveScreen() {
       setEnding(false);
       setEndGameError(COPY.adminLive.endGameError);
     }
+  };
+
+  // Confirm before ending — every end-game entry point on both platforms
+  // goes through this confirmation.
+  const handleEndGame = () => {
+    Alert.alert(COPY.adminLive.endGameTitle, COPY.adminLive.endGameBody, [
+      { text: COPY.common.cancel, style: 'cancel' },
+      { text: COPY.adminLive.endGameConfirm, style: 'destructive', onPress: () => { void doEndGame(); } },
+    ]);
   };
 
   const onRefresh = async () => {
