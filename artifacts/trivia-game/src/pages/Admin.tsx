@@ -17,6 +17,7 @@ import {
 import { COPY } from "@workspace/copy";
 import { QuestionBreakdown } from "@/components/admin/QuestionBreakdown";
 import { AiToolsDialog } from "@/components/admin/AiToolsDialog";
+import { ImportOpenTdbDialog } from "@/components/admin/ImportOpenTdbDialog";
 import { RunModeScreen, type RunMode } from "@/components/RunModeScreen";
 import { JoinCodeScreen } from "@/components/JoinCodeScreen";
 import { OpenTdbQuestionMixSelector, type OpenTdbImportMode } from "@/components/OpenTdbQuestionMixSelector";
@@ -1443,6 +1444,8 @@ const [genMode, setGenMode] = useState<OpenTdbImportMode | null>(null);
 const [upgradeLimitMsg, setUpgradeLimitMsg] = useState<string | null>(null);
 // Per-question AI tools (regenerate / enhance / fact-check), as on mobile.
 const [aiMenuQuestion, setAiMenuQuestion] = useState<Question | null>(null);
+// Import from Open Trivia Database into this game, as on mobile.
+const [importOpen, setImportOpen] = useState(false);
 
 const handleGenerate = async () => {
  if (genMode === null) return;
@@ -1558,6 +1561,12 @@ return (
       onClose={() => setAiMenuQuestion(null)}
       onUpdate={() => { invalidate(); }}
      />
+     <ImportOpenTdbDialog
+      open={importOpen}
+      gameId={game.id}
+      onClose={() => setImportOpen(false)}
+      onImported={() => { invalidate(); }}
+     />
      {/* Header */}
      <div className="flex items-center justify-between gap-3 flex-wrap">
    <div>
@@ -1574,7 +1583,10 @@ return (
        )}
     </div>
    </div>
-   <div className="flex items-center gap-2">
+   <div className="flex items-center gap-2 flex-wrap">
+    <Button variant="outline" className="font-semibold" onClick={() => setImportOpen(true)}>
+     <Database className="mr-1.5 h-4 w-4 text-primary" /> {COPY.source.openTriviaDatabase}
+    </Button>
     <Button variant="outline" className="font-semibold" onClick={() => setGenOpen(true)}>
      <Sparkles className="mr-1.5 h-4 w-4 text-purple-400" /> {COPY.build.aiSheet.title}
     </Button>
@@ -2445,6 +2457,8 @@ const [upgradeLimitMsg, setUpgradeLimitMsg] = useState<string | null>(null);
 
 // Per-question AI tools (regenerate / enhance / fact-check), as on mobile.
 const [aiMenuQuestion, setAiMenuQuestion] = useState<Question | null>(null);
+// Import from Open Trivia Database into the selected game, as on mobile.
+const [importOpen, setImportOpen] = useState(false);
 
 
 // Generate More modal state
@@ -2700,7 +2714,16 @@ return (
     {selectedGameId !== null && rawQuestions.length > 0 && (
      <div className="flex items-center justify-between rounded-lg border border-card-border bg-card/50 px-4 py-2.5">
       <span className="text-sm text-muted-foreground">{rawQuestions.length} question{rawQuestions.length !== 1 ? "s" : ""}</span>
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+       <Button
+        size="sm"
+        variant="ghost"
+        className="h-7 px-2 text-xs gap-1"
+        onClick={() => setImportOpen(true)}
+        disabled={regenAllRunning}
+       >
+        <Database className="h-3 w-3" /> {COPY.source.openTriviaDatabase}
+       </Button>
        <Button
         size="sm"
         variant="ghost"
@@ -2708,7 +2731,7 @@ return (
         onClick={() => { const g = games.find((g) => g.id === selectedGameId); setGenMoreBrief(g?.brief ?? ""); setGenMoreOpen(true); }}
         disabled={regenAllRunning}
        >
-        <Sparkles className="h-3 w-3" /> Generate More
+        <Sparkles className="h-3 w-3" /> {COPY.build.aiSheet.title}
        </Button>
        <Button
         size="sm"
@@ -2888,6 +2911,12 @@ return (
      gameId={selectedGameId ?? 0}
      onClose={() => setAiMenuQuestion(null)}
      onUpdate={() => { invalidate(); }}
+    />
+    <ImportOpenTdbDialog
+     open={importOpen}
+     gameId={selectedGameId ?? 0}
+     onClose={() => setImportOpen(false)}
+     onImported={() => { invalidate(); }}
     />
 
 
