@@ -4616,12 +4616,12 @@ function GamesView({
   };
 
   const handleDelete = (game: Game) => {
-    if (!window.confirm(`Delete "${game.topic}" and all its questions? This can't be undone.`)) return;
+    if (!window.confirm(COPY.admin.deleteGameBody(game.topic))) return;
     deleteGame.mutate(
       { gameId: game.id },
       {
-        onSuccess: () => { invalidate(); toast({ title: `Deleted "${game.topic}"` }); },
-        onError: () => toast({ variant: "destructive", title: "Failed to delete game" }),
+        onSuccess: () => { invalidate(); toast({ title: COPY.admin.deleted(game.topic) }); },
+        onError: () => toast({ variant: "destructive", title: COPY.admin.deleteFailed }),
       }
     );
   };
@@ -4865,7 +4865,7 @@ function GamesView({
                     <Button className="flex-1 bg-[#35d07f] hover:bg-[#35d07f]/90 text-black font-bold" onClick={() => handleGoLive(game)} disabled={game.questionCount === 0}>
                       <Play className="w-4 h-4 mr-2" /> Go Live
                     </Button>
-                    <Button variant="outline" size="icon" aria-label="Delete game" className="shrink-0 border-[#1b2740] bg-[#0a1019] text-[#ff6b6b] hover:bg-[#ff6b6b]/10 hover:text-[#ff6b6b]" onClick={() => handleDelete(game)}>
+                    <Button variant="outline" size="icon" aria-label={COPY.admin.deleteGameLabel} className="shrink-0 border-[#1b2740] bg-[#0a1019] text-[#ff6b6b] hover:bg-[#ff6b6b]/10 hover:text-[#ff6b6b]" onClick={() => handleDelete(game)}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
@@ -4875,7 +4875,7 @@ function GamesView({
                     <Button variant="outline" className="flex-1 border-[#1b2740] bg-[#0a1019] text-[#eef2f8] hover:bg-[#1b2740]" onClick={() => onNavigate("results", game.id)}>
                       <BarChart3 className="w-4 h-4 mr-2" /> Results
                     </Button>
-                    <Button variant="outline" size="icon" aria-label="Delete game" className="shrink-0 border-[#1b2740] bg-[#0a1019] text-[#ff6b6b] hover:bg-[#ff6b6b]/10 hover:text-[#ff6b6b]" onClick={() => handleDelete(game)}>
+                    <Button variant="outline" size="icon" aria-label={COPY.admin.deleteGameLabel} className="shrink-0 border-[#1b2740] bg-[#0a1019] text-[#ff6b6b] hover:bg-[#ff6b6b]/10 hover:text-[#ff6b6b]" onClick={() => handleDelete(game)}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>

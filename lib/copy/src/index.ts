@@ -324,6 +324,16 @@ export const COPY = {
     resultsBtn:     'Results',
     /** Pill shown beside the header title while a game is live (mobile AdminHeader). */
     livePill:       'LIVE',
+    /**
+     * Delete-game confirmation and result messages (web GamesView and mobile
+     * GamesTab). Both platforms confirm before deleting.
+     */
+    deleteGameLabel:   'Delete game',
+    deleteGameTitle:   'Delete game?',
+    deleteGameBody:    (topic: string) => `Delete "${topic}" and all its questions? This can't be undone.`,
+    deleteGameConfirm: 'Delete',
+    deleted:           (topic: string) => `Deleted "${topic}"`,
+    deleteFailed:      'Failed to delete game',
   },
 
   /**

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   RefreshControl,
@@ -194,12 +195,26 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    setDeletingId(id);
-    try {
-      await deleteGame.mutateAsync({ gameId: id });
-      qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
-    } catch { /* silent */ } finally { setDeletingId(null); }
+  const handleDelete = (game: Game) => {
+    // Confirm before deleting — matches the web games list.
+    Alert.alert(COPY.admin.deleteGameTitle, COPY.admin.deleteGameBody(game.topic), [
+      { text: COPY.common.cancel, style: 'cancel' },
+      {
+        text: COPY.admin.deleteGameConfirm,
+        style: 'destructive',
+        onPress: async () => {
+          setDeletingId(game.id);
+          try {
+            await deleteGame.mutateAsync({ gameId: game.id });
+            qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
+          } catch {
+            Alert.alert(COPY.common.error, COPY.admin.deleteFailed);
+          } finally {
+            setDeletingId(null);
+          }
+        },
+      },
+    ]);
   };
 
   const s = styles(colors);
@@ -473,7 +488,8 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
                 ) : (
                   <Pressable
                     style={[s.actionBtn, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}
-                    onPress={() => handleDelete(game.id)}
+                    onPress={() => handleDelete(game)}
+                    accessibilityLabel={COPY.admin.deleteGameLabel}
                   >
                     <Ionicons name="trash-outline" size={14} color={colors.destructive} />
                   </Pressable>
