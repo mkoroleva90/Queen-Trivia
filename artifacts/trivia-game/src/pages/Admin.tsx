@@ -16,6 +16,7 @@ import {
 } from "@workspace/live-tally";
 import { COPY } from "@workspace/copy";
 import { QuestionBreakdown } from "@/components/admin/QuestionBreakdown";
+import { AiToolsDialog } from "@/components/admin/AiToolsDialog";
 import { RunModeScreen, type RunMode } from "@/components/RunModeScreen";
 import { JoinCodeScreen } from "@/components/JoinCodeScreen";
 import { OpenTdbQuestionMixSelector, type OpenTdbImportMode } from "@/components/OpenTdbQuestionMixSelector";
@@ -86,8 +87,6 @@ import {
  getListGameParticipantsQueryKey,
  useImportOpenTdbQuestions,
  useGenerateGeminiQuestions,
- useRegenerateQuestion,
- useEnhanceQuestion,
  useListPendingAnswerReviews,
  getListPendingAnswerReviewsQueryKey,
  useReviewAnswer,
@@ -95,8 +94,6 @@ import {
 import type {
  Game,
  Question,
- RegenerateQuestionPreview,
- EnhanceQuestionResult,
  PendingAnswerReview,
 } from "@workspace/api-client-react";
 import { useAuth } from "../lib/auth";
@@ -1295,12 +1292,15 @@ function SortableQuestionItem({
  index,
  onEdit,
  onDelete,
+ onAi,
  deleteDisabled,
 }: {
  q: Question;
  index: number;
  onEdit: (q: Question) => void;
  onDelete: (id: number) => void;
+ /** Opens the per-question AI tools (regenerate / enhance / fact-check). */
+ onAi: (q: Question) => void;
  deleteDisabled: boolean;
 }) {
  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -1383,9 +1383,19 @@ return (
   <div className="flex gap-1 shrink-0">
    <Button
           variant="ghost"
+          size="sm"
+          onClick={() => onAi(q)}
+          className="h-8 px-2 text-xs text-purple-400 hover:text-purple-300"
+          aria-label={COPY.aiTools.title}
+         >
+          <Sparkles className="mr-1 h-3 w-3" />{COPY.source.aiTag}
+         </Button>
+   <Button
+          variant="ghost"
           size="icon"
           onClick={() => onEdit(q)}
           className="h-8 w-8"
+          aria-label={COPY.common.edit}
          >
           <Pencil className="h-3.5 w-3.5" />
          </Button>
@@ -1431,6 +1441,8 @@ const [genAvoid, setGenAvoid] = useState(true);
 const [genBrief, setGenBrief] = useState(game.brief ?? "");
 const [genMode, setGenMode] = useState<OpenTdbImportMode | null>(null);
 const [upgradeLimitMsg, setUpgradeLimitMsg] = useState<string | null>(null);
+// Per-question AI tools (regenerate / enhance / fact-check), as on mobile.
+const [aiMenuQuestion, setAiMenuQuestion] = useState<Question | null>(null);
 
 const handleGenerate = async () => {
  if (genMode === null) return;
@@ -1540,6 +1552,12 @@ const handleDelete = (id: number) => {
 return (
  <div className="space-y-4">
      <FreeTierLimitModal msg={upgradeLimitMsg} onClose={() => setUpgradeLimitMsg(null)} />
+     <AiToolsDialog
+      question={aiMenuQuestion}
+      gameId={game.id}
+      onClose={() => setAiMenuQuestion(null)}
+      onUpdate={() => { invalidate(); }}
+     />
      {/* Header */}
      <div className="flex items-center justify-between gap-3 flex-wrap">
    <div>
@@ -1751,6 +1769,7 @@ return (
            index={i}
            onEdit={(q) => { setEditing(q); setDialogOpen(true); }}
            onDelete={handleDelete}
+           onAi={(q) => setAiMenuQuestion(q)}
            deleteDisabled={deleteQuestion.isPending}
           />
          ))}
@@ -2424,23 +2443,8 @@ const deleteQuestion = useDeleteQuestion();
 
 const [upgradeLimitMsg, setUpgradeLimitMsg] = useState<string | null>(null);
 
-// Regenerate modal state
-const [regenQ, setRegenQ] = useState<Question | null>(null);
-const [regenDiff, setRegenDiff] = useState<"same" | "easy" | "medium" | "hard">("same");
-const [regenType, setRegenType] = useState<string>("same");
-const [regenLoading, setRegenLoading] = useState(false);
- const [regenPreview, setRegenPreview] = useState<RegenerateQuestionPreview |null>(null);
-const [regenError, setRegenError] = useState<string | null>(null);
-
-
-// Enhance modal state
-const [enhQ, setEnhQ] = useState<Question | null>(null);
-const [enhLoading, setEnhLoading] = useState(false);
-const [enhResult, setEnhResult] = useState<EnhanceQuestionResult | null>(null);
-const [enhError, setEnhError] = useState<string | null>(null);
-const [enhAcceptText, setEnhAcceptText] = useState(false);
-const [enhAcceptOptions, setEnhAcceptOptions] = useState(false);
-const [enhAcceptSource, setEnhAcceptSource] = useState(false);
+// Per-question AI tools (regenerate / enhance / fact-check), as on mobile.
+const [aiMenuQuestion, setAiMenuQuestion] = useState<Question | null>(null);
 
 
 // Generate More modal state
@@ -2459,8 +2463,6 @@ const [regenAllBrief, setRegenAllBrief] = useState("");
 const [regenAllRunning, setRegenAllRunning] = useState(false);
 
 
-const regenMutation = useRegenerateQuestion();
-const enhanceMutation = useEnhanceQuestion();
 const generateMore = useGenerateGeminiQuestions();
 
 
@@ -2539,124 +2541,6 @@ const handleBulkDelete = async () => {
  invalidate();
  setSelected(new Set());
  toast({ title: COPY.questionEditor.deletedCount(ids.length) });
-};
-
-
-const handleRunRegen = async () => {
- if (!regenQ || !selectedGameId) return;
- setRegenLoading(true);
- setRegenPreview(null);
- setRegenError(null);
- const game = games.find((g) => g.id === selectedGameId);
- const difficulty =
-     regenDiff === "same"
-      ? ((game?.difficulty ?? "medium") as "easy" | "medium" | "hard")
-      : regenDiff;
- const questionType =
-     regenType === "same"
-      ? (regenQ.questionType as "multiple_choice" | "true_false" | "write_in")
-      : (regenType as "multiple_choice" | "true_false" | "write_in");
- try {
-     const preview = await regenMutation.mutateAsync({
-      gameId: selectedGameId,
-      questionId: regenQ.id,
-      data: { difficulty, questionType },
-     });
-     setRegenPreview(preview);
- } catch (err) {
-     const limitMsg = extractFreeTierLimitMsg(err);
-     if (limitMsg) { setUpgradeLimitMsg(limitMsg); setRegenLoading(false); return; }
-     const msg = err instanceof Error ? err.message : "Generation failed. Please try again.";
-  setRegenError(msg.includes("Too many requests") ? "Rate limited — please wait a moment and try again." : msg);
- } finally {
-     setRegenLoading(false);
- }
-};
-
-
-const handleAcceptRegen = () => {
- if (!regenQ || !regenPreview) return;
- const opts =
-     regenPreview.options && regenPreview.options.length > 0
-         ? ({ choices: regenPreview.options } as unknown as Record<string, unknown>)
-         : null;
- updateQuestion.mutate(
-     {
-         questionId: regenQ.id,
-         data: {
-          questionText: regenPreview.questionText,
-     questionType: regenPreview.questionType as "multiple_choice" | "true_false" |"write_in",
-          correctAnswer: regenPreview.correctAnswer,
-          options: opts,
-          points: regenPreview.points,
-          source: regenPreview.source,
-         },
-     },
-     {
-         onSuccess: () => {
-          invalidate();
-          setRegenQ(null);
-          setRegenPreview(null);
-          toast({ title: "Question replaced" });
-      },
-      onError: () => toast({ variant: "destructive", title: "Update failed" }),
-     },
- );
-};
-
-
-const handleRunEnhance = async (q: Question) => {
- if (!selectedGameId) return;
- setEnhQ(q);
- setEnhLoading(true);
- setEnhResult(null);
- setEnhError(null);
- setEnhAcceptText(false);
- setEnhAcceptOptions(false);
- setEnhAcceptSource(false);
- try {
-  const result = await enhanceMutation.mutateAsync({ gameId: selectedGameId,questionId: q.id });
-     setEnhResult(result);
- } catch (err) {
-     const limitMsg = extractFreeTierLimitMsg(err);
-     if (limitMsg) { setUpgradeLimitMsg(limitMsg); setEnhLoading(false); return; }
-     const msg = err instanceof Error ? err.message : "Enhancement failed. Please try again.";
-  setEnhError(msg.includes("Too many requests") ? "Rate limited — please wait a moment and try again." : msg);
- } finally {
-     setEnhLoading(false);
- }
-};
-
-
-const handleApplyEnhancements = () => {
- if (!enhQ || !enhResult) return;
- type Patch = {
-     questionText?: string;
-     options?: Record<string, unknown> | null;
-     source?: string | null;
- };
- const patch: Patch = {};
- if (enhAcceptText) patch.questionText = enhResult.improvedQuestionText;
- if (enhAcceptOptions && enhResult.improvedOptions &&enhResult.improvedOptions.length > 0) {
-     patch.options = { choices: enhResult.improvedOptions } as Record<string, unknown>;
- }
- if (enhAcceptSource && enhResult.suggestedSource) patch.source =enhResult.suggestedSource;
- if (Object.keys(patch).length === 0) {
-     toast({ title: "No improvements selected" });
-     return;
- }
- updateQuestion.mutate(
-  { questionId: enhQ.id, data: patch as Parameters<typeof updateQuestion.mutate>[0]["data"] },
-     {
-         onSuccess: () => {
-          invalidate();
-          setEnhQ(null);
-          setEnhResult(null);
-          toast({ title: "Enhancements applied" });
-      },
-      onError: () => toast({ variant: "destructive", title: "Update failed" }),
-     },
- );
 };
 
 
@@ -2962,36 +2846,21 @@ return (
 
          {/* Actions */}
          <div className="flex flex-col sm:flex-row gap-1 shrink-0">
-{q.aiGenerated && (
-<Button
-    variant="ghost"
-    size="sm"
-    className="h-8 px-2 text-xs text-purple-400 hover:text-purple-300"
-    onClick={() => {
-     setRegenQ(q);
-     setRegenDiff("same");
-     setRegenType("same");
-     setRegenPreview(null);
-     setRegenError(null);
-    }}
->
-    <RefreshCw className="mr-1 h-3 w-3" />Regen
- </Button>
-)}
 <Button
  variant="ghost"
  size="sm"
- className="h-8 px-2 text-xs text-blue-400 hover:text-blue-300"
- onClick={() => handleRunEnhance(q)}
- disabled={enhanceMutation.isPending && enhQ?.id === q.id}
+ className="h-8 px-2 text-xs text-purple-400 hover:text-purple-300"
+ onClick={() => setAiMenuQuestion(q)}
+ aria-label={COPY.aiTools.title}
 >
- <Wand2 className="mr-1 h-3 w-3" />Enhance
+ <Sparkles className="mr-1 h-3 w-3" />{COPY.source.aiTag}
 </Button>
 <Button
  variant="ghost"
  size="icon"
  className="h-8 w-8"
  onClick={() => { setEditingQuestion(q); setEditDialogOpen(true); }}
+ aria-label={COPY.common.edit}
 >
  <Pencil className="h-3.5 w-3.5" />
 </Button>
@@ -3013,237 +2882,13 @@ return (
     )}
 
 
-    {/* ── Regenerate dialog ── */}
-    <Dialog open={regenQ !== null} onOpenChange={(open) => { if (!open) {setRegenQ(null); setRegenPreview(null); setRegenError(null); } }}>
-     <DialogContent className="sm:max-w-md">
-         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-           <RefreshCw className="h-4 w-4 text-purple-400" /> Regenerate Question
-          </DialogTitle>
-         </DialogHeader>
-         {regenQ && (
-          <div className="space-y-4">
-           <div className="rounded-md border border-card-border bg-card/50 p-3">
-               <p className="text-xs text-muted-foreground mb-1">Current question</p>
-               <p className="text-sm font-medium leading-snug">{regenQ.questionText}</p>
-           </div>
-        {/* Difficulty */}
-        <div className="space-y-2">
-         <p className="text-sm font-medium">Difficulty</p>
-         <div className="flex flex-wrap gap-2">
-          {(["same", "easy", "medium", "hard"] as const).map((d) => (
-           <button
-            key={d}
-            onClick={() => setRegenDiff(d)}
-            className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors capitalize ${
-                regenDiff === d
-                ? "bg-primary text-primary-foreground border-primary"
-             : "bg-card/60 text-muted-foreground border-card-border hover:border-muted-foreground/50"
-            }`}
-           >
-            {d === "same" ? "Same as current" : d}
-           </button>
-          ))}
-         </div>
-        </div>
-
-
-        {/* Question type */}
-        <div className="space-y-2">
-         <p className="text-sm font-medium">{COPY.questionEditor.typeLabel}</p>
-         <Select value={regenType} onValueChange={setRegenType}>
-          <SelectTrigger className="h-9">
-             <SelectValue />
-             </SelectTrigger>
-             <SelectContent>
-             <SelectItem value="same">Same as current</SelectItem>
-             <SelectItem value="multiple_choice">Multiple Choice</SelectItem>
-             <SelectItem value="true_false">True / False</SelectItem>
-             <SelectItem value="write_in">Write-in</SelectItem>
-             </SelectContent>
-         </Select>
-        </div>
-
-
-        {/* Error */}
-        {regenError && (
-         <div className="flex items-center gap-2 rounded-md bg-destructive/10 borderborder-destructive/20 px-3 py-2 text-xs text-destructive">
-             <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> {regenError}
-         </div>
-        )}
-
-
-        {/* Preview */}
-        {regenPreview && (
-         <div className="rounded-md border border-primary/30 bg-primary/5 p-3 space-y-2">
-             <p className="text-xs text-primary font-medium">New question preview</p>
-          <p className="text-sm font-medium leading-snug">{regenPreview.questionText}</p>
-             <p className="text-xs text-muted-foreground">
-         Answer: <span className="text-secondary font-medium">{regenPreview.correctAnswer}</span>
-            </p>
-            {regenPreview.options && regenPreview.options.length > 0 && (
-             <p className="text-xs text-muted-foreground">
-                 Options: {regenPreview.options.join(" · ")}
-             </p>
-            )}
-          <p className="text-xs text-muted-foreground">Source:{regenPreview.source}</p>
-        </div>
-       )}
-
-
-       {/* Action buttons */}
-       <div className="flex gap-2 flex-wrap">
-        <Button
-            className="flex-1"
-            onClick={handleRunRegen}
-            disabled={regenLoading}
-        >
-            {regenLoading ? (
-             <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating…</>
-            ) : regenPreview ? (
-             <><RefreshCw className="mr-2 h-4 w-4" />Try Again</>
-            ):(
-             <><Sparkles className="mr-2 h-4 w-4" />Generate</>
-            )}
-           </Button>
-           {regenPreview && (
-            <Button
-                variant="outline"
-                className="flex-1 border-secondary/40 text-secondary"
-                onClick={handleAcceptRegen}
-                disabled={updateQuestion.isPending}
-            >
-                <CheckCircle2 className="mr-2 h-4 w-4" />Accept
-            </Button>
-           )}
-           </div>
-       </div>
-      )}
-     </DialogContent>
-    </Dialog>
-
-
-    {/* ── Enhance dialog ── */}
-    <Dialog open={enhQ !== null} onOpenChange={(open) => { if (!open) { setEnhQ(null);setEnhResult(null); setEnhError(null); } }}>
-     <DialogContent className="sm:max-w-xl max-h-[90dvh] overflow-y-auto">
-      <DialogHeader>
-       <DialogTitle className="flex items-center gap-2">
-           <Wand2 className="h-4 w-4 text-blue-400" /> Enhance Question
-       </DialogTitle>
-      </DialogHeader>
-      {enhQ && (
-       <div className="space-y-4">
-       {/* Loading */}
-       {enhLoading && (
-        <div className="flex items-center gap-3 py-4">
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Analyzing with Gemini…</p>
-        </div>
-       )}
-
-
-       {/* Error */}
-       {enhError && (
-         <div className="flex items-center gap-2 rounded-md bg-destructive/10 borderborder-destructive/20 px-3 py-2 text-xs text-destructive">
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> {enhError}
-        </div>
-       )}
-
-
-       {enhResult && (
-        <>
-
-
-{/* Side-by-side comparison */}
-         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {/* Original */}
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercasetracking-wide">Original</p>
-           <div className="rounded-md border border-card-border bg-card/50 p-3 text-sm space-y-1.5">
-            <p className="font-medium leading-snug">{enhQ.questionText}</p>
-            {enhQ.source && <p className="text-xs text-muted-foreground">Source:{enhQ.source}</p>}
-           </div>
-          </div>
-          {/* Suggested */}
-          <div className="space-y-2">
-          <p className="text-xs font-semibold text-primary uppercase tracking-wide">Suggested</p>
-           <div className="rounded-md border border-primary/30 bg-primary/5 p-3text-sm space-y-1.5">
-           <p className="font-medium leading-snug">{enhResult.improvedQuestionText}</p>
-            {enhResult.suggestedSource && (
-             <p className="text-xs text-muted-foreground">Source:{enhResult.suggestedSource}</p>
-            )}
-           </div>
-          </div>
-         </div>
-         {enhResult.suggestions && (
-            <div className="rounded-md bg-muted/20 border border-card-border px-3py-2 text-xs text-muted-foreground">
-           <span className="font-medium text-foreground">Tips:</span>{enhResult.suggestions}
-          </div>
-         )}
-
-
-         {/* Checkboxes */}
-         <div className="space-y-2">
-          <p className="text-sm font-medium">{COPY.build.enhanceSheet.applyBtn}</p>
-          <label className="flex items-start gap-2.5 cursor-pointer group">
-              <input
-              type="checkbox"
-              className="mt-0.5 accent-primary"
-              checked={enhAcceptText}
-              onChange={(e) => setEnhAcceptText(e.target.checked)}
-              />
-            <span className="text-sm group-hover:text-foreground text-muted-foreground transition-colors">
-              Use improved question text
-              </span>
-          </label>
-          {enhResult.improvedOptions && enhResult.improvedOptions.length > 0 && (
-              <label className="flex items-start gap-2.5 cursor-pointer group">
-              <input
-               type="checkbox"
-               className="mt-0.5 accent-primary"
-               checked={enhAcceptOptions}
-               onChange={(e) => setEnhAcceptOptions(e.target.checked)}
-               />
-             <span className="text-sm group-hover:text-foreground text-muted-foreground transition-colors">
-               Use improved answer options
-               </span>
-           </label>
-          )}
-          {enhResult.suggestedSource && (
-           <label className="flex items-start gap-2.5 cursor-pointer group">
-               <input
-               type="checkbox"
-               className="mt-0.5 accent-primary"
-               checked={enhAcceptSource}
-               onChange={(e) => setEnhAcceptSource(e.target.checked)}
-               />
-             <span className="text-sm group-hover:text-foreground text-muted-foreground transition-colors">
-               Use suggested source
-               </span>
-           </label>
-          )}
-         </div>
-
-
-         {/* Buttons */}
-                <div className="flex gap-2">
-                <Button
-                 onClick={handleApplyEnhancements}
-          disabled={updateQuestion.isPending || (!enhAcceptText &&!enhAcceptOptions && !enhAcceptSource)}
-                 className="flex-1"
-                >
-                 Apply Selected Changes
-                </Button>
-                <Button variant="ghost" onClick={() => { setEnhQ(null); setEnhResult(null); }}>
-                 Dismiss
-                </Button>
-                </div>
-            </>
-           )}
-       </div>
-      )}
-     </DialogContent>
-    </Dialog>
+    {/* ── AI tools (regenerate / enhance / fact-check) ── */}
+    <AiToolsDialog
+     question={aiMenuQuestion}
+     gameId={selectedGameId ?? 0}
+     onClose={() => setAiMenuQuestion(null)}
+     onUpdate={() => { invalidate(); }}
+    />
 
 
     {/* ── Generate More dialog ── */}
