@@ -3,8 +3,9 @@ import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Lock, ArrowLeft, CheckCircle, Eye, EyeOff } from "lucide-react";
+import { Loader2, Lock, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { COPY } from "@workspace/copy";
+import { useAuth } from "../lib/auth";
 
 export default function ResetPassword() {
   const [password, setPassword] = useState("");
@@ -12,9 +13,9 @@ export default function ResetPassword() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [pending, setPending] = useState(false);
-  const [done, setDone] = useState(false);
   const [error, setError] = useState("");
   const [, setLocation] = useLocation();
+  const { loginAdmin } = useAuth();
 
   // Read the token from the URL at render time
   const token = new URLSearchParams(window.location.search).get("token") ?? "";
@@ -53,7 +54,10 @@ export default function ResetPassword() {
         return;
       }
 
-      setDone(true);
+      // The server signs the host in on a successful reset — go straight to
+      // their games, matching mobile.
+      loginAdmin();
+      setLocation("/admin");
     } catch {
       setError(COPY.hostForgotPassword.error.connectionError);
     } finally {
@@ -72,28 +76,6 @@ export default function ResetPassword() {
               onClick={() => setLocation("/forgot-password")}
             >
               {COPY.hostForgotPassword.requestNewLink}
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (done) {
-    return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center p-4 bg-[#0a0c12]">
-        <Card className="w-full max-w-md bg-[#0a1019] border-[#1b2740]">
-          <CardContent className="pt-8 pb-8 text-center space-y-4">
-            <CheckCircle className="w-12 h-12 text-[#35d07f] mx-auto" />
-            <h2 className="text-xl font-extrabold tracking-widest text-white">{COPY.hostForgotPassword.updatedHeading}</h2>
-            <p className="text-[#9aa6bc] text-sm">
-              {COPY.hostForgotPassword.updatedBody}
-            </p>
-            <Button
-              className="bg-[#ff2d8e] hover:bg-[#e0207d] text-white"
-              onClick={() => setLocation("/admin-login")}
-            >
-              {COPY.hostLogin.signInBtn}
             </Button>
           </CardContent>
         </Card>

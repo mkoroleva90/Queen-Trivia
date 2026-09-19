@@ -1069,6 +1069,12 @@ export const COPY = {
     createAccount:            'Create account',
     /** Forgot-password link. */
     forgotPassword:           'Forgot password?',
+    /**
+     * Shown under the unverified-account error. Web re-sends the verification
+     * link; mobile re-sends the code and opens the verify step. Both platforms.
+     */
+    resendVerification:       'Resend verification email',
+    verificationResent:       'A new email is on its way.',
     /** Google SSO button label (web + mobile). */
     continueWithGoogle:       'Continue with Google',
     /** Apple SSO button label (web + mobile, iOS-only on mobile). */
@@ -1089,10 +1095,10 @@ export const COPY = {
       /** Shown when the password field is empty (mobile). */
       enterPassword:      'Enter your password',
       /**
-       * Shown on unverified-account responses. Web wording is canonical.
-       * Previously mobile had a shorter, spam-folder-aware variant.
+       * Shown on unverified-account (403) responses. Mechanism-neutral: web
+       * verifies by link, mobile by code; both offer resendVerification below.
        */
-      verifyEmail:        'Please verify your email address before logging in. Check your inbox for the verification link.',
+      verifyEmail:        'Please verify your email address before signing in.',
       /** Shown on wrong-credentials responses. Web wording is canonical. */
       invalidCredentials: 'Invalid email or password',
       /** Shown on unexpected server errors. */
@@ -1166,9 +1172,6 @@ export const COPY = {
     resent:               'A new code is on its way.',
     /** Invalid / expired reset link screen (web — link flow). */
     requestNewLink:       'Request a new link',
-    /** Success screen after the password is changed. Both platforms. */
-    updatedHeading:       'PASSWORD UPDATED',
-    updatedBody:          'Your password has been changed. You can now sign in.',
 
     error: {
       /** Email field is empty. */

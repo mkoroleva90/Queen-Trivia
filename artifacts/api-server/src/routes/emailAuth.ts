@@ -388,7 +388,18 @@ router.post(
       adminEmail: account.email,
     });
 
-    res.json({ ok: true, message: "Password updated. You can now log in." });
+    // Establish a fresh admin session so the host lands in their games signed
+    // in, matching the mobile reset flow (which returns a Bearer token).
+    req.session.regenerate((err) => {
+      if (err) {
+        res.status(500).json({ error: "Failed to establish session" });
+        return;
+      }
+      req.session.isAdmin = true;
+      req.session.adminEmail = account.email;
+      req.session.adminAccountId = account.id;
+      res.json({ ok: true, message: "Password updated. You are now logged in." });
+    });
   }
 );
 

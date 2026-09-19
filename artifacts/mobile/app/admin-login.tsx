@@ -37,6 +37,8 @@ export default function AdminLoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resending, setResending] = useState(false);
   const [ssoPending, setSsoPending] = useState<'google' | 'apple' | null>(null);
 
   const baseUrl = API_BASE_URL;
@@ -134,6 +136,7 @@ export default function AdminLoginScreen() {
     if (!trimmedEmail) { setError(COPY.hostLogin.error.enterEmail); return; }
     if (!password) { setError(COPY.hostLogin.error.enterPassword); return; }
     setError('');
+    setNeedsVerification(false);
     setPending(true);
     try {
       const res = await fetch(`${baseUrl}/api/auth/email/admin-mobile-login`, {
@@ -144,6 +147,7 @@ export default function AdminLoginScreen() {
       if (res.status === 401) { setError(COPY.hostLogin.error.invalidCredentials); return; }
       if (res.status === 403) {
         setError(COPY.hostLogin.error.verifyEmail);
+        setNeedsVerification(true);
         return;
       }
       if (!res.ok) { setError(COPY.hostLogin.error.somethingWrong); return; }
@@ -154,6 +158,30 @@ export default function AdminLoginScreen() {
       setError(COPY.hostLogin.error.connectionError);
     } finally {
       setPending(false);
+    }
+  };
+
+  // Re-sends the 6-digit code for an unverified account (403 on login) and
+  // opens the verify step so the host can finish signing up.
+  const handleResendVerification = async () => {
+    if (resending) return;
+    const trimmedEmail = email.trim().toLowerCase();
+    setResending(true);
+    try {
+      const res = await fetch(`${baseUrl}/api/auth/email/mobile-resend-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmedEmail }),
+      });
+      if (res.status === 503) {
+        setError(COPY.hostForgotPassword.error.emailServiceDown);
+        return;
+      }
+      router.push({ pathname: '/admin-register', params: { email: trimmedEmail, verify: '1' } });
+    } catch {
+      setError(COPY.hostLogin.error.connectionError);
+    } finally {
+      setResending(false);
     }
   };
 
@@ -225,6 +253,13 @@ export default function AdminLoginScreen() {
                 <Ionicons name="alert-circle" size={16} color={colors.destructive} />
                 <Text style={[s.errorText, { color: colors.destructive }]}>{error}</Text>
               </View>
+            )}
+            {needsVerification && (
+              <Pressable onPress={handleResendVerification} disabled={resending} hitSlop={8}>
+                <Text style={[s.errorText, { color: colors.primary }]}>
+                  {resending ? COPY.hostRegister.verify.resending : COPY.hostLogin.resendVerification}
+                </Text>
+              </Pressable>
             )}
 
             <Pressable

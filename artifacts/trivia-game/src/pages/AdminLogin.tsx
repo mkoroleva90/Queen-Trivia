@@ -46,6 +46,9 @@ export default function AdminLogin() {
   const [rememberMe, setRememberMe] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [pending, setPending] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendMsg, setResendMsg] = useState("");
   const { loginAdmin } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -163,6 +166,8 @@ export default function AdminLogin() {
       return;
     }
     setEmailError("");
+    setNeedsVerification(false);
+    setResendMsg("");
     setPending(true);
     try {
       const res = await fetch("/api/auth/email/login", {
@@ -174,6 +179,7 @@ export default function AdminLogin() {
 
       if (res.status === 403) {
         setEmailError(COPY.hostLogin.error.verifyEmail);
+        setNeedsVerification(true);
         return;
       }
       if (res.status === 401) {
@@ -194,6 +200,30 @@ export default function AdminLogin() {
     }
   };
 
+
+  // Re-sends the verification link for an unverified account (403 on login).
+  const handleResendVerification = async () => {
+    if (resending) return;
+    setResendMsg("");
+    setResending(true);
+    try {
+      const res = await fetch("/api/auth/email/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+      if (res.status === 503) {
+        setEmailError(COPY.hostForgotPassword.error.emailServiceDown);
+        return;
+      }
+      setResendMsg(COPY.hostLogin.verificationResent);
+    } catch {
+      setEmailError(COPY.hostLogin.error.connectionError);
+    } finally {
+      setResending(false);
+    }
+  };
 
   return (
     <div className="min-h-[100dvh] flex flex-col items-center justify-center p-4">
@@ -252,6 +282,19 @@ export default function AdminLogin() {
                   <p className="flex items-center gap-1.5 text-sm text-destructive">
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     {emailError}
+                  </p>
+                )}
+                {needsVerification && (
+                  <p className="text-sm">
+                    <button
+                      type="button"
+                      className="text-primary hover:underline disabled:opacity-60"
+                      onClick={handleResendVerification}
+                      disabled={resending}
+                    >
+                      {resending ? COPY.hostRegister.verify.resending : COPY.hostLogin.resendVerification}
+                    </button>
+                    {resendMsg && <span className="ml-2 text-muted-foreground">{resendMsg}</span>}
                   </p>
                 )}
               </div>
