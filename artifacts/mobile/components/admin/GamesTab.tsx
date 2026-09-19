@@ -459,8 +459,10 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
               <View style={s.cardActions}>
                 {game.status === 'waiting' && (
                   <Pressable
-                    style={[s.actionBtn, { backgroundColor: colors.secondary + '22', borderColor: colors.secondary + '44' }]}
+                    style={[s.actionBtn, { backgroundColor: colors.secondary + '22', borderColor: colors.secondary + '44', opacity: game.questionCount === 0 ? 0.4 : 1 }]}
                     onPress={() => { setPlayAlongPending(false); setStartTarget(game); }}
+                    disabled={game.questionCount === 0}
+                    accessibilityState={{ disabled: game.questionCount === 0 }}
                   >
                     <Ionicons name="play" size={14} color={colors.secondary} />
                     <Text style={[s.actionText, { color: colors.secondary }]}>{COPY.admin.startBtn}</Text>

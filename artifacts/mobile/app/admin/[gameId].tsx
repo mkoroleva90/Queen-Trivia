@@ -2144,7 +2144,12 @@ export default function GameDetailScreen() {
       <View style={[s.roomRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={s.statusActions}>
           {game?.status === 'waiting' && (
-            <Pressable style={[s.actionChip, { backgroundColor: colors.secondary + '22' }]} onPress={confirmStart}>
+            <Pressable
+              style={[s.actionChip, { backgroundColor: colors.secondary + '22', opacity: localQs.length === 0 ? 0.4 : 1 }]}
+              onPress={confirmStart}
+              disabled={localQs.length === 0}
+              accessibilityState={{ disabled: localQs.length === 0 }}
+            >
               <Ionicons name="play" size={14} color={colors.secondary} />
               <Text style={[s.actionChipText, { color: colors.secondary }]}>{COPY.admin.startBtn}</Text>
             </Pressable>
