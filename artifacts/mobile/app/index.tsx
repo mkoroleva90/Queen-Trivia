@@ -133,8 +133,9 @@ export default function WelcomeScreen() {
           }
         } catch { /* fall through to error */ }
       }
-      // Per-game code always has a gameId — show an error if join failed
-      setNameError(COPY.join.error.couldNotJoin);
+      // Per-game code always has a gameId — show an error if join failed.
+      // The error belongs to the code step we are returning to (matches web).
+      setCodeError(COPY.join.error.couldNotJoin);
       animateStep(2);
     } catch {
       setNameError(COPY.join.error.connectionError);
