@@ -742,7 +742,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
 
         <Pressable
           style={s.rtglOutlineBtn}
-          onPress={() => setShowQuestionReview(true)}
+          onPress={() => { setBuildPlayAlong(playAlong); setShowQuestionReview(true); }}
         >
           <Text style={s.rtglOutlineBtnText}>{COPY.readyToGoLive.reviewBtn}</Text>
         </Pressable>
@@ -1111,6 +1111,26 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                         </Text>
                       </View>
                     </View>
+                  </View>
+                )}
+
+                {/* Add more questions — mirrors the web review toolbar */}
+                {selectedGame && selectedGame.status !== 'completed' && (
+                  <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+                    <Pressable
+                      style={[s.smallBtn, { flex: 1, backgroundColor: AI_COLOR + '22', marginTop: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]}
+                      onPress={() => { setAiError(''); setAiResult(null); setAiBrief(selectedGame.brief ?? ''); setAiOpen(true); }}
+                    >
+                      <Ionicons name="sparkles" size={14} color={AI_COLOR} />
+                      <Text style={[s.smallBtnText, { color: AI_COLOR }]}>{COPY.build.aiSheet.title}</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[s.smallBtn, { flex: 1, backgroundColor: colors.primary + '22', marginTop: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]}
+                      onPress={() => { setTdbError(''); setTdbResult(null); setTdbOpen(true); }}
+                    >
+                      <Ionicons name="cloud-download-outline" size={14} color={colors.primary} />
+                      <Text style={[s.smallBtnText, { color: colors.primary }]}>{COPY.source.openTriviaDatabase}</Text>
+                    </Pressable>
                   </View>
                 )}
 
