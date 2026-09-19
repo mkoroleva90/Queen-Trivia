@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -521,10 +522,22 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
   };
 
   const handleDeleteQuestion = (q: Question) => {
-    deleteQuestion.mutate(
-      { questionId: q.id },
-      { onSuccess: () => invalidate(workingGameId) },
-    );
+    // Confirm first — matches the game editor and the web review list.
+    Alert.alert(COPY.questionEditor.deleteTitle, COPY.questionEditor.deleteBody, [
+      { text: COPY.questionEditor.deleteCancel, style: 'cancel' },
+      {
+        text: COPY.questionEditor.deleteConfirm,
+        style: 'destructive',
+        onPress: () =>
+          deleteQuestion.mutate(
+            { questionId: q.id },
+            {
+              onSuccess: () => invalidate(workingGameId),
+              onError: () => Alert.alert(COPY.common.error, COPY.questionEditor.deleteFailed),
+            },
+          ),
+      },
+    ]);
   };
 
   const handleOpenRegen = (q: Question) => {

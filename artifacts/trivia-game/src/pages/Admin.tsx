@@ -1525,12 +1525,12 @@ const handleDragEnd = async (event: DragEndEvent) => {
 
 
 const handleDelete = (id: number) => {
- if (!window.confirm("Delete this question?")) return;
+ if (!window.confirm(`${COPY.questionEditor.deleteTitle}\n\n${COPY.questionEditor.deleteBody}`)) return;
  deleteQuestion.mutate(
      { questionId: id },
      {
-         onSuccess: () => { invalidate(); toast({ title: "Question deleted" }); },
-         onError: () => toast({ variant: "destructive", title: "Delete failed" }),
+         onSuccess: () => { invalidate(); toast({ title: COPY.questionEditor.deleted }); },
+         onError: () => toast({ variant: "destructive", title: COPY.questionEditor.deleteFailed }),
      },
  );
 };
@@ -2516,28 +2516,28 @@ const toggleSelectAll = () => {
 
 
 const handleDelete = (id: number) => {
- if (!window.confirm("Delete this question?")) return;
+ if (!window.confirm(`${COPY.questionEditor.deleteTitle}\n\n${COPY.questionEditor.deleteBody}`)) return;
  deleteQuestion.mutate(
      { questionId: id },
      {
          onSuccess: () => {
           invalidate();
           setSelected((prev) => { const n = new Set(prev); n.delete(id); return n; });
-          toast({ title: "Question deleted" });
+          toast({ title: COPY.questionEditor.deleted });
          },
-         onError: () => toast({ variant: "destructive", title: "Delete failed" }),
+         onError: () => toast({ variant: "destructive", title: COPY.questionEditor.deleteFailed }),
      },
  );
 };
 
 
 const handleBulkDelete = async () => {
- if (!window.confirm(`Delete ${selected.size} selected questions?`)) return;
+ if (!window.confirm(COPY.questionEditor.deleteSelectedBody(selected.size))) return;
  const ids = Array.from(selected);
    await Promise.allSettled(ids.map((id) => deleteQuestion.mutateAsync({ questionId: id})));
  invalidate();
  setSelected(new Set());
- toast({ title: `Deleted ${ids.length} questions` });
+ toast({ title: COPY.questionEditor.deletedCount(ids.length) });
 };
 
 

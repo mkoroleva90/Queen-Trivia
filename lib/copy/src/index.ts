@@ -1292,10 +1292,16 @@ export const COPY = {
     addChoice:    'Add choice',
     removeChoice: 'Remove choice',
     /** Delete-question confirmation (mobile alert). */
-    deleteTitle:   'Delete Question',
+    deleteTitle:   'Delete question?',
     deleteBody:    'This cannot be undone.',
     deleteConfirm: 'Delete',
     deleteCancel:  'Cancel',
+    /** Result messages after deleting (toast on web). */
+    deleted:       'Question deleted',
+    deleteFailed:  'Failed to delete question',
+    /** Bulk delete of the selected questions (web review). */
+    deleteSelectedBody: (n: number) => `Delete ${n} selected question${n === 1 ? '' : 's'}? This cannot be undone.`,
+    deletedCount:  (n: number) => `Deleted ${n} question${n === 1 ? '' : 's'}`,
     /** Form validation errors shared by both platforms' validateForm. */
     validation: {
       questionTextRequired:  'Question text is required',
