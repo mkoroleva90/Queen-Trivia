@@ -681,7 +681,7 @@ export default function AdminLiveScreen() {
               <>
                 <View style={s.viewNav}>
                   <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>
-                    YOUR QUESTION — {qIndex + 1}/{sortedQs.length}
+                    {COPY.adminLive.questionHeader(qIndex + 1, sortedQs.length)}
                   </Text>
                   {/* Back / Forward — move freely through every question */}
                   <Pressable
@@ -839,7 +839,7 @@ export default function AdminLiveScreen() {
                 return (
                   <View key={q.id} style={[s.qCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     <View style={s.qTop}>
-                      <Text style={[s.qNum, { color: colors.mutedForeground }]}>Q{idx + 1}</Text>
+                      <Text style={[s.qNum, { color: colors.mutedForeground }]}>{COPY.adminResults.questionNumber(idx + 1)}</Text>
                       <Text style={[s.qAnswered, { color: colors.foreground }]}>
                         {COPY.adminLive.answeredCount(answered, totalPlayers)}
                       </Text>

@@ -2164,7 +2164,7 @@ export default function GameDetailScreen() {
           {game && !editingTopic && (
             <View style={[s.statusBadge, { backgroundColor: (game.status === 'active' ? colors.secondary : game.status === 'completed' ? colors.muted : colors.accent) + '22' }]}>
               <Text style={[s.statusText, { color: game.status === 'active' ? colors.secondary : game.status === 'completed' ? colors.muted : colors.accent }]}>
-                {game.status}
+                {COPY.status[game.status] ?? game.status}
               </Text>
             </View>
           )}

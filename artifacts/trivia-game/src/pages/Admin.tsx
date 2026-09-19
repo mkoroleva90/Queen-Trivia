@@ -1307,7 +1307,7 @@ return (
      {...attributes}
      {...listeners}
    className="mt-0.5 cursor-grab active:cursor-grabbing text-muted-foreground/40hover:text-muted-foreground transition-colors touch-none"
-     aria-label="Drag to reorder"
+     aria-label={COPY.gameEditor.dragHandleLabel}
   >
      <GripVertical className="h-5 w-5" />
   </button>
@@ -1333,17 +1333,17 @@ return (
      {label}
     </Badge>
     {q.source === "opentdb" && (
-     <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-400border-blue-500/30">Open Trivia Database</Badge>
+     <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-400border-blue-500/30">{COPY.source.openTriviaDatabase}</Badge>
     )}
     {q.aiGenerated && (
-     <Badge variant="outline" className="text-[10px] bg-purple-500/10 text-purple-400border-purple-500/30">AI Generated</Badge>
+     <Badge variant="outline" className="text-[10px] bg-purple-500/10 text-purple-400border-purple-500/30">{COPY.source.ai}</Badge>
     )}
     <span className="text-xs text-accent font-semibold flex items-center gap-0.5">
-     <Star className="h-3 w-3" /> {q.points} pts
+     <Star className="h-3 w-3" /> {COPY.gameplay.ptsLine(q.points)}
     </span>
     {q.questionType !== "matching" && (
         <span className="text-xs text-muted-foreground truncate max-w-[200px]">
-         ans: <span className="text-secondary">{q.correctAnswer}</span>
+         {COPY.gameEditor.answerPrefix}: <span className="text-secondary">{q.correctAnswer}</span>
         </span>
     )}
    </div>
@@ -1472,7 +1472,7 @@ const handleDragEnd = async (event: DragEndEvent) => {
      );
      invalidate();
  } catch {
-     toast({ variant: "destructive", title: "Reorder failed" });
+     toast({ variant: "destructive", title: COPY.gameEditor.reorderFailed });
      setLocalOrder(sorted);
  }
 };
@@ -1510,12 +1510,12 @@ return (
    <div>
     <h3 className="font-bold text-lg leading-tight break-words">{game.topic}</h3>
     <div className="flex items-center gap-3 text-sm text-muted-foreground mt-0.5">
-     <span>{localOrder.length} {localOrder.length === 1 ? "question" :"questions"}</span>
+     <span>{COPY.gameEditor.questionCountTitle(localOrder.length)}</span>
        {localOrder.length > 0 && (
          <>
             <span>·</span>
             <span className="text-accent font-semibold flex items-center gap-1">
-            <Star className="h-3.5 w-3.5" /> {totalPoints} pts total
+            <Star className="h-3.5 w-3.5" /> {COPY.gameEditor.totalPoints(totalPoints)}
             </span>
          </>
        )}
@@ -1537,7 +1537,7 @@ return (
    >
     <DialogTrigger asChild>
        <Button className="font-bold">
-         <Plus className="mr-1.5 h-4 w-4" /> Add Question
+         <Plus className="mr-1.5 h-4 w-4" /> {COPY.btn.addQuestion}
        </Button>
 </DialogTrigger>
 <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
@@ -1569,7 +1569,7 @@ return (
          invalidate();
          setDialogOpen(false);
          setEditing(null);
-         toast({ title: "Question updated" });
+         toast({ title: COPY.gameEditor.questionUpdated });
         },
         onError: (err: unknown) => {
             const errData = err && typeof err === "object" && "data" in err ? (err as { data: unknown }).data : null;
@@ -1596,7 +1596,7 @@ return (
            onSuccess: () => {
             invalidate();
             setDialogOpen(false);
-            toast({ title: "Question added" });
+            toast({ title: COPY.gameEditor.questionAdded });
            },
            onError: (err: unknown) => {
                const errData = err && typeof err === "object" && "data" in err ? (err as { data: unknown }).data : null;
@@ -1634,14 +1634,14 @@ return (
    <HelpCircle className="mx-auto h-10 w-10 text-primary/40" />
    <p className="font-semibold">{COPY.gameEditor.emptyTitle}</p>
    <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-    Write questions one at a time with <span className="font-medium text-foreground">Add Question</span>, or let Gemini AI generate a full set instantly with <span className="font-medium text-foreground">Generate with AI</span>.
+    {COPY.gameEditor.emptyBody}
    </p>
   </CardContent>
  </Card>
 ):(
  <>
   <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-   <GripVertical className="h-3.5 w-3.5" /> Drag the handle to reorder
+   <GripVertical className="h-3.5 w-3.5" /> {COPY.gameEditor.dragHintWeb}
   </p>
   <DndContext
    sensors={sensors}
@@ -1669,13 +1669,6 @@ return (
     </DndContext>
 
 
-    {/* Total points footer */}
-    <div className="flex justify-end pt-1">
-      <div className="rounded-lg border border-accent/30 bg-accent/5 px-4 py-2 text-smfont-semibold text-accent flex items-center gap-2">
-      <Star className="h-4 w-4" />
-      Total possible: {totalPoints} points
-     </div>
-    </div>
    </>
          )}
      </div>
@@ -2493,9 +2486,9 @@ return (
  <div className="space-y-5">
      <FreeTierLimitModal msg={upgradeLimitMsg} onClose={() => setUpgradeLimitMsg(null)} />
      <div>
-      <h2 className="text-xl font-bold tracking-tight">Review Questions</h2>
+      <h2 className="text-xl font-bold tracking-tight">{COPY.build.reviewHeading}</h2>
       <p className="text-muted-foreground text-sm mt-1">
-       Edit and manage questions across all games.
+       {COPY.build.reviewSub}
       </p>
      </div>
 
@@ -2504,8 +2497,8 @@ return (
       <Card className="border-dashed border-primary/30 bg-card/40">
        <CardContent className="py-14 text-center space-y-2">
         <Gamepad2 className="mx-auto h-10 w-10 text-primary/40" />
-        <p className="font-semibold">No games yet</p>
-     <p className="text-sm text-muted-foreground">Create a game first to review itsquestions.</p>
+        <p className="font-semibold">{COPY.build.nothingToReviewTitle}</p>
+     <p className="text-sm text-muted-foreground">{COPY.build.nothingToReviewBody}</p>
        </CardContent>
       </Card>
      ):(
@@ -2513,34 +2506,34 @@ return (
      {/* Game + sort selectors */}
      <div className="flex items-end gap-3 flex-wrap">
       <div className="space-y-1.5 flex-1 min-w-[200px]">
-          <Label>Game</Label>
+          <Label>{COPY.build.selectGameLabel}</Label>
           <Select
           value={selectedGameId !== null ? String(selectedGameId) : ""}
           onValueChange={(v) => { setSelectedGameId(Number(v)); setSelected(new Set());}}
           >
           <SelectTrigger className="h-10">
-              <SelectValue placeholder="Select a game..." />
+              <SelectValue placeholder={COPY.build.selectGamePlaceholder} />
           </SelectTrigger>
           <SelectContent>
               {games.map((g) => (
                <SelectItem key={g.id} value={String(g.id)}>
                 {g.topic}
-           <span className="ml-2 text-muted-foreground text-xscapitalize">({g.status})</span>
+           <span className="ml-2 text-muted-foreground text-xs">({COPY.status[g.status] ?? g.status})</span>
                </SelectItem>
               ))}
           </SelectContent>
           </Select>
       </div>
       <div className="space-y-1.5">
-          <Label>Sort by</Label>
+          <Label>{COPY.gameEditor.sortBy}</Label>
           <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
        <SelectTrigger className="h-10 w-44">
         <SelectValue />
        </SelectTrigger>
        <SelectContent>
-        <SelectItem value="order">Question order</SelectItem>
-        <SelectItem value="dateAdded">Date added (newest first)</SelectItem>
-        <SelectItem value="type">Question type</SelectItem>
+        <SelectItem value="order">{COPY.gameEditor.sortOrder}</SelectItem>
+        <SelectItem value="dateAdded">{COPY.gameEditor.sortDate}</SelectItem>
+        <SelectItem value="type">{COPY.gameEditor.sortType}</SelectItem>
        </SelectContent>
       </Select>
      </div>
@@ -2550,7 +2543,7 @@ return (
     {/* Toolbar */}
     {selectedGameId !== null && rawQuestions.length > 0 && (
      <div className="flex items-center justify-between rounded-lg border border-card-border bg-card/50 px-4 py-2.5">
-      <span className="text-sm text-muted-foreground">{rawQuestions.length} question{rawQuestions.length !== 1 ? "s" : ""}</span>
+      <span className="text-sm text-muted-foreground">{COPY.admin.questionsCount(rawQuestions.length)}</span>
       <div className="flex items-center gap-2 shrink-0 flex-wrap">
        <Button
         size="sm"
@@ -2611,7 +2604,7 @@ return (
        exit={{ opacity: 0, y: -8 }}
        className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5"
       >
-       <span className="text-sm font-medium flex-1">{selected.size} selected</span>
+       <span className="text-sm font-medium flex-1">{COPY.gameEditor.selectedCount(selected.size)}</span>
        <Button
           size="sm"
           variant="ghost"
@@ -2619,9 +2612,9 @@ return (
           onClick={handleBulkDelete}
           disabled={deleteQuestion.isPending}
        >
-          <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete Selected
+          <Trash2 className="mr-1 h-3.5 w-3.5" /> {COPY.gameEditor.deleteSelectedBtn}
        </Button>
-       <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+       <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())} aria-label={COPY.gameEditor.clearSelection}>
           <X className="h-3.5 w-3.5" />
        </Button>
   </motion.div>
@@ -2635,7 +2628,7 @@ return (
     ) : displayList.length === 0 ? (
      <Card className="border-dashed border-card-border bg-card/30">
       <CardContent className="py-10 text-center text-muted-foreground text-sm">
-       No questions match this filter.
+       {COPY.gameEditor.noFilterMatch}
       </CardContent>
      </Card>
     ):(
@@ -2651,7 +2644,7 @@ return (
            : <Square className="h-4 w-4" />}
        </button>
        <span className="text-xs text-muted-foreground">
-          {allSelected ? "Deselect all" : `Select all ${displayList.length}`}
+          {allSelected ? COPY.gameEditor.deselectAll : COPY.gameEditor.selectAll(displayList.length)}
        </span>
       </div>
 
@@ -2692,16 +2685,16 @@ return (
             <Badge variant="outline" className="uppercase text-[10px]">{typeLabel}</Badge>
              <Badge variant="outline" className={`text-[10px]${src.cls}`}>{src.label}</Badge>
             <span className="text-xs text-accent font-semibold flex items-center gap-0.5">
-            <Star className="h-3 w-3" /> {q.points} pts
+            <Star className="h-3 w-3" /> {COPY.gameplay.ptsLine(q.points)}
             </span>
            </div>
            {q.questionType !== "matching" && (
             <p className="text-xs text-muted-foreground">
-           Answer: <span className="text-secondary font-medium">{q.correctAnswer}</span>
+           {COPY.gameEditor.answerPrefix}: <span className="text-secondary font-medium">{q.correctAnswer}</span>
            </p>
           )}
           {q.source && q.source !== "manual" && q.source !== "opentdb" && (
-           <p className="text-xs text-muted-foreground">Source: {q.source}</p>
+           <p className="text-xs text-muted-foreground">{COPY.gameEditor.sourcePrefix}: {q.source}</p>
           )}
          </div>
 
@@ -2826,7 +2819,7 @@ return (
                           invalidate();
                           setEditDialogOpen(false);
                           setEditingQuestion(null);
-                          toast({ title: "Question updated" });
+                          toast({ title: COPY.gameEditor.questionUpdated });
                          },
                          onError: () => toast({ variant: "destructive", title: "Update failed" }),
                      },
@@ -3002,7 +2995,7 @@ function LiveResultsBreakdown({
           return (
             <div key={q.id} className="rounded-xl border border-[#1b2740] bg-white/[.02] px-4 py-3 space-y-2">
               <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-[10px] font-bold tracking-[.22em] text-[#66728a]">Q{idx + 1}</span>
+                <span className="text-[10px] font-bold tracking-[.22em] text-[#66728a]">{COPY.adminResults.questionNumber(idx + 1)}</span>
                 <span className="text-xs font-semibold text-[#dfe5f0]">{COPY.adminLive.answeredCount(answered, totalPlayers)}</span>
                 {revealed && answered > 0 && (
                   <span className="text-xs font-semibold text-[#35d07f]">{COPY.liveResults.correctPct(correct, pct)}</span>
@@ -3552,8 +3545,8 @@ function LiveGameView({
     return (
       <div className="flex flex-col items-center justify-center py-32 text-center">
         <Radio className="h-16 w-16 text-[#66728a] mb-4" />
-        <h2 className="text-xl font-bold text-[#eef2f8] mb-2">No game is live right now</h2>
-        <p className="text-[#9aa6bc] mb-6">Go to Games to launch one</p>
+        <h2 className="text-xl font-bold text-[#eef2f8] mb-2">{COPY.adminLive.noLiveTitle}</h2>
+        <p className="text-[#9aa6bc] mb-6">{COPY.adminLive.noLiveBody}</p>
       </div>
     );
   }
@@ -3620,7 +3613,7 @@ function LiveGameView({
       <div className="flex flex-wrap items-center gap-3 pb-4 border-b border-[#16223a]">
         <div className="flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-full bg-[#ff0080]/15 border border-[#ff0080]/40">
           <span className="h-[7px] w-[7px] rounded-full bg-[#ff0080] animate-pulse" />
-          <span className="text-[9px] font-extrabold tracking-[.16em] text-[#ff5aa8]">LIVE NOW</span>
+          <span className="text-[9px] font-extrabold tracking-[.16em] text-[#ff5aa8]">{COPY.admin.livePill}</span>
         </div>
         {editingTitle ? (
           <div className="flex-1 min-w-[200px]">
@@ -3689,7 +3682,7 @@ function LiveGameView({
           <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl px-5 py-5 sm:px-6">
             <div className="flex items-center gap-2.5 flex-wrap">
               <span className="text-[10px] font-bold tracking-[.22em] text-[#66728a]">
-                QUESTION {displayQNum} / {questions.length || "?"}
+                {COPY.adminLive.questionHeader(displayQNum, questions.length || "?")}
               </span>
               {/* Back / Forward — move freely through every question */}
               <button
@@ -3712,13 +3705,13 @@ function LiveGameView({
               </button>
               {displayQ?.points != null && (
                 <span className="px-2 py-[3px] rounded-md bg-[#ffe500]/10 border border-[#ffe500]/25 text-[9px] font-bold tracking-[.1em] text-[#ffe500]">
-                  {displayQ.points} PTS
+                  {COPY.gameplay.ptsLine(displayQ.points)}
                 </span>
               )}
               <div
                 className="ml-auto w-[52px] h-[52px] rounded-full flex items-center justify-center shrink-0"
                 style={{ background: `conic-gradient(#00ddff 0% ${answeredPct}%, rgba(255,255,255,.08) ${answeredPct}% 100%)` }}
-                title={`${answeredCount} of ${parts.length} answered`}
+                title={COPY.adminLive.answeredOf(answeredCount, parts.length)}
               >
                 <div className="w-10 h-10 rounded-full bg-[#0f1724] flex items-center justify-center font-mono text-[13px] font-extrabold text-[#eef2f8]">
                   {answeredPct}%
@@ -3740,7 +3733,7 @@ function LiveGameView({
             )}
 
             <h2 className="text-xl sm:text-2xl font-extrabold text-[#eef2f8] leading-snug my-5 tracking-tight">
-              {displayQ?.questionText || "Waiting for game to start…"}
+              {displayQ?.questionText || COPY.adminLive.waitingToStart}
             </h2>
 
             {/* ── Live answer breakdown for the viewed question — every choice with its
@@ -3878,7 +3871,7 @@ function LiveGameView({
         <div className="w-full lg:w-[300px] shrink-0 space-y-4">
           <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl p-4">
             <div className="flex items-baseline justify-between mb-3">
-              <span className="text-[10px] font-bold tracking-[.16em] text-[#66728a]">ANSWERED</span>
+              <span className="text-[10px] font-bold tracking-[.16em] text-[#66728a]">{COPY.adminLive.answerProgressLabel}</span>
               <span className="font-mono text-[15px] font-extrabold text-[#eef2f8] tabular-nums">
                 <span className="text-[#35d07f]">{answeredCount}</span> / {parts.length}
               </span>
@@ -3887,7 +3880,7 @@ function LiveGameView({
               <div className="h-full rounded-full bg-[#35d07f] transition-all" style={{ width: `${answeredPct}%` }} />
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {parts.length === 0 && <p className="text-sm text-[#66728a] py-2">No players yet</p>}
+              {parts.length === 0 && <p className="text-sm text-[#66728a] py-2">{COPY.liveResults.noPlayers}</p>}
               {parts.map((p, idx) => {
                 const done = answeredNames.includes(p.userName);
                 const [av, avtx] = AVATAR_COLORS[idx % AVATAR_COLORS.length];
@@ -3895,7 +3888,8 @@ function LiveGameView({
                   <button
                     key={p.id}
                     onClick={() => setKickTarget({ userId: p.userId, userName: p.userName })}
-                    title={`Remove ${p.userName}`}
+                    title={COPY.kick.removeLabel(p.userName)}
+                    aria-label={COPY.kick.removeLabel(p.userName)}
                     className={`group flex items-center gap-1.5 pl-1.5 pr-2 py-[5px] rounded-full border transition cursor-pointer ${
                       done ? "bg-[#35d07f]/10 border-[#35d07f]/30 hover:border-[#ff6b6b]/50 hover:bg-[#ff6b6b]/10" : "bg-white/[.02] border-[#1b2740] opacity-50 hover:opacity-80 hover:border-[#ff6b6b]/40"
                     }`}
@@ -4831,8 +4825,8 @@ function NewAdminDashboard() {
         <div className="flex items-center gap-2.5 px-5 pt-6 pb-7">
           <CrownMark width={30} />
           <div>
-            <div className="text-[13px] font-extrabold tracking-wide text-[#eef2f8]">Queen Trivia</div>
-            <div className="font-mono text-[8px] font-bold tracking-[.22em] text-[#66728a] mt-px">HOST CONSOLE</div>
+            <div className="text-[13px] font-extrabold tracking-wide text-[#eef2f8]">{COPY.brand.queen} {COPY.brand.trivia}</div>
+            <div className="font-mono text-[8px] font-bold tracking-[.22em] text-[#66728a] mt-px">{COPY.admin.hostConsole}</div>
           </div>
         </div>
 
@@ -4859,10 +4853,10 @@ function NewAdminDashboard() {
         <div className="p-4 border-t border-[#1b2740]">
           <div className="bg-[#0f1724] rounded-xl p-3 flex items-center gap-3 border border-[#1b2740]">
             <div className="w-8 h-8 rounded-full bg-[#ff0080] text-white flex items-center justify-center text-xs font-bold shrink-0">
-              HO
+              {COPY.hostName.generic.slice(0, 2).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-bold text-white truncate">Host</div>
+              <div className="text-sm font-bold text-white truncate">{COPY.hostName.generic}</div>
               <button
                 onClick={async () => { await logout(); setLocation("/"); }}
                 className="text-xs text-[#9aa6bc] hover:text-white transition-colors"
@@ -4879,7 +4873,7 @@ function NewAdminDashboard() {
         <div className="flex items-center gap-2">
           <CrownMark width={20} />
           <span className="font-bold text-white text-sm tracking-widest">
-            {mobileNavLabels[section] ?? "HOST"}
+            {mobileNavLabels[section] ?? COPY.hostName.generic}
           </span>
           {activeGame && section !== "live" && (
             <button
@@ -4887,7 +4881,7 @@ function NewAdminDashboard() {
               className="ml-2 flex items-center gap-1 bg-[#ff0080]/10 border border-[#ff0080]/30 rounded-full px-2 py-0.5"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-[#ff0080] animate-pulse" />
-              <span className="text-[10px] font-bold text-[#ff0080] tracking-wider">LIVE</span>
+              <span className="text-[10px] font-bold text-[#ff0080] tracking-wider">{COPY.admin.livePill}</span>
             </button>
           )}
         </div>

@@ -367,8 +367,10 @@ export const COPY = {
     liveBtn:        'Live',
     endBtn:         'End',
     resultsBtn:     'Results',
-    /** Pill shown beside the header title while a game is live (mobile AdminHeader). */
+    /** Pill shown beside the header title while a game is live. Both platforms. */
     livePill:       'LIVE',
+    /** Sub-label under the wordmark in the web sidebar. */
+    hostConsole:    'HOST CONSOLE',
     /**
      * Delete-game confirmation and result messages (web GamesView and mobile
      * GamesTab). Both platforms confirm before deleting.
@@ -981,6 +983,8 @@ export const COPY = {
     rejoinBlocked: 'You have been removed from this game and cannot rejoin.',
     /** Generic error shown to the host if the removal API call fails. */
     removeError: 'Could not remove player. Please try again.',
+    /** Tooltip / accessibility label on a player chip that opens the remove dialog. */
+    removeLabel: (name: string) => `Remove ${name}`,
   },
 
   /**
@@ -1853,12 +1857,34 @@ export const COPY = {
     quizNamePlaceholder: 'Quiz name',
     /** "{n} Question(s)" list title above the toolbar. */
     questionCountTitle: (n: number) => `${n} Question${n === 1 ? '' : 's'}`,
+    /** "{pts} pts total" beside the question count. Both platforms. */
+    totalPoints:       (pts: number) => `${pts} pts total`,
     aiGenerateBtn:     'AI Generate',
     /** Both platforms. */
     emptyTitle:        'No questions yet',
+    emptyBody:         'Add questions one at a time, or let AI generate a full set.',
     addManuallyBtn:    'Add manually',
+    /** Reorder hints differ only by gesture: long-press (mobile) vs drag handle (web). */
     dragHint:          'Long-press any question card to drag and reorder',
+    dragHintWeb:       'Drag the handle to reorder',
+    dragHandleLabel:   'Drag to reorder',
+    reorderFailed:     'Could not reorder questions',
     noFilterMatch:     'No questions match this filter',
+    /** Review list (web): sort control, bulk selection, per-card labels. */
+    sortBy:            'Sort by',
+    sortOrder:         'Question order',
+    sortDate:          'Date added (newest first)',
+    sortType:          'Question type',
+    selectedCount:     (n: number) => `${n} selected`,
+    deleteSelectedBtn: 'Delete selected',
+    selectAll:         (n: number) => `Select all ${n}`,
+    deselectAll:       'Deselect all',
+    clearSelection:    'Clear selection',
+    answerPrefix:      'Answer',
+    sourcePrefix:      'Source',
+    /** Toasts after saving a question (web). */
+    questionAdded:     'Question added',
+    questionUpdated:   'Question updated',
   },
 
   /**
@@ -1882,6 +1908,15 @@ export const COPY = {
     notFoundTitle:      'Game not found',
     notFoundBody:       'This game may have ended or is no longer available.',
     goBack:             'Go back',
+    /** Web live section when no game is live. */
+    noLiveTitle:        'No game is live right now',
+    noLiveBody:         'Go to Games to start one',
+    /** "QUESTION {n} / {total}" above the monitored / played question. Both platforms. */
+    questionHeader:     (n: number, total: number | string) => `QUESTION ${n} / ${total}`,
+    /** Shown in place of the question text before the first question loads. */
+    waitingToStart:     'Waiting for the game to start…',
+    /** Tooltip on the answered-percentage ring. */
+    answeredOf:         (n: number, total: number) => `${n} of ${total} answered`,
     answerProgressLabel: 'ANSWER PROGRESS',
     noQuestions:        'No questions in this game.',
     answeredCount:      (n: number, total: number) => `${n}/${total} answered`,
