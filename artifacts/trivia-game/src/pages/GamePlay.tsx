@@ -1147,8 +1147,10 @@ export default function GamePlay() {
     },
   });
 
+  // Poll the game status as a fallback for a missed game:ended socket event,
+  // matching the mobile player screen.
   const { data: game, isError: gameLoadError, error: gameError } = useGetGame(gameId, {
-    query: { enabled: !!gameId, queryKey: getGetGameQueryKey(gameId) },
+    query: { enabled: !!gameId, queryKey: getGetGameQueryKey(gameId), refetchInterval: 10000 },
   });
   const { data: questions, isError: questionsLoadError, error: questionsError } = useListGameQuestions(gameId, {
     query: { enabled: !!gameId, queryKey: getListGameQuestionsQueryKey(gameId), refetchInterval: 10000 },
@@ -1161,6 +1163,14 @@ export default function GamePlay() {
   });
 
   const submitAnswer = useSubmitAnswer();
+
+  // Poll fallback: if the game finished while the socket was disconnected,
+  // the status poll above notices and moves the player on (matches mobile).
+  useEffect(() => {
+    if (game?.status === "completed") {
+      setLocation(`/results/${gameId}`);
+    }
+  }, [game?.status, gameId, setLocation]);
 
   // Parity with mobile B3: surface load errors so the player is never stranded.
   const hasLoadError = gameLoadError || questionsLoadError;
