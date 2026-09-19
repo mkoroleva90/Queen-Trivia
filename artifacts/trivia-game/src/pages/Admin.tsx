@@ -18,6 +18,7 @@ import { COPY } from "@workspace/copy";
 import { QuestionBreakdown } from "@/components/admin/QuestionBreakdown";
 import { AiToolsDialog } from "@/components/admin/AiToolsDialog";
 import { ImportOpenTdbDialog } from "@/components/admin/ImportOpenTdbDialog";
+import { GenerateQuestionsDialog } from "@/components/admin/GenerateQuestionsDialog";
 import { RunModeScreen, type RunMode } from "@/components/RunModeScreen";
 import { JoinCodeScreen } from "@/components/JoinCodeScreen";
 import { OpenTdbQuestionMixSelector, type OpenTdbImportMode } from "@/components/OpenTdbQuestionMixSelector";
@@ -1432,53 +1433,14 @@ const { data: questions } = useListGameQuestions(game.id, {
 const createQuestion = useCreateQuestion();
 const updateQuestion = useUpdateQuestion();
 const deleteQuestion = useDeleteQuestion();
-const generateQuestions = useGenerateGeminiQuestions();
 
-// AI generate dialog state
+// AI generate dialog (shared with mobile field for field)
 const [genOpen, setGenOpen] = useState(false);
-const [genCount, setGenCount] = useState(5);
-const [genDiff, setGenDiff] = useState<"easy" | "medium" | "hard" | "same">("same");
-const [genAvoid, setGenAvoid] = useState(true);
-const [genBrief, setGenBrief] = useState(game.brief ?? "");
-const [genMode, setGenMode] = useState<OpenTdbImportMode | null>(null);
 const [upgradeLimitMsg, setUpgradeLimitMsg] = useState<string | null>(null);
 // Per-question AI tools (regenerate / enhance / fact-check), as on mobile.
 const [aiMenuQuestion, setAiMenuQuestion] = useState<Question | null>(null);
 // Import from Open Trivia Database into this game, as on mobile.
 const [importOpen, setImportOpen] = useState(false);
-
-const handleGenerate = async () => {
- if (genMode === null) return;
- const difficulty =
-  genDiff === "same"
-   ? ((game.difficulty ?? "medium") as "easy" | "medium" | "hard")
-   : genDiff;
- const existingQs = genAvoid ? (questions ?? []).map((q) => q.questionText) : undefined;
- try {
-  const result = await generateQuestions.mutateAsync({
-   gameId: game.id,
-   data: { topic: game.topic, difficulty, amount: genCount, existingQuestions: existingQs, brief: genBrief.trim() || undefined, mode: genMode },
-  });
-  invalidate();
-  setGenOpen(false);
-  toast({ title: `Added ${result.imported} AI-generated questions` });
-  if (result.contentFilteredCount && result.contentFilteredCount > 0 && result.contentFilteredMessage) {
-   toast({ variant: "destructive", title: result.contentFilteredMessage });
-  }
- } catch (err: unknown) {
-  const limitMsg = extractFreeTierLimitMsg(err);
-  if (limitMsg) { setUpgradeLimitMsg(limitMsg); return; }
-  const errData = err && typeof err === "object" && "data" in err ? (err as { data: unknown }).data : null;
-  const apiMsg = errData && typeof errData === "object" && "error" in errData ? String((errData as { error: unknown }).error) : null;
-  const errCode = errData && typeof errData === "object" && "code" in errData ? String((errData as { code: unknown }).code) : null;
-  if (errCode === "content_filtered_all" && apiMsg) {
-   toast({ variant: "destructive", title: apiMsg });
-  } else {
-   toast({ variant: "destructive", title: "Generation failed. Please try again." });
-  }
- }
-};
-
 
 const sorted = useMemo(
  () => [...(questions ?? [])].sort((a, b) => a.orderIndex - b.orderIndex || a.id - b.id),
@@ -1677,75 +1639,16 @@ return (
 
 
 {/* AI Generate dialog */}
-<Dialog open={genOpen} onOpenChange={(open) => { if (!generateQuestions.isPending) setGenOpen(open); }}>
- <DialogContent className="sm:max-w-sm">
-  <DialogHeader>
-   <DialogTitle className="flex items-center gap-2">
-    <Sparkles className="h-4 w-4 text-purple-400" /> {COPY.aiGenerate.title}
-   </DialogTitle>
-  </DialogHeader>
-  <div className="space-y-4">
-   <p className="text-sm text-muted-foreground">
-    Gemini AI will generate questions for{" "}
-    <span className="font-medium text-foreground">{game.topic}</span>. Review them before going live.
-   </p>
-   <div className="space-y-1.5">
-    <Label>{COPY.aiGenerate.amountLabel}</Label>
-    <Input
-     type="number"
-     min={1}
-     max={20}
-     value={genCount}
-     onChange={(e) => setGenCount(Math.max(1, Math.min(20, Number(e.target.value))))}
-     className="h-9"
-    />
-   </div>
-   <div className="space-y-1.5">
-    <Label>Difficulty</Label>
-    <Select value={genDiff} onValueChange={(v) => setGenDiff(v as typeof genDiff)}>
-     <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-     <SelectContent>
-      <SelectItem value="same">Same as game setting</SelectItem>
-      <SelectItem value="easy">Easy</SelectItem>
-      <SelectItem value="medium">Medium</SelectItem>
-      <SelectItem value="hard">Hard</SelectItem>
-     </SelectContent>
-    </Select>
-   </div>
-   <OpenTdbQuestionMixSelector value={genMode} onSelect={setGenMode} />
-   <label className="flex items-center gap-2.5 cursor-pointer">
-    <input
-     type="checkbox"
-     className="accent-primary"
-     checked={genAvoid}
-     onChange={(e) => setGenAvoid(e.target.checked)}
-    />
-    <span className="text-sm text-muted-foreground">Avoid duplicating existing questions</span>
-   </label>
-   <div className="space-y-1.5">
-    <Label>Brief <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
-    <Textarea
-     value={genBrief}
-     onChange={(e) => setGenBrief(e.target.value)}
-     rows={4}
-     maxLength={2000}
-     placeholder="Add specific instructions for this generation run…"
-     className="resize-none text-sm"
-    />
-   </div>
-   <Button className="w-full" onClick={handleGenerate} disabled={generateQuestions.isPending || genMode === null}>
-    {generateQuestions.isPending ? (
-     <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating…</>
-    ) : (
-     <><Sparkles className="mr-2 h-4 w-4" />Generate {genCount} Questions</>
-    )}
-   </Button>
-   {generateQuestions.isPending && (
-    <p className="text-xs text-center text-muted-foreground">This may take 10–20 seconds…</p>
-   )}
-  </div>
- </DialogContent>
-</Dialog>
+<GenerateQuestionsDialog
+ open={genOpen}
+ gameId={game.id}
+ gameTopic={game.topic}
+ gameDifficulty={game.difficulty ?? "medium"}
+ gameBrief={game.brief}
+ questions={questions ?? []}
+ onClose={() => setGenOpen(false)}
+ onGenerated={() => { invalidate(); }}
+/>
 
 
 {/* Question list */}
@@ -2461,20 +2364,13 @@ const [aiMenuQuestion, setAiMenuQuestion] = useState<Question | null>(null);
 const [importOpen, setImportOpen] = useState(false);
 
 
-// Generate More modal state
+// Generate More dialog (shared with mobile field for field)
 const [genMoreOpen, setGenMoreOpen] = useState(false);
-const [genMoreCount, setGenMoreCount] = useState(5);
- const [genMoreDiff, setGenMoreDiff] = useState<"easy" | "medium" | "hard" |"same">("same");
-const [genMoreAvoid, setGenMoreAvoid] = useState(true);
-const [genMoreBrief, setGenMoreBrief] = useState("");
-const [genMoreMode, setGenMoreMode] = useState<OpenTdbImportMode | null>(null);
 
-// Regenerate All modal state
+// Regenerate All confirmation (AI-generated questions only, as on mobile)
 const [regenAllOpen, setRegenAllOpen] = useState(false);
-const [regenAllCount, setRegenAllCount] = useState(10);
-const [regenAllDiff, setRegenAllDiff] = useState<"easy" | "medium" | "hard" | "same">("same");
-const [regenAllBrief, setRegenAllBrief] = useState("");
 const [regenAllRunning, setRegenAllRunning] = useState(false);
+const [regenAllError, setRegenAllError] = useState<string | null>(null);
 
 
 const generateMore = useGenerateGeminiQuestions();
@@ -2558,69 +2454,36 @@ const handleBulkDelete = async () => {
 };
 
 
-const handleGenerateMore = async () => {
- if (!selectedGameId) return;
- if (genMoreMode === null) return;
- const game = games.find((g) => g.id === selectedGameId);
- if (!game) return;
- const difficulty =
-     genMoreDiff === "same"
-      ? ((game.difficulty ?? "medium") as "easy" | "medium" | "hard")
-      : genMoreDiff;
- const existingQs = genMoreAvoid ? rawQuestions.map((q) => q.questionText) : undefined;
- try {
-     const result = await generateMore.mutateAsync({
-      gameId: selectedGameId,
-    data: { topic: game.topic, difficulty, amount: genMoreCount, existingQuestions: existingQs, brief: genMoreBrief.trim() || undefined, mode: genMoreMode },
-     });
-     invalidate();
-      setGenMoreOpen(false);
-   toast({ title: `Added ${result.imported} questions — total now ${rawQuestions.length + result.imported}` });
-  } catch (err: unknown) {
-      const limitMsg = extractFreeTierLimitMsg(err);
-      if (limitMsg) { setUpgradeLimitMsg(limitMsg); return; }
-      toast({ variant: "destructive", title: "Generation failed. Please try again." });
-  }
- };
-
-
- const handleRegenAll = async () => {
+const handleRegenAll = async () => {
   if (!selectedGameId) return;
   const game = games.find((g) => g.id === selectedGameId);
   if (!game) return;
   setRegenAllRunning(true);
+  setRegenAllError(null);
   try {
-    // Capture old question texts BEFORE deleting so Gemini can avoid rewriting them
-    const oldTexts = rawQuestions
-      .map((q) => q.questionText)
-      .filter((t): t is string => typeof t === "string" && t.length > 0);
-    // 1. Delete all existing questions — abort if any deletion fails
-    const deleteResults = await Promise.allSettled(rawQuestions.map((q) => deleteQuestion.mutateAsync({ questionId: q.id })));
-    const failedDeletes = deleteResults.filter((r) => r.status === "rejected").length;
-    if (failedDeletes > 0) {
-      invalidate();
-      toast({
-        variant: "destructive",
-        title: `Could not delete ${failedDeletes} existing question${failedDeletes === 1 ? "" : "s"}. Regeneration cancelled — please try again.`,
-      });
-      return;
+    // Same semantics as mobile: delete only the AI-generated questions, then
+    // generate a fresh set of at least ten on the same topic and difficulty.
+    const aiQs = rawQuestions.filter((q) => q.aiGenerated);
+    for (const q of aiQs) {
+      await deleteQuestion.mutateAsync({ questionId: q.id });
     }
-    // 2. Generate fresh questions via Gemini, avoiding the old ones
-    const difficulty =
-      regenAllDiff === "same"
-        ? ((game.difficulty ?? "medium") as "easy" | "medium" | "hard")
-        : regenAllDiff;
-    const result = await generateMore.mutateAsync({
+    await generateMore.mutateAsync({
       gameId: selectedGameId,
-      data: { topic: game.topic, difficulty, amount: regenAllCount, existingQuestions: oldTexts, brief: regenAllBrief.trim() || undefined },
+      data: {
+        topic: game.topic,
+        difficulty: (game.difficulty ?? "medium") as "easy" | "medium" | "hard",
+        amount: Math.max(aiQs.length, 10),
+      },
     });
     invalidate();
     setRegenAllOpen(false);
-    toast({ title: `Regenerated ${result.imported} questions for "${game.topic}"` });
   } catch (err: unknown) {
+    invalidate();
     const limitMsg = extractFreeTierLimitMsg(err);
-    if (limitMsg) { setUpgradeLimitMsg(limitMsg); return; }
-    toast({ variant: "destructive", title: "Regeneration failed. Please try again." });
+    if (limitMsg) { setRegenAllOpen(false); setUpgradeLimitMsg(limitMsg); return; }
+    const errData = err && typeof err === "object" && "data" in err ? (err as { data: unknown }).data : null;
+    const apiMsg = errData && typeof errData === "object" && "error" in errData ? String((errData as { error: unknown }).error) : null;
+    setRegenAllError(apiMsg ?? COPY.build.error.regenerate);
   } finally {
     setRegenAllRunning(false);
   }
@@ -2728,20 +2591,22 @@ return (
         size="sm"
         variant="ghost"
         className="h-7 px-2 text-xs gap-1"
-        onClick={() => { const g = games.find((g) => g.id === selectedGameId); setGenMoreBrief(g?.brief ?? ""); setGenMoreOpen(true); }}
+        onClick={() => setGenMoreOpen(true)}
         disabled={regenAllRunning}
        >
         <Sparkles className="h-3 w-3" /> {COPY.build.aiSheet.title}
        </Button>
+       {rawQuestions.some((q) => q.aiGenerated) && (
        <Button
         size="sm"
         variant="ghost"
         className="h-7 px-2 text-xs gap-1 text-destructive hover:text-destructive"
-        onClick={() => { const g = games.find((g) => g.id === selectedGameId); setRegenAllBrief(g?.brief ?? ""); setRegenAllOpen(true); }}
-        disabled={regenAllRunning || rawQuestions.length === 0}
+        onClick={() => { setRegenAllError(null); setRegenAllOpen(true); }}
+        disabled={regenAllRunning}
        >
-        <RefreshCw className="h-3 w-3" /> Regenerate All
+        <RefreshCw className="h-3 w-3" /> {COPY.build.regenAllBtn}
        </Button>
+       )}
       </div>
      </div>
     )}
@@ -2921,153 +2786,44 @@ return (
 
 
     {/* ── Generate More dialog ── */}
-    <Dialog open={genMoreOpen} onOpenChange={setGenMoreOpen}>
-     <DialogContent className="sm:max-w-sm">
-      <DialogHeader>
-       <DialogTitle className="flex items-center gap-2">
-           <Sparkles className="h-4 w-4 text-primary" /> Generate More Questions
-       </DialogTitle>
-      </DialogHeader>
-      <div className="space-y-4">
-       {selectedGameId !== null && (
-        <p className="text-sm text-muted-foreground">
-            Adding to: <span className="font-medium text-foreground">
-            {games.find((g) => g.id === selectedGameId)?.topic}
-            </span>
-        </p>
-       )}
-       <div className="space-y-1.5">
-        <Label>Number of questions (1–10)</Label>
-        <Input
-            type="number"
-            min={1}
-            max={10}
-            value={genMoreCount}
-       onChange={(e) => setGenMoreCount(Math.max(1, Math.min(10,Number(e.target.value))))}
-            className="h-9"
-        />
-       </div>
-       <div className="space-y-1.5">
-        <Label>Difficulty</Label>
-       <Select value={genMoreDiff} onValueChange={(v) => setGenMoreDiff(v as typeof genMoreDiff)}>
-            <SelectTrigger className="h-9">
-           <SelectValue />
-           </SelectTrigger>
-           <SelectContent>
-           <SelectItem value="same">Same as game setting</SelectItem>
-           <SelectItem value="easy">Easy</SelectItem>
-           <SelectItem value="medium">Medium</SelectItem>
-           <SelectItem value="hard">Hard</SelectItem>
-           </SelectContent>
-        </Select>
-       </div>
-       <OpenTdbQuestionMixSelector value={genMoreMode} onSelect={setGenMoreMode} />
-       <label className="flex items-center gap-2.5 cursor-pointer">
-        <input
-           type="checkbox"
-           className="accent-primary"
-           checked={genMoreAvoid}
-           onChange={(e) => setGenMoreAvoid(e.target.checked)}
-        />
-        <span className="text-sm text-muted-foreground">Avoid duplicating existingquestions</span>
-       </label>
-       <div className="space-y-1.5">
-        <Label>Brief <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
-        <Textarea
-         value={genMoreBrief}
-         onChange={(e) => setGenMoreBrief(e.target.value)}
-         rows={4}
-         maxLength={2000}
-         placeholder="Add specific instructions for this generation run…"
-         className="resize-none text-sm"
-        />
-       </div>
-       <Button
-        className="w-full"
-        onClick={handleGenerateMore}
-        disabled={generateMore.isPending || genMoreMode === null}
-       >
-        {generateMore.isPending ? (
-             <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating…</>
-         ):(
-        <><Sparkles className="mr-2 h-4 w-4" />Generate {genMoreCount}Questions</>
-         )}
-        </Button>
-        {generateMore.isPending && (
-       <p className="text-xs text-center text-muted-foreground">This may take 10–20seconds…</p>
-        )}
-        </div>
-     </DialogContent>
-    </Dialog>
+    <GenerateQuestionsDialog
+     open={genMoreOpen}
+     gameId={selectedGameId ?? 0}
+     gameTopic={games.find((g) => g.id === selectedGameId)?.topic ?? ""}
+     gameDifficulty={games.find((g) => g.id === selectedGameId)?.difficulty ?? "medium"}
+     gameBrief={games.find((g) => g.id === selectedGameId)?.brief}
+     questions={rawQuestions}
+     onClose={() => setGenMoreOpen(false)}
+     onGenerated={() => { invalidate(); }}
+    />
 
 
-    {/* Regenerate All dialog */}
+    {/* Regenerate All confirmation */}
     <Dialog open={regenAllOpen} onOpenChange={(open) => { if (!regenAllRunning) setRegenAllOpen(open); }}>
      <DialogContent className="sm:max-w-sm">
       <DialogHeader>
        <DialogTitle className="flex items-center gap-2">
-        <RefreshCw className="h-4 w-4 text-destructive" /> Regenerate All Questions
+        <RefreshCw className="h-4 w-4 text-destructive" /> {COPY.build.regenAll.title}
        </DialogTitle>
       </DialogHeader>
       <div className="space-y-4">
-       {selectedGameId !== null && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
-         This will <span className="font-semibold">permanently delete</span> all {rawQuestions.length} existing question{rawQuestions.length !== 1 ? "s" : ""} for{" "}
-         <span className="font-medium text-foreground">
-          {games.find((g) => g.id === selectedGameId)?.topic}
-         </span>{" "}
-         and replace them with new Gemini AI questions.
+       <p className="text-sm text-muted-foreground">
+        {COPY.build.regenAll.body(rawQuestions.filter((q) => q.aiGenerated).length)}
+       </p>
+       {regenAllError && (
+        <div className="flex items-center gap-2 rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive">
+         <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> {regenAllError}
         </div>
        )}
-       <div className="space-y-1.5">
-        <Label>Number of new questions</Label>
-        <Input
-         type="number"
-         min={1}
-         max={20}
-         value={regenAllCount}
-         onChange={(e) => setRegenAllCount(Math.max(1, Math.min(20, Number(e.target.value))))}
-         className="h-9"
-        />
+       <div className="flex gap-2">
+        <Button variant="outline" className="flex-1" onClick={() => setRegenAllOpen(false)} disabled={regenAllRunning}>
+         {COPY.common.cancel}
+        </Button>
+        <Button className="flex-1" variant="destructive" onClick={handleRegenAll} disabled={regenAllRunning}>
+         {regenAllRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+         {COPY.build.regenAll.confirmBtn}
+        </Button>
        </div>
-       <div className="space-y-1.5">
-        <Label>Difficulty</Label>
-        <Select value={regenAllDiff} onValueChange={(v) => setRegenAllDiff(v as typeof regenAllDiff)}>
-         <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-         <SelectContent>
-          <SelectItem value="same">Same as game setting</SelectItem>
-          <SelectItem value="easy">Easy</SelectItem>
-          <SelectItem value="medium">Medium</SelectItem>
-          <SelectItem value="hard">Hard</SelectItem>
-         </SelectContent>
-        </Select>
-       </div>
-       <div className="space-y-1.5">
-        <Label>Brief <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
-        <Textarea
-         value={regenAllBrief}
-         onChange={(e) => setRegenAllBrief(e.target.value)}
-         rows={4}
-         maxLength={2000}
-         placeholder="Add specific instructions for this regeneration run…"
-         className="resize-none text-sm"
-        />
-       </div>
-       <Button
-        className="w-full"
-        variant="destructive"
-        onClick={handleRegenAll}
-        disabled={regenAllRunning}
-       >
-        {regenAllRunning ? (
-         <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Regenerating…</>
-        ) : (
-         <><RefreshCw className="mr-2 h-4 w-4" />Delete &amp; Regenerate {regenAllCount} Questions</>
-        )}
-       </Button>
-       {regenAllRunning && (
-        <p className="text-xs text-center text-muted-foreground">Deleting old questions then generating new ones… this may take 15–30 seconds.</p>
-       )}
       </div>
      </DialogContent>
     </Dialog>

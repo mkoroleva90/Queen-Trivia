@@ -46,6 +46,7 @@ import { ADMIN_TOKEN_KEY } from '@/context/AdminAuthContext';
 import { useColors } from '@/hooks/useColors';
 import { API_BASE_URL } from '@/lib/apiBase';
 import { COPY } from '@workspace/copy';
+import { OpenTdbQuestionMixSelector, type OpenTdbImportMode } from '@/components/admin/OpenTdbQuestionMixSelector';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1155,6 +1156,7 @@ function BulkGenerateModal({
   gameId,
   gameTopic,
   gameDifficulty,
+  gameBrief,
   questions,
   onClose,
   onGenerated,
@@ -1163,6 +1165,7 @@ function BulkGenerateModal({
   gameId: number;
   gameTopic: string;
   gameDifficulty: string;
+  gameBrief?: string | null;
   questions: Question[];
   onClose: () => void;
   onGenerated: (count: number) => void;
@@ -1172,7 +1175,9 @@ function BulkGenerateModal({
   const [topic, setTopic] = useState('');
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [amount, setAmount] = useState('10');
+  const [mode, setMode] = useState<OpenTdbImportMode | null>(null);
   const [avoidDups, setAvoidDups] = useState(true);
+  const [brief, setBrief] = useState('');
   const [result, setResult] = useState<{ imported: number; discarded: number } | null>(null);
   const [error, setError] = useState('');
   const [upgradeLimitMsg, setUpgradeLimitMsg] = useState('');
@@ -1183,23 +1188,36 @@ function BulkGenerateModal({
       setTopic(gameTopic);
       setDifficulty((gameDifficulty as 'easy' | 'medium' | 'hard') ?? 'medium');
       setAmount('10');
+      setMode(null);
       setAvoidDups(true);
+      setBrief(gameBrief ?? '');
       setResult(null);
       setError('');
     }
-  }, [visible, gameTopic, gameDifficulty]);
+  }, [visible, gameTopic, gameDifficulty, gameBrief]);
 
   const handleGenerate = async () => {
     setError('');
     const n = parseInt(amount, 10);
     if (isNaN(n) || n < 1 || n > 20) { setError(COPY.aiGenerate.amountRange); return; }
     if (!topic.trim()) { setError(COPY.aiGenerate.topicRequired); return; }
+    if (mode === null) { setError(COPY.openTdbQuestionMix.hint); return; }
     try {
       const res = await generateGemini.mutateAsync({
         gameId,
-        data: { topic: topic.trim(), difficulty, amount: n, existingQuestions: avoidDups ? questions.map((q) => q.questionText) : [] },
+        data: {
+          topic: topic.trim(),
+          difficulty,
+          amount: n,
+          existingQuestions: avoidDups ? questions.map((q) => q.questionText) : [],
+          brief: brief.trim() || undefined,
+          mode,
+        },
       });
       setResult({ imported: res.imported, discarded: res.discarded ?? 0 });
+      if (res.contentFilteredCount && res.contentFilteredCount > 0 && res.contentFilteredMessage) {
+        setError(res.contentFilteredMessage);
+      }
       onGenerated(res.imported);
     } catch (e: unknown) {
       const limitMsg = extractFreeTierLimitMsg(e);
@@ -1236,6 +1254,9 @@ function BulkGenerateModal({
                 <Text style={[s.resultSub, { color: colors.mutedForeground }]}>
                   {COPY.aiGenerate.discardedResult(result.discarded)}
                 </Text>
+              )}
+              {!!error && (
+                <Text style={[s.resultSub, { color: colors.destructive }]}>{error}</Text>
               )}
               <Pressable style={[s.closeResultBtn, { borderColor: colors.secondary }]} onPress={onClose}>
                 <Text style={[s.closeResultText, { color: colors.secondary }]}>{COPY.common.done}</Text>
@@ -1277,12 +1298,24 @@ function BulkGenerateModal({
                 placeholderTextColor={colors.mutedForeground}
               />
 
+              <OpenTdbQuestionMixSelector value={mode} onSelect={(m) => { setMode(m); setError(''); }} />
+
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 }}>
                 <Switch value={avoidDups} onValueChange={setAvoidDups} />
                 <Text style={[s.fieldLabel, { color: colors.mutedForeground, marginTop: 0, flex: 1 }]}>
                   {COPY.questionEditor.avoidDuplicates}
                 </Text>
               </View>
+
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.build.aiSheet.briefLabel}</Text>
+              <TextInput
+                style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
+                value={brief}
+                onChangeText={setBrief}
+                placeholder={COPY.build.aiSheet.briefPlaceholder}
+                placeholderTextColor={colors.mutedForeground}
+                maxLength={2000}
+              />
 
               {!!error && (
                 <View style={[s.errorRow, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}>
@@ -2309,6 +2342,7 @@ export default function GameDetailScreen() {
         gameId={gameId}
         gameTopic={game?.topic ?? ''}
         gameDifficulty={game?.difficulty ?? 'medium'}
+        gameBrief={game?.brief}
         questions={questions ?? []}
         onClose={() => setGenerateOpen(false)}
         onGenerated={() => { invalidate(); }}
