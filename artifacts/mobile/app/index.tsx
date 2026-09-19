@@ -215,7 +215,7 @@ export default function WelcomeScreen() {
           {/* ── Step 1: How it works ── */}
           {step === 1 && (
             <View style={styles.stepContainer}>
-              <Pressable onPress={goBack} style={styles.backBtn} hitSlop={12}>
+              <Pressable onPress={goBack} style={styles.backBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel={COPY.join.goBack}>
                 <Ionicons name="chevron-back" size={22} color={colors.foreground} />
               </Pressable>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
@@ -263,7 +263,7 @@ export default function WelcomeScreen() {
           {/* ── Step 2: Code entry ── */}
           {step === 2 && (
             <View style={styles.stepContainer}>
-              <Pressable onPress={goBack} style={styles.backBtn} hitSlop={12}>
+              <Pressable onPress={goBack} style={styles.backBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel={COPY.join.goBack}>
                 <Ionicons name="chevron-back" size={22} color={colors.foreground} />
               </Pressable>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{COPY.join.magicWord}</Text>
@@ -313,7 +313,7 @@ export default function WelcomeScreen() {
           {/* ── Step 3: Name + avatar ── */}
           {step === 3 && (
             <View style={styles.stepContainer}>
-              <Pressable onPress={goBack} style={styles.backBtn} hitSlop={12}>
+              <Pressable onPress={goBack} style={styles.backBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel={COPY.join.goBack}>
                 <Ionicons name="chevron-back" size={22} color={colors.foreground} />
               </Pressable>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{COPY.join.youreIn}</Text>

@@ -14,13 +14,15 @@ type Props = {
   title: string;
   /** Show a pink LIVE pill next to the title */
   isLive?: boolean;
+  /** When set, tapping the LIVE pill opens that game's live control (matches web). */
+  liveGameId?: number;
 };
 
 /**
  * Fixed top header used across all five admin tab sections.
  * Mirrors the web app's mobile header: crown + title left, logout right.
  */
-export function AdminHeader({ title, isLive }: Props) {
+export function AdminHeader({ title, isLive, liveGameId }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -42,9 +44,15 @@ export function AdminHeader({ title, isLive }: Props) {
         <CrownMark size={20} />
         <Text style={[styles.title, { color: colors.foreground }]}>{title}</Text>
         {isLive && (
-          <View style={[styles.livePill, { backgroundColor: colors.primary }]}>
+          <Pressable
+            style={[styles.livePill, { backgroundColor: colors.primary }]}
+            onPress={liveGameId ? () => router.push(`/admin/live/${liveGameId}`) : undefined}
+            disabled={!liveGameId}
+            accessibilityRole={liveGameId ? 'button' : undefined}
+            accessibilityLabel={COPY.admin.livePill}
+          >
             <Text style={styles.livePillText}>{COPY.admin.livePill}</Text>
-          </View>
+          </Pressable>
         )}
       </View>
 
@@ -59,7 +67,7 @@ export function AdminHeader({ title, isLive }: Props) {
         >
           <Ionicons name="person-circle-outline" size={24} color={colors.mutedForeground} />
         </Pressable>
-        <Pressable onPress={logoutAdmin} hitSlop={12} style={styles.logoutBtn}>
+        <Pressable onPress={logoutAdmin} hitSlop={12} style={styles.logoutBtn} accessibilityRole="button" accessibilityLabel={COPY.account.signOut.btn}>
           <Ionicons name="log-out-outline" size={22} color={colors.mutedForeground} />
         </Pressable>
       </View>

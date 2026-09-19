@@ -26,6 +26,7 @@ import type { Game } from '@workspace/api-client-react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { COPY } from '@workspace/copy';
+import * as Clipboard from 'expo-clipboard';
 
 type Difficulty = 'easy' | 'medium' | 'hard';
 type GameFilter = 'all' | 'live' | 'drafts';
@@ -205,6 +206,17 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
     }
   };
 
+  const [copiedCodeId, setCopiedCodeId] = useState<number | null>(null);
+  const copyCode = async (code: string, gameId: number) => {
+    try {
+      await Clipboard.setStringAsync(code);
+      setCopiedCodeId(gameId);
+      setTimeout(() => setCopiedCodeId((id) => (id === gameId ? null : id)), 1500);
+    } catch {
+      Alert.alert(COPY.common.error, COPY.admin.copyCodeFailed);
+    }
+  };
+
   const handleDelete = (game: Game) => {
     // Confirm before deleting — matches the web games list.
     Alert.alert(COPY.admin.deleteGameTitle, COPY.admin.deleteGameBody(game.topic), [
@@ -363,12 +375,16 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
                         <Pressable
                           style={[s.renameIconBtn, { backgroundColor: colors.primary + '20' }]}
                           onPress={(e) => { e.stopPropagation(); handleCodeSave(game); }}
+                          accessibilityRole="button"
+                          accessibilityLabel={COPY.admin.codeSaveLabel}
                         >
                           <Ionicons name="checkmark" size={18} color={colors.primary} />
                         </Pressable>
                         <Pressable
                           style={[s.renameIconBtn, { backgroundColor: colors.muted }]}
                           onPress={(e) => { e.stopPropagation(); cancelCodeEdit(); }}
+                          accessibilityRole="button"
+                          accessibilityLabel={COPY.admin.codeCancelLabel}
                         >
                           <Ionicons name="close" size={18} color={colors.mutedForeground} />
                         </Pressable>
@@ -376,16 +392,32 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
                     )}
                   </View>
                 ) : (
-                  <Pressable
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                    onPress={(e) => { e.stopPropagation(); startCodeEdit(game); }}
-                    hitSlop={8}
-                  >
-                    <Text style={[s.cardCode, { color: colors.mutedForeground }]}>
-                      {game.accessCode ?? '——'}
-                    </Text>
-                    <Ionicons name="pencil-outline" size={13} color={colors.mutedForeground} />
-                  </Pressable>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    {/* Tap the code to copy it (matches web); the pencil edits it. */}
+                    <Pressable
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                      onPress={(e) => { e.stopPropagation(); if (game.accessCode) void copyCode(game.accessCode, game.id); }}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={COPY.admin.codeCopyLabel}
+                      disabled={!game.accessCode}
+                    >
+                      <Text style={[s.cardCode, { color: colors.mutedForeground }]}>
+                        {game.accessCode ?? '——'}
+                      </Text>
+                      {game.accessCode && (
+                        <Ionicons name={copiedCodeId === game.id ? 'checkmark' : 'copy-outline'} size={13} color={copiedCodeId === game.id ? colors.secondary : colors.mutedForeground} />
+                      )}
+                    </Pressable>
+                    <Pressable
+                      onPress={(e) => { e.stopPropagation(); startCodeEdit(game); }}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={game.accessCode ? COPY.admin.codeEditLabel : COPY.admin.setCodeBtn}
+                    >
+                      <Ionicons name="pencil-outline" size={13} color={colors.mutedForeground} />
+                    </Pressable>
+                  </View>
                 )}
               </View>
               {codeEditId === game.id && codeError && (
@@ -410,12 +442,16 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
                         <Pressable
                           style={[s.renameIconBtn, { backgroundColor: colors.primary + '20' }]}
                           onPress={(e) => { e.stopPropagation(); handleRename(game.id); }}
+                          accessibilityRole="button"
+                          accessibilityLabel={COPY.admin.renameSaveLabel}
                         >
                           <Ionicons name="checkmark" size={18} color={colors.primary} />
                         </Pressable>
                         <Pressable
                           style={[s.renameIconBtn, { backgroundColor: colors.muted }]}
                           onPress={(e) => { e.stopPropagation(); cancelRename(); }}
+                          accessibilityRole="button"
+                          accessibilityLabel={COPY.admin.renameCancelLabel}
                         >
                           <Ionicons name="close" size={18} color={colors.mutedForeground} />
                         </Pressable>

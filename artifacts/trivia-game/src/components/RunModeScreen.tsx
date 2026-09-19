@@ -1,6 +1,6 @@
 import { COPY } from "@workspace/copy";
 import { CrownMark } from "@/components/Brand";
-import { Check } from "lucide-react";
+import { ArrowLeft, Check } from "lucide-react";
 import { motion } from "framer-motion";
 
 export type RunMode = "hostOnly" | "hostPlay";
@@ -11,6 +11,8 @@ type Props = {
   onSelect: (mode: RunMode) => void;
   /** Called when the host confirms their choice. */
   onContinue: () => void;
+  /** Leaves the build flow (back to the games list). Matches mobile. */
+  onBack?: () => void;
 };
 
 const OPTIONS: Array<{ mode: RunMode; label: string; desc: string }> = [
@@ -23,13 +25,24 @@ const OPTIONS: Array<{ mode: RunMode; label: string; desc: string }> = [
  * before the join-code step. Design-handoff "1a" treatment: two equal
  * color-blocked cards side by side, Continue bottom-right.
  */
-export function RunModeScreen({ value, onSelect, onContinue }: Props) {
+export function RunModeScreen({ value, onSelect, onContinue, onBack }: Props) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       className="max-w-2xl"
     >
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="mb-4 flex items-center gap-1.5 text-sm font-semibold text-[#c5ccda] hover:text-white transition"
+          aria-label={COPY.build.backToGames}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          {COPY.common.back}
+        </button>
+      )}
       <h3 className="text-[28px] font-bold leading-tight text-white">{COPY.runMode.title}</h3>
       <p className="mt-[6px] text-sm text-[#8b93a4]">{COPY.runMode.subtitle}</p>
 

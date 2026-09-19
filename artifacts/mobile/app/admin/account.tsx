@@ -338,7 +338,7 @@ export default function AdminAccountScreen({
                   autoCorrect={false}
                   secureTextEntry={!pwShowCurrent}
                 />
-                <Pressable onPress={() => setPwShowCurrent(v => !v)} style={s.eyeBtn}>
+                <Pressable onPress={() => setPwShowCurrent(v => !v)} style={s.eyeBtn} accessibilityRole="button" accessibilityLabel={pwShowCurrent ? COPY.hostLogin.hidePassword : COPY.hostLogin.showPassword}>
                   <Ionicons name={pwShowCurrent ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.mutedForeground} />
                 </Pressable>
               </View>
@@ -362,7 +362,7 @@ export default function AdminAccountScreen({
                   autoCorrect={false}
                   secureTextEntry={!pwShowNew}
                 />
-                <Pressable onPress={() => setPwShowNew(v => !v)} style={s.eyeBtn}>
+                <Pressable onPress={() => setPwShowNew(v => !v)} style={s.eyeBtn} accessibilityRole="button" accessibilityLabel={pwShowNew ? COPY.hostLogin.hidePassword : COPY.hostLogin.showPassword}>
                   <Ionicons name={pwShowNew ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.mutedForeground} />
                 </Pressable>
               </View>
@@ -386,7 +386,7 @@ export default function AdminAccountScreen({
                   autoCorrect={false}
                   secureTextEntry={!pwShowConfirm}
                 />
-                <Pressable onPress={() => setPwShowConfirm(v => !v)} style={s.eyeBtn}>
+                <Pressable onPress={() => setPwShowConfirm(v => !v)} style={s.eyeBtn} accessibilityRole="button" accessibilityLabel={pwShowConfirm ? COPY.hostLogin.hidePassword : COPY.hostLogin.showPassword}>
                   <Ionicons name={pwShowConfirm ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.mutedForeground} />
                 </Pressable>
               </View>

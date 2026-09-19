@@ -213,7 +213,7 @@ export default function ResultsScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad }]}>
         <View style={[styles.header, { paddingTop: topPad + 8 }]}>
-          <TouchableOpacity onPress={() => router.replace('/')} hitSlop={12}>
+          <TouchableOpacity onPress={() => router.replace('/')} hitSlop={12} accessibilityRole="button" accessibilityLabel={COPY.results.backToLobby}>
             <Ionicons name="chevron-back" size={24} color={colors.foreground} />
           </TouchableOpacity>
         </View>
@@ -262,7 +262,7 @@ export default function ResultsScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: topPad + 8 }]}>
-        <TouchableOpacity onPress={() => router.replace('/')} hitSlop={12}>
+        <TouchableOpacity onPress={() => router.replace('/')} hitSlop={12} accessibilityRole="button" accessibilityLabel={COPY.results.backToLobby}>
           <Ionicons name="chevron-back" size={24} color={colors.foreground} />
         </TouchableOpacity>
         <View style={styles.headerTitle}>

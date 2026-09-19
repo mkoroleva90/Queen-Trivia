@@ -225,7 +225,7 @@ export const COPY = {
     briefPlaceholder: 'e.g. Focus on the 1990s. Players are experts — skip the obvious. No chart position questions.',
     difficultyLabel:  'Difficulty',
     amountLabel:      'Number of questions',
-    /** Accessibility label for the run-mode screen back button (mobile). */
+    /** Accessibility label for the run-mode screen back button. Both platforms. */
     backToGames:      'Back to games',
     /** Questions step (web sub-tab). */
     addQuestionsHeading:  'Add questions',
@@ -329,8 +329,10 @@ export const COPY = {
     renamed:        (name: string) => `Quiz renamed to "${name}"`,
     /** Dynamic toast shown when a join code is saved successfully. */
     codeUpdated:    (code: string) => `Room code updated to ${code}`,
-    /** Toast shown when the clipboard write fails. */
+    /** Toast / alert shown when the clipboard write fails. Both platforms. */
     copyCodeFailed: "Couldn't copy code",
+    /** Confirmation after the join code is copied (mobile alert). */
+    codeCopied:     'Code copied',
     /** Join-code controls on a game card. Both platforms. */
     codeHeading:     'CODE',
     codeInputLabel:  'Room code',
@@ -425,7 +427,7 @@ export const COPY = {
     viewBackLabel:      'Back',
     /** Screen-reader label for the chevron that steps the view forward one question (host live screen and player screen). */
     viewForwardLabel:   'Forward',
-    /** Shown when the host's own play-along answer fails to submit (mobile). */
+    /** Shown when the host's own play-along answer fails to submit. Both platforms. */
     submitAnswerError:  'Could not submit your answer — please retry',
   },
 
@@ -506,10 +508,8 @@ export const COPY = {
     editLink:         'Edit',
     /** Link that returns to the run-mode choice step. */
     changeLink:       'Change',
-    /** Host & play mode description — WEB wording. */
-    hostPlayDescWeb:  "You'll answer from your own screen and appear in the standings.",
-    /** Host & play mode description — MOBILE wording. */
-    hostPlayDescMobile: "You'll answer from your own screen.",
+    /** Host & play mode description — both platforms. */
+    hostPlayDesc:     "You'll answer from your own screen and appear in the standings.",
     /** Host-only mode description — both platforms. */
     hostOnlyDesc:     "You won't appear in the standings.",
     /** Secondary button — opens the question list. */
@@ -679,7 +679,7 @@ export const COPY = {
      * Web button has CSS `uppercase` — sentence-case value displays correctly.
      */
     allDoneViewResults: 'View results',
-    /** Secondary CTA button in the all-done state (web only; mobile navigates automatically). */
+    /** Secondary CTA button in the all-done state (web). */
     allDoneBackToLobby: 'Back to Lobby',
 
     // ── Skip (defer) a question ───────────────────────────────────────────────
@@ -1146,11 +1146,9 @@ export const COPY = {
     /** Create-account link (mobile). */
     createOne:                'Create one →',
     error: {
-      /** Shown when email or password field is empty (web). */
-      enterBoth:          'Enter your email and password',
-      /** Shown when the email field is empty (mobile). */
+      /** Shown when the email field is empty. Both platforms. */
       enterEmail:         'Enter your email address',
-      /** Shown when the password field is empty (mobile). */
+      /** Shown when the password field is empty. Both platforms. */
       enterPassword:      'Enter your password',
       /**
        * Shown on unverified-account (403) responses. Mechanism-neutral: web

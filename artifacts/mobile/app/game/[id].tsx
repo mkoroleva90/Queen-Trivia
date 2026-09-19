@@ -1017,7 +1017,7 @@ export default function GamePlayScreen() {
       <View style={[styles.screen, { backgroundColor: colors.background }]}>
         <View style={[styles.gameHeader, { paddingTop: topPad + 8 }]}>
           <View style={styles.gameHeaderTop}>
-            <TouchableOpacity onPress={() => router.replace('/')} hitSlop={12}>
+            <TouchableOpacity onPress={() => router.replace('/')} hitSlop={12} accessibilityRole="button" accessibilityLabel={COPY.results.backToLobby}>
               <Ionicons name="chevron-back" size={24} color={colors.foreground} />
             </TouchableOpacity>
             <View style={styles.gameHeaderCenter}>
@@ -1084,6 +1084,8 @@ export default function GamePlayScreen() {
               }
             }}
             hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel={COPY.results.backToLobby}
           >
             <Ionicons name="chevron-back" size={24} color={colors.foreground} />
           </TouchableOpacity>

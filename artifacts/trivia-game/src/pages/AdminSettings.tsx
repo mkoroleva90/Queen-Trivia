@@ -205,7 +205,7 @@ function SignOutCard() {
     setSigningOut(true);
     try {
       await logout();
-      setLocation("/");
+      setLocation("/admin-login");
     } finally {
       setSigningOut(false);
     }
@@ -251,7 +251,7 @@ function DangerZoneCard() {
         return;
       }
       await logout();
-      setLocation("/");
+      setLocation("/admin-login");
     } catch {
       setError(COPY.account.connectionError);
     } finally {

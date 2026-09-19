@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { COPY } from "@workspace/copy";
-import { Check, Copy, Loader2 } from "lucide-react";
+import { ArrowLeft, Check, Copy, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 
 /** Matches the server's CUSTOM_ACCESS_CODE_PATTERN (after uppercasing). */
@@ -17,6 +17,8 @@ type Props = {
   error: string | null;
   /** Server-side field error for the title mapped by the parent (blocked / failed). */
   titleError: string | null;
+  /** Returns to the previous game-build choice without losing the draft. Matches mobile. */
+  onBack?: () => void;
   /** Called with the validated, uppercased code and trimmed title when the host continues. */
   onSubmit: (code: string, title: string) => void;
 };
@@ -27,7 +29,7 @@ type Props = {
  * via the existing PATCH /games/:id (handled by the parent); unchanged values
  * just continue.
  */
-export function JoinCodeScreen({ initialCode, initialTitle, saving, error, titleError, onSubmit }: Props) {
+export function JoinCodeScreen({ initialCode, initialTitle, saving, error, titleError, onBack, onSubmit }: Props) {
   const [code, setCode] = useState("");
   const [quizTitle, setQuizTitle] = useState(initialTitle);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -65,6 +67,18 @@ export function JoinCodeScreen({ initialCode, initialTitle, saving, error, title
       animate={{ opacity: 1, y: 0 }}
       className="mx-auto w-full max-w-[520px]"
     >
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          disabled={saving}
+          className="mb-4 flex items-center gap-1.5 text-sm font-semibold text-[#c5ccda] hover:text-white transition disabled:opacity-50"
+          aria-label={COPY.build.backToGameMode}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          {COPY.common.back}
+        </button>
+      )}
       <h3 className="text-[30px] font-bold leading-tight text-white">{COPY.joinCode.title}</h3>
       <p className="mt-[6px] text-[15px] text-[#8b93a4]">{COPY.joinCode.subtitle}</p>
 
@@ -125,7 +139,7 @@ export function JoinCodeScreen({ initialCode, initialTitle, saving, error, title
           type="button"
           onClick={handleCopy}
           className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[14px] border-[1.5px] border-[#2b3446] transition hover:border-[#445067]"
-          aria-label="Copy join code"
+          aria-label={COPY.admin.codeCopyLabel}
         >
           {copied ? <Check className="h-5 w-5 text-green-400" /> : <Copy className="h-5 w-5 text-[#8b93a4]" />}
         </button>

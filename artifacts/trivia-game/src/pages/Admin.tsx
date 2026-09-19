@@ -1682,7 +1682,7 @@ const createGameSuccessVariants = {
   visible: { opacity: 1, scale: 1 },
 };
 
-function CreateGameSection({ onCreated, onGoLive }: { onCreated: (game: Game) => void; onGoLive?: (game: Game) => void }) {
+function CreateGameSection({ onCreated, onGoLive, onExit }: { onCreated: (game: Game) => void; onGoLive?: (game: Game) => void; onExit?: () => void }) {
     const [categoryId, setCategoryId] = useState<string>("9");
     const [customTopic, setCustomTopic] = useState("");
     const [difficulty, setDifficulty] = useState<Game["difficulty"]>("medium");
@@ -1906,6 +1906,7 @@ if (!runModeChosen) {
      <RunModeScreen
        value={runMode}
        onSelect={setRunMode}
+       onBack={onExit}
        onContinue={() => {
          setPlayAlong(runMode === "hostPlay");
          setRunModeChosen(true);
@@ -1922,6 +1923,7 @@ if (created && importedCount !== null && !working && !joinCodeChosen) {
        saving={updateGame.isPending}
        error={joinCodeError}
        titleError={joinTitleError}
+       onBack={() => setRunModeChosen(false)}
        onSubmit={(code, title) => {
          setJoinCodeError(null);
          setJoinTitleError(null);
@@ -2004,7 +2006,7 @@ if (created && importedCount !== null && !working) {
                {playAlong ? COPY.runMode.hostPlayLabel : COPY.runMode.hostOnlyLabel}
              </p>
              <p className="text-[13px] text-[#9aa3b2]">
-               {playAlong ? COPY.readyToGoLive.hostPlayDescWeb : COPY.readyToGoLive.hostOnlyDesc}
+               {playAlong ? COPY.readyToGoLive.hostPlayDesc : COPY.readyToGoLive.hostOnlyDesc}
              </p>
            </div>
            <button
@@ -2123,7 +2125,10 @@ return (
             value={categoryId}
             onValueChange={(value) => {
              setCategoryId(value);
-             if (value === "custom") setOpenTdbMode(null);
+             if (value === "custom") {
+              setOpenTdbMode(null);
+              if (amount === "20") setAmount("15");
+             }
             }}
            >
            <SelectTrigger className="h-12">
@@ -3669,6 +3674,23 @@ function LiveGameView({
           </div>
         )}
         <div className="ml-auto flex items-center gap-3">
+          {activeGame.accessCode && (
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(activeGame.accessCode ?? "")
+                  .then(() => toast({ title: COPY.admin.codeCopied }))
+                  .catch(() => toast({ variant: "destructive", title: COPY.admin.copyCodeFailed }));
+              }}
+              className="flex items-center gap-1.5 font-mono text-sm tracking-widest text-[#eef2f8] bg-[#0a1019] border border-[#1b2740] rounded-md px-2.5 py-1 hover:border-[#66728a] transition-colors"
+              aria-label={COPY.admin.codeCopyLabel}
+              title={COPY.admin.codeCopyLabel}
+            >
+              <span className="text-[10px] font-bold tracking-wider text-[#66728a]">{COPY.admin.codeHeading}</span>
+              {activeGame.accessCode}
+              <Copy className="w-3 h-3 text-[#66728a]" />
+            </button>
+          )}
           <button
             onClick={() => endGame(activeGame.id)}
             className="text-xs font-bold text-[#ff6b6b] bg-[#ff6b6b]/10 border border-[#ff6b6b]/30 rounded-lg px-3.5 py-2 hover:brightness-110 transition"
@@ -4386,6 +4408,7 @@ function BuildQuizView({
           <CreateGameSection
             onCreated={(g) => { setSubTab("questions"); onNavigate("build", g.id); }}
             onGoLive={() => onNavigate("live")}
+            onExit={() => onNavigate("games")}
           />
         )}
         {subTab === "questions" && (
@@ -4792,9 +4815,10 @@ function NewAdminDashboard() {
     );
   };
 
+  // Same order as the mobile tab bar.
   const navItems = [
-    { id: "build", label: COPY.nav.build, icon: Wand2 },
     { id: "games", label: COPY.nav.games, icon: Gamepad2 },
+    { id: "build", label: COPY.nav.build, icon: Wand2 },
     { id: "results", label: COPY.nav.results, icon: BarChart3 },
     { id: "rooms", label: COPY.nav.rooms, icon: Settings },
   ] as const;
@@ -4860,7 +4884,7 @@ function NewAdminDashboard() {
             <div className="flex-1 min-w-0">
               <div className="text-sm font-bold text-white truncate">{COPY.hostName.generic}</div>
               <button
-                onClick={async () => { await logout(); setLocation("/"); }}
+                onClick={async () => { await logout(); setLocation("/admin-login"); }}
                 className="text-xs text-[#9aa6bc] hover:text-white transition-colors"
               >
                 {COPY.account.signOut.btn}
@@ -4896,7 +4920,7 @@ function NewAdminDashboard() {
             <UserRound className="h-4 w-4" />
           </button>
           <button
-            onClick={async () => { await logout(); setLocation("/"); }}
+            onClick={async () => { await logout(); setLocation("/admin-login"); }}
             className="text-[#9aa6bc] p-1.5 -mr-1"
             aria-label={COPY.account.signOut.btn}
           >
