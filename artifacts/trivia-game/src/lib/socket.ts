@@ -20,9 +20,9 @@ export function getSocket(): AppSocket {
       path: "/api/socket.io",
       autoConnect: false,
       reconnection: true,
-      reconnectionAttempts: 10,
+      reconnectionAttempts: Infinity, // keep trying, matching the mobile client
       reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
+      reconnectionDelayMax: 8000,
       transports: ["polling", "websocket"],
      });
     }

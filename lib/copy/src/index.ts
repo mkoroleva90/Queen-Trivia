@@ -155,14 +155,15 @@ export const COPY = {
   build: {
     /** Placeholder for the quiz title / topic input, which starts blank. */
     titlePlaceholder: 'Name your quiz',
-    /** Step-indicator labels on the mobile Build tab (web has no step indicator). */
-    stepSetup:  'Setup',
-    stepReview: 'Review',
+    /** Step labels on the Build tab (mobile step indicator; web sub-tabs). */
+    stepSetup:     'Setup',
+    stepQuestions: 'Questions',
+    stepReview:    'Review',
     /** Validation error when the AI topic field is blank (mobile setup form). */
     enterTopic: 'Enter a topic',
     /** Category selector option that switches the source to Gemini AI. Both platforms. */
     customTopicOption: 'Custom topic — Gemini AI generates questions',
-    /** Category selector placeholder before a category is chosen (mobile). */
+    /** Category selector placeholder before a category is chosen. Both platforms. */
     selectCategory: 'Select a category',
     /** Accessibility labels for the Build tab back buttons (mobile). */
     backToGameMode:    'Back to game mode',
@@ -176,11 +177,15 @@ export const COPY = {
     error: {
       /** Both platforms. */
       fetchOpenTdb:    'Could not fetch questions from Open Trivia Database',
-      /** Mobile setup / review flow. */
+      /** Setup / review flow. Both platforms. */
       goLive:          'Could not go live — please retry',
       importQuestions: 'Could not import questions — please retry',
       createGame:      'Failed to create game — please retry',
       generate:        'Generation failed — try again or add questions manually',
+      /** Gemini quota / rate-limit states surfaced after a game is created. Both platforms. */
+      dailyQuota:      'Gemini daily quota exhausted — resets at midnight Pacific',
+      rateLimitedRetry: (seconds: number) => `Rate limited — retry unlocks in ${seconds} s`,
+      rateLimitedShort: 'rate limited by Gemini AI',
       regenerate:      'Regeneration failed — try again',
       saveRegenerated: 'Could not save regenerated question',
       enhance:         'Enhancement failed — try again',
@@ -191,22 +196,47 @@ export const COPY = {
       creating:  'Creating game…',
       generating: 'Generating questions…',
       importing: 'Importing questions…',
+      retrying:  'Retrying AI question generation… This may take up to 30 seconds',
+      hint:      'This may take a few seconds…',
       default:   'Working…',
     },
+    /** Success toasts after the setup form imports or generates questions (web). */
+    importedToast:  (n: number) => `${n} question${n === 1 ? '' : 's'} imported from Open Trivia Database`,
+    generatedToast: (n: number) => `${n} question${n === 1 ? '' : 's'} generated`,
+    /**
+     * "Game created" card shown when the game row exists but the question
+     * import / generation failed (web). Both platforms use the same actions.
+     */
+    createdTitle:      'Game created',
+    /** "{topic} is ready, but {source} hit a snag: {error}" */
+    createdSnag:       (topic: string, source: string) => `${topic} is ready, but ${source} hit a snag:`,
+    retryBtn:          'Retry generation',
+    retryIn:           (seconds: number) => `Retry in ${seconds}s`,
+    retrying:          'Retrying…',
+    addManuallyBtn:    'Add questions manually',
+    createAnotherBtn:  'Create another',
     /** Go-live button label while the status PATCH is in flight. Both platforms. */
     goingLive:        'Going live…',
-    /** Setup-form field labels (mobile). */
+    /** Setup-form field labels. Both platforms. */
     categoryLabel:    'Category',
     topicLabel:       'Topic',
     briefLabel:       'Brief',
     /** Placeholder for the optional AI brief. Both platforms. */
     briefPlaceholder: 'e.g. Focus on the 1990s. Players are experts — skip the obvious. No chart position questions.',
     difficultyLabel:  'Difficulty',
-    amountLabel:      'Questions to Import',
-    /** Accessibility label for the run-mode screen back button (mobile). */
+    amountLabel:      'Number of questions',
+    /** Accessibility label for the run-mode screen back button. Both platforms. */
     backToGames:      'Back to games',
-    /** Review step (mobile). */
+    /** Questions step (web sub-tab). */
+    addQuestionsHeading:  'Add questions',
+    addQuestionsSub:      'Select a game and build its question set.',
+    noActiveGamesTitle:   'No active games',
+    noActiveGamesBody:    'Create a new game first. Completed games are archived and cannot be edited.',
+    selectGamePlaceholder: 'Choose a game…',
+    selectGameHint:       'Select a game above.',
+    /** Review step. Both platforms. */
     reviewHeading:        'Review questions',
+    reviewSub:            'Edit and manage questions across all games.',
     regenAllBtn:          'Regen all',
     nothingToReviewTitle: 'Nothing to review',
     nothingToReviewBody:  'Create a game and add questions first.',
@@ -299,8 +329,21 @@ export const COPY = {
     renamed:        (name: string) => `Quiz renamed to "${name}"`,
     /** Dynamic toast shown when a join code is saved successfully. */
     codeUpdated:    (code: string) => `Room code updated to ${code}`,
-    /** Toast shown when the clipboard write fails. */
+    /** Toast / alert shown when the clipboard write fails. Both platforms. */
     copyCodeFailed: "Couldn't copy code",
+    /** Confirmation after the join code is copied (mobile alert). */
+    codeCopied:     'Code copied',
+    /** Join-code controls on a game card. Both platforms. */
+    codeHeading:     'CODE',
+    codeInputLabel:  'Room code',
+    codeSaveLabel:   'Save room code',
+    codeCancelLabel: 'Cancel editing room code',
+    codeCopyLabel:   'Copy room code',
+    codeEditLabel:   'Edit room code',
+    setCodeBtn:      'Set room code',
+    /** Shown when the host's session is no longer valid. Both platforms. */
+    sessionExpiredTitle: 'Session expired',
+    sessionExpiredBody:  'Please sign in again.',
     /** Sub-text on the dashed empty-state tile (mobile GamesTab). */
     emptyCardSub:   'Tap to set up your first trivia game',
     /** Error state when the games list fails to load (mobile GamesTab). */
@@ -310,20 +353,36 @@ export const COPY = {
     noneRightNow:   (what: string) => `No ${what} right now`,
     liveGamesNoun:  'live games',
     draftsNoun:     'drafts',
-    /** "{n} questions" meta on game cards / pickers (mobile). Always plural. */
-    questionsCount: (n: number) => `${n} questions`,
+    /** "{n} question(s)" meta on game cards / pickers. Both platforms. */
+    questionsCount: (n: number) => `${n} question${n === 1 ? '' : 's'}`,
     /** "{n} player(s)" meta on completed game cards (mobile ResultsTab). */
     playersCount:   (n: number) => `${n} player${n === 1 ? '' : 's'}`,
-    /** Start-game confirmation sheet (mobile GamesTab). */
+    /** Start-game confirmation (web GamesView dialog and mobile GamesTab sheet). */
     startGameTitle: 'Start game?',
+    startGameBody:  (topic: string) => `"${topic}" will be visible to players immediately.`,
     goLiveBtn:      'Go live',
+    /** Toast after a game goes live (web); mobile navigates to live control instead. */
+    nowLive:        (topic: string) => `"${topic}" is now live!`,
+    startFailed:    'Failed to start the game. Please try again.',
     /** Per-game action chips (mobile GamesTab and game editor header). */
     startBtn:       'Start',
     liveBtn:        'Live',
     endBtn:         'End',
     resultsBtn:     'Results',
-    /** Pill shown beside the header title while a game is live (mobile AdminHeader). */
+    /** Pill shown beside the header title while a game is live. Both platforms. */
     livePill:       'LIVE',
+    /** Sub-label under the wordmark in the web sidebar. */
+    hostConsole:    'HOST CONSOLE',
+    /**
+     * Delete-game confirmation and result messages (web GamesView and mobile
+     * GamesTab). Both platforms confirm before deleting.
+     */
+    deleteGameLabel:   'Delete game',
+    deleteGameTitle:   'Delete game?',
+    deleteGameBody:    (topic: string) => `Delete "${topic}" and all its questions? This can't be undone.`,
+    deleteGameConfirm: 'Delete',
+    deleted:           (topic: string) => `Deleted "${topic}"`,
+    deleteFailed:      'Failed to delete game',
   },
 
   /**
@@ -368,7 +427,7 @@ export const COPY = {
     viewBackLabel:      'Back',
     /** Screen-reader label for the chevron that steps the view forward one question (host live screen and player screen). */
     viewForwardLabel:   'Forward',
-    /** Shown when the host's own play-along answer fails to submit (mobile). */
+    /** Shown when the host's own play-along answer fails to submit. Both platforms. */
     submitAnswerError:  'Could not submit your answer — please retry',
   },
 
@@ -449,10 +508,8 @@ export const COPY = {
     editLink:         'Edit',
     /** Link that returns to the run-mode choice step. */
     changeLink:       'Change',
-    /** Host & play mode description — WEB wording. */
-    hostPlayDescWeb:  "You'll answer from your own screen and appear in the standings.",
-    /** Host & play mode description — MOBILE wording. */
-    hostPlayDescMobile: "You'll answer from your own screen.",
+    /** Host & play mode description — both platforms. */
+    hostPlayDesc:     "You'll answer from your own screen and appear in the standings.",
     /** Host-only mode description — both platforms. */
     hostOnlyDesc:     "You won't appear in the standings.",
     /** Secondary button — opens the question list. */
@@ -591,6 +648,16 @@ export const COPY = {
     answerPlaceholder: 'Type your answer',
     /** Placeholder for the multi-line short-response answer input (mobile). */
     answerPlaceholderMultiline: 'Your answer...',
+    /** Alt text / accessibility labels for question images. Both platforms. */
+    imageAlt:         'Question image',
+    hotspotImageAlt:  'Tap the correct location',
+    /** Link to the fact-check source shown in post-answer feedback (web). */
+    sourceLink:       'Source ↗',
+    /** Placeholder of the right-hand dropdown on the web matching board. */
+    matchWithPlaceholder: 'Match with…',
+    /** Lines on the all-done card. */
+    allDoneScore:     (score: number) => `You finished with ${score} points`,
+    allDoneRank:      (rank: number) => ` · Rank #${rank}`,
     /** Alert title when the content filter rejects a typed answer (mobile). */
     answerRejectedTitle: 'Answer not submitted',
     /**
@@ -612,7 +679,7 @@ export const COPY = {
      * Web button has CSS `uppercase` — sentence-case value displays correctly.
      */
     allDoneViewResults: 'View results',
-    /** Secondary CTA button in the all-done state (web only; mobile navigates automatically). */
+    /** Secondary CTA button in the all-done state (web). */
     allDoneBackToLobby: 'Back to Lobby',
 
     // ── Skip (defer) a question ───────────────────────────────────────────────
@@ -853,6 +920,7 @@ export const COPY = {
     shareBtn:       'Share results',
     /** Share text when the viewer did not play. Both platforms. */
     shareFallback:  (topic: string) => `Check out the results for "${topic}" trivia!`,
+    copyFailed:     'Could not copy to clipboard',
     copiedTitle:    'Copied!',
     copiedBody:     'Your results were copied to the clipboard.',
     shareTitle:     'Share',
@@ -874,6 +942,8 @@ export const COPY = {
     notePlaceholder: 'Add details (optional)',
     /** Primary submit button label. */
     submit: 'Submit report',
+    /** Submit button while the report is being sent. */
+    submitting: 'Submitting…',
     /** Cancel / close button label. */
     cancel: 'Cancel',
     /** Heading shown after a successful submission. */
@@ -926,6 +996,8 @@ export const COPY = {
     rejoinBlocked: 'You have been removed from this game and cannot rejoin.',
     /** Generic error shown to the host if the removal API call fails. */
     removeError: 'Could not remove player. Please try again.',
+    /** Tooltip / accessibility label on a player chip that opens the remove dialog. */
+    removeLabel: (name: string) => `Remove ${name}`,
   },
 
   /**
@@ -1023,28 +1095,23 @@ export const COPY = {
    * Web wording is canonical where the platforms previously differed.
    */
   hostLogin: {
-    /** Main heading on the web host-login page. */
-    heading:                  'HOST LOGIN',
+    /** Main heading on the host-login page. Both platforms. */
+    heading:                  'HOST SIGN IN',
     /** Card heading inside the login form (web). */
     cardHeading:              'Sign In',
-    /** Helper text beneath the heading (web). */
-    helper:                   'Sign in with your email and password to manage your games',
-    /** Main heading on the mobile host-login page. */
-    mobileHeading:            'HOST SIGN IN',
-    /** Helper text beneath the mobile heading. */
-    mobileHelper:             'Sign in to manage your trivia games',
+    /** Helper text beneath the heading. Both platforms. */
+    helper:                   'Sign in to manage your trivia games',
     /** Email field label. Platforms apply uppercase styling. */
     emailLabel:               'EMAIL',
-    /** Email field placeholder (web). */
-    emailPlaceholder:         'Email address',
-    /** Email field placeholder (mobile). */
-    mobileEmailPlaceholder:   'your@email.com',
+    /** Email field placeholder. Both platforms. */
+    emailPlaceholder:         'you@example.com',
     /** Password field label. Platforms apply uppercase styling. */
     passwordLabel:            'PASSWORD',
-    /** Password field placeholder (web). */
+    /** Password field placeholder. Both platforms. */
     passwordPlaceholder:      'Password',
-    /** Password field placeholder (mobile). */
-    mobilePasswordPlaceholder: '••••••••',
+    /** Screen-reader labels for the show / hide password toggle. Both platforms. */
+    showPassword:             'Show password',
+    hidePassword:             'Hide password',
     /** Remember-me checkbox label (web). */
     rememberMe:               'Remember me for 30 days',
     /**
@@ -1060,6 +1127,12 @@ export const COPY = {
     createAccount:            'Create account',
     /** Forgot-password link. */
     forgotPassword:           'Forgot password?',
+    /**
+     * Shown under the unverified-account error. Web re-sends the verification
+     * link; mobile re-sends the code and opens the verify step. Both platforms.
+     */
+    resendVerification:       'Resend verification email',
+    verificationResent:       'A new email is on its way.',
     /** Google SSO button label (web + mobile). */
     continueWithGoogle:       'Continue with Google',
     /** Apple SSO button label (web + mobile, iOS-only on mobile). */
@@ -1073,17 +1146,15 @@ export const COPY = {
     /** Create-account link (mobile). */
     createOne:                'Create one →',
     error: {
-      /** Shown when email or password field is empty (web). */
-      enterBoth:          'Enter your email and password',
-      /** Shown when the email field is empty (mobile). */
+      /** Shown when the email field is empty. Both platforms. */
       enterEmail:         'Enter your email address',
-      /** Shown when the password field is empty (mobile). */
+      /** Shown when the password field is empty. Both platforms. */
       enterPassword:      'Enter your password',
       /**
-       * Shown on unverified-account responses. Web wording is canonical.
-       * Previously mobile had a shorter, spam-folder-aware variant.
+       * Shown on unverified-account (403) responses. Mechanism-neutral: web
+       * verifies by link, mobile by code; both offer resendVerification below.
        */
-      verifyEmail:        'Please verify your email address before logging in. Check your inbox for the verification link.',
+      verifyEmail:        'Please verify your email address before signing in.',
       /** Shown on wrong-credentials responses. Web wording is canonical. */
       invalidCredentials: 'Invalid email or password',
       /** Shown on unexpected server errors. */
@@ -1094,22 +1165,33 @@ export const COPY = {
   },
 
   /**
-   * Forgot-password and reset-code screens (mobile only).
-   * The web reset flow uses a link and does not share these strings.
+   * Forgot-password and reset-password screens. Both platforms share these
+   * strings; the mechanism differs (web emails a link, mobile a 6-digit code)
+   * so a few keys exist in a link and a code variant.
    */
   hostForgotPassword: {
-    /** Main heading on the request-code screen. */
+    /** Main heading on the request screen. */
     heading:              'FORGOT PASSWORD',
-    /** Helper text beneath the heading. */
+    /** Helper text beneath the heading (mobile — code flow). */
     helper:               "Enter your email and we'll send a 6-digit reset code",
+    /** Helper text beneath the heading (web — link flow). */
+    helperLink:           "Enter your email and we'll send you a reset link",
     /** Email field label. */
     emailLabel:           'EMAIL ADDRESS',
     /** Email field placeholder. */
     emailPlaceholder:     'you@example.com',
-    /** Submit button while idle. */
+    /** Submit button while idle (mobile — code flow). */
     sendBtn:              'SEND CODE',
+    /** Submit button while idle (web — link flow). */
+    sendLinkBtn:          'SEND RESET LINK',
     /** Submit button while request is in flight. */
     sending:              'Sending…',
+    /** Confirmation screen after a reset link is requested (web — link flow). */
+    sentHeading:          'CHECK YOUR EMAIL',
+    /** Rendered as "{sentBodyPrefix} {email} {sentBodySuffix}". */
+    sentBodyPrefix:       'If',
+    sentBodySuffix:       "is registered, a password reset link is on its way. Check your spam folder if you don't see it within a minute.",
+    backToSignIn:         'Back to sign in',
     /** Back button label. */
     back:                 'Back',
     /** Footer prompt on the request-code screen. */
@@ -1119,8 +1201,10 @@ export const COPY = {
 
     /** Main heading on the enter-code + new-password screen. */
     resetHeading:         'RESET PASSWORD',
-    /** Helper text beneath the reset heading. */
+    /** Helper text beneath the reset heading (mobile — code flow). */
     resetHelper:          'Enter the 6-digit code from your email and choose a new password',
+    /** Helper text beneath the reset heading (web — link flow). */
+    resetHelperLink:      'Choose a new password for your account',
     /** Code field label. */
     codeLabel:            'RESET CODE',
     /** Code field placeholder. */
@@ -1128,7 +1212,7 @@ export const COPY = {
     /** New-password field label. */
     newPasswordLabel:     'NEW PASSWORD',
     /** New-password field placeholder. */
-    newPasswordPlaceholder: '••••••••',
+    newPasswordPlaceholder: 'At least 8 characters',
     /** Confirm-password field label. */
     confirmLabel:         'CONFIRM PASSWORD',
     /** Confirm-password field placeholder. */
@@ -1142,6 +1226,8 @@ export const COPY = {
     resendPrompt:         "Didn't get the code?",
     resendLink:           'Resend',
     resent:               'A new code is on its way.',
+    /** Invalid / expired reset link screen (web — link flow). */
+    requestNewLink:       'Request a new link',
 
     error: {
       /** Email field is empty. */
@@ -1162,6 +1248,8 @@ export const COPY = {
       passwordsNoMatch:  'Passwords do not match',
       /** API rejected the code (wrong or expired). */
       invalidCode:       'That code is invalid or has expired — request a new one',
+      /** Reset link is missing, wrong or expired (web — link flow). */
+      invalidLink:       'This reset link is invalid or has expired — request a new one',
       /** Unexpected server error. */
       somethingWrong:    'Something went wrong — please retry',
     },
@@ -1278,10 +1366,16 @@ export const COPY = {
     addChoice:    'Add choice',
     removeChoice: 'Remove choice',
     /** Delete-question confirmation (mobile alert). */
-    deleteTitle:   'Delete Question',
+    deleteTitle:   'Delete question?',
     deleteBody:    'This cannot be undone.',
     deleteConfirm: 'Delete',
     deleteCancel:  'Cancel',
+    /** Result messages after deleting (toast on web). */
+    deleted:       'Question deleted',
+    deleteFailed:  'Failed to delete question',
+    /** Bulk delete of the selected questions (web review). */
+    deleteSelectedBody: (n: number) => `Delete ${n} selected question${n === 1 ? '' : 's'}? This cannot be undone.`,
+    deletedCount:  (n: number) => `Deleted ${n} question${n === 1 ? '' : 's'}`,
     /** Form validation errors shared by both platforms' validateForm. */
     validation: {
       questionTextRequired:  'Question text is required',
@@ -1293,14 +1387,18 @@ export const COPY = {
       correctAnswerRequired: 'Correct answer is required',
       /** Client-side check mirroring the server's Wikimedia-only image rule. Both platforms. */
       imageUrlWikimedia:     'Image URL must be a Wikimedia Commons image link (https://upload.wikimedia.org/wikipedia/commons/… or https://thumb.wikimedia.org/wikipedia/commons/…)',
+      /** True/false question with no answer picked. Both platforms. */
+      pickTrueFalse:         'Pick true or false',
     },
-    /** Field labels and placeholders in the question form (mobile; web shares the ones marked). */
+    /** Field labels and placeholders in the question form. Both platforms. */
     typeLabel:                'Question type',
     questionLabel:            'Question',
     /** Both platforms. */
     questionPlaceholder:      'Type the question players will see...',
     choicesLabel:             'Choices (tap to mark correct)',
     choicePlaceholder:        (letter: string) => `Choice ${letter}`,
+    /** Screen-reader label on the letter button that marks a choice correct. */
+    markCorrectLabel:         'Mark as correct',
     correctAnswerLabel:       'Correct answer',
     tfTrue:                   'TRUE ✓',
     tfFalse:                  'FALSE ✗',
@@ -1312,6 +1410,9 @@ export const COPY = {
     pairRightPlaceholder:     'Right',
     /** Both platforms. */
     addPair:                  'Add pair',
+    removePair:               'Remove pair',
+    /** Alt text of the image preview in the form (web). */
+    imagePreviewAlt:          'Image preview',
     /** Both platforms. */
     imageUrlLabel:            'Image URL',
     imageUrlPlaceholder:      'https://upload.wikimedia.org/wikipedia/commons/…',
@@ -1323,6 +1424,8 @@ export const COPY = {
     sourceLabel:              'Source (optional)',
     sourcePlaceholder:        'e.g. Wikipedia — Capital cities',
     saveQuestionBtn:          'Save Question',
+    /** Submit button while the question is being saved. Both platforms. */
+    saving:                   'Saving…',
     /** Fallback shown when saving a question fails and the server gave no specific message. Both platforms. */
     saveFailed:               'Could not save the question. Please try again.',
     /** Fill-with-AI button. Both platforms; mobile appends the game topic. */
@@ -1403,14 +1506,23 @@ export const COPY = {
    */
   hostRegister: {
     /**
-     * Code-entry step shown after the mobile registration form submits.
-     * The server emails a 6-digit code (POST /auth/email/mobile-register);
-     * the host types it here (POST /auth/email/mobile-verify) and is signed in.
+     * Verify step shown after the registration form submits. Mobile emails a
+     * 6-digit code (POST /auth/email/mobile-register) that the host types here;
+     * web emails a link (POST /auth/email/register) that opens /verify-email.
      */
     verify: {
       heading:        'VERIFY YOUR EMAIL',
-      /** Rendered as "{helperPrefix} {email}." */
+      /** Rendered as "{helperPrefix} {email}." (mobile — code flow). */
       helperPrefix:   'Enter the 6-digit code we sent to',
+      /** Rendered as "{linkHelperPrefix} {email}. {linkHelperSuffix}" (web — link flow). */
+      linkHelperPrefix: "We've sent a verification link to",
+      linkHelperSuffix: 'Open the link in that email to activate your account.',
+      /** /verify-email page states (web — link flow). */
+      verifying:      'Verifying your email…',
+      verifiedHeading: 'EMAIL VERIFIED',
+      verifiedBody:   'Your email has been verified. Taking you to your games…',
+      failedHeading:  'VERIFICATION FAILED',
+      registerAgain:  'Register again',
       codeLabel:      'VERIFICATION CODE',
       codePlaceholder: '6-digit code',
       submitBtn:      'VERIFY EMAIL',
@@ -1418,13 +1530,13 @@ export const COPY = {
       /** Footer prompt + link that returns to the registration form. */
       wrongEmail:     'Wrong email?',
       startOver:      'Start over',
-      /** "Resend code" affordance on the verify step. Both platforms. */
-      resendPrompt:   "Didn't get the code?",
+      /** "Resend" affordance on the verify step. Both platforms (web resends the link, mobile the code). */
+      resendPrompt:   "Didn't get the email?",
       resendLink:     'Resend',
       resending:      'Sending…',
-      resent:         'A new code is on its way.',
+      resent:         'A new email is on its way.',
     },
-    /** Form (mobile). */
+    /** Form. Both platforms. */
     heading:         'CREATE ACCOUNT',
     helper:          'Register as a host to create and manage trivia games',
     /** Both platforms. */
@@ -1440,6 +1552,8 @@ export const COPY = {
       enterPassword: 'Enter a password',
       /** Server rejected the verification code (400). */
       invalidCode:   'That code is invalid or has expired',
+      /** Verification link is missing, wrong or expired (web — link flow). */
+      invalidLink:   'This verification link is invalid or has expired',
       /** Per-account attempt limit or IP limit hit (429). */
       tooManyAttempts: 'Too many attempts — please wait a while and try again',
     },
@@ -1498,7 +1612,13 @@ export const COPY = {
     exportFailedBody:        'Could not export results.',
     /** Error / empty states. */
     loadFailed:              'Could not load results. Check your connection and try again.',
+    loading:                 'Loading results…',
     backToGames:             '← Back to games',
+    /** Back link from a game's results to the results list (web). */
+    allResults:              'All results',
+    /** CSV export button label (web) / accessibility label (mobile). */
+    exportBtn:               'Export CSV',
+    noParticipants:          'No participants recorded.',
     /** Summary card labels. */
     playersLabel:            'Players',
     avgScoreLabel:           'Avg Score',
@@ -1513,6 +1633,8 @@ export const COPY = {
     /** Per-question breakdown. */
     breakdownToggle:         'Question Breakdown',
     breakdownLoadFailed:     'Could not load question breakdown.',
+    /** "Q{n}" chip on each breakdown card (host results and live results). */
+    questionNumber:          (n: number) => `Q${n}`,
     correctLabel:            'correct',
     correctAnswerLabel:      'CORRECT ANSWER',
   },
@@ -1665,6 +1787,8 @@ export const COPY = {
     optional: '(optional)',
     /** Generic alert title. */
     error:    'Error',
+    /** Generic inline loading label. */
+    loading:  'Loading…',
   },
 
   /**
@@ -1746,12 +1870,34 @@ export const COPY = {
     quizNamePlaceholder: 'Quiz name',
     /** "{n} Question(s)" list title above the toolbar. */
     questionCountTitle: (n: number) => `${n} Question${n === 1 ? '' : 's'}`,
+    /** "{pts} pts total" beside the question count. Both platforms. */
+    totalPoints:       (pts: number) => `${pts} pts total`,
     aiGenerateBtn:     'AI Generate',
     /** Both platforms. */
     emptyTitle:        'No questions yet',
+    emptyBody:         'Add questions one at a time, or let AI generate a full set.',
     addManuallyBtn:    'Add manually',
+    /** Reorder hints differ only by gesture: long-press (mobile) vs drag handle (web). */
     dragHint:          'Long-press any question card to drag and reorder',
+    dragHintWeb:       'Drag the handle to reorder',
+    dragHandleLabel:   'Drag to reorder',
+    reorderFailed:     'Could not reorder questions',
     noFilterMatch:     'No questions match this filter',
+    /** Review list (web): sort control, bulk selection, per-card labels. */
+    sortBy:            'Sort by',
+    sortOrder:         'Question order',
+    sortDate:          'Date added (newest first)',
+    sortType:          'Question type',
+    selectedCount:     (n: number) => `${n} selected`,
+    deleteSelectedBtn: 'Delete selected',
+    selectAll:         (n: number) => `Select all ${n}`,
+    deselectAll:       'Deselect all',
+    clearSelection:    'Clear selection',
+    answerPrefix:      'Answer',
+    sourcePrefix:      'Source',
+    /** Toasts after saving a question (web). */
+    questionAdded:     'Question added',
+    questionUpdated:   'Question updated',
   },
 
   /**
@@ -1775,12 +1921,25 @@ export const COPY = {
     notFoundTitle:      'Game not found',
     notFoundBody:       'This game may have ended or is no longer available.',
     goBack:             'Go back',
+    /** Web live section when no game is live. */
+    noLiveTitle:        'No game is live right now',
+    noLiveBody:         'Go to Games to start one',
+    /** "QUESTION {n} / {total}" above the monitored / played question. Both platforms. */
+    questionHeader:     (n: number, total: number | string) => `QUESTION ${n} / ${total}`,
+    /** Shown in place of the question text before the first question loads. */
+    waitingToStart:     'Waiting for the game to start…',
+    /** Tooltip on the answered-percentage ring. */
+    answeredOf:         (n: number, total: number) => `${n} of ${total} answered`,
     answerProgressLabel: 'ANSWER PROGRESS',
     noQuestions:        'No questions in this game.',
     answeredCount:      (n: number, total: number) => `${n}/${total} answered`,
     correctCount:       (n: number) => `${n} correct`,
     needsReviewLabel:   (n: number) => `NEEDS REVIEW · ${n}`,
-    endGameBtn:         'End Game',
+    endGameBtn:         'End game',
+    /** End-game confirmation shown before any end-game action on both platforms. */
+    endGameTitle:       'End game?',
+    endGameBody:        'Players will no longer be able to answer and the results will be final.',
+    endGameConfirm:     'End game',
     endGameError:       'Failed to end the game. Please try again.',
     /** "+{earned} pts · total {total}" under the host's own answer feedback. */
     feedbackPts:        (earned: number, total: number) => `+${earned} pts · total ${total}`,

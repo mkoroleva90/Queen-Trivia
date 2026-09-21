@@ -9,6 +9,7 @@ import { BuildTab } from '@/components/admin/BuildTab';
 import { ResultsTab } from '@/components/admin/ResultsTab';
 import { RoomsTab } from '@/components/admin/RoomsTab';
 import { useColors } from '@/hooks/useColors';
+import { useListGames } from '@workspace/api-client-react';
 
 const TAB_TITLES: Record<AdminTab, string> = {
   games:   COPY.nav.games,
@@ -24,6 +25,9 @@ export default function AdminHomeScreen() {
   const [activeTab, setActiveTab] = useState<AdminTab>('games');
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  // A live game shows the LIVE pill in the header, which opens its live control (matches web).
+  const { data: games = [] } = useListGames();
+  const liveGame = games.find((g) => g.status === 'active');
 
   // Each tab's ScrollView needs this much bottom padding to clear the tab bar
   const bottomPadding = TAB_BAR_CONTENT_HEIGHT + Math.max(insets.bottom, 8);
@@ -34,7 +38,7 @@ export default function AdminHomeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <AdminHeader title={TAB_TITLES[activeTab]} isLive={false} />
+      <AdminHeader title={TAB_TITLES[activeTab]} isLive={!!liveGame} liveGameId={liveGame?.id} />
 
       <View style={styles.content}>
         {activeTab === 'games'   && <GamesTab   bottomPadding={bottomPadding} onGoToBuild={handleGoToBuild} />}

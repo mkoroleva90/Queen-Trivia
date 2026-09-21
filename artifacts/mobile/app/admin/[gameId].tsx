@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -46,6 +46,7 @@ import { ADMIN_TOKEN_KEY } from '@/context/AdminAuthContext';
 import { useColors } from '@/hooks/useColors';
 import { API_BASE_URL } from '@/lib/apiBase';
 import { COPY } from '@workspace/copy';
+import { OpenTdbQuestionMixSelector, type OpenTdbImportMode } from '@/components/admin/OpenTdbQuestionMixSelector';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -438,6 +439,14 @@ function HotspotPicker({ imageUrl, x, y, onChange, colors }: {
   colors: ReturnType<typeof useColors>;
 }) {
   const [size, setSize] = useState({ w: 0, h: 0 });
+  // Match the picture's own aspect ratio so the stored percentages line up
+  // with what players see (web uses object-contain at natural aspect).
+  const [aspect, setAspect] = useState(16 / 9);
+  useEffect(() => {
+    let cancelled = false;
+    Image.getSize(imageUrl, (w, h) => { if (!cancelled && w > 0 && h > 0) setAspect(w / h); }, () => {});
+    return () => { cancelled = true; };
+  }, [imageUrl]);
   return (
     <View
       style={{ borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}
@@ -452,7 +461,7 @@ function HotspotPicker({ imageUrl, x, y, onChange, colors }: {
           }
         }}
       >
-        <Image source={{ uri: imageUrl }} style={{ width: '100%', aspectRatio: 16 / 9 }} resizeMode="cover" />
+        <Image source={{ uri: imageUrl }} style={{ width: '100%', aspectRatio: aspect }} resizeMode="contain" />
         {size.w > 0 && (
           <View pointerEvents="none" style={[StyleSheet.absoluteFill]}>
             <View style={{
@@ -480,6 +489,7 @@ function QuestionFormModal({
   title,
   gameId,
   gameTopic,
+  isEditing = false,
 }: {
   visible: boolean;
   initial: QForm;
@@ -489,6 +499,8 @@ function QuestionFormModal({
   title: string;
   gameId: number;
   gameTopic?: string;
+  /** True when editing an existing question (submit reads "Save changes"). */
+  isEditing?: boolean;
 }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -1086,7 +1098,7 @@ function QuestionFormModal({
             onPress={handleSave}
             disabled={pending}
           >
-            {pending ? <ActivityIndicator color="#fff" /> : <Text style={s.saveRowText}>{COPY.questionEditor.saveQuestionBtn}</Text>}
+            {pending ? <ActivityIndicator color="#fff" /> : <Text style={s.saveRowText}>{isEditing ? COPY.btn.saveChanges : COPY.btn.addQuestion}</Text>}
           </Pressable>
 
           <View style={{ height: insets.bottom + 24 }} />
@@ -1155,6 +1167,7 @@ function BulkGenerateModal({
   gameId,
   gameTopic,
   gameDifficulty,
+  gameBrief,
   questions,
   onClose,
   onGenerated,
@@ -1163,6 +1176,7 @@ function BulkGenerateModal({
   gameId: number;
   gameTopic: string;
   gameDifficulty: string;
+  gameBrief?: string | null;
   questions: Question[];
   onClose: () => void;
   onGenerated: (count: number) => void;
@@ -1172,7 +1186,9 @@ function BulkGenerateModal({
   const [topic, setTopic] = useState('');
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [amount, setAmount] = useState('10');
+  const [mode, setMode] = useState<OpenTdbImportMode | null>(null);
   const [avoidDups, setAvoidDups] = useState(true);
+  const [brief, setBrief] = useState('');
   const [result, setResult] = useState<{ imported: number; discarded: number } | null>(null);
   const [error, setError] = useState('');
   const [upgradeLimitMsg, setUpgradeLimitMsg] = useState('');
@@ -1183,23 +1199,36 @@ function BulkGenerateModal({
       setTopic(gameTopic);
       setDifficulty((gameDifficulty as 'easy' | 'medium' | 'hard') ?? 'medium');
       setAmount('10');
+      setMode(null);
       setAvoidDups(true);
+      setBrief(gameBrief ?? '');
       setResult(null);
       setError('');
     }
-  }, [visible, gameTopic, gameDifficulty]);
+  }, [visible, gameTopic, gameDifficulty, gameBrief]);
 
   const handleGenerate = async () => {
     setError('');
     const n = parseInt(amount, 10);
     if (isNaN(n) || n < 1 || n > 20) { setError(COPY.aiGenerate.amountRange); return; }
     if (!topic.trim()) { setError(COPY.aiGenerate.topicRequired); return; }
+    if (mode === null) { setError(COPY.openTdbQuestionMix.hint); return; }
     try {
       const res = await generateGemini.mutateAsync({
         gameId,
-        data: { topic: topic.trim(), difficulty, amount: n, existingQuestions: avoidDups ? questions.map((q) => q.questionText) : [] },
+        data: {
+          topic: topic.trim(),
+          difficulty,
+          amount: n,
+          existingQuestions: avoidDups ? questions.map((q) => q.questionText) : [],
+          brief: brief.trim() || undefined,
+          mode,
+        },
       });
       setResult({ imported: res.imported, discarded: res.discarded ?? 0 });
+      if (res.contentFilteredCount && res.contentFilteredCount > 0 && res.contentFilteredMessage) {
+        setError(res.contentFilteredMessage);
+      }
       onGenerated(res.imported);
     } catch (e: unknown) {
       const limitMsg = extractFreeTierLimitMsg(e);
@@ -1236,6 +1265,9 @@ function BulkGenerateModal({
                 <Text style={[s.resultSub, { color: colors.mutedForeground }]}>
                   {COPY.aiGenerate.discardedResult(result.discarded)}
                 </Text>
+              )}
+              {!!error && (
+                <Text style={[s.resultSub, { color: colors.destructive }]}>{error}</Text>
               )}
               <Pressable style={[s.closeResultBtn, { borderColor: colors.secondary }]} onPress={onClose}>
                 <Text style={[s.closeResultText, { color: colors.secondary }]}>{COPY.common.done}</Text>
@@ -1277,12 +1309,24 @@ function BulkGenerateModal({
                 placeholderTextColor={colors.mutedForeground}
               />
 
+              <OpenTdbQuestionMixSelector value={mode} onSelect={(m) => { setMode(m); setError(''); }} />
+
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 }}>
                 <Switch value={avoidDups} onValueChange={setAvoidDups} />
                 <Text style={[s.fieldLabel, { color: colors.mutedForeground, marginTop: 0, flex: 1 }]}>
                   {COPY.questionEditor.avoidDuplicates}
                 </Text>
               </View>
+
+              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{COPY.build.aiSheet.briefLabel}</Text>
+              <TextInput
+                style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
+                value={brief}
+                onChangeText={setBrief}
+                placeholder={COPY.build.aiSheet.briefPlaceholder}
+                placeholderTextColor={colors.mutedForeground}
+                maxLength={2000}
+              />
 
               {!!error && (
                 <View style={[s.errorRow, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}>
@@ -1953,13 +1997,33 @@ export default function GameDetailScreen() {
   };
 
   const handleStatusChange = async (status: 'waiting' | 'active' | 'completed') => {
-    await updateGame.mutateAsync({
-      gameId,
-      data: status === 'active' ? { status, hostPlaysAlong: playAlong } : { status },
-    });
+    try {
+      await updateGame.mutateAsync({
+        gameId,
+        data: status === 'active' ? { status, hostPlaysAlong: playAlong } : { status },
+      });
+    } catch {
+      Alert.alert(COPY.common.error, status === 'completed' ? COPY.adminLive.endGameError : COPY.admin.startFailed);
+      return;
+    }
     qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
     if (status === 'active') router.push(`/admin/live/${gameId}`);
     if (status === 'completed') router.push(`/admin/results/${gameId}`);
+  };
+
+  // Start / End from the editor confirm exactly like the games list does.
+  const confirmStart = () => {
+    if (!game) return;
+    Alert.alert(COPY.admin.startGameTitle, COPY.admin.startGameBody(game.topic), [
+      { text: COPY.common.cancel, style: 'cancel' },
+      { text: COPY.admin.goLiveBtn, onPress: () => { void handleStatusChange('active'); } },
+    ]);
+  };
+  const confirmEnd = () => {
+    Alert.alert(COPY.adminLive.endGameTitle, COPY.adminLive.endGameBody, [
+      { text: COPY.common.cancel, style: 'cancel' },
+      { text: COPY.adminLive.endGameConfirm, style: 'destructive', onPress: () => { void handleStatusChange('completed'); } },
+    ]);
   };
 
   const handleConfirmDelete = (id: number) => {
@@ -2108,7 +2172,7 @@ export default function GameDetailScreen() {
           {game && !editingTopic && (
             <View style={[s.statusBadge, { backgroundColor: (game.status === 'active' ? colors.secondary : game.status === 'completed' ? colors.muted : colors.accent) + '22' }]}>
               <Text style={[s.statusText, { color: game.status === 'active' ? colors.secondary : game.status === 'completed' ? colors.muted : colors.accent }]}>
-                {game.status}
+                {COPY.status[game.status] ?? game.status}
               </Text>
             </View>
           )}
@@ -2124,13 +2188,18 @@ export default function GameDetailScreen() {
       <View style={[s.roomRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={s.statusActions}>
           {game?.status === 'waiting' && (
-            <Pressable style={[s.actionChip, { backgroundColor: colors.secondary + '22' }]} onPress={() => handleStatusChange('active')}>
+            <Pressable
+              style={[s.actionChip, { backgroundColor: colors.secondary + '22', opacity: localQs.length === 0 ? 0.4 : 1 }]}
+              onPress={confirmStart}
+              disabled={localQs.length === 0}
+              accessibilityState={{ disabled: localQs.length === 0 }}
+            >
               <Ionicons name="play" size={14} color={colors.secondary} />
               <Text style={[s.actionChipText, { color: colors.secondary }]}>{COPY.admin.startBtn}</Text>
             </Pressable>
           )}
           {game?.status === 'active' && (
-            <Pressable style={[s.actionChip, { backgroundColor: colors.destructive + '22' }]} onPress={() => handleStatusChange('completed')}>
+            <Pressable style={[s.actionChip, { backgroundColor: colors.destructive + '22' }]} onPress={confirmEnd}>
               <Ionicons name="flag" size={14} color={colors.destructive} />
               <Text style={[s.actionChipText, { color: colors.destructive }]}>{COPY.admin.endBtn}</Text>
             </Pressable>
@@ -2274,6 +2343,7 @@ export default function GameDetailScreen() {
         onSave={handleSave}
         pending={createQuestion.isPending || updateQuestion.isPending}
         title={editingQuestion ? COPY.questionEditor.editTitle : COPY.questionEditor.newTitle}
+        isEditing={!!editingQuestion}
         gameId={gameId}
         gameTopic={game?.topic}
       />
@@ -2284,6 +2354,7 @@ export default function GameDetailScreen() {
         gameId={gameId}
         gameTopic={game?.topic ?? ''}
         gameDifficulty={game?.difficulty ?? 'medium'}
+        gameBrief={game?.brief}
         questions={questions ?? []}
         onClose={() => setGenerateOpen(false)}
         onGenerated={() => { invalidate(); }}

@@ -248,7 +248,7 @@ export default function AdminResultsScreen() {
     <View style={[s.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={s.header}>
-        <Pressable onPress={() => router.push('/admin')} style={s.backBtn} hitSlop={12}>
+        <Pressable onPress={() => router.back()} style={s.backBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel={COPY.common.back}>
           <Ionicons name="chevron-back" size={22} color={colors.foreground} />
         </Pressable>
         <Text style={[s.headerTitle, { color: colors.foreground }]} numberOfLines={1}>
@@ -259,6 +259,8 @@ export default function AdminResultsScreen() {
           disabled={exporting}
           style={[s.exportBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
           hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={COPY.adminResults.exportBtn}
         >
           {exporting
             ? <ActivityIndicator size="small" color={colors.primary} />
@@ -307,6 +309,11 @@ export default function AdminResultsScreen() {
 
         {/* Leaderboard */}
         <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>{COPY.adminResults.leaderboardLabel}</Text>
+        {(results?.participants ?? []).length === 0 && (
+          <Text style={[s.playerSub, { color: colors.mutedForeground, textAlign: 'center', paddingVertical: 12 }]}>
+            {COPY.adminResults.noParticipants}
+          </Text>
+        )}
         {(results?.participants ?? []).map((p) => (
           <View key={p.id} style={[s.playerCard, { backgroundColor: colors.card, borderColor: p.rank <= 3 ? (RANK_COLORS[p.rank - 1] + '44') : colors.border }]}>
             <View style={[s.rankBadge, { backgroundColor: p.rank <= 3 ? RANK_COLORS[p.rank - 1] + '33' : colors.background }]}>
@@ -415,7 +422,7 @@ export default function AdminResultsScreen() {
               return (
               <View key={q.id} style={[s.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={s.statTop}>
-                  <Text style={[s.statQ, { color: colors.mutedForeground }]}>Q{idx + 1}</Text>
+                  <Text style={[s.statQ, { color: colors.mutedForeground }]}>{COPY.adminResults.questionNumber(idx + 1)}</Text>
                   <Text style={[s.statPts, { color: colors.accent }]}>{q.points}{COPY.gameplay.scorePtsSuffix}</Text>
                 </View>
                 <Text style={[s.statText, { color: colors.foreground }]} numberOfLines={2}>

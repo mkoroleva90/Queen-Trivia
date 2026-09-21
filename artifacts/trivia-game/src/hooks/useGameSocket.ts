@@ -70,8 +70,15 @@ export function useGameSocket(
 
 
      const socket = getSocket();
-     socket.connect();
-     socket.emit("game:join", gameId);
+
+     // Re-join the game room on every (re)connect. Socket.IO room membership
+     // is lost when the transport drops, so a single emit on mount would leave
+     // the client silently out of the room after any reconnect — it would then
+     // miss game:ended / player:kicked. Mirrors the mobile useSocket hook.
+     function onConnect() {
+         socket.emit("game:join", gameId!);
+     }
+
      function onAnswerSubmitted(p: {
          gameId: number;
          questionId: number;
@@ -106,14 +113,22 @@ export function useGameSocket(
          if (p.gameId === gameId) cbRef.current.onPlayerKicked?.(p);
      }
 
+     socket.on("connect", onConnect);
      socket.on("answer:submitted", onAnswerSubmitted);
      socket.on("answer:graded", onAnswerGraded);
      socket.on("answer:reviewed", onAnswerReviewed);
      socket.on("game:ended", onGameEnded);
      socket.on("player:kicked", onPlayerKicked);
 
+     if (socket.connected) {
+         socket.emit("game:join", gameId);
+     } else {
+         socket.connect();
+     }
+
 
      return () => {
+         socket.off("connect", onConnect);
          socket.off("answer:submitted", onAnswerSubmitted);
           socket.off("answer:graded", onAnswerGraded);
          socket.off("answer:reviewed", onAnswerReviewed);

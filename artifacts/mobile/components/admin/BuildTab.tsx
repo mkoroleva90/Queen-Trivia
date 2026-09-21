@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -431,6 +432,17 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
       const msg = extractApiError(err, COPY.build.error.createGame);
       if (msg.includes(COPY.usageLimit.title)) {
         setLimitMsg(msg);
+        return;
+      }
+      // Gemini quota / rate-limit responses carry a kind — same wording as web.
+      const status = err && typeof err === 'object' && 'status' in err ? (err as { status: number }).status : 0;
+      const data = err && typeof err === 'object' && 'data' in err ? (err as { data: Record<string, unknown> | null }).data : null;
+      const kind = data && typeof data.kind === 'string' ? data.kind : '';
+      if (status === 429 && kind === 'rate_limit_daily') {
+        setSetupError(COPY.build.error.dailyQuota);
+      } else if (status === 429 && kind === 'rate_limit_minute') {
+        const retryAfter = data && typeof data.retryAfterSeconds === 'number' && data.retryAfterSeconds > 0 ? Math.ceil(data.retryAfterSeconds) : 60;
+        setSetupError(COPY.build.error.rateLimitedRetry(retryAfter));
       } else {
         setSetupError(msg);
       }
@@ -521,10 +533,22 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
   };
 
   const handleDeleteQuestion = (q: Question) => {
-    deleteQuestion.mutate(
-      { questionId: q.id },
-      { onSuccess: () => invalidate(workingGameId) },
-    );
+    // Confirm first — matches the game editor and the web review list.
+    Alert.alert(COPY.questionEditor.deleteTitle, COPY.questionEditor.deleteBody, [
+      { text: COPY.questionEditor.deleteCancel, style: 'cancel' },
+      {
+        text: COPY.questionEditor.deleteConfirm,
+        style: 'destructive',
+        onPress: () =>
+          deleteQuestion.mutate(
+            { questionId: q.id },
+            {
+              onSuccess: () => invalidate(workingGameId),
+              onError: () => Alert.alert(COPY.common.error, COPY.questionEditor.deleteFailed),
+            },
+          ),
+      },
+    ]);
   };
 
   const handleOpenRegen = (q: Question) => {
@@ -679,6 +703,13 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
           <Ionicons name="checkmark" size={30} color="#19d2ed" />
         </View>
         <Text style={s.rtglTitle}>{COPY.readyToGoLive.title}</Text>
+        <Text style={s.rtglSubtitle}>
+          {COPY.readyToGoLive.subtitle(
+            setupResult.game.topic,
+            setupResult.imported,
+            setupResult.type === 'ai' ? COPY.source.geminiAi : COPY.source.openTriviaDatabase,
+          )}
+        </Text>
 
         {/* Join-code summary row */}
         <View style={s.rtglCodeRow}>
@@ -696,7 +727,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
             accessibilityRole="button"
             accessibilityLabel={COPY.readyToGoLive.editLink}
           >
-            <Ionicons name="pencil-outline" size={19} color="#19d2ed" />
+            <Text style={{ color: '#19d2ed', fontSize: 14, fontFamily: 'Manrope_700Bold' }}>{COPY.readyToGoLive.editLink}</Text>
           </Pressable>
         </View>
 
@@ -710,7 +741,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
               {playAlong ? COPY.runMode.hostPlayLabel : COPY.runMode.hostOnlyLabel}
             </Text>
             <Text style={s.rtglModeDesc}>
-              {playAlong ? COPY.readyToGoLive.hostPlayDescMobile : COPY.readyToGoLive.hostOnlyDesc}
+              {playAlong ? COPY.readyToGoLive.hostPlayDesc : COPY.readyToGoLive.hostOnlyDesc}
             </Text>
           </View>
           <Pressable
@@ -723,13 +754,13 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
             accessibilityRole="button"
             accessibilityLabel={COPY.readyToGoLive.changeLink}
           >
-            <Ionicons name="pencil-outline" size={19} color="#19d2ed" />
+            <Text style={{ color: '#19d2ed', fontSize: 14, fontFamily: 'Manrope_700Bold' }}>{COPY.readyToGoLive.changeLink}</Text>
           </Pressable>
         </View>
 
         <Pressable
           style={s.rtglOutlineBtn}
-          onPress={() => setShowQuestionReview(true)}
+          onPress={() => { setBuildPlayAlong(playAlong); setShowQuestionReview(true); }}
         >
           <Text style={s.rtglOutlineBtnText}>{COPY.readyToGoLive.reviewBtn}</Text>
         </Pressable>
@@ -1098,6 +1129,26 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                         </Text>
                       </View>
                     </View>
+                  </View>
+                )}
+
+                {/* Add more questions — mirrors the web review toolbar */}
+                {selectedGame && selectedGame.status !== 'completed' && (
+                  <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+                    <Pressable
+                      style={[s.smallBtn, { flex: 1, backgroundColor: AI_COLOR + '22', marginTop: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]}
+                      onPress={() => { setAiError(''); setAiResult(null); setAiBrief(selectedGame.brief ?? ''); setAiOpen(true); }}
+                    >
+                      <Ionicons name="sparkles" size={14} color={AI_COLOR} />
+                      <Text style={[s.smallBtnText, { color: AI_COLOR }]}>{COPY.build.aiSheet.title}</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[s.smallBtn, { flex: 1, backgroundColor: colors.primary + '22', marginTop: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]}
+                      onPress={() => { setTdbError(''); setTdbResult(null); setTdbOpen(true); }}
+                    >
+                      <Ionicons name="cloud-download-outline" size={14} color={colors.primary} />
+                      <Text style={[s.smallBtnText, { color: colors.primary }]}>{COPY.source.openTriviaDatabase}</Text>
+                    </Pressable>
                   </View>
                 )}
 

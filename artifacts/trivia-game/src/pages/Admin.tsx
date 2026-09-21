@@ -15,6 +15,10 @@ import {
   type AnswerRow,
 } from "@workspace/live-tally";
 import { COPY } from "@workspace/copy";
+import { QuestionBreakdown } from "@/components/admin/QuestionBreakdown";
+import { AiToolsDialog } from "@/components/admin/AiToolsDialog";
+import { ImportOpenTdbDialog } from "@/components/admin/ImportOpenTdbDialog";
+import { GenerateQuestionsDialog } from "@/components/admin/GenerateQuestionsDialog";
 import { RunModeScreen, type RunMode } from "@/components/RunModeScreen";
 import { JoinCodeScreen } from "@/components/JoinCodeScreen";
 import { OpenTdbQuestionMixSelector, type OpenTdbImportMode } from "@/components/OpenTdbQuestionMixSelector";
@@ -85,8 +89,6 @@ import {
  getListGameParticipantsQueryKey,
  useImportOpenTdbQuestions,
  useGenerateGeminiQuestions,
- useRegenerateQuestion,
- useEnhanceQuestion,
  useListPendingAnswerReviews,
  getListPendingAnswerReviewsQueryKey,
  useReviewAnswer,
@@ -94,8 +96,6 @@ import {
 import type {
  Game,
  Question,
- RegenerateQuestionPreview,
- EnhanceQuestionResult,
  PendingAnswerReview,
 } from "@workspace/api-client-react";
 import { useAuth } from "../lib/auth";
@@ -643,19 +643,19 @@ export function validateForm(form: QuestionFormState): string | null {
          return COPY.questionEditor.validation.answerMustBeChoice;
     } else if (form.questionType === "ordering") {
         const items = form.orderingItems.map((item) => item.trim());
-        if (items.length < 3) return "Add at least 3 items";
-        if (items.some((item) => !item)) return "Every ordering item must be non-empty";
+        if (items.length < 3) return COPY.questionEditor.specialist.ordering.minError;
+        if (items.some((item) => !item)) return COPY.questionEditor.specialist.ordering.emptyError;
         if (new Set(items.map((item) => item.toLocaleLowerCase())).size !== items.length)
-            return "Ordering items must be unique";
+            return COPY.questionEditor.specialist.ordering.uniqueError;
     } else if (form.questionType === "multi_select") {
         const choices = form.multiSelectChoices.map((choice) => choice.text.trim());
-        if (choices.length < 3) return "Add at least 3 choices";
-        if (choices.some((choice) => !choice)) return "Every choice must be non-empty";
+        if (choices.length < 3) return COPY.questionEditor.specialist.multiSelect.minError;
+        if (choices.some((choice) => !choice)) return COPY.questionEditor.specialist.multiSelect.emptyError;
         if (new Set(choices.map((choice) => choice.toLocaleLowerCase())).size !== choices.length)
-            return "Choices must be unique";
+            return COPY.questionEditor.specialist.multiSelect.uniqueError;
         const correctCount = form.multiSelectChoices.filter((choice) => choice.correct).length;
         if (correctCount < 2 || correctCount >= choices.length)
-            return "Choose at least 2 correct choices and leave at least 1 incorrect choice";
+            return COPY.questionEditor.specialist.multiSelect.correctnessError;
     } else if (form.questionType === "slider") {
         const min = finiteFormNumber(form.sliderMin);
         const max = finiteFormNumber(form.sliderMax);
@@ -663,28 +663,28 @@ export function validateForm(form: QuestionFormState): string | null {
         const tolerance = finiteFormNumber(form.sliderTolerance);
         const answer = finiteFormNumber(form.sliderAnswer);
         if (min === null || max === null || min >= max)
-            return "Minimum must be a finite number less than maximum";
+            return COPY.questionEditor.specialist.slider.rangeError;
         if (step === null || step <= 0)
-            return "Step must be a finite number greater than 0";
+            return COPY.questionEditor.specialist.slider.stepError;
         if (tolerance === null || tolerance < 0)
-            return "Tolerance must be a finite number 0 or greater";
-        if (!form.sliderUnit.trim()) return "Unit is required";
+            return COPY.questionEditor.specialist.slider.toleranceError;
+        if (!form.sliderUnit.trim()) return COPY.questionEditor.specialist.slider.unitError;
         if (answer === null || answer < min || answer > max)
-            return "Correct answer must be a finite number within minimum and maximum";
+            return COPY.questionEditor.specialist.slider.answerError;
     } else if (form.questionType === "short_response") {
-        if (!form.shortResponseRubric.trim()) return "A grading rubric is required";
+        if (!form.shortResponseRubric.trim()) return COPY.questionEditor.specialist.shortResponse.rubricError;
         if (!form.shortResponseAnswer.trim()) return COPY.questionEditor.specialist.shortResponse.answerError;
         if (form.shortResponseMaxWords.trim()) {
             const maxWords = Number(form.shortResponseMaxWords);
             if (!Number.isFinite(maxWords) || !Number.isInteger(maxWords) || maxWords <= 0)
-                return "Maximum words must be a positive integer";
+                return COPY.questionEditor.specialist.shortResponse.maxWordsError;
         }
     } else if (form.questionType === "matching") {
         const pairs = form.pairs.filter((p) => p.left.trim() && p.right.trim());
         if (pairs.length < 2) return COPY.questionEditor.validation.addTwoPairs;
     } else if (form.questionType === "true_false") {
         if (form.correctAnswer !== "true" && form.correctAnswer !== "false")
-         return "Pick true or false";
+         return COPY.questionEditor.validation.pickTrueFalse;
     } else if (form.questionType === "image_hotspot") {
         if (!form.imageUrl.trim()) return COPY.questionEditor.validation.imageUrlRequired;
         if (!isAllowedImageUrl(form.imageUrl.trim()))
@@ -766,7 +766,7 @@ function QuestionForm({
    if (msg.includes(COPY.usageLimit.title)) {
     setUpgradeLimitMsg(msg);
    } else {
-    toast({ variant: "destructive", title: "AI generation failed. Please try again." });
+    toast({ variant: "destructive", title: COPY.aiGenerate.formFailed });
    }
   } finally {
    setAiLoading(false);
@@ -792,7 +792,7 @@ return (
   <FreeTierLimitModal msg={upgradeLimitMsg} onClose={() => setUpgradeLimitMsg(null)} />
   {/* Type selector */}
   <div className="space-y-2">
-   <Label>Question Type</Label>
+   <Label>{COPY.questionEditor.typeLabel}</Label>
    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
     {(Object.keys(TYPE_META) as QuestionType[]).map((t) => {
      const { label, Icon, color } = TYPE_META[t];
@@ -836,16 +836,12 @@ return (
 {/* Question text */}
 <div className="space-y-2">
  <Label>
-  {form.questionType === "image_recognition" ? "Caption / Prompt" : "Question"}
+  {COPY.questionEditor.questionLabel}
  </Label>
  <Textarea
   value={form.questionText}
   onChange={(e) => set("questionText", e.target.value)}
-  placeholder={
-      form.questionType === "image_recognition"
-       ? 'e.g. "Name this landmark" or "Which country is this flag from?"'
-       : COPY.questionEditor.questionPlaceholder
-  }
+  placeholder={COPY.questionEditor.questionPlaceholder}
   rows={3}
  />
 </div>
@@ -854,7 +850,7 @@ return (
 {/* ── Multiple Choice ── */}
 {form.questionType === "multiple_choice" && (
  <div className="space-y-3">
-  <Label>Answer Choices</Label>
+  <Label>{COPY.questionEditor.choicesLabel}</Label>
     <div className="space-y-2">
      {form.choices.map((choice, i) => {
       const isCorrect = form.correctAnswer === choice.trim() && choice.trim();
@@ -868,7 +864,7 @@ return (
              ? "border-secondary bg-secondary text-secondary-foreground"
              : "border-border text-muted-foreground hover:border-muted-foreground/60"
          }`}
-         title="Click to mark as correct"
+         aria-label={COPY.questionEditor.markCorrectLabel}
         >
          {CHOICE_LABELS[i]}
         </button>
@@ -884,7 +880,7 @@ return (
      }
      setForm(updated);
  }}
- placeholder={`Choice ${CHOICE_LABELS[i]}`}
+ placeholder={COPY.questionEditor.choicePlaceholder(CHOICE_LABELS[i] ?? "")}
  className={isCorrect ? "border-secondary/60 bg-secondary/5" : ""}
 />
 {form.choices.length > 2 && (
@@ -924,14 +920,10 @@ return (
 )}
 
 
-{form.correctAnswer ? (
+{form.correctAnswer && (
  <p className="text-sm text-secondary font-medium flex items-center gap-1.5">
      <CheckCircle2 className="h-4 w-4" />
-     Correct: "{form.correctAnswer}"
- </p>
-):(
- <p className="text-xs text-muted-foreground">
-     Click a letter button to mark the correct answer.
+     {COPY.questionEditor.correctAnswerLabel}: {form.correctAnswer}
  </p>
 )}
    </div>
@@ -998,7 +990,7 @@ return (
   {/* ── True / False ── */}
   {form.questionType === "true_false" && (
    <div className="space-y-2">
-       <Label>Correct Answer</Label>
+       <Label>{COPY.questionEditor.correctAnswerLabel}</Label>
        <div className="grid grid-cols-2 gap-3">
        {(["true", "false"] as const).map((val) => (
         <button
@@ -1013,7 +1005,7 @@ return (
              : "border-border text-muted-foreground hover:border-muted-foreground/50"
          }`}
         >
-         {val === "true" ? "✓ TRUE" : "✗ FALSE"}
+         {val === "true" ? COPY.questionEditor.tfTrue : COPY.questionEditor.tfFalse}
         </button>
        ))}
        </div>
@@ -1025,28 +1017,23 @@ return (
 {form.questionType === "write_in" && (
  <div className="space-y-4">
      <div className="space-y-2">
-     <Label>Correct Answer</Label>
+     <Label>{COPY.questionEditor.correctAnswerLabel}</Label>
      <Input
       value={form.correctAnswer}
       onChange={(e) => set("correctAnswer", e.target.value)}
-      placeholder="Primary correct answer (case-insensitive)"
+      placeholder={COPY.questionEditor.writeInPlaceholder}
      />
      </div>
      <div className="space-y-2">
      <Label>
-      Alternate Acceptable Answers
-      <span className="ml-1.5 text-xs text-muted-foreground font-normal">
-       (optional, comma-separated)
-      </span>
+      {COPY.questionEditor.alternateAnswersLabel}
+      <span className="ml-1.5 text-xs text-muted-foreground font-normal">{COPY.common.optional}</span>
      </Label>
      <Input
       value={form.alternateAnswers}
       onChange={(e) => set("alternateAnswers", e.target.value)}
-      placeholder='e.g. "New York, NYC, The Big Apple"'
+      placeholder={COPY.questionEditor.alternateAnswersPlaceholder}
      />
-       <p className="text-xs text-muted-foreground">
-        Any of these will be accepted as correct.
-       </p>
        </div>
    </div>
   )}
@@ -1066,7 +1053,7 @@ return (
       <div className="rounded-lg overflow-hidden border border-border max-h-48 flexitems-center justify-center bg-muted/30">
          <img
             src={form.imageUrl.trim()}
-            alt="Preview"
+            alt={COPY.questionEditor.imagePreviewAlt}
             className="max-h-48 object-contain"
             onError={(e) => {
              (e.target as HTMLImageElement).style.display = "none";
@@ -1076,24 +1063,22 @@ return (
 )}
 </div>
 <div className="space-y-2">
-<Label>Correct Answer</Label>
+<Label>{COPY.questionEditor.correctAnswerLabel}</Label>
 <Input
  value={form.correctAnswer}
  onChange={(e) => set("correctAnswer", e.target.value)}
- placeholder="What the image shows (case-insensitive)"
+ placeholder={COPY.questionEditor.imageAnswerPlaceholder}
 />
 </div>
 <div className="space-y-2">
 <Label>
- Alternate Answers
- <span className="ml-1.5 text-xs text-muted-foreground font-normal">
-     (optional, comma-separated)
- </span>
+ {COPY.questionEditor.alternateAnswersLabel}
+ <span className="ml-1.5 text-xs text-muted-foreground font-normal">{COPY.common.optional}</span>
 </Label>
 <Input
  value={form.alternateAnswers}
  onChange={(e) => set("alternateAnswers", e.target.value)}
- placeholder='e.g. "Eiffel Tower, La Tour Eiffel"'
+ placeholder={COPY.questionEditor.imageAltPlaceholder}
 />
 </div>
       </div>
@@ -1130,7 +1115,7 @@ return (
             >
               <img
                 src={form.imageUrl.trim()}
-                alt="Set hotspot"
+                alt={COPY.questionEditor.hotspotLabel}
                 draggable={false}
                 className="w-full block"
                 style={{ maxHeight: 320, objectFit: "contain", display: "block" }}
@@ -1164,10 +1149,7 @@ return (
   {/* ── Matching ── */}
   {form.questionType === "matching" && (
       <div className="space-y-3">
-     <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs font-semibold uppercasetracking-widest text-muted-foreground px-9">
-        <span>Left</span>
-        <span>Matches with</span>
-       </div>
+       <Label>{COPY.questionEditor.matchingPairsLabel}</Label>
        {form.pairs.map((pair, i) => (
         <div key={i} className="flex items-center gap-2">
          <span className="w-7 text-center text-sm font-bold text-muted-foreground shrink-0">
@@ -1181,7 +1163,7 @@ return (
            );
            set("pairs", next);
           }}
-          placeholder="Left item"
+          placeholder={COPY.questionEditor.pairLeftPlaceholder}
          />
   <ArrowLeftRight className="h-4 w-4 text-muted-foreground shrink-0" />
   <Input
@@ -1192,7 +1174,7 @@ return (
        );
        set("pairs", next);
       }}
-      placeholder="Right item"
+      placeholder={COPY.questionEditor.pairRightPlaceholder}
   />
   {form.pairs.length > 2 && (
       <Button
@@ -1201,6 +1183,7 @@ return (
        size="icon"
        className="shrink-0"
        onClick={() => set("pairs", form.pairs.filter((_, j) => j !== i))}
+       aria-label={COPY.questionEditor.removePair}
       >
        <X className="h-4 w-4" />
       </Button>
@@ -1224,27 +1207,24 @@ return (
 
   {/* Source / Citation */}
   <div className="space-y-1.5 pt-1">
-   <Label>
-       Source / Citation
-    <span className="ml-1.5 text-xs text-muted-foreground font-normal">(optional)</span>
-   </Label>
+   <Label>{COPY.questionEditor.sourceLabel}</Label>
    <Input
        value={form.source}
        onChange={(e) => set("source", e.target.value)}
-       placeholder='e.g. "Wikipedia: Eiffel Tower" or "Britannica"'
+       placeholder={COPY.questionEditor.sourcePlaceholder}
    />
   </div>
   {/* Fact-check URL */}
   <div className="space-y-1.5">
    <Label>
-    Fact-check URL
-    <span className="ml-1.5 text-xs text-muted-foreground font-normal">(optional)</span>
+    {COPY.questionEditor.factCheckUrl}
+    <span className="ml-1.5 text-xs text-muted-foreground font-normal">{COPY.common.optional}</span>
    </Label>
    <Input
     type="url"
     value={form.factCheckUrl}
     onChange={(e) => set("factCheckUrl", e.target.value)}
-    placeholder="https://en.wikipedia.org/wiki/..."
+    placeholder={COPY.questionEditor.factCheckUrlPlaceholder}
    />
   </div>
 
@@ -1252,19 +1232,15 @@ return (
   {/* Points */}
   <div className="flex items-center gap-3 pt-1">
    <div className="space-y-1">
-    <Label>Points</Label>
+    <Label>{COPY.questionEditor.pointsLabel}</Label>
     <Input
      type="number"
      min={1}
-     max={100}
      value={form.points}
      onChange={(e) => set("points", e.target.value)}
      className="w-28"
              />
          </div>
-         <p className="text-xs text-muted-foreground mt-5 max-w-[200px]">
-    Default for {TYPE_META[form.questionType].label}:{DEFAULT_POINTS[form.questionType]} pts
-         </p>
          </div>
 
 
@@ -1281,7 +1257,7 @@ return (
              onSubmit(form);
          }}
          >
-         {pending ? "Saving..." : submitLabel}
+         {pending ? COPY.questionEditor.saving : submitLabel}
          </Button>
      </div>
     );
@@ -1294,12 +1270,15 @@ function SortableQuestionItem({
  index,
  onEdit,
  onDelete,
+ onAi,
  deleteDisabled,
 }: {
  q: Question;
  index: number;
  onEdit: (q: Question) => void;
  onDelete: (id: number) => void;
+ /** Opens the per-question AI tools (regenerate / enhance / fact-check). */
+ onAi: (q: Question) => void;
  deleteDisabled: boolean;
 }) {
  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -1328,7 +1307,7 @@ return (
      {...attributes}
      {...listeners}
    className="mt-0.5 cursor-grab active:cursor-grabbing text-muted-foreground/40hover:text-muted-foreground transition-colors touch-none"
-     aria-label="Drag to reorder"
+     aria-label={COPY.gameEditor.dragHandleLabel}
   >
      <GripVertical className="h-5 w-5" />
   </button>
@@ -1354,17 +1333,17 @@ return (
      {label}
     </Badge>
     {q.source === "opentdb" && (
-     <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-400border-blue-500/30">Open Trivia Database</Badge>
+     <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-400border-blue-500/30">{COPY.source.openTriviaDatabase}</Badge>
     )}
     {q.aiGenerated && (
-     <Badge variant="outline" className="text-[10px] bg-purple-500/10 text-purple-400border-purple-500/30">AI Generated</Badge>
+     <Badge variant="outline" className="text-[10px] bg-purple-500/10 text-purple-400border-purple-500/30">{COPY.source.ai}</Badge>
     )}
     <span className="text-xs text-accent font-semibold flex items-center gap-0.5">
-     <Star className="h-3 w-3" /> {q.points} pts
+     <Star className="h-3 w-3" /> {COPY.gameplay.ptsLine(q.points)}
     </span>
     {q.questionType !== "matching" && (
         <span className="text-xs text-muted-foreground truncate max-w-[200px]">
-         ans: <span className="text-secondary">{q.correctAnswer}</span>
+         {COPY.gameEditor.answerPrefix}: <span className="text-secondary">{q.correctAnswer}</span>
         </span>
     )}
    </div>
@@ -1382,9 +1361,19 @@ return (
   <div className="flex gap-1 shrink-0">
    <Button
           variant="ghost"
+          size="sm"
+          onClick={() => onAi(q)}
+          className="h-8 px-2 text-xs text-purple-400 hover:text-purple-300"
+          aria-label={COPY.aiTools.title}
+         >
+          <Sparkles className="mr-1 h-3 w-3" />{COPY.source.aiTag}
+         </Button>
+   <Button
+          variant="ghost"
           size="icon"
           onClick={() => onEdit(q)}
           className="h-8 w-8"
+          aria-label={COPY.common.edit}
          >
           <Pencil className="h-3.5 w-3.5" />
          </Button>
@@ -1420,49 +1409,14 @@ const { data: questions } = useListGameQuestions(game.id, {
 const createQuestion = useCreateQuestion();
 const updateQuestion = useUpdateQuestion();
 const deleteQuestion = useDeleteQuestion();
-const generateQuestions = useGenerateGeminiQuestions();
 
-// AI generate dialog state
+// AI generate dialog (shared with mobile field for field)
 const [genOpen, setGenOpen] = useState(false);
-const [genCount, setGenCount] = useState(5);
-const [genDiff, setGenDiff] = useState<"easy" | "medium" | "hard" | "same">("same");
-const [genAvoid, setGenAvoid] = useState(true);
-const [genBrief, setGenBrief] = useState(game.brief ?? "");
-const [genMode, setGenMode] = useState<OpenTdbImportMode | null>(null);
 const [upgradeLimitMsg, setUpgradeLimitMsg] = useState<string | null>(null);
-
-const handleGenerate = async () => {
- if (genMode === null) return;
- const difficulty =
-  genDiff === "same"
-   ? ((game.difficulty ?? "medium") as "easy" | "medium" | "hard")
-   : genDiff;
- const existingQs = genAvoid ? (questions ?? []).map((q) => q.questionText) : undefined;
- try {
-  const result = await generateQuestions.mutateAsync({
-   gameId: game.id,
-   data: { topic: game.topic, difficulty, amount: genCount, existingQuestions: existingQs, brief: genBrief.trim() || undefined, mode: genMode },
-  });
-  invalidate();
-  setGenOpen(false);
-  toast({ title: `Added ${result.imported} AI-generated questions` });
-  if (result.contentFilteredCount && result.contentFilteredCount > 0 && result.contentFilteredMessage) {
-   toast({ variant: "destructive", title: result.contentFilteredMessage });
-  }
- } catch (err: unknown) {
-  const limitMsg = extractFreeTierLimitMsg(err);
-  if (limitMsg) { setUpgradeLimitMsg(limitMsg); return; }
-  const errData = err && typeof err === "object" && "data" in err ? (err as { data: unknown }).data : null;
-  const apiMsg = errData && typeof errData === "object" && "error" in errData ? String((errData as { error: unknown }).error) : null;
-  const errCode = errData && typeof errData === "object" && "code" in errData ? String((errData as { code: unknown }).code) : null;
-  if (errCode === "content_filtered_all" && apiMsg) {
-   toast({ variant: "destructive", title: apiMsg });
-  } else {
-   toast({ variant: "destructive", title: "Generation failed. Please try again." });
-  }
- }
-};
-
+// Per-question AI tools (regenerate / enhance / fact-check), as on mobile.
+const [aiMenuQuestion, setAiMenuQuestion] = useState<Question | null>(null);
+// Import from Open Trivia Database into this game, as on mobile.
+const [importOpen, setImportOpen] = useState(false);
 
 const sorted = useMemo(
  () => [...(questions ?? [])].sort((a, b) => a.orderIndex - b.orderIndex || a.id - b.id),
@@ -1518,19 +1472,19 @@ const handleDragEnd = async (event: DragEndEvent) => {
      );
      invalidate();
  } catch {
-     toast({ variant: "destructive", title: "Reorder failed" });
+     toast({ variant: "destructive", title: COPY.gameEditor.reorderFailed });
      setLocalOrder(sorted);
  }
 };
 
 
 const handleDelete = (id: number) => {
- if (!window.confirm("Delete this question?")) return;
+ if (!window.confirm(`${COPY.questionEditor.deleteTitle}\n\n${COPY.questionEditor.deleteBody}`)) return;
  deleteQuestion.mutate(
      { questionId: id },
      {
-         onSuccess: () => { invalidate(); toast({ title: "Question deleted" }); },
-         onError: () => toast({ variant: "destructive", title: "Delete failed" }),
+         onSuccess: () => { invalidate(); toast({ title: COPY.questionEditor.deleted }); },
+         onError: () => toast({ variant: "destructive", title: COPY.questionEditor.deleteFailed }),
      },
  );
 };
@@ -1539,23 +1493,38 @@ const handleDelete = (id: number) => {
 return (
  <div className="space-y-4">
      <FreeTierLimitModal msg={upgradeLimitMsg} onClose={() => setUpgradeLimitMsg(null)} />
+     <AiToolsDialog
+      question={aiMenuQuestion}
+      gameId={game.id}
+      onClose={() => setAiMenuQuestion(null)}
+      onUpdate={() => { invalidate(); }}
+     />
+     <ImportOpenTdbDialog
+      open={importOpen}
+      gameId={game.id}
+      onClose={() => setImportOpen(false)}
+      onImported={() => { invalidate(); }}
+     />
      {/* Header */}
      <div className="flex items-center justify-between gap-3 flex-wrap">
    <div>
     <h3 className="font-bold text-lg leading-tight break-words">{game.topic}</h3>
     <div className="flex items-center gap-3 text-sm text-muted-foreground mt-0.5">
-     <span>{localOrder.length} {localOrder.length === 1 ? "question" :"questions"}</span>
+     <span>{COPY.gameEditor.questionCountTitle(localOrder.length)}</span>
        {localOrder.length > 0 && (
          <>
             <span>·</span>
             <span className="text-accent font-semibold flex items-center gap-1">
-            <Star className="h-3.5 w-3.5" /> {totalPoints} pts total
+            <Star className="h-3.5 w-3.5" /> {COPY.gameEditor.totalPoints(totalPoints)}
             </span>
          </>
        )}
     </div>
    </div>
-   <div className="flex items-center gap-2">
+   <div className="flex items-center gap-2 flex-wrap">
+    <Button variant="outline" className="font-semibold" onClick={() => setImportOpen(true)}>
+     <Database className="mr-1.5 h-4 w-4 text-primary" /> {COPY.source.openTriviaDatabase}
+    </Button>
     <Button variant="outline" className="font-semibold" onClick={() => setGenOpen(true)}>
      <Sparkles className="mr-1.5 h-4 w-4 text-purple-400" /> {COPY.build.aiSheet.title}
     </Button>
@@ -1568,7 +1537,7 @@ return (
    >
     <DialogTrigger asChild>
        <Button className="font-bold">
-         <Plus className="mr-1.5 h-4 w-4" /> Add Question
+         <Plus className="mr-1.5 h-4 w-4" /> {COPY.btn.addQuestion}
        </Button>
 </DialogTrigger>
 <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
@@ -1579,7 +1548,7 @@ return (
  key={editing?.id ?? "new"}
  initial={editing ? formFromQuestion(editing) : emptyForm}
  pending={createQuestion.isPending || updateQuestion.isPending}
- submitLabel={editing ? "Save changes" : "Add question"}
+ submitLabel={editing ? COPY.btn.saveChanges : COPY.btn.addQuestion}
  onFillWithAi={editing ? undefined : async (type) => {
   const res = await fetch(`/api/games/${game.id}/questions/generate-preview`, {
    method: "POST",
@@ -1600,7 +1569,7 @@ return (
          invalidate();
          setDialogOpen(false);
          setEditing(null);
-         toast({ title: "Question updated" });
+         toast({ title: COPY.gameEditor.questionUpdated });
         },
         onError: (err: unknown) => {
             const errData = err && typeof err === "object" && "data" in err ? (err as { data: unknown }).data : null;
@@ -1627,7 +1596,7 @@ return (
            onSuccess: () => {
             invalidate();
             setDialogOpen(false);
-            toast({ title: "Question added" });
+            toast({ title: COPY.gameEditor.questionAdded });
            },
            onError: (err: unknown) => {
                const errData = err && typeof err === "object" && "data" in err ? (err as { data: unknown }).data : null;
@@ -1646,75 +1615,16 @@ return (
 
 
 {/* AI Generate dialog */}
-<Dialog open={genOpen} onOpenChange={(open) => { if (!generateQuestions.isPending) setGenOpen(open); }}>
- <DialogContent className="sm:max-w-sm">
-  <DialogHeader>
-   <DialogTitle className="flex items-center gap-2">
-    <Sparkles className="h-4 w-4 text-purple-400" /> {COPY.aiGenerate.title}
-   </DialogTitle>
-  </DialogHeader>
-  <div className="space-y-4">
-   <p className="text-sm text-muted-foreground">
-    Gemini AI will generate questions for{" "}
-    <span className="font-medium text-foreground">{game.topic}</span>. Review them before going live.
-   </p>
-   <div className="space-y-1.5">
-    <Label>{COPY.aiGenerate.amountLabel}</Label>
-    <Input
-     type="number"
-     min={1}
-     max={20}
-     value={genCount}
-     onChange={(e) => setGenCount(Math.max(1, Math.min(20, Number(e.target.value))))}
-     className="h-9"
-    />
-   </div>
-   <div className="space-y-1.5">
-    <Label>Difficulty</Label>
-    <Select value={genDiff} onValueChange={(v) => setGenDiff(v as typeof genDiff)}>
-     <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-     <SelectContent>
-      <SelectItem value="same">Same as game setting</SelectItem>
-      <SelectItem value="easy">Easy</SelectItem>
-      <SelectItem value="medium">Medium</SelectItem>
-      <SelectItem value="hard">Hard</SelectItem>
-     </SelectContent>
-    </Select>
-   </div>
-   <OpenTdbQuestionMixSelector value={genMode} onSelect={setGenMode} />
-   <label className="flex items-center gap-2.5 cursor-pointer">
-    <input
-     type="checkbox"
-     className="accent-primary"
-     checked={genAvoid}
-     onChange={(e) => setGenAvoid(e.target.checked)}
-    />
-    <span className="text-sm text-muted-foreground">Avoid duplicating existing questions</span>
-   </label>
-   <div className="space-y-1.5">
-    <Label>Brief <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
-    <Textarea
-     value={genBrief}
-     onChange={(e) => setGenBrief(e.target.value)}
-     rows={4}
-     maxLength={2000}
-     placeholder="Add specific instructions for this generation run…"
-     className="resize-none text-sm"
-    />
-   </div>
-   <Button className="w-full" onClick={handleGenerate} disabled={generateQuestions.isPending || genMode === null}>
-    {generateQuestions.isPending ? (
-     <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating…</>
-    ) : (
-     <><Sparkles className="mr-2 h-4 w-4" />Generate {genCount} Questions</>
-    )}
-   </Button>
-   {generateQuestions.isPending && (
-    <p className="text-xs text-center text-muted-foreground">This may take 10–20 seconds…</p>
-   )}
-  </div>
- </DialogContent>
-</Dialog>
+<GenerateQuestionsDialog
+ open={genOpen}
+ gameId={game.id}
+ gameTopic={game.topic}
+ gameDifficulty={game.difficulty ?? "medium"}
+ gameBrief={game.brief}
+ questions={questions ?? []}
+ onClose={() => setGenOpen(false)}
+ onGenerated={() => { invalidate(); }}
+/>
 
 
 {/* Question list */}
@@ -1724,14 +1634,14 @@ return (
    <HelpCircle className="mx-auto h-10 w-10 text-primary/40" />
    <p className="font-semibold">{COPY.gameEditor.emptyTitle}</p>
    <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-    Write questions one at a time with <span className="font-medium text-foreground">Add Question</span>, or let Gemini AI generate a full set instantly with <span className="font-medium text-foreground">Generate with AI</span>.
+    {COPY.gameEditor.emptyBody}
    </p>
   </CardContent>
  </Card>
 ):(
  <>
   <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-   <GripVertical className="h-3.5 w-3.5" /> Drag the handle to reorder
+   <GripVertical className="h-3.5 w-3.5" /> {COPY.gameEditor.dragHintWeb}
   </p>
   <DndContext
    sensors={sensors}
@@ -1750,6 +1660,7 @@ return (
            index={i}
            onEdit={(q) => { setEditing(q); setDialogOpen(true); }}
            onDelete={handleDelete}
+           onAi={(q) => setAiMenuQuestion(q)}
            deleteDisabled={deleteQuestion.isPending}
           />
          ))}
@@ -1758,13 +1669,6 @@ return (
     </DndContext>
 
 
-    {/* Total points footer */}
-    <div className="flex justify-end pt-1">
-      <div className="rounded-lg border border-accent/30 bg-accent/5 px-4 py-2 text-smfont-semibold text-accent flex items-center gap-2">
-      <Star className="h-4 w-4" />
-      Total possible: {totalPoints} points
-     </div>
-    </div>
    </>
          )}
      </div>
@@ -1778,7 +1682,7 @@ const createGameSuccessVariants = {
   visible: { opacity: 1, scale: 1 },
 };
 
-function CreateGameSection({ onCreated, onGoLive }: { onCreated: (game: Game) => void; onGoLive?: (game: Game) => void }) {
+function CreateGameSection({ onCreated, onGoLive, onExit }: { onCreated: (game: Game) => void; onGoLive?: (game: Game) => void; onExit?: () => void }) {
     const [categoryId, setCategoryId] = useState<string>("9");
     const [customTopic, setCustomTopic] = useState("");
     const [difficulty, setDifficulty] = useState<Game["difficulty"]>("medium");
@@ -1856,8 +1760,8 @@ const handleSubmit = async (e: React.FormEvent) => {
     const status = err && typeof err === "object" && "status" in err ? (err as { status: number}).status : 0;
       toast({
        variant: "destructive",
-       title: status === 403 ? "Session expired" : "Failed to create game",
-   description: status === 403 ? "Please log out and log back in with the admin code." :undefined,
+       title: status === 403 ? COPY.admin.sessionExpiredTitle : COPY.build.error.createGame,
+       description: status === 403 ? COPY.admin.sessionExpiredBody : undefined,
       });
       setWorking(false);
       return;
@@ -1881,13 +1785,13 @@ const handleSubmit = async (e: React.FormEvent) => {
       queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
       setImportedCount(result.imported);
       setImportSource("opentdb");
-      toast({ title: `${result.imported} questions imported from Open Trivia Database!` });
+      toast({ title: COPY.build.importedToast(result.imported) });
   } catch (err: unknown) {
       const msg =
     err instanceof Error ? err.message : COPY.build.error.fetchOpenTdb;
       setImportError(msg);
       setImportSource("opentdb");
-      toast({ variant: "destructive", title: "Import failed — add questions manually" });
+      toast({ variant: "destructive", title: COPY.build.error.importQuestions });
   }
  } else {
   // Gemini path for custom topics
@@ -1900,7 +1804,7 @@ const handleSubmit = async (e: React.FormEvent) => {
           queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
           setImportedCount(result.imported);
           setImportSource("gemini");
-          toast({ title: `${result.imported} questions generated` });
+          toast({ title: COPY.build.generatedToast(result.imported) });
           if (result.contentFilteredCount && result.contentFilteredCount > 0 && result.contentFilteredMessage) {
               toast({ variant: "destructive", title: result.contentFilteredMessage });
           }
@@ -1910,20 +1814,20 @@ const handleSubmit = async (e: React.FormEvent) => {
           const errData = err && typeof err === "object" && "data" in err ? (err as { data: unknown }).data : null;
           const apiMsg = errData && typeof errData === "object" && "error" in errData ? String((errData as { error: unknown }).error) : null;
           const errCode = errData && typeof errData === "object" && "code" in errData ? String((errData as { code: unknown }).code) : null;
-          const msg = apiMsg ?? "Could not generate questions.";
+          const msg = apiMsg ?? COPY.build.error.generate;
           setImportError(msg);
           setImportSource("gemini");
      const { isDaily: _isDaily1, isPerMinute: _isPM1, countdown: _cd1 } = parseGeminiRateError(err);
           if (_isDaily1) {
               setDailyQuotaExhausted(true);
-              toast({ variant: "destructive", title: "Gemini daily quota exhausted — resets at midnight Pacific" });
+              toast({ variant: "destructive", title: COPY.build.error.dailyQuota });
           } else if (_isPM1) {
               setRetryCountdown(_cd1);
-              toast({ variant: "destructive", title: `Rate limited — retry unlocks in ${_cd1} s` });
+              toast({ variant: "destructive", title: COPY.build.error.rateLimitedRetry(_cd1) });
           } else if (errCode === "content_filtered_all" || errCode === "safety_block") {
               toast({ variant: "destructive", title: msg });
           } else {
-              toast({ variant: "destructive", title: "Generation failed — add questions manually" });
+              toast({ variant: "destructive", title: COPY.build.error.generate });
           }
       }
   }
@@ -1939,7 +1843,7 @@ const handleRetryGeneration = async () => {
  setWorking(true);
  setImportError(null);
  setImportedCount(null);
- setWorkingLabel("Retrying AI question generation… This may take up to 30 seconds");
+ setWorkingLabel(COPY.build.working.retrying);
   try {
    const result = await generateQuestions.mutateAsync({
     gameId: created.id,
@@ -1953,28 +1857,28 @@ const handleRetryGeneration = async () => {
    queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
    setImportedCount(result.imported);
    setImportSource("gemini");
-   toast({ title: `${result.imported} questions generated!` });
+   toast({ title: COPY.build.generatedToast(result.imported) });
   } catch (err: unknown) {
    const limitMsg2 = extractFreeTierLimitMsg(err);
    if (limitMsg2) { setUpgradeLimitMsg(limitMsg2); return; }
    const errData2 = err && typeof err === "object" && "data" in err ? (err as { data: unknown }).data : null;
    const apiMsg2 = errData2 && typeof errData2 === "object" && "error" in errData2 ? String((errData2 as { error: unknown }).error) : null;
    const errCode2 = errData2 && typeof errData2 === "object" && "code" in errData2 ? String((errData2 as { code: unknown }).code) : null;
-   const msg = apiMsg2 ?? "Could not generate questions.";
+   const msg = apiMsg2 ?? COPY.build.error.generate;
    setImportError(msg);
    setImportSource("gemini");
     const status = err && typeof err === "object" && "status" in err ? (err as { status: number}).status : 0;
    const { isDaily: _isDaily2, isPerMinute: _isPM2, countdown: _cd2 } = parseGeminiRateError(err);
    if (_isDaily2) {
        setDailyQuotaExhausted(true);
-       toast({ variant: "destructive", title: "Gemini daily quota exhausted — resets at midnight Pacific" });
+       toast({ variant: "destructive", title: COPY.build.error.dailyQuota });
    } else if (_isPM2) {
        setRetryCountdown(_cd2);
-       toast({ variant: "destructive", title: `Rate limited — retry unlocks in ${_cd2} s` });
+       toast({ variant: "destructive", title: COPY.build.error.rateLimitedRetry(_cd2) });
    } else if (errCode2 === "safety_block") {
        toast({ variant: "destructive", title: msg });
    } else {
-       toast({ variant: "destructive", title: "Generation failed — add questions manually" });
+       toast({ variant: "destructive", title: COPY.build.error.generate });
    }
  } finally {
      setWorking(false);
@@ -2002,6 +1906,7 @@ if (!runModeChosen) {
      <RunModeScreen
        value={runMode}
        onSelect={setRunMode}
+       onBack={onExit}
        onContinue={() => {
          setPlayAlong(runMode === "hostPlay");
          setRunModeChosen(true);
@@ -2018,6 +1923,7 @@ if (created && importedCount !== null && !working && !joinCodeChosen) {
        saving={updateGame.isPending}
        error={joinCodeError}
        titleError={joinTitleError}
+       onBack={() => setRunModeChosen(false)}
        onSubmit={(code, title) => {
          setJoinCodeError(null);
          setJoinTitleError(null);
@@ -2100,7 +2006,7 @@ if (created && importedCount !== null && !working) {
                {playAlong ? COPY.runMode.hostPlayLabel : COPY.runMode.hostOnlyLabel}
              </p>
              <p className="text-[13px] text-[#9aa3b2]">
-               {playAlong ? COPY.readyToGoLive.hostPlayDescWeb : COPY.readyToGoLive.hostOnlyDesc}
+               {playAlong ? COPY.readyToGoLive.hostPlayDesc : COPY.readyToGoLive.hostOnlyDesc}
              </p>
            </div>
            <button
@@ -2128,7 +2034,7 @@ if (created && importedCount !== null && !working) {
             { gameId: created.id, data: { status: "active", hostPlaysAlong: playAlong } },
             {
               onSuccess: () => { queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() }); onGoLive?.(created); },
-              onError: () => toast({ variant: "destructive", title: "Couldn't go live — please try again." }),
+              onError: () => toast({ variant: "destructive", title: COPY.build.error.goLive }),
             }
           )}
         >
@@ -2157,16 +2063,15 @@ if (created) {
       <>
        <Loader2 className="mx-auto h-14 w-14 text-primary animate-spin" />
        <h3 className="text-2xl font-bold tracking-tight">{workingLabel}</h3>
-      <p className="text-muted-foreground text-sm">This may take a fewseconds…</p>
+      <p className="text-muted-foreground text-sm">{COPY.build.working.hint}</p>
       </>
      ) : importError ? (
       <>
        <AlertTriangle className="mx-auto h-14 w-14 text-orange-400" />
-       <h3 className="text-2xl font-bold tracking-tight">Game Created</h3>
+       <h3 className="text-2xl font-bold tracking-tight">{COPY.build.createdTitle}</h3>
        <p className="text-muted-foreground max-w-sm mx-auto text-sm">
-         <span className="font-semibold text-foreground">{created.topic}</span> isready, but
-        {importSource === "gemini" ? " Gemini" : " auto-import"} hit a snag:{" "}
-        {importError.includes("Too many requests") ? "rate limited by Gemini API" :importError}
+        {COPY.build.createdSnag(created.topic, importSource === "gemini" ? COPY.source.geminiAi : COPY.source.openTriviaDatabase)}{" "}
+        {importError.includes("Too many requests") ? COPY.build.error.rateLimitedShort : importError}
        </p>
        <div className="flex flex-col sm:flex-row justify-center gap-3 pt-2">
         {importSource === "gemini" && (
@@ -2176,11 +2081,11 @@ if (created) {
         disabled={working || retryCountdown > 0}
      >
         {working ? (
-         <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Retrying…</>
+         <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{COPY.build.retrying}</>
         ) : retryCountdown > 0 ? (
-         <><RefreshCw className="mr-2 h-4 w-4" />Retry in {retryCountdown}s</>
+         <><RefreshCw className="mr-2 h-4 w-4" />{COPY.build.retryIn(retryCountdown)}</>
         ):(
-         <><RefreshCw className="mr-2 h-4 w-4" />Retry Generation</>
+         <><RefreshCw className="mr-2 h-4 w-4" />{COPY.build.retryBtn}</>
         )}
      </Button>
    )}
@@ -2189,10 +2094,10 @@ if (created) {
      className="font-bold"
      onClick={() => onCreated(created)}
    >
-     <Pencil className="mr-2 h-4 w-4" /> Add Questions Manually
+     <Pencil className="mr-2 h-4 w-4" /> {COPY.build.addManuallyBtn}
    </Button>
    <Button variant="ghost" onClick={handleReset}>
-     Create Another
+     {COPY.build.createAnotherBtn}
    </Button>
   </div>
  </>
@@ -2215,16 +2120,19 @@ return (
 
          {/* Category / Topic */}
          <div className="space-y-2">
-          <Label>Category</Label>
+          <Label>{COPY.build.categoryLabel}</Label>
            <Select
             value={categoryId}
             onValueChange={(value) => {
              setCategoryId(value);
-             if (value === "custom") setOpenTdbMode(null);
+             if (value === "custom") {
+              setOpenTdbMode(null);
+              if (amount === "20") setAmount("15");
+             }
             }}
            >
            <SelectTrigger className="h-12">
-            <SelectValue placeholder="Select a category…" />
+            <SelectValue placeholder={COPY.build.selectCategory} />
            </SelectTrigger>
            <SelectContent>
       <SelectItem value="custom">{COPY.build.customTopicOption}</SelectItem>
@@ -2245,7 +2153,7 @@ return (
 {/* Custom topic text input */}
 {isCustom && (
  <div className="space-y-2">
-     <Label htmlFor="customTopic">Topic</Label>
+     <Label htmlFor="customTopic">{COPY.build.topicLabel}</Label>
      <Input
      id="customTopic"
      value={customTopic}
@@ -2258,7 +2166,7 @@ return (
 )}
 {isCustom && (
  <div className="space-y-2">
-  <Label htmlFor="createBrief">Brief <span className="text-muted-foreground font-normal">(optional)</span></Label>
+  <Label htmlFor="createBrief">{COPY.build.briefLabel} <span className="text-muted-foreground font-normal">{COPY.common.optional}</span></Label>
   <Textarea
    id="createBrief"
    value={brief}
@@ -2274,25 +2182,25 @@ return (
 
 <div className="grid grid-cols-2 gap-4">
     <div className="space-y-2">
-     <Label>Difficulty</Label>
+     <Label>{COPY.build.difficultyLabel}</Label>
     <Select value={difficulty} onValueChange={(v) => setDifficulty(v as Game["difficulty"])}>
       <SelectTrigger className="h-12"><SelectValue /></SelectTrigger>
       <SelectContent>
-       <SelectItem value="easy">Easy (5 pts each)</SelectItem>
-       <SelectItem value="medium">Medium (10 pts each)</SelectItem>
-       <SelectItem value="hard">Hard (15 pts each)</SelectItem>
+       <SelectItem value="easy">{COPY.difficulty.selector.easy}</SelectItem>
+       <SelectItem value="medium">{COPY.difficulty.selector.medium}</SelectItem>
+       <SelectItem value="hard">{COPY.difficulty.selector.hard}</SelectItem>
       </SelectContent>
      </Select>
     </div>
     <div className="space-y-2">
-     <Label>Questions to {isCustom ? "Generate" : "Import"}</Label>
+     <Label>{COPY.build.amountLabel}</Label>
      <Select value={amount} onValueChange={setAmount}>
       <SelectTrigger className="h-12"><SelectValue /></SelectTrigger>
       <SelectContent>
-       <SelectItem value="5">5 questions</SelectItem>
-       <SelectItem value="10">10 questions</SelectItem>
-       <SelectItem value="15">15 questions</SelectItem>
-       {!isCustom && <SelectItem value="20">20 questions</SelectItem>}
+       <SelectItem value="5">{COPY.admin.questionsCount(5)}</SelectItem>
+       <SelectItem value="10">{COPY.admin.questionsCount(10)}</SelectItem>
+       <SelectItem value="15">{COPY.admin.questionsCount(15)}</SelectItem>
+       {!isCustom && <SelectItem value="20">{COPY.admin.questionsCount(20)}</SelectItem>}
       </SelectContent>
      </Select>
     </div>
@@ -2304,11 +2212,11 @@ return (
           disabled={!canSubmit}
          >
           {createGame.isPending || working ? (
-     <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {workingLabel ||"Working…"}</>
+     <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {workingLabel || COPY.build.working.default}</>
           ) : isCustom ? (
-              <><Lightbulb className="mr-2 h-4 w-4" /> Create & Generate with Gemini</>
+              <><Lightbulb className="mr-2 h-4 w-4" /> {COPY.btn.createGame}</>
           ):(
-              <><Database className="mr-2 h-4 w-4" /> Save Game</>
+              <><Database className="mr-2 h-4 w-4" /> {COPY.btn.saveGame}</>
           )}
          </Button>
          </form>
@@ -2345,9 +2253,9 @@ function QuestionsSection({
  return (
    <div className="space-y-5">
 <div>
- <h2 className="text-xl font-bold tracking-tight">Add Questions</h2>
+ <h2 className="text-xl font-bold tracking-tight">{COPY.build.addQuestionsHeading}</h2>
  <p className="text-muted-foreground text-sm mt-1">
-  Select a game and build its question set manually.
+  {COPY.build.addQuestionsSub}
  </p>
 </div>
 
@@ -2356,23 +2264,22 @@ function QuestionsSection({
  <Card className="border-dashed border-primary/30 bg-card/40">
  <CardContent className="py-12 text-center space-y-2">
   <Gamepad2 className="mx-auto h-10 w-10 text-primary/40" />
-  <p className="font-semibold">No active games</p>
+  <p className="font-semibold">{COPY.build.noActiveGamesTitle}</p>
   <p className="text-sm text-muted-foreground">
-      Create a new game first. Completed games are archived and cannot
-      be edited.
+      {COPY.build.noActiveGamesBody}
   </p>
  </CardContent>
 </Card>
 ):(
 <>
  <div className="space-y-2">
-  <Label>Select Game</Label>
+  <Label>{COPY.build.selectGameLabel}</Label>
   <Select
       value={selectedId !== null ? String(selectedId) : ""}
       onValueChange={(v) => setSelectedId(Number(v))}
   >
       <SelectTrigger className="h-11 max-w-sm">
-       <SelectValue placeholder="Choose a game..." />
+       <SelectValue placeholder={COPY.build.selectGamePlaceholder} />
       </SelectTrigger>
       <SelectContent>
        {editableGames.map((g) => (
@@ -2383,7 +2290,7 @@ function QuestionsSection({
           )}
           {g.topic}
           <span className="text-muted-foreground text-xs">
-           ({g.questionCount} {g.questionCount === 1 ? "question" : "questions"}{g.status === "active" ? " · live" : ""})
+           ({COPY.admin.questionsCount(g.questionCount ?? 0)}{g.status === "active" ? ` · ${COPY.status.active}` : ""})
           </span>
          </span>
                     </SelectItem>
@@ -2396,7 +2303,7 @@ function QuestionsSection({
               {selectedGame ? (
                <QuestionManager game={selectedGame} />
               ):(
-               <p className="text-sm text-muted-foreground">Select a game above.</p>
+               <p className="text-sm text-muted-foreground">{COPY.build.selectGameHint}</p>
               )}
           </>
          )}
@@ -2423,43 +2330,21 @@ const deleteQuestion = useDeleteQuestion();
 
 const [upgradeLimitMsg, setUpgradeLimitMsg] = useState<string | null>(null);
 
-// Regenerate modal state
-const [regenQ, setRegenQ] = useState<Question | null>(null);
-const [regenDiff, setRegenDiff] = useState<"same" | "easy" | "medium" | "hard">("same");
-const [regenType, setRegenType] = useState<string>("same");
-const [regenLoading, setRegenLoading] = useState(false);
- const [regenPreview, setRegenPreview] = useState<RegenerateQuestionPreview |null>(null);
-const [regenError, setRegenError] = useState<string | null>(null);
+// Per-question AI tools (regenerate / enhance / fact-check), as on mobile.
+const [aiMenuQuestion, setAiMenuQuestion] = useState<Question | null>(null);
+// Import from Open Trivia Database into the selected game, as on mobile.
+const [importOpen, setImportOpen] = useState(false);
 
 
-// Enhance modal state
-const [enhQ, setEnhQ] = useState<Question | null>(null);
-const [enhLoading, setEnhLoading] = useState(false);
-const [enhResult, setEnhResult] = useState<EnhanceQuestionResult | null>(null);
-const [enhError, setEnhError] = useState<string | null>(null);
-const [enhAcceptText, setEnhAcceptText] = useState(false);
-const [enhAcceptOptions, setEnhAcceptOptions] = useState(false);
-const [enhAcceptSource, setEnhAcceptSource] = useState(false);
-
-
-// Generate More modal state
+// Generate More dialog (shared with mobile field for field)
 const [genMoreOpen, setGenMoreOpen] = useState(false);
-const [genMoreCount, setGenMoreCount] = useState(5);
- const [genMoreDiff, setGenMoreDiff] = useState<"easy" | "medium" | "hard" |"same">("same");
-const [genMoreAvoid, setGenMoreAvoid] = useState(true);
-const [genMoreBrief, setGenMoreBrief] = useState("");
-const [genMoreMode, setGenMoreMode] = useState<OpenTdbImportMode | null>(null);
 
-// Regenerate All modal state
+// Regenerate All confirmation (AI-generated questions only, as on mobile)
 const [regenAllOpen, setRegenAllOpen] = useState(false);
-const [regenAllCount, setRegenAllCount] = useState(10);
-const [regenAllDiff, setRegenAllDiff] = useState<"easy" | "medium" | "hard" | "same">("same");
-const [regenAllBrief, setRegenAllBrief] = useState("");
 const [regenAllRunning, setRegenAllRunning] = useState(false);
+const [regenAllError, setRegenAllError] = useState<string | null>(null);
 
 
-const regenMutation = useRegenerateQuestion();
-const enhanceMutation = useEnhanceQuestion();
 const generateMore = useGenerateGeminiQuestions();
 
 
@@ -2516,212 +2401,61 @@ const toggleSelectAll = () => {
 
 
 const handleDelete = (id: number) => {
- if (!window.confirm("Delete this question?")) return;
+ if (!window.confirm(`${COPY.questionEditor.deleteTitle}\n\n${COPY.questionEditor.deleteBody}`)) return;
  deleteQuestion.mutate(
      { questionId: id },
      {
          onSuccess: () => {
           invalidate();
           setSelected((prev) => { const n = new Set(prev); n.delete(id); return n; });
-          toast({ title: "Question deleted" });
+          toast({ title: COPY.questionEditor.deleted });
          },
-         onError: () => toast({ variant: "destructive", title: "Delete failed" }),
+         onError: () => toast({ variant: "destructive", title: COPY.questionEditor.deleteFailed }),
      },
  );
 };
 
 
 const handleBulkDelete = async () => {
- if (!window.confirm(`Delete ${selected.size} selected questions?`)) return;
+ if (!window.confirm(COPY.questionEditor.deleteSelectedBody(selected.size))) return;
  const ids = Array.from(selected);
    await Promise.allSettled(ids.map((id) => deleteQuestion.mutateAsync({ questionId: id})));
  invalidate();
  setSelected(new Set());
- toast({ title: `Deleted ${ids.length} questions` });
+ toast({ title: COPY.questionEditor.deletedCount(ids.length) });
 };
 
 
-const handleRunRegen = async () => {
- if (!regenQ || !selectedGameId) return;
- setRegenLoading(true);
- setRegenPreview(null);
- setRegenError(null);
- const game = games.find((g) => g.id === selectedGameId);
- const difficulty =
-     regenDiff === "same"
-      ? ((game?.difficulty ?? "medium") as "easy" | "medium" | "hard")
-      : regenDiff;
- const questionType =
-     regenType === "same"
-      ? (regenQ.questionType as "multiple_choice" | "true_false" | "write_in")
-      : (regenType as "multiple_choice" | "true_false" | "write_in");
- try {
-     const preview = await regenMutation.mutateAsync({
-      gameId: selectedGameId,
-      questionId: regenQ.id,
-      data: { difficulty, questionType },
-     });
-     setRegenPreview(preview);
- } catch (err) {
-     const limitMsg = extractFreeTierLimitMsg(err);
-     if (limitMsg) { setUpgradeLimitMsg(limitMsg); setRegenLoading(false); return; }
-     const msg = err instanceof Error ? err.message : "Generation failed. Please try again.";
-  setRegenError(msg.includes("Too many requests") ? "Rate limited — please wait a moment and try again." : msg);
- } finally {
-     setRegenLoading(false);
- }
-};
-
-
-const handleAcceptRegen = () => {
- if (!regenQ || !regenPreview) return;
- const opts =
-     regenPreview.options && regenPreview.options.length > 0
-         ? ({ choices: regenPreview.options } as unknown as Record<string, unknown>)
-         : null;
- updateQuestion.mutate(
-     {
-         questionId: regenQ.id,
-         data: {
-          questionText: regenPreview.questionText,
-     questionType: regenPreview.questionType as "multiple_choice" | "true_false" |"write_in",
-          correctAnswer: regenPreview.correctAnswer,
-          options: opts,
-          points: regenPreview.points,
-          source: regenPreview.source,
-         },
-     },
-     {
-         onSuccess: () => {
-          invalidate();
-          setRegenQ(null);
-          setRegenPreview(null);
-          toast({ title: "Question replaced" });
-      },
-      onError: () => toast({ variant: "destructive", title: "Update failed" }),
-     },
- );
-};
-
-
-const handleRunEnhance = async (q: Question) => {
- if (!selectedGameId) return;
- setEnhQ(q);
- setEnhLoading(true);
- setEnhResult(null);
- setEnhError(null);
- setEnhAcceptText(false);
- setEnhAcceptOptions(false);
- setEnhAcceptSource(false);
- try {
-  const result = await enhanceMutation.mutateAsync({ gameId: selectedGameId,questionId: q.id });
-     setEnhResult(result);
- } catch (err) {
-     const limitMsg = extractFreeTierLimitMsg(err);
-     if (limitMsg) { setUpgradeLimitMsg(limitMsg); setEnhLoading(false); return; }
-     const msg = err instanceof Error ? err.message : "Enhancement failed. Please try again.";
-  setEnhError(msg.includes("Too many requests") ? "Rate limited — please wait a moment and try again." : msg);
- } finally {
-     setEnhLoading(false);
- }
-};
-
-
-const handleApplyEnhancements = () => {
- if (!enhQ || !enhResult) return;
- type Patch = {
-     questionText?: string;
-     options?: Record<string, unknown> | null;
-     source?: string | null;
- };
- const patch: Patch = {};
- if (enhAcceptText) patch.questionText = enhResult.improvedQuestionText;
- if (enhAcceptOptions && enhResult.improvedOptions &&enhResult.improvedOptions.length > 0) {
-     patch.options = { choices: enhResult.improvedOptions } as Record<string, unknown>;
- }
- if (enhAcceptSource && enhResult.suggestedSource) patch.source =enhResult.suggestedSource;
- if (Object.keys(patch).length === 0) {
-     toast({ title: "No improvements selected" });
-     return;
- }
- updateQuestion.mutate(
-  { questionId: enhQ.id, data: patch as Parameters<typeof updateQuestion.mutate>[0]["data"] },
-     {
-         onSuccess: () => {
-          invalidate();
-          setEnhQ(null);
-          setEnhResult(null);
-          toast({ title: "Enhancements applied" });
-      },
-      onError: () => toast({ variant: "destructive", title: "Update failed" }),
-     },
- );
-};
-
-
-const handleGenerateMore = async () => {
- if (!selectedGameId) return;
- if (genMoreMode === null) return;
- const game = games.find((g) => g.id === selectedGameId);
- if (!game) return;
- const difficulty =
-     genMoreDiff === "same"
-      ? ((game.difficulty ?? "medium") as "easy" | "medium" | "hard")
-      : genMoreDiff;
- const existingQs = genMoreAvoid ? rawQuestions.map((q) => q.questionText) : undefined;
- try {
-     const result = await generateMore.mutateAsync({
-      gameId: selectedGameId,
-    data: { topic: game.topic, difficulty, amount: genMoreCount, existingQuestions: existingQs, brief: genMoreBrief.trim() || undefined, mode: genMoreMode },
-     });
-     invalidate();
-      setGenMoreOpen(false);
-   toast({ title: `Added ${result.imported} questions — total now ${rawQuestions.length + result.imported}` });
-  } catch (err: unknown) {
-      const limitMsg = extractFreeTierLimitMsg(err);
-      if (limitMsg) { setUpgradeLimitMsg(limitMsg); return; }
-      toast({ variant: "destructive", title: "Generation failed. Please try again." });
-  }
- };
-
-
- const handleRegenAll = async () => {
+const handleRegenAll = async () => {
   if (!selectedGameId) return;
   const game = games.find((g) => g.id === selectedGameId);
   if (!game) return;
   setRegenAllRunning(true);
+  setRegenAllError(null);
   try {
-    // Capture old question texts BEFORE deleting so Gemini can avoid rewriting them
-    const oldTexts = rawQuestions
-      .map((q) => q.questionText)
-      .filter((t): t is string => typeof t === "string" && t.length > 0);
-    // 1. Delete all existing questions — abort if any deletion fails
-    const deleteResults = await Promise.allSettled(rawQuestions.map((q) => deleteQuestion.mutateAsync({ questionId: q.id })));
-    const failedDeletes = deleteResults.filter((r) => r.status === "rejected").length;
-    if (failedDeletes > 0) {
-      invalidate();
-      toast({
-        variant: "destructive",
-        title: `Could not delete ${failedDeletes} existing question${failedDeletes === 1 ? "" : "s"}. Regeneration cancelled — please try again.`,
-      });
-      return;
+    // Same semantics as mobile: delete only the AI-generated questions, then
+    // generate a fresh set of at least ten on the same topic and difficulty.
+    const aiQs = rawQuestions.filter((q) => q.aiGenerated);
+    for (const q of aiQs) {
+      await deleteQuestion.mutateAsync({ questionId: q.id });
     }
-    // 2. Generate fresh questions via Gemini, avoiding the old ones
-    const difficulty =
-      regenAllDiff === "same"
-        ? ((game.difficulty ?? "medium") as "easy" | "medium" | "hard")
-        : regenAllDiff;
-    const result = await generateMore.mutateAsync({
+    await generateMore.mutateAsync({
       gameId: selectedGameId,
-      data: { topic: game.topic, difficulty, amount: regenAllCount, existingQuestions: oldTexts, brief: regenAllBrief.trim() || undefined },
+      data: {
+        topic: game.topic,
+        difficulty: (game.difficulty ?? "medium") as "easy" | "medium" | "hard",
+        amount: Math.max(aiQs.length, 10),
+      },
     });
     invalidate();
     setRegenAllOpen(false);
-    toast({ title: `Regenerated ${result.imported} questions for "${game.topic}"` });
   } catch (err: unknown) {
+    invalidate();
     const limitMsg = extractFreeTierLimitMsg(err);
-    if (limitMsg) { setUpgradeLimitMsg(limitMsg); return; }
-    toast({ variant: "destructive", title: "Regeneration failed. Please try again." });
+    if (limitMsg) { setRegenAllOpen(false); setUpgradeLimitMsg(limitMsg); return; }
+    const errData = err && typeof err === "object" && "data" in err ? (err as { data: unknown }).data : null;
+    const apiMsg = errData && typeof errData === "object" && "error" in errData ? String((errData as { error: unknown }).error) : null;
+    setRegenAllError(apiMsg ?? COPY.build.error.regenerate);
   } finally {
     setRegenAllRunning(false);
   }
@@ -2757,9 +2491,9 @@ return (
  <div className="space-y-5">
      <FreeTierLimitModal msg={upgradeLimitMsg} onClose={() => setUpgradeLimitMsg(null)} />
      <div>
-      <h2 className="text-xl font-bold tracking-tight">Review Questions</h2>
+      <h2 className="text-xl font-bold tracking-tight">{COPY.build.reviewHeading}</h2>
       <p className="text-muted-foreground text-sm mt-1">
-       Edit and manage questions across all games.
+       {COPY.build.reviewSub}
       </p>
      </div>
 
@@ -2768,8 +2502,8 @@ return (
       <Card className="border-dashed border-primary/30 bg-card/40">
        <CardContent className="py-14 text-center space-y-2">
         <Gamepad2 className="mx-auto h-10 w-10 text-primary/40" />
-        <p className="font-semibold">No games yet</p>
-     <p className="text-sm text-muted-foreground">Create a game first to review itsquestions.</p>
+        <p className="font-semibold">{COPY.build.nothingToReviewTitle}</p>
+     <p className="text-sm text-muted-foreground">{COPY.build.nothingToReviewBody}</p>
        </CardContent>
       </Card>
      ):(
@@ -2777,34 +2511,34 @@ return (
      {/* Game + sort selectors */}
      <div className="flex items-end gap-3 flex-wrap">
       <div className="space-y-1.5 flex-1 min-w-[200px]">
-          <Label>Game</Label>
+          <Label>{COPY.build.selectGameLabel}</Label>
           <Select
           value={selectedGameId !== null ? String(selectedGameId) : ""}
           onValueChange={(v) => { setSelectedGameId(Number(v)); setSelected(new Set());}}
           >
           <SelectTrigger className="h-10">
-              <SelectValue placeholder="Select a game..." />
+              <SelectValue placeholder={COPY.build.selectGamePlaceholder} />
           </SelectTrigger>
           <SelectContent>
               {games.map((g) => (
                <SelectItem key={g.id} value={String(g.id)}>
                 {g.topic}
-           <span className="ml-2 text-muted-foreground text-xscapitalize">({g.status})</span>
+           <span className="ml-2 text-muted-foreground text-xs">({COPY.status[g.status] ?? g.status})</span>
                </SelectItem>
               ))}
           </SelectContent>
           </Select>
       </div>
       <div className="space-y-1.5">
-          <Label>Sort by</Label>
+          <Label>{COPY.gameEditor.sortBy}</Label>
           <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
        <SelectTrigger className="h-10 w-44">
         <SelectValue />
        </SelectTrigger>
        <SelectContent>
-        <SelectItem value="order">Question order</SelectItem>
-        <SelectItem value="dateAdded">Date added (newest first)</SelectItem>
-        <SelectItem value="type">Question type</SelectItem>
+        <SelectItem value="order">{COPY.gameEditor.sortOrder}</SelectItem>
+        <SelectItem value="dateAdded">{COPY.gameEditor.sortDate}</SelectItem>
+        <SelectItem value="type">{COPY.gameEditor.sortType}</SelectItem>
        </SelectContent>
       </Select>
      </div>
@@ -2814,26 +2548,37 @@ return (
     {/* Toolbar */}
     {selectedGameId !== null && rawQuestions.length > 0 && (
      <div className="flex items-center justify-between rounded-lg border border-card-border bg-card/50 px-4 py-2.5">
-      <span className="text-sm text-muted-foreground">{rawQuestions.length} question{rawQuestions.length !== 1 ? "s" : ""}</span>
-      <div className="flex items-center gap-2 shrink-0">
+      <span className="text-sm text-muted-foreground">{COPY.admin.questionsCount(rawQuestions.length)}</span>
+      <div className="flex items-center gap-2 shrink-0 flex-wrap">
        <Button
         size="sm"
         variant="ghost"
         className="h-7 px-2 text-xs gap-1"
-        onClick={() => { const g = games.find((g) => g.id === selectedGameId); setGenMoreBrief(g?.brief ?? ""); setGenMoreOpen(true); }}
+        onClick={() => setImportOpen(true)}
         disabled={regenAllRunning}
        >
-        <Sparkles className="h-3 w-3" /> Generate More
+        <Database className="h-3 w-3" /> {COPY.source.openTriviaDatabase}
        </Button>
        <Button
         size="sm"
         variant="ghost"
-        className="h-7 px-2 text-xs gap-1 text-destructive hover:text-destructive"
-        onClick={() => { const g = games.find((g) => g.id === selectedGameId); setRegenAllBrief(g?.brief ?? ""); setRegenAllOpen(true); }}
-        disabled={regenAllRunning || rawQuestions.length === 0}
+        className="h-7 px-2 text-xs gap-1"
+        onClick={() => setGenMoreOpen(true)}
+        disabled={regenAllRunning}
        >
-        <RefreshCw className="h-3 w-3" /> Regenerate All
+        <Sparkles className="h-3 w-3" /> {COPY.build.aiSheet.title}
        </Button>
+       {rawQuestions.some((q) => q.aiGenerated) && (
+       <Button
+        size="sm"
+        variant="ghost"
+        className="h-7 px-2 text-xs gap-1 text-destructive hover:text-destructive"
+        onClick={() => { setRegenAllError(null); setRegenAllOpen(true); }}
+        disabled={regenAllRunning}
+       >
+        <RefreshCw className="h-3 w-3" /> {COPY.build.regenAllBtn}
+       </Button>
+       )}
       </div>
      </div>
     )}
@@ -2864,7 +2609,7 @@ return (
        exit={{ opacity: 0, y: -8 }}
        className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5"
       >
-       <span className="text-sm font-medium flex-1">{selected.size} selected</span>
+       <span className="text-sm font-medium flex-1">{COPY.gameEditor.selectedCount(selected.size)}</span>
        <Button
           size="sm"
           variant="ghost"
@@ -2872,9 +2617,9 @@ return (
           onClick={handleBulkDelete}
           disabled={deleteQuestion.isPending}
        >
-          <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete Selected
+          <Trash2 className="mr-1 h-3.5 w-3.5" /> {COPY.gameEditor.deleteSelectedBtn}
        </Button>
-       <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+       <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())} aria-label={COPY.gameEditor.clearSelection}>
           <X className="h-3.5 w-3.5" />
        </Button>
   </motion.div>
@@ -2884,11 +2629,11 @@ return (
 
      {/* Question list */}
      {selectedGameId === null ? (
-      <p className="text-sm text-muted-foreground">Select a game above.</p>
+      <p className="text-sm text-muted-foreground">{COPY.build.selectGameHint}</p>
     ) : displayList.length === 0 ? (
      <Card className="border-dashed border-card-border bg-card/30">
       <CardContent className="py-10 text-center text-muted-foreground text-sm">
-       No questions match this filter.
+       {COPY.gameEditor.noFilterMatch}
       </CardContent>
      </Card>
     ):(
@@ -2904,7 +2649,7 @@ return (
            : <Square className="h-4 w-4" />}
        </button>
        <span className="text-xs text-muted-foreground">
-          {allSelected ? "Deselect all" : `Select all ${displayList.length}`}
+          {allSelected ? COPY.gameEditor.deselectAll : COPY.gameEditor.selectAll(displayList.length)}
        </span>
       </div>
 
@@ -2945,52 +2690,37 @@ return (
             <Badge variant="outline" className="uppercase text-[10px]">{typeLabel}</Badge>
              <Badge variant="outline" className={`text-[10px]${src.cls}`}>{src.label}</Badge>
             <span className="text-xs text-accent font-semibold flex items-center gap-0.5">
-            <Star className="h-3 w-3" /> {q.points} pts
+            <Star className="h-3 w-3" /> {COPY.gameplay.ptsLine(q.points)}
             </span>
            </div>
            {q.questionType !== "matching" && (
             <p className="text-xs text-muted-foreground">
-           Answer: <span className="text-secondary font-medium">{q.correctAnswer}</span>
+           {COPY.gameEditor.answerPrefix}: <span className="text-secondary font-medium">{q.correctAnswer}</span>
            </p>
           )}
           {q.source && q.source !== "manual" && q.source !== "opentdb" && (
-           <p className="text-xs text-muted-foreground">Source: {q.source}</p>
+           <p className="text-xs text-muted-foreground">{COPY.gameEditor.sourcePrefix}: {q.source}</p>
           )}
          </div>
 
 
          {/* Actions */}
          <div className="flex flex-col sm:flex-row gap-1 shrink-0">
-{q.aiGenerated && (
-<Button
-    variant="ghost"
-    size="sm"
-    className="h-8 px-2 text-xs text-purple-400 hover:text-purple-300"
-    onClick={() => {
-     setRegenQ(q);
-     setRegenDiff("same");
-     setRegenType("same");
-     setRegenPreview(null);
-     setRegenError(null);
-    }}
->
-    <RefreshCw className="mr-1 h-3 w-3" />Regen
- </Button>
-)}
 <Button
  variant="ghost"
  size="sm"
- className="h-8 px-2 text-xs text-blue-400 hover:text-blue-300"
- onClick={() => handleRunEnhance(q)}
- disabled={enhanceMutation.isPending && enhQ?.id === q.id}
+ className="h-8 px-2 text-xs text-purple-400 hover:text-purple-300"
+ onClick={() => setAiMenuQuestion(q)}
+ aria-label={COPY.aiTools.title}
 >
- <Wand2 className="mr-1 h-3 w-3" />Enhance
+ <Sparkles className="mr-1 h-3 w-3" />{COPY.source.aiTag}
 </Button>
 <Button
  variant="ghost"
  size="icon"
  className="h-8 w-8"
  onClick={() => { setEditingQuestion(q); setEditDialogOpen(true); }}
+ aria-label={COPY.common.edit}
 >
  <Pencil className="h-3.5 w-3.5" />
 </Button>
@@ -3012,387 +2742,60 @@ return (
     )}
 
 
-    {/* ── Regenerate dialog ── */}
-    <Dialog open={regenQ !== null} onOpenChange={(open) => { if (!open) {setRegenQ(null); setRegenPreview(null); setRegenError(null); } }}>
-     <DialogContent className="sm:max-w-md">
-         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-           <RefreshCw className="h-4 w-4 text-purple-400" /> Regenerate Question
-          </DialogTitle>
-         </DialogHeader>
-         {regenQ && (
-          <div className="space-y-4">
-           <div className="rounded-md border border-card-border bg-card/50 p-3">
-               <p className="text-xs text-muted-foreground mb-1">Current question</p>
-               <p className="text-sm font-medium leading-snug">{regenQ.questionText}</p>
-           </div>
-        {/* Difficulty */}
-        <div className="space-y-2">
-         <p className="text-sm font-medium">Difficulty</p>
-         <div className="flex flex-wrap gap-2">
-          {(["same", "easy", "medium", "hard"] as const).map((d) => (
-           <button
-            key={d}
-            onClick={() => setRegenDiff(d)}
-            className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors capitalize ${
-                regenDiff === d
-                ? "bg-primary text-primary-foreground border-primary"
-             : "bg-card/60 text-muted-foreground border-card-border hover:border-muted-foreground/50"
-            }`}
-           >
-            {d === "same" ? "Same as current" : d}
-           </button>
-          ))}
-         </div>
-        </div>
-
-
-        {/* Question type */}
-        <div className="space-y-2">
-         <p className="text-sm font-medium">{COPY.questionEditor.typeLabel}</p>
-         <Select value={regenType} onValueChange={setRegenType}>
-          <SelectTrigger className="h-9">
-             <SelectValue />
-             </SelectTrigger>
-             <SelectContent>
-             <SelectItem value="same">Same as current</SelectItem>
-             <SelectItem value="multiple_choice">Multiple Choice</SelectItem>
-             <SelectItem value="true_false">True / False</SelectItem>
-             <SelectItem value="write_in">Write-in</SelectItem>
-             </SelectContent>
-         </Select>
-        </div>
-
-
-        {/* Error */}
-        {regenError && (
-         <div className="flex items-center gap-2 rounded-md bg-destructive/10 borderborder-destructive/20 px-3 py-2 text-xs text-destructive">
-             <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> {regenError}
-         </div>
-        )}
-
-
-        {/* Preview */}
-        {regenPreview && (
-         <div className="rounded-md border border-primary/30 bg-primary/5 p-3 space-y-2">
-             <p className="text-xs text-primary font-medium">New question preview</p>
-          <p className="text-sm font-medium leading-snug">{regenPreview.questionText}</p>
-             <p className="text-xs text-muted-foreground">
-         Answer: <span className="text-secondary font-medium">{regenPreview.correctAnswer}</span>
-            </p>
-            {regenPreview.options && regenPreview.options.length > 0 && (
-             <p className="text-xs text-muted-foreground">
-                 Options: {regenPreview.options.join(" · ")}
-             </p>
-            )}
-          <p className="text-xs text-muted-foreground">Source:{regenPreview.source}</p>
-        </div>
-       )}
-
-
-       {/* Action buttons */}
-       <div className="flex gap-2 flex-wrap">
-        <Button
-            className="flex-1"
-            onClick={handleRunRegen}
-            disabled={regenLoading}
-        >
-            {regenLoading ? (
-             <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating…</>
-            ) : regenPreview ? (
-             <><RefreshCw className="mr-2 h-4 w-4" />Try Again</>
-            ):(
-             <><Sparkles className="mr-2 h-4 w-4" />Generate</>
-            )}
-           </Button>
-           {regenPreview && (
-            <Button
-                variant="outline"
-                className="flex-1 border-secondary/40 text-secondary"
-                onClick={handleAcceptRegen}
-                disabled={updateQuestion.isPending}
-            >
-                <CheckCircle2 className="mr-2 h-4 w-4" />Accept
-            </Button>
-           )}
-           </div>
-       </div>
-      )}
-     </DialogContent>
-    </Dialog>
-
-
-    {/* ── Enhance dialog ── */}
-    <Dialog open={enhQ !== null} onOpenChange={(open) => { if (!open) { setEnhQ(null);setEnhResult(null); setEnhError(null); } }}>
-     <DialogContent className="sm:max-w-xl max-h-[90dvh] overflow-y-auto">
-      <DialogHeader>
-       <DialogTitle className="flex items-center gap-2">
-           <Wand2 className="h-4 w-4 text-blue-400" /> Enhance Question
-       </DialogTitle>
-      </DialogHeader>
-      {enhQ && (
-       <div className="space-y-4">
-       {/* Loading */}
-       {enhLoading && (
-        <div className="flex items-center gap-3 py-4">
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Analyzing with Gemini…</p>
-        </div>
-       )}
-
-
-       {/* Error */}
-       {enhError && (
-         <div className="flex items-center gap-2 rounded-md bg-destructive/10 borderborder-destructive/20 px-3 py-2 text-xs text-destructive">
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> {enhError}
-        </div>
-       )}
-
-
-       {enhResult && (
-        <>
-
-
-{/* Side-by-side comparison */}
-         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {/* Original */}
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercasetracking-wide">Original</p>
-           <div className="rounded-md border border-card-border bg-card/50 p-3 text-sm space-y-1.5">
-            <p className="font-medium leading-snug">{enhQ.questionText}</p>
-            {enhQ.source && <p className="text-xs text-muted-foreground">Source:{enhQ.source}</p>}
-           </div>
-          </div>
-          {/* Suggested */}
-          <div className="space-y-2">
-          <p className="text-xs font-semibold text-primary uppercase tracking-wide">Suggested</p>
-           <div className="rounded-md border border-primary/30 bg-primary/5 p-3text-sm space-y-1.5">
-           <p className="font-medium leading-snug">{enhResult.improvedQuestionText}</p>
-            {enhResult.suggestedSource && (
-             <p className="text-xs text-muted-foreground">Source:{enhResult.suggestedSource}</p>
-            )}
-           </div>
-          </div>
-         </div>
-         {enhResult.suggestions && (
-            <div className="rounded-md bg-muted/20 border border-card-border px-3py-2 text-xs text-muted-foreground">
-           <span className="font-medium text-foreground">Tips:</span>{enhResult.suggestions}
-          </div>
-         )}
-
-
-         {/* Checkboxes */}
-         <div className="space-y-2">
-          <p className="text-sm font-medium">{COPY.build.enhanceSheet.applyBtn}</p>
-          <label className="flex items-start gap-2.5 cursor-pointer group">
-              <input
-              type="checkbox"
-              className="mt-0.5 accent-primary"
-              checked={enhAcceptText}
-              onChange={(e) => setEnhAcceptText(e.target.checked)}
-              />
-            <span className="text-sm group-hover:text-foreground text-muted-foreground transition-colors">
-              Use improved question text
-              </span>
-          </label>
-          {enhResult.improvedOptions && enhResult.improvedOptions.length > 0 && (
-              <label className="flex items-start gap-2.5 cursor-pointer group">
-              <input
-               type="checkbox"
-               className="mt-0.5 accent-primary"
-               checked={enhAcceptOptions}
-               onChange={(e) => setEnhAcceptOptions(e.target.checked)}
-               />
-             <span className="text-sm group-hover:text-foreground text-muted-foreground transition-colors">
-               Use improved answer options
-               </span>
-           </label>
-          )}
-          {enhResult.suggestedSource && (
-           <label className="flex items-start gap-2.5 cursor-pointer group">
-               <input
-               type="checkbox"
-               className="mt-0.5 accent-primary"
-               checked={enhAcceptSource}
-               onChange={(e) => setEnhAcceptSource(e.target.checked)}
-               />
-             <span className="text-sm group-hover:text-foreground text-muted-foreground transition-colors">
-               Use suggested source
-               </span>
-           </label>
-          )}
-         </div>
-
-
-         {/* Buttons */}
-                <div className="flex gap-2">
-                <Button
-                 onClick={handleApplyEnhancements}
-          disabled={updateQuestion.isPending || (!enhAcceptText &&!enhAcceptOptions && !enhAcceptSource)}
-                 className="flex-1"
-                >
-                 Apply Selected Changes
-                </Button>
-                <Button variant="ghost" onClick={() => { setEnhQ(null); setEnhResult(null); }}>
-                 Dismiss
-                </Button>
-                </div>
-            </>
-           )}
-       </div>
-      )}
-     </DialogContent>
-    </Dialog>
+    {/* ── AI tools (regenerate / enhance / fact-check) ── */}
+    <AiToolsDialog
+     question={aiMenuQuestion}
+     gameId={selectedGameId ?? 0}
+     onClose={() => setAiMenuQuestion(null)}
+     onUpdate={() => { invalidate(); }}
+    />
+    <ImportOpenTdbDialog
+     open={importOpen}
+     gameId={selectedGameId ?? 0}
+     onClose={() => setImportOpen(false)}
+     onImported={() => { invalidate(); }}
+    />
 
 
     {/* ── Generate More dialog ── */}
-    <Dialog open={genMoreOpen} onOpenChange={setGenMoreOpen}>
-     <DialogContent className="sm:max-w-sm">
-      <DialogHeader>
-       <DialogTitle className="flex items-center gap-2">
-           <Sparkles className="h-4 w-4 text-primary" /> Generate More Questions
-       </DialogTitle>
-      </DialogHeader>
-      <div className="space-y-4">
-       {selectedGameId !== null && (
-        <p className="text-sm text-muted-foreground">
-            Adding to: <span className="font-medium text-foreground">
-            {games.find((g) => g.id === selectedGameId)?.topic}
-            </span>
-        </p>
-       )}
-       <div className="space-y-1.5">
-        <Label>Number of questions (1–10)</Label>
-        <Input
-            type="number"
-            min={1}
-            max={10}
-            value={genMoreCount}
-       onChange={(e) => setGenMoreCount(Math.max(1, Math.min(10,Number(e.target.value))))}
-            className="h-9"
-        />
-       </div>
-       <div className="space-y-1.5">
-        <Label>Difficulty</Label>
-       <Select value={genMoreDiff} onValueChange={(v) => setGenMoreDiff(v as typeof genMoreDiff)}>
-            <SelectTrigger className="h-9">
-           <SelectValue />
-           </SelectTrigger>
-           <SelectContent>
-           <SelectItem value="same">Same as game setting</SelectItem>
-           <SelectItem value="easy">Easy</SelectItem>
-           <SelectItem value="medium">Medium</SelectItem>
-           <SelectItem value="hard">Hard</SelectItem>
-           </SelectContent>
-        </Select>
-       </div>
-       <OpenTdbQuestionMixSelector value={genMoreMode} onSelect={setGenMoreMode} />
-       <label className="flex items-center gap-2.5 cursor-pointer">
-        <input
-           type="checkbox"
-           className="accent-primary"
-           checked={genMoreAvoid}
-           onChange={(e) => setGenMoreAvoid(e.target.checked)}
-        />
-        <span className="text-sm text-muted-foreground">Avoid duplicating existingquestions</span>
-       </label>
-       <div className="space-y-1.5">
-        <Label>Brief <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
-        <Textarea
-         value={genMoreBrief}
-         onChange={(e) => setGenMoreBrief(e.target.value)}
-         rows={4}
-         maxLength={2000}
-         placeholder="Add specific instructions for this generation run…"
-         className="resize-none text-sm"
-        />
-       </div>
-       <Button
-        className="w-full"
-        onClick={handleGenerateMore}
-        disabled={generateMore.isPending || genMoreMode === null}
-       >
-        {generateMore.isPending ? (
-             <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating…</>
-         ):(
-        <><Sparkles className="mr-2 h-4 w-4" />Generate {genMoreCount}Questions</>
-         )}
-        </Button>
-        {generateMore.isPending && (
-       <p className="text-xs text-center text-muted-foreground">This may take 10–20seconds…</p>
-        )}
-        </div>
-     </DialogContent>
-    </Dialog>
+    <GenerateQuestionsDialog
+     open={genMoreOpen}
+     gameId={selectedGameId ?? 0}
+     gameTopic={games.find((g) => g.id === selectedGameId)?.topic ?? ""}
+     gameDifficulty={games.find((g) => g.id === selectedGameId)?.difficulty ?? "medium"}
+     gameBrief={games.find((g) => g.id === selectedGameId)?.brief}
+     questions={rawQuestions}
+     onClose={() => setGenMoreOpen(false)}
+     onGenerated={() => { invalidate(); }}
+    />
 
 
-    {/* Regenerate All dialog */}
+    {/* Regenerate All confirmation */}
     <Dialog open={regenAllOpen} onOpenChange={(open) => { if (!regenAllRunning) setRegenAllOpen(open); }}>
      <DialogContent className="sm:max-w-sm">
       <DialogHeader>
        <DialogTitle className="flex items-center gap-2">
-        <RefreshCw className="h-4 w-4 text-destructive" /> Regenerate All Questions
+        <RefreshCw className="h-4 w-4 text-destructive" /> {COPY.build.regenAll.title}
        </DialogTitle>
       </DialogHeader>
       <div className="space-y-4">
-       {selectedGameId !== null && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
-         This will <span className="font-semibold">permanently delete</span> all {rawQuestions.length} existing question{rawQuestions.length !== 1 ? "s" : ""} for{" "}
-         <span className="font-medium text-foreground">
-          {games.find((g) => g.id === selectedGameId)?.topic}
-         </span>{" "}
-         and replace them with new Gemini AI questions.
+       <p className="text-sm text-muted-foreground">
+        {COPY.build.regenAll.body(rawQuestions.filter((q) => q.aiGenerated).length)}
+       </p>
+       {regenAllError && (
+        <div className="flex items-center gap-2 rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive">
+         <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> {regenAllError}
         </div>
        )}
-       <div className="space-y-1.5">
-        <Label>Number of new questions</Label>
-        <Input
-         type="number"
-         min={1}
-         max={20}
-         value={regenAllCount}
-         onChange={(e) => setRegenAllCount(Math.max(1, Math.min(20, Number(e.target.value))))}
-         className="h-9"
-        />
+       <div className="flex gap-2">
+        <Button variant="outline" className="flex-1" onClick={() => setRegenAllOpen(false)} disabled={regenAllRunning}>
+         {COPY.common.cancel}
+        </Button>
+        <Button className="flex-1" variant="destructive" onClick={handleRegenAll} disabled={regenAllRunning}>
+         {regenAllRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+         {COPY.build.regenAll.confirmBtn}
+        </Button>
        </div>
-       <div className="space-y-1.5">
-        <Label>Difficulty</Label>
-        <Select value={regenAllDiff} onValueChange={(v) => setRegenAllDiff(v as typeof regenAllDiff)}>
-         <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-         <SelectContent>
-          <SelectItem value="same">Same as game setting</SelectItem>
-          <SelectItem value="easy">Easy</SelectItem>
-          <SelectItem value="medium">Medium</SelectItem>
-          <SelectItem value="hard">Hard</SelectItem>
-         </SelectContent>
-        </Select>
-       </div>
-       <div className="space-y-1.5">
-        <Label>Brief <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
-        <Textarea
-         value={regenAllBrief}
-         onChange={(e) => setRegenAllBrief(e.target.value)}
-         rows={4}
-         maxLength={2000}
-         placeholder="Add specific instructions for this regeneration run…"
-         className="resize-none text-sm"
-        />
-       </div>
-       <Button
-        className="w-full"
-        variant="destructive"
-        onClick={handleRegenAll}
-        disabled={regenAllRunning}
-       >
-        {regenAllRunning ? (
-         <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Regenerating…</>
-        ) : (
-         <><RefreshCw className="mr-2 h-4 w-4" />Delete &amp; Regenerate {regenAllCount} Questions</>
-        )}
-       </Button>
-       {regenAllRunning && (
-        <p className="text-xs text-center text-muted-foreground">Deleting old questions then generating new ones… this may take 15–30 seconds.</p>
-       )}
       </div>
      </DialogContent>
     </Dialog>
@@ -3412,7 +2815,7 @@ return (
          key={editingQuestion.id}
                 initial={formFromQuestion(editingQuestion)}
                 pending={updateQuestion.isPending}
-                submitLabel="Save changes"
+                submitLabel={COPY.btn.saveChanges}
                 onSubmit={(form) => {
                  updateQuestion.mutate(
          { questionId: editingQuestion.id, data: buildPayload(form,editingQuestion.orderIndex) },
@@ -3421,9 +2824,9 @@ return (
                           invalidate();
                           setEditDialogOpen(false);
                           setEditingQuestion(null);
-                          toast({ title: "Question updated" });
+                          toast({ title: COPY.gameEditor.questionUpdated });
                          },
-                         onError: () => toast({ variant: "destructive", title: "Update failed" }),
+                         onError: () => toast({ variant: "destructive", title: COPY.questionEditor.saveFailed }),
                      },
                  );
                 }}
@@ -3597,7 +3000,7 @@ function LiveResultsBreakdown({
           return (
             <div key={q.id} className="rounded-xl border border-[#1b2740] bg-white/[.02] px-4 py-3 space-y-2">
               <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-[10px] font-bold tracking-[.22em] text-[#66728a]">Q{idx + 1}</span>
+                <span className="text-[10px] font-bold tracking-[.22em] text-[#66728a]">{COPY.adminResults.questionNumber(idx + 1)}</span>
                 <span className="text-xs font-semibold text-[#dfe5f0]">{COPY.adminLive.answeredCount(answered, totalPlayers)}</span>
                 {revealed && answered > 0 && (
                   <span className="text-xs font-semibold text-[#35d07f]">{COPY.liveResults.correctPct(correct, pct)}</span>
@@ -3744,9 +3147,12 @@ function PendingReviewQueue({
 function LiveGameView({
   activeGame,
   endGame,
+  onGameEnded,
 }: {
   activeGame?: Game;
   endGame: (id: number) => void;
+  /** Called when the server reports the game ended (e.g. from another device). */
+  onGameEnded?: (id: number) => void;
 }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -3788,7 +3194,7 @@ function LiveGameView({
           toast({ title: COPY.admin.renamed(name) });
         },
         onError: (err: any) => {
-          setTitleError(err?.response?.data?.error ?? COPY.admin.renameFailed);
+          setTitleError(err?.data?.error ?? COPY.admin.renameFailed);
         },
       }
     );
@@ -3865,8 +3271,10 @@ function LiveGameView({
         }
         return null;
       }
+      toast({ variant: "destructive", title: COPY.hostPlayAlong.submitAnswerError });
       return null;
     } catch {
+      toast({ variant: "destructive", title: COPY.hostPlayAlong.submitAnswerError });
       return null;
     } finally {
       setSubmittingHostAnswer(false);
@@ -3981,9 +3389,9 @@ function LiveGameView({
   });
 
   // Short-response answers the AI could not grade are parked for the host to
-  // review (award full points or deny). Web joins the player room only, so it
-  // never receives the answer:reviewed socket event — the 10s poll plus the
-  // mutation's on-success invalidation keep the queue fresh, matching mobile.
+  // review (award full points or deny). The answer:reviewed socket event plus
+  // the 10s poll and the mutation's on-success invalidation keep the queue
+  // fresh, matching mobile.
   const { data: pendingReviews = [] } = useListPendingAnswerReviews(activeGame?.id ?? 0, {
     query: {
       enabled: !!activeGame,
@@ -4099,6 +3507,8 @@ function LiveGameView({
     },
     onGameEnded: () => {
       queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
+      // Go to this game's results, matching the mobile live screen.
+      if (activeGame) onGameEnded?.(activeGame.id);
     },
   });
 
@@ -4142,8 +3552,8 @@ function LiveGameView({
     return (
       <div className="flex flex-col items-center justify-center py-32 text-center">
         <Radio className="h-16 w-16 text-[#66728a] mb-4" />
-        <h2 className="text-xl font-bold text-[#eef2f8] mb-2">No game is live right now</h2>
-        <p className="text-[#9aa6bc] mb-6">Go to Games to launch one</p>
+        <h2 className="text-xl font-bold text-[#eef2f8] mb-2">{COPY.adminLive.noLiveTitle}</h2>
+        <p className="text-[#9aa6bc] mb-6">{COPY.adminLive.noLiveBody}</p>
       </div>
     );
   }
@@ -4210,7 +3620,7 @@ function LiveGameView({
       <div className="flex flex-wrap items-center gap-3 pb-4 border-b border-[#16223a]">
         <div className="flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-full bg-[#ff0080]/15 border border-[#ff0080]/40">
           <span className="h-[7px] w-[7px] rounded-full bg-[#ff0080] animate-pulse" />
-          <span className="text-[9px] font-extrabold tracking-[.16em] text-[#ff5aa8]">LIVE NOW</span>
+          <span className="text-[9px] font-extrabold tracking-[.16em] text-[#ff5aa8]">{COPY.admin.livePill}</span>
         </div>
         {editingTitle ? (
           <div className="flex-1 min-w-[200px]">
@@ -4264,11 +3674,28 @@ function LiveGameView({
           </div>
         )}
         <div className="ml-auto flex items-center gap-3">
+          {activeGame.accessCode && (
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(activeGame.accessCode ?? "")
+                  .then(() => toast({ title: COPY.admin.codeCopied }))
+                  .catch(() => toast({ variant: "destructive", title: COPY.admin.copyCodeFailed }));
+              }}
+              className="flex items-center gap-1.5 font-mono text-sm tracking-widest text-[#eef2f8] bg-[#0a1019] border border-[#1b2740] rounded-md px-2.5 py-1 hover:border-[#66728a] transition-colors"
+              aria-label={COPY.admin.codeCopyLabel}
+              title={COPY.admin.codeCopyLabel}
+            >
+              <span className="text-[10px] font-bold tracking-wider text-[#66728a]">{COPY.admin.codeHeading}</span>
+              {activeGame.accessCode}
+              <Copy className="w-3 h-3 text-[#66728a]" />
+            </button>
+          )}
           <button
             onClick={() => endGame(activeGame.id)}
             className="text-xs font-bold text-[#ff6b6b] bg-[#ff6b6b]/10 border border-[#ff6b6b]/30 rounded-lg px-3.5 py-2 hover:brightness-110 transition"
           >
-            End game
+            {COPY.adminLive.endGameBtn}
           </button>
         </div>
       </div>
@@ -4279,7 +3706,7 @@ function LiveGameView({
           <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl px-5 py-5 sm:px-6">
             <div className="flex items-center gap-2.5 flex-wrap">
               <span className="text-[10px] font-bold tracking-[.22em] text-[#66728a]">
-                QUESTION {displayQNum} / {questions.length || "?"}
+                {COPY.adminLive.questionHeader(displayQNum, questions.length || "?")}
               </span>
               {/* Back / Forward — move freely through every question */}
               <button
@@ -4302,13 +3729,13 @@ function LiveGameView({
               </button>
               {displayQ?.points != null && (
                 <span className="px-2 py-[3px] rounded-md bg-[#ffe500]/10 border border-[#ffe500]/25 text-[9px] font-bold tracking-[.1em] text-[#ffe500]">
-                  {displayQ.points} PTS
+                  {COPY.gameplay.ptsLine(displayQ.points)}
                 </span>
               )}
               <div
                 className="ml-auto w-[52px] h-[52px] rounded-full flex items-center justify-center shrink-0"
                 style={{ background: `conic-gradient(#00ddff 0% ${answeredPct}%, rgba(255,255,255,.08) ${answeredPct}% 100%)` }}
-                title={`${answeredCount} of ${parts.length} answered`}
+                title={COPY.adminLive.answeredOf(answeredCount, parts.length)}
               >
                 <div className="w-10 h-10 rounded-full bg-[#0f1724] flex items-center justify-center font-mono text-[13px] font-extrabold text-[#eef2f8]">
                   {answeredPct}%
@@ -4330,7 +3757,7 @@ function LiveGameView({
             )}
 
             <h2 className="text-xl sm:text-2xl font-extrabold text-[#eef2f8] leading-snug my-5 tracking-tight">
-              {displayQ?.questionText || "Waiting for game to start…"}
+              {displayQ?.questionText || COPY.adminLive.waitingToStart}
             </h2>
 
             {/* ── Live answer breakdown for the viewed question — every choice with its
@@ -4468,7 +3895,7 @@ function LiveGameView({
         <div className="w-full lg:w-[300px] shrink-0 space-y-4">
           <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl p-4">
             <div className="flex items-baseline justify-between mb-3">
-              <span className="text-[10px] font-bold tracking-[.16em] text-[#66728a]">ANSWERED</span>
+              <span className="text-[10px] font-bold tracking-[.16em] text-[#66728a]">{COPY.adminLive.answerProgressLabel}</span>
               <span className="font-mono text-[15px] font-extrabold text-[#eef2f8] tabular-nums">
                 <span className="text-[#35d07f]">{answeredCount}</span> / {parts.length}
               </span>
@@ -4477,7 +3904,7 @@ function LiveGameView({
               <div className="h-full rounded-full bg-[#35d07f] transition-all" style={{ width: `${answeredPct}%` }} />
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {parts.length === 0 && <p className="text-sm text-[#66728a] py-2">No players yet</p>}
+              {parts.length === 0 && <p className="text-sm text-[#66728a] py-2">{COPY.liveResults.noPlayers}</p>}
               {parts.map((p, idx) => {
                 const done = answeredNames.includes(p.userName);
                 const [av, avtx] = AVATAR_COLORS[idx % AVATAR_COLORS.length];
@@ -4485,7 +3912,8 @@ function LiveGameView({
                   <button
                     key={p.id}
                     onClick={() => setKickTarget({ userId: p.userId, userName: p.userName })}
-                    title={`Remove ${p.userName}`}
+                    title={COPY.kick.removeLabel(p.userName)}
+                    aria-label={COPY.kick.removeLabel(p.userName)}
                     className={`group flex items-center gap-1.5 pl-1.5 pr-2 py-[5px] rounded-full border transition cursor-pointer ${
                       done ? "bg-[#35d07f]/10 border-[#35d07f]/30 hover:border-[#ff6b6b]/50 hover:bg-[#ff6b6b]/10" : "bg-white/[.02] border-[#1b2740] opacity-50 hover:opacity-80 hover:border-[#ff6b6b]/40"
                     }`}
@@ -4570,7 +3998,7 @@ function GamesView({
           toast({ title: COPY.admin.renamed(name) });
         },
         onError: (err: any) => {
-          const msg = err?.response?.data?.error ?? COPY.admin.renameFailed;
+          const msg = err?.data?.error ?? COPY.admin.renameFailed;
           toast({ variant: "destructive", title: msg });
         },
       }
@@ -4616,12 +4044,12 @@ function GamesView({
   };
 
   const handleDelete = (game: Game) => {
-    if (!window.confirm(`Delete "${game.topic}" and all its questions? This can't be undone.`)) return;
+    if (!window.confirm(COPY.admin.deleteGameBody(game.topic))) return;
     deleteGame.mutate(
       { gameId: game.id },
       {
-        onSuccess: () => { invalidate(); toast({ title: `Deleted "${game.topic}"` }); },
-        onError: () => toast({ variant: "destructive", title: "Failed to delete game" }),
+        onSuccess: () => { invalidate(); toast({ title: COPY.admin.deleted(game.topic) }); },
+        onError: () => toast({ variant: "destructive", title: COPY.admin.deleteFailed }),
       }
     );
   };
@@ -4643,10 +4071,10 @@ function GamesView({
       {
         onSuccess: () => {
           invalidate();
-          toast({ title: `"${game.topic}" is now live!` });
+          toast({ title: COPY.admin.nowLive(game.topic) });
           setConfirmStartGame(null);
         },
-        onError: () => toast({ variant: "destructive", title: "Failed to start" }),
+        onError: () => toast({ variant: "destructive", title: COPY.admin.startFailed }),
       }
     );
   };
@@ -4768,7 +4196,7 @@ function GamesView({
                   {/* Hosts can rename a quiz at any status, including while it is live. */}
                   <button
                     onClick={() => startEditName(game)}
-                    className="text-[#66728a] hover:text-white transition-colors p-1 opacity-0 group-hover:opacity-100 shrink-0"
+                    className="text-[#66728a] hover:text-white transition-colors p-1 shrink-0"
                     aria-label={COPY.admin.renameLabel}
                   >
                     <Pencil className="w-3.5 h-3.5" />
@@ -4776,12 +4204,12 @@ function GamesView({
                 </div>
               )}
               <p className="text-[#9aa6bc] text-sm mb-1">
-                {game.questionCount} {game.questionCount === 1 ? 'question' : 'questions'}
+                {COPY.admin.questionsCount(game.questionCount ?? 0)}
               </p>
               <div className="flex items-center gap-3 mb-3" style={{ color: "#66728a", fontSize: 12, fontWeight: 600 }}>
-                <span>{(game as any).participantCount ?? 0} players</span>
+                <span>{COPY.admin.playersCount((game as any).participantCount ?? 0)}</span>
                 <span>·</span>
-                <span>{game.difficulty ? game.difficulty.charAt(0).toUpperCase() + game.difficulty.slice(1) : '—'}</span>
+                <span>{game.difficulty ? (COPY.difficulty.display as Record<string, string>)[game.difficulty] ?? game.difficulty : '—'}</span>
               </div>
 
               <div className="mb-6 flex-1">
@@ -4797,12 +4225,12 @@ function GamesView({
                           }}
                           autoFocus
                           className="h-8 flex-1 font-mono text-sm tracking-widest bg-[#0a1019] border-[#1b2740] text-white"
-                          aria-label="Room code"
+                          aria-label={COPY.admin.codeInputLabel}
                         />
                         <Button
                           size="icon"
                           className="h-8 w-8 shrink-0 bg-[#35d07f] hover:bg-[#35d07f]/90 text-black"
-                          aria-label="Save room code"
+                          aria-label={COPY.admin.codeSaveLabel}
                           disabled={updateGame.isPending}
                           onClick={() => saveCode(game)}
                         >
@@ -4812,7 +4240,7 @@ function GamesView({
                           size="icon"
                           variant="outline"
                           className="h-8 w-8 shrink-0 border-[#1b2740] bg-[#0a1019] text-[#9aa6bc] hover:bg-[#1b2740]"
-                          aria-label="Cancel editing room code"
+                          aria-label={COPY.admin.codeCancelLabel}
                           onClick={() => { setEditingCodeId(null); setCodeError(null); }}
                         >
                           <X className="w-4 h-4" />
@@ -4822,11 +4250,11 @@ function GamesView({
                     </div>
                   ) : game.accessCode != null ? (
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-bold tracking-wider text-[#66728a]">CODE</span>
+                      <span className="text-[10px] font-bold tracking-wider text-[#66728a]">{COPY.admin.codeHeading}</span>
                       <button
                         onClick={() => copyCode(game)}
                         className="font-mono text-sm tracking-widest text-[#eef2f8] bg-[#0a1019] border border-[#1b2740] rounded-md px-2 py-0.5 hover:border-[#66728a] transition-colors inline-flex items-center gap-1.5"
-                        aria-label="Copy room code"
+                        aria-label={COPY.admin.codeCopyLabel}
                       >
                         {game.accessCode}
                         {copiedCodeId === game.id
@@ -4836,7 +4264,7 @@ function GamesView({
                       <button
                         onClick={() => startEditCode(game)}
                         className="text-[#66728a] hover:text-white transition-colors p-1"
-                        aria-label="Edit room code"
+                        aria-label={COPY.admin.codeEditLabel}
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
@@ -4846,7 +4274,7 @@ function GamesView({
                       onClick={() => startEditCode(game)}
                       className="text-xs font-bold text-[#9aa6bc] hover:text-white transition-colors inline-flex items-center gap-1.5 border border-dashed border-[#1b2740] rounded-md px-2 py-1"
                     >
-                      <Pencil className="w-3 h-3" /> Set room code
+                      <Pencil className="w-3 h-3" /> {COPY.admin.setCodeBtn}
                     </button>
                   )}
                 </div>
@@ -4854,18 +4282,18 @@ function GamesView({
               <div className="mt-auto">
                 {isLive && (
                   <Button className="w-full bg-[#ff0080] hover:bg-[#ff0080]/90 text-white" onClick={() => onNavigate("live", game.id)}>
-                    Open live control <ChevronRight className="w-4 h-4 ml-1" />
+                    {COPY.admin.liveBtn} <ChevronRight className="w-4 h-4 ml-1" />
                   </Button>
                 )}
                 {isDraft && (
                   <div className="flex gap-2">
                     <Button variant="outline" className="flex-1 border-[#1b2740] bg-[#0a1019] text-[#eef2f8] hover:bg-[#1b2740]" onClick={() => onNavigate("build", game.id)}>
-                      <Pencil className="w-4 h-4 mr-2" /> Edit
+                      <Pencil className="w-4 h-4 mr-2" /> {COPY.common.edit}
                     </Button>
                     <Button className="flex-1 bg-[#35d07f] hover:bg-[#35d07f]/90 text-black font-bold" onClick={() => handleGoLive(game)} disabled={game.questionCount === 0}>
-                      <Play className="w-4 h-4 mr-2" /> Go Live
+                      <Play className="w-4 h-4 mr-2" /> {COPY.admin.startBtn}
                     </Button>
-                    <Button variant="outline" size="icon" aria-label="Delete game" className="shrink-0 border-[#1b2740] bg-[#0a1019] text-[#ff6b6b] hover:bg-[#ff6b6b]/10 hover:text-[#ff6b6b]" onClick={() => handleDelete(game)}>
+                    <Button variant="outline" size="icon" aria-label={COPY.admin.deleteGameLabel} className="shrink-0 border-[#1b2740] bg-[#0a1019] text-[#ff6b6b] hover:bg-[#ff6b6b]/10 hover:text-[#ff6b6b]" onClick={() => handleDelete(game)}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
@@ -4873,9 +4301,9 @@ function GamesView({
                 {isCompleted && (
                   <div className="flex gap-2">
                     <Button variant="outline" className="flex-1 border-[#1b2740] bg-[#0a1019] text-[#eef2f8] hover:bg-[#1b2740]" onClick={() => onNavigate("results", game.id)}>
-                      <BarChart3 className="w-4 h-4 mr-2" /> Results
+                      <BarChart3 className="w-4 h-4 mr-2" /> {COPY.admin.resultsBtn}
                     </Button>
-                    <Button variant="outline" size="icon" aria-label="Delete game" className="shrink-0 border-[#1b2740] bg-[#0a1019] text-[#ff6b6b] hover:bg-[#ff6b6b]/10 hover:text-[#ff6b6b]" onClick={() => handleDelete(game)}>
+                    <Button variant="outline" size="icon" aria-label={COPY.admin.deleteGameLabel} className="shrink-0 border-[#1b2740] bg-[#0a1019] text-[#ff6b6b] hover:bg-[#ff6b6b]/10 hover:text-[#ff6b6b]" onClick={() => handleDelete(game)}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
@@ -4893,10 +4321,10 @@ function GamesView({
           <div className="relative bg-[#0f1724] border border-[#1b2740] rounded-2xl p-6 w-full max-w-sm shadow-2xl">
             <div className="flex items-center gap-2 mb-1">
               <Play className="h-5 w-5 text-[#ff0080]" />
-              <span className="font-extrabold text-[#eef2f8] text-base">Ready to go live?</span>
+              <span className="font-extrabold text-[#eef2f8] text-base">{COPY.admin.startGameTitle}</span>
             </div>
             <p className="text-sm text-[#9aa6bc] mb-4">
-              <span className="font-semibold text-[#eef2f8]">"{confirmStartGame.topic}"</span> will be visible to players immediately.
+              {COPY.admin.startGameBody(confirmStartGame.topic)}
             </p>
 
             {/* Play along toggle */}
@@ -4920,7 +4348,7 @@ function GamesView({
                 onClick={() => setConfirmStartGame(null)}
                 className="flex-1 py-2.5 rounded-xl border border-[#1b2740] text-sm font-semibold text-[#9aa6bc] hover:brightness-110 transition"
               >
-                Cancel
+                {COPY.common.cancel}
               </button>
               <button
                 onClick={doGoLive}
@@ -4928,7 +4356,7 @@ function GamesView({
                 className="flex-1 py-2.5 rounded-xl bg-[#35d07f] text-black text-sm font-extrabold disabled:opacity-50 hover:brightness-110 transition"
               >
                 <Play className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />
-                Go live now
+                {COPY.admin.goLiveBtn}
               </button>
             </div>
           </div>
@@ -4956,17 +4384,21 @@ function BuildQuizView({
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-1 bg-[#0a1019] p-1.5 rounded-xl border border-[#1b2740]">
-        {["setup", "questions", "review"].map(t => (
+        {([
+          { id: "setup", label: COPY.build.stepSetup },
+          { id: "questions", label: COPY.build.stepQuestions },
+          { id: "review", label: COPY.build.stepReview },
+        ] as const).map(({ id: t, label }) => (
           <button
             key={t}
-            onClick={() => setSubTab(t as any)}
-            className={`flex-1 py-2 px-3 rounded-lg text-sm font-bold capitalize transition-all ${
+            onClick={() => setSubTab(t)}
+            className={`flex-1 py-2 px-3 rounded-lg text-sm font-bold transition-all ${
               subTab === t
                 ? 'bg-[#1b2740] text-white shadow-sm'
                 : 'text-[#66728a] hover:text-[#9aa6bc]'
             }`}
           >
-            {t}
+            {label}
           </button>
         ))}
       </div>
@@ -4976,6 +4408,7 @@ function BuildQuizView({
           <CreateGameSection
             onCreated={(g) => { setSubTab("questions"); onNavigate("build", g.id); }}
             onGoLive={() => onNavigate("live")}
+            onExit={() => onNavigate("games")}
           />
         )}
         {subTab === "questions" && (
@@ -5001,6 +4434,7 @@ function NewResultsSection({ games, preferredGameId }: { games: Game[]; preferre
   const [selectedGameId, setSelectedGameId] = useState<number | null>(
     preferredGameId ?? null
   );
+  const [showStats, setShowStats] = useState(false);
 
   // React when the parent changes preferredGameId (e.g. Games tab "Results" shortcut)
   useEffect(() => {
@@ -5010,24 +4444,42 @@ function NewResultsSection({ games, preferredGameId }: { games: Game[]; preferre
     }
   }, [preferredGameId]);
 
-  const { data: resultsData, isLoading: loadingResults } = useQuery<GameResultsData>({
+  const {
+    data: resultsData,
+    isLoading: loadingResults,
+    isError: resultsError,
+    refetch: refetchResults,
+  } = useQuery<GameResultsData>({
     queryKey: ["admin-results", selectedGameId],
     queryFn: async () => {
       const res = await fetch(`/api/games/${selectedGameId}/results`);
-      if (!res.ok) throw new Error("Failed to fetch results");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     },
     enabled: selectedGameId !== null,
+    retry: 1,
   });
 
-  const { data: questionStats = [] } = useQuery<QuestionStat[]>({
+  const {
+    data: questionStats = [],
+    isLoading: statsLoading,
+    isError: statsError,
+    refetch: refetchStats,
+  } = useQuery<QuestionStat[]>({
     queryKey: ["admin-question-stats", selectedGameId],
     queryFn: async () => {
       const res = await fetch(`/api/games/${selectedGameId}/questions/stats`);
-      if (!res.ok) throw new Error("Failed to fetch stats");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     },
     enabled: selectedGameId !== null,
+    retry: 1,
+  });
+
+  // Questions carry the correct answers for the breakdown — the game is over,
+  // so this is the one place a host sees them (same as mobile).
+  const { data: questions = [] } = useListGameQuestions(selectedGameId ?? 0, {
+    query: { enabled: selectedGameId !== null, queryKey: getListGameQuestionsQueryKey(selectedGameId ?? 0) },
   });
 
   // Short-response answers the AI could not grade, awaiting the host's decision
@@ -5050,20 +4502,10 @@ function NewResultsSection({ games, preferredGameId }: { games: Game[]; preferre
           queryClient.invalidateQueries({ queryKey: ["admin-results", selectedGameId] });
           queryClient.invalidateQueries({ queryKey: ["admin-question-stats", selectedGameId] });
         },
-        onError: () => toast({ variant: "destructive", title: COPY.adminResults.reviewSaveErrorTitle }),
+        onError: () => toast({ variant: "destructive", title: COPY.adminResults.reviewSaveErrorTitle, description: COPY.adminResults.reviewSaveErrorBody }),
       },
     );
   };
-
-  if (completedGames.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-32 text-center">
-        <BarChart3 className="h-16 w-16 text-[#66728a] mb-4" />
-        <h2 className="text-xl font-bold text-[#eef2f8] mb-2">No completed games yet</h2>
-        <p className="text-[#9aa6bc]">Finish a game to see final results here.</p>
-      </div>
-    );
-  }
 
   // ── List view ──────────────────────────────────────────────────────────────
   if (resultsView === "list") {
@@ -5079,56 +4521,77 @@ function NewResultsSection({ games, preferredGameId }: { games: Game[]; preferre
 
     return (
       <div className="space-y-5">
-        {/* Summary bar */}
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { v: completedGames.length, l: "GAMES", c: "#ff5aa8" },
-            { v: totalPlayerSessions, l: "PLAYER SESSIONS", c: "#00ddff" },
-            { v: totalQuestions, l: "QUESTIONS ASKED", c: "#35d07f" },
-          ].map((t) => (
-            <div key={t.l} className="bg-[#0f1724] border border-[#1b2740] rounded-[14px] p-4">
-              <div className="font-mono text-[26px] font-extrabold tabular-nums" style={{ color: t.c }}>{t.v}</div>
-              <div className="text-[10px] font-semibold tracking-[.12em] text-[#66728a] mt-0.5">{t.l}</div>
-            </div>
-          ))}
+        {/* Heading */}
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-bold text-[#eef2f8]">{COPY.adminResultsList.heading}</h2>
+            {completedGames.length > 0 && (
+              <span className="rounded-full bg-[#1b2740] px-2 py-0.5 text-xs font-bold text-[#9aa6bc]">{completedGames.length}</span>
+            )}
+          </div>
+          <p className="text-sm text-[#9aa6bc] mt-1">{COPY.adminResultsList.subheading}</p>
         </div>
 
-        {/* Game cards */}
-        <div className="space-y-2">
-          {completedGames.map((game) => {
-            const date = formatDate((game as any).createdAt);
-            const players = (game as any).participantCount ?? 0;
-            const qCount = (game as any).questionCount ?? 0;
-            return (
-              <button
-                key={game.id}
-                onClick={() => { setSelectedGameId(game.id); setResultsView("detail"); }}
-                className="w-full flex items-center gap-4 bg-[#0f1724] border border-[#1b2740] rounded-2xl px-5 py-4 hover:border-[#2d4060] hover:bg-[#111d2e] transition text-left"
-              >
-                <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: "#ff5aa8" + "20" }}>
-                  <Trophy className="h-5 w-5 text-[#ff5aa8]" />
+        {completedGames.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <BarChart3 className="h-16 w-16 text-[#66728a] mb-4" />
+            <h3 className="text-lg font-bold text-[#eef2f8] mb-2">{COPY.adminResultsList.emptyTitle}</h3>
+            <p className="text-[#9aa6bc]">{COPY.adminResultsList.emptyBody}</p>
+          </div>
+        ) : (
+          <>
+            {/* Summary bar */}
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { v: completedGames.length, l: COPY.adminResultsList.statGames, c: "#ff5aa8" },
+                { v: totalPlayerSessions, l: COPY.adminResultsList.statPlayerSessions, c: "#00ddff" },
+                { v: totalQuestions, l: COPY.adminResultsList.statQuestionsAsked, c: "#35d07f" },
+              ].map((t) => (
+                <div key={t.l} className="bg-[#0f1724] border border-[#1b2740] rounded-[14px] p-4">
+                  <div className="font-mono text-[26px] font-extrabold tabular-nums" style={{ color: t.c }}>{t.v}</div>
+                  <div className="text-[10px] font-semibold tracking-[.12em] uppercase text-[#66728a] mt-0.5">{t.l}</div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[15px] font-bold text-[#eef2f8] truncate">{game.topic}</div>
-                  <div className="flex items-center gap-4 mt-1 flex-wrap">
-                    {date && (
-                      <span className="flex items-center gap-1 text-[12px] text-[#66728a]">
-                        <Calendar className="h-3 w-3" />{date}
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1 text-[12px] text-[#66728a]">
-                      <Users className="h-3 w-3" />{players} {players === 1 ? "player" : "players"}
-                    </span>
-                    <span className="flex items-center gap-1 text-[12px] text-[#66728a]">
-                      <HelpCircle className="h-3 w-3" />{qCount} {qCount === 1 ? "question" : "questions"}
-                    </span>
-                  </div>
-                </div>
-                <ChevronRight className="h-5 w-5 text-[#66728a] shrink-0" />
-              </button>
-            );
-          })}
-        </div>
+              ))}
+            </div>
+
+            {/* Game cards */}
+            <div className="space-y-2">
+              {completedGames.map((game) => {
+                const date = formatDate((game as any).createdAt);
+                const players = (game as any).participantCount ?? 0;
+                const qCount = (game as any).questionCount ?? 0;
+                return (
+                  <button
+                    key={game.id}
+                    onClick={() => { setSelectedGameId(game.id); setShowStats(false); setResultsView("detail"); }}
+                    className="w-full flex items-center gap-4 bg-[#0f1724] border border-[#1b2740] rounded-2xl px-5 py-4 hover:border-[#2d4060] hover:bg-[#111d2e] transition text-left"
+                  >
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: "#ff5aa8" + "20" }}>
+                      <Trophy className="h-5 w-5 text-[#ff5aa8]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[15px] font-bold text-[#eef2f8] truncate">{game.topic}</div>
+                      <div className="flex items-center gap-4 mt-1 flex-wrap">
+                        {date && (
+                          <span className="flex items-center gap-1 text-[12px] text-[#66728a]">
+                            <Calendar className="h-3 w-3" />{date}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1 text-[12px] text-[#66728a]">
+                          <Users className="h-3 w-3" />{COPY.admin.playersCount(players)}
+                        </span>
+                        <span className="flex items-center gap-1 text-[12px] text-[#66728a]">
+                          <HelpCircle className="h-3 w-3" />{COPY.admin.questionsCount(qCount)}
+                        </span>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-[#66728a] shrink-0" />
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
     );
   }
@@ -5139,17 +4602,17 @@ function NewResultsSection({ games, preferredGameId }: { games: Game[]; preferre
   const avgScore = participants.length
     ? Math.round(participants.reduce((s, p) => s + p.totalScore, 0) / participants.length)
     : 0;
-  const avgCorrect = (() => {
-    const answered = participants.filter((p) => p.totalAnswered > 0);
-    if (!answered.length) return null;
-    const pct = answered.reduce((s, p) => s + p.correctCount / p.totalAnswered, 0) / answered.length;
-    return Math.round(pct * 100);
+  const topScore = participants[0]?.totalScore ?? 0;
+  const hardestQuestion = (() => {
+    let best: QuestionStat | null = null;
+    for (const q of questionStats) {
+      if (q.totalAnswered === 0 || q.percentCorrect === null) continue;
+      if (!best || q.percentCorrect < (best.percentCorrect ?? Infinity)) best = q;
+    }
+    return best;
   })();
-  const hardest = [...questionStats]
-    .filter((q) => q.percentCorrect !== null)
-    .sort((a, b) => (a.percentCorrect ?? 0) - (b.percentCorrect ?? 0))
-    .slice(0, 5);
-  const pctColor = (pct: number) => (pct < 45 ? "#ff5aa8" : pct < 65 ? "#ffe500" : "#35d07f");
+
+  const backToList = () => { setResultsView("list"); setShowStats(false); };
 
   return (
     <div className="space-y-5">
@@ -5157,108 +4620,137 @@ function NewResultsSection({ games, preferredGameId }: { games: Game[]; preferre
       <div className="flex flex-wrap items-center gap-3 pb-4 border-b border-[#16223a]">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setResultsView("list")}
+            onClick={backToList}
             className="flex items-center gap-1.5 text-xs font-bold text-[#66728a] hover:text-[#c9d1e0] transition"
           >
             <ArrowLeft className="h-4 w-4" />
-            All results
+            {COPY.adminResults.allResults}
           </button>
           <div className="w-px h-4 bg-[#1b2740]" />
-          <div>
-            <div className="text-[10px] font-bold tracking-[.24em] text-[#66728a] mb-1">FINAL RESULTS</div>
-            <div className="text-[22px] font-extrabold text-[#eef2f8]">{resultsData?.game.topic ?? "…"}</div>
-          </div>
+          <div className="text-[22px] font-extrabold text-[#eef2f8]">{resultsData?.game.topic ?? COPY.nav.results}</div>
         </div>
         <div className="ml-auto">
           <button
             onClick={() => selectedGameId && window.open(`/api/games/${selectedGameId}/results/export.csv`, "_blank")}
-            className="text-xs font-bold text-[#c9d1e0] bg-white/[.05] border border-[#1b2740] rounded-[10px] px-4 py-2.5 hover:brightness-110 transition"
+            disabled={!resultsData}
+            className="flex items-center gap-1.5 text-xs font-bold text-[#c9d1e0] bg-white/[.05] border border-[#1b2740] rounded-[10px] px-4 py-2.5 hover:brightness-110 disabled:opacity-50 transition"
           >
-            Export CSV
+            <Download className="h-3.5 w-3.5" />
+            {COPY.adminResults.exportBtn}
           </button>
         </div>
       </div>
 
       {loadingResults ? (
-        <p className="text-sm text-[#66728a] text-center py-16">Loading results…</p>
+        <p className="text-sm text-[#66728a] text-center py-16">{COPY.adminResults.loading}</p>
+      ) : resultsError || !resultsData ? (
+        <div className="flex flex-col items-center gap-4 py-16 text-center">
+          <ShieldAlert className="h-10 w-10 text-[#ff6b6b]" />
+          <p className="text-sm text-[#9aa6bc] max-w-sm">{COPY.adminResults.loadFailed}</p>
+          <button
+            onClick={() => void refetchResults()}
+            className="rounded-xl bg-[#ff0080] px-6 py-2.5 text-sm font-bold text-white hover:brightness-110 transition"
+          >
+            {COPY.common.retry}
+          </button>
+          <button onClick={backToList} className="text-sm text-[#9aa6bc] hover:text-[#eef2f8]">
+            {COPY.adminResults.backToGames}
+          </button>
+        </div>
       ) : (
-        <div className="flex flex-col xl:flex-row gap-5 items-start">
-          <div className="flex-1 w-full min-w-0 space-y-4">
-            {/* stat tiles */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="max-w-3xl space-y-4">
+          {/* summary card */}
+          <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl p-4">
+            <div className="grid grid-cols-3 gap-3">
               {[
-                { v: participants.length, l: "PLAYERS", c: "#ff5aa8" },
-                { v: totalQ, l: "QUESTIONS", c: "#00ddff" },
-                { v: avgScore, l: "AVG SCORE", c: "#ffe500" },
-                { v: avgCorrect !== null ? `${avgCorrect}%` : "—", l: "AVG CORRECT", c: "#35d07f" },
+                { v: participants.length, l: COPY.adminResults.playersLabel, c: "#ff5aa8" },
+                { v: avgScore, l: COPY.adminResults.avgScoreLabel, c: "#00ddff" },
+                { v: topScore, l: COPY.adminResults.topScoreLabel, c: "#ffe500" },
               ].map((t) => (
-                <div key={t.l} className="bg-[#0f1724] border border-[#1b2740] rounded-[14px] p-4">
+                <div key={t.l} className="text-center">
                   <div className="font-mono text-[26px] font-extrabold tabular-nums" style={{ color: t.c }}>{t.v}</div>
-                  <div className="text-[10px] font-semibold tracking-[.12em] text-[#66728a] mt-0.5">{t.l}</div>
+                  <div className="text-[11px] font-semibold text-[#66728a] mt-0.5">{t.l}</div>
                 </div>
               ))}
             </div>
-
-            {/* leaderboard */}
-            <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl overflow-hidden">
-              <div className="px-4.5 py-3.5 border-b border-[#1b2740] text-[13px] font-extrabold text-[#eef2f8] px-5">
-                Final leaderboard
-              </div>
-              <div className="p-2">
-                {participants.length === 0 && (
-                  <p className="text-sm text-[#66728a] text-center py-6">No participants recorded.</p>
-                )}
-                {participants.map((p, idx) => {
-                  const win = p.rank === 1;
-                  const [av, avtx] = AVATAR_COLORS[idx % AVATAR_COLORS.length];
-                  return (
-                    <div key={p.userId} className={`flex items-center gap-3 px-2.5 py-2.5 rounded-[10px] ${win ? "bg-[#ff0080]/[.08]" : ""}`}>
-                      <span className={`w-5 text-center font-mono text-[13px] font-extrabold ${win ? "text-[#ff5aa8]" : "text-[#66728a]"}`}>{p.rank}</span>
-                      <span className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-extrabold shrink-0" style={{ background: av, color: avtx }}>
-                        {p.userName.substring(0, 1).toUpperCase()}
-                      </span>
-                      <span className={`flex-1 truncate text-sm ${win ? "font-extrabold text-[#eef2f8]" : "font-bold text-[#dfe5f0]"}`}>{p.userName}</span>
-                      <span className="text-xs font-semibold text-[#66728a]">
-                        {p.correctCount}/{totalQ}
-                        {resultsData?.game?.hostUserId && p.userId === resultsData.game.hostUserId && totalQ - p.totalAnswered > 0
-                          ? ` · ${totalQ - p.totalAnswered} unanswered`
-                          : ''}
-                      </span>
-                      <span className={`w-[70px] text-right font-mono text-[15px] font-extrabold tabular-nums ${win ? "text-[#eef2f8]" : "text-[#9aa6bc]"}`}>{p.totalScore}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <PendingReviewQueue
-              reviews={pendingReviews}
-              label={COPY.adminResults.needingReviewLabel(pendingReviews.length)}
-              onReview={handleReview}
-              pendingAnswerId={reviewAnswer.isPending ? reviewAnswer.variables?.answerId : undefined}
-            />
-          </div>
-
-          {/* hardest questions */}
-          <div className="w-full xl:w-[280px] shrink-0 bg-[#0f1724] border border-[#1b2740] rounded-2xl p-4.5 p-5">
-            <div className="text-[13px] font-extrabold text-[#eef2f8] mb-4">Hardest questions</div>
-            {hardest.length === 0 && <p className="text-sm text-[#66728a]">No question data yet.</p>}
-            {hardest.map((h) => {
-              const pct = h.percentCorrect ?? 0;
-              const c = pctColor(pct);
-              return (
-                <div key={h.id} className="mb-4 last:mb-0">
-                  <div className="flex justify-between gap-2 mb-1.5">
-                    <span className="flex-1 text-xs font-semibold text-[#c9d1e0] leading-snug line-clamp-2">{h.questionText}</span>
-                    <span className="font-mono text-xs font-extrabold tabular-nums" style={{ color: c }}>{pct}%</span>
+            {hardestQuestion && (
+              <div className="mt-4 pt-3 border-t border-[#1b2740] flex items-start gap-2">
+                <Lightbulb className="h-3.5 w-3.5 text-[#ff6b6b] mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold tracking-widest text-[#66728a]">
+                    {COPY.adminResults.hardestLabel(hardestQuestion.percentCorrect)}
                   </div>
-                  <div className="h-[5px] rounded-full bg-white/10 overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: c }} />
-                  </div>
+                  <p className="text-sm text-[#eef2f8] line-clamp-2">{hardestQuestion.questionText}</p>
                 </div>
-              );
-            })}
+              </div>
+            )}
           </div>
+
+          {/* leaderboard */}
+          <div>
+            <div className="text-[11px] font-bold tracking-widest text-[#66728a] mb-2">{COPY.adminResults.leaderboardLabel}</div>
+            <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl p-2">
+              {participants.length === 0 && (
+                <p className="text-sm text-[#66728a] text-center py-6">{COPY.adminResults.noParticipants}</p>
+              )}
+              {participants.map((p, idx) => {
+                const win = p.rank === 1;
+                const [av, avtx] = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+                const unanswered = totalQ - p.totalAnswered;
+                return (
+                  <div key={p.userId} className={`flex items-center gap-3 px-2.5 py-2.5 rounded-[10px] ${win ? "bg-[#ff0080]/[.08]" : ""}`}>
+                    <span className={`w-5 text-center font-mono text-[13px] font-extrabold ${win ? "text-[#ff5aa8]" : "text-[#66728a]"}`}>{p.rank}</span>
+                    <span className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-extrabold shrink-0" style={{ background: av, color: avtx }}>
+                      {p.userName.substring(0, 1).toUpperCase()}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className={`truncate text-sm ${win ? "font-extrabold text-[#eef2f8]" : "font-bold text-[#dfe5f0]"}`}>{p.userName}</div>
+                      <div className="text-xs font-semibold text-[#66728a]">
+                        {COPY.adminResults.correctOf(p.correctCount, totalQ || p.totalAnswered)}
+                        {totalQ > 0 ? COPY.adminResults.pctSuffix(Math.round((p.correctCount / totalQ) * 100)) : ""}
+                        {resultsData.game?.hostUserId && p.userId === resultsData.game.hostUserId && unanswered > 0
+                          ? COPY.adminResults.unansweredSuffix(unanswered)
+                          : ""}
+                      </div>
+                    </div>
+                    <span className={`w-[70px] text-right font-mono text-[15px] font-extrabold tabular-nums ${win ? "text-[#eef2f8]" : "text-[#9aa6bc]"}`}>{p.totalScore}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <PendingReviewQueue
+            reviews={pendingReviews}
+            label={COPY.adminResults.needingReviewLabel(pendingReviews.length)}
+            onReview={handleReview}
+            pendingAnswerId={reviewAnswer.isPending ? reviewAnswer.variables?.answerId : undefined}
+          />
+
+          {/* per-question breakdown */}
+          <button
+            type="button"
+            onClick={() => setShowStats((v) => !v)}
+            className="w-full flex items-center justify-between bg-[#0f1724] border border-[#1b2740] rounded-2xl px-4 py-3 text-sm font-bold text-[#eef2f8] hover:border-[#2d4060] transition"
+          >
+            {COPY.adminResults.breakdownToggle}
+            {showStats ? <ChevronUp className="h-4 w-4 text-[#9aa6bc]" /> : <ChevronDown className="h-4 w-4 text-[#9aa6bc]" />}
+          </button>
+          {showStats && (
+            statsLoading ? (
+              <p className="text-sm text-[#66728a] text-center py-6">{COPY.adminResults.loading}</p>
+            ) : statsError ? (
+              <div className="flex items-center gap-3 rounded-xl border border-[#ff6b6b]/30 bg-[#ff6b6b]/10 px-4 py-3 text-sm text-[#ff6b6b]">
+                <ShieldAlert className="h-4 w-4 shrink-0" />
+                <span className="flex-1">{COPY.adminResults.breakdownLoadFailed}</span>
+                <button onClick={() => void refetchStats()} className="rounded-lg border border-[#ff6b6b] px-3 py-1 text-xs font-bold">
+                  {COPY.common.retry}
+                </button>
+              </div>
+            ) : (
+              <QuestionBreakdown stats={questionStats} questions={questions} />
+            )
+          )}
         </div>
       )}
     </div>
@@ -5282,7 +4774,12 @@ function NewAdminDashboard() {
     query: { queryKey: getListGamesQueryKey(), refetchInterval: 10000 },
   });
 
-  const activeGame = games.find((g) => g.status === "active");
+  // Control the game the host opened from the games list when it is live;
+  // otherwise the first live game (matches the mobile live screen, which is
+  // always scoped to one game).
+  const activeGame =
+    games.find((g) => g.status === "active" && g.id === preferredGameId) ??
+    games.find((g) => g.status === "active");
 
   const navigate = (s: Section, gameId?: number) => {
     setSection(s);
@@ -5299,22 +4796,29 @@ function NewAdminDashboard() {
 
   const updateGame = useUpdateGame();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const endGame = (id: number) => {
+    // Confirm before ending — every end-game entry point on both platforms
+    // goes through this confirmation.
+    if (!window.confirm(`${COPY.adminLive.endGameTitle}\n\n${COPY.adminLive.endGameBody}`)) return;
     updateGame.mutate(
       { gameId: id, data: { status: "completed" } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
-          navigate("results");
+          // Straight to this game's results, matching mobile.
+          navigate("results", id);
         },
+        onError: () => toast({ variant: "destructive", title: COPY.adminLive.endGameError }),
       }
     );
   };
 
+  // Same order as the mobile tab bar.
   const navItems = [
-    { id: "build", label: COPY.nav.build, icon: Wand2 },
     { id: "games", label: COPY.nav.games, icon: Gamepad2 },
+    { id: "build", label: COPY.nav.build, icon: Wand2 },
     { id: "results", label: COPY.nav.results, icon: BarChart3 },
     { id: "rooms", label: COPY.nav.rooms, icon: Settings },
   ] as const;
@@ -5322,7 +4826,7 @@ function NewAdminDashboard() {
   const renderSection = () => {
     switch (section) {
       case "games": return <GamesView games={games} onNavigate={navigate} />;
-      case "live": return <LiveGameView activeGame={activeGame} endGame={endGame} />;
+      case "live": return <LiveGameView activeGame={activeGame} endGame={endGame} onGameEnded={(id) => navigate("results", id)} />;
       case "build": return <BuildQuizView key={buildResetKey} games={games} preferGameId={preferredGameId} onNavigate={navigate} />;
       case "results": return <NewResultsSection games={games} preferredGameId={preferredGameId} />;
       case "rooms": return <AdminSettings />;
@@ -5347,8 +4851,8 @@ function NewAdminDashboard() {
         <div className="flex items-center gap-2.5 px-5 pt-6 pb-7">
           <CrownMark width={30} />
           <div>
-            <div className="text-[13px] font-extrabold tracking-wide text-[#eef2f8]">Queen Trivia</div>
-            <div className="font-mono text-[8px] font-bold tracking-[.22em] text-[#66728a] mt-px">HOST CONSOLE</div>
+            <div className="text-[13px] font-extrabold tracking-wide text-[#eef2f8]">{COPY.brand.queen} {COPY.brand.trivia}</div>
+            <div className="font-mono text-[8px] font-bold tracking-[.22em] text-[#66728a] mt-px">{COPY.admin.hostConsole}</div>
           </div>
         </div>
 
@@ -5375,12 +4879,12 @@ function NewAdminDashboard() {
         <div className="p-4 border-t border-[#1b2740]">
           <div className="bg-[#0f1724] rounded-xl p-3 flex items-center gap-3 border border-[#1b2740]">
             <div className="w-8 h-8 rounded-full bg-[#ff0080] text-white flex items-center justify-center text-xs font-bold shrink-0">
-              HO
+              {COPY.hostName.generic.slice(0, 2).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-bold text-white truncate">Host</div>
+              <div className="text-sm font-bold text-white truncate">{COPY.hostName.generic}</div>
               <button
-                onClick={async () => { await logout(); setLocation("/"); }}
+                onClick={async () => { await logout(); setLocation("/admin-login"); }}
                 className="text-xs text-[#9aa6bc] hover:text-white transition-colors"
               >
                 {COPY.account.signOut.btn}
@@ -5395,7 +4899,7 @@ function NewAdminDashboard() {
         <div className="flex items-center gap-2">
           <CrownMark width={20} />
           <span className="font-bold text-white text-sm tracking-widest">
-            {mobileNavLabels[section] ?? "HOST"}
+            {mobileNavLabels[section] ?? COPY.hostName.generic}
           </span>
           {activeGame && section !== "live" && (
             <button
@@ -5403,7 +4907,7 @@ function NewAdminDashboard() {
               className="ml-2 flex items-center gap-1 bg-[#ff0080]/10 border border-[#ff0080]/30 rounded-full px-2 py-0.5"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-[#ff0080] animate-pulse" />
-              <span className="text-[10px] font-bold text-[#ff0080] tracking-wider">LIVE</span>
+              <span className="text-[10px] font-bold text-[#ff0080] tracking-wider">{COPY.admin.livePill}</span>
             </button>
           )}
         </div>
@@ -5416,7 +4920,7 @@ function NewAdminDashboard() {
             <UserRound className="h-4 w-4" />
           </button>
           <button
-            onClick={async () => { await logout(); setLocation("/"); }}
+            onClick={async () => { await logout(); setLocation("/admin-login"); }}
             className="text-[#9aa6bc] p-1.5 -mr-1"
             aria-label={COPY.account.signOut.btn}
           >

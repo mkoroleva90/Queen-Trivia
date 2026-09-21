@@ -16,6 +16,7 @@ import { safeEmit } from "../lib/socket.ts";
 import { requireUser } from "../middleware/requireUser.ts";
 import { requireAuth } from "../middleware/requireAuth.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
+import { isAdminRequest } from "../lib/playerContext.ts";
 import { assertGameOwnership } from "../lib/assertGameOwnership.ts";
 import { decodeHtml } from "../lib/decodeHtml.ts";
 import { containsBannedContent, logFlaggedContent } from "../lib/contentFilter.ts";
@@ -171,7 +172,7 @@ router.get("/games/:gameId/participants", requireAuth, async (req, res): Promise
      return;
  }
 
- const scoresVisible = req.session.isAdmin === true || game.status === "completed";
+ const scoresVisible = isAdminRequest(req) || game.status === "completed";
  const participantQuery = db
      .select({
          id: gameParticipantsTable.id,

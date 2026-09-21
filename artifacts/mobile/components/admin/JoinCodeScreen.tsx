@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { View, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Pressable, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { Text } from '@/components/ThemedText';
 import { TextInput } from '@/components/ThemedTextInput';
 import { Ionicons } from '@expo/vector-icons';
@@ -41,6 +42,18 @@ export function JoinCodeScreen({ initialCode, initialTitle, saving, error, title
 
   const fieldError = localError ?? error;
   const titleFieldError = localTitleError ?? titleError;
+  const [copied, setCopied] = useState(false);
+
+  // Copy whichever code will actually be used: the typed one, else the auto-assigned one (matches web).
+  const handleCopy = async () => {
+    try {
+      await Clipboard.setStringAsync(code.trim().toUpperCase() || initialCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      Alert.alert(COPY.common.error, COPY.admin.copyCodeFailed);
+    }
+  };
 
   const handleContinue = () => {
     const title = quizTitle.trim();
@@ -94,23 +107,35 @@ export function JoinCodeScreen({ initialCode, initialTitle, saving, error, title
       ) : null}
 
       <Text style={[s.inputLabel, s.codeLabel]}>{COPY.joinCode.inputLabel.toUpperCase()}</Text>
-      <TextInput
-        style={[
-          s.input,
-          fieldError
-            ? { borderColor: colors.destructive }
-            : { borderColor: '#f5138c' },
-        ]}
-        value={code}
-        onChangeText={(t) => {
-          setCode(t.toUpperCase());
-          setLocalError(null);
-        }}
-        onSubmitEditing={handleContinue}
-        maxLength={12}
-        autoCapitalize="characters"
-        autoCorrect={false}
-      />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <TextInput
+          style={[
+            s.input,
+            { flex: 1 },
+            fieldError
+              ? { borderColor: colors.destructive }
+              : { borderColor: '#f5138c' },
+          ]}
+          value={code}
+          onChangeText={(t) => {
+            setCode(t.toUpperCase());
+            setLocalError(null);
+          }}
+          onSubmitEditing={handleContinue}
+          maxLength={12}
+          autoCapitalize="characters"
+          autoCorrect={false}
+        />
+        <Pressable
+          onPress={handleCopy}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={COPY.admin.codeCopyLabel}
+          style={{ width: 52, height: 52, borderRadius: 14, borderWidth: 1.5, borderColor: '#2b3446', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={20} color={copied ? '#35d07f' : '#8b93a4'} />
+        </Pressable>
+      </View>
       <Text style={[s.helper, fieldError ? { color: colors.destructive } : null]}>
         {fieldError ?? (code.trim() === '' ? COPY.joinCode.blankHelper(initialCode) : COPY.joinCode.helper)}
       </Text>

@@ -92,6 +92,20 @@ export const MobileResendVerificationCodeResponse = zod.object({
 
 
 /**
+ * Web counterpart of /auth/email/mobile-resend-code. If an UNVERIFIED account exists for the email, re-issues a fresh verification link (24-hour expiry) and emails it. Always responds 200 with a generic message whether or not an unverified account exists, so accounts cannot be enumerated.
+ * @summary Resend the host email-verification link (web)
+ */
+export const ResendVerificationLinkBody = zod.object({
+  "email": zod.string().email()
+})
+
+export const ResendVerificationLinkResponse = zod.object({
+  "ok": zod.boolean(),
+  "message": zod.string()
+})
+
+
+/**
  * @summary Create a player by name
  */
 export const createUserBodyNameMax = 80;

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   RefreshControl,
@@ -25,6 +26,7 @@ import type { Game } from '@workspace/api-client-react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { COPY } from '@workspace/copy';
+import * as Clipboard from 'expo-clipboard';
 
 type Difficulty = 'easy' | 'medium' | 'hard';
 type GameFilter = 'all' | 'live' | 'drafts';
@@ -99,7 +101,17 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
     try {
       await updateGame.mutateAsync({ gameId: game.id, data: { status, ...extra } });
       qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
-    } catch { /* silent */ }
+    } catch {
+      Alert.alert(COPY.common.error, status === 'completed' ? COPY.adminLive.endGameError : COPY.admin.startFailed);
+    }
+  };
+
+  // Confirm before ending a live game from the list (matches the live screen).
+  const confirmEnd = (game: Game) => {
+    Alert.alert(COPY.adminLive.endGameTitle, COPY.adminLive.endGameBody, [
+      { text: COPY.common.cancel, style: 'cancel' },
+      { text: COPY.adminLive.endGameConfirm, style: 'destructive', onPress: () => { void handleStatus(game, 'completed'); } },
+    ]);
   };
 
   const confirmStart = async () => {
@@ -194,12 +206,37 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    setDeletingId(id);
+  const [copiedCodeId, setCopiedCodeId] = useState<number | null>(null);
+  const copyCode = async (code: string, gameId: number) => {
     try {
-      await deleteGame.mutateAsync({ gameId: id });
-      qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
-    } catch { /* silent */ } finally { setDeletingId(null); }
+      await Clipboard.setStringAsync(code);
+      setCopiedCodeId(gameId);
+      setTimeout(() => setCopiedCodeId((id) => (id === gameId ? null : id)), 1500);
+    } catch {
+      Alert.alert(COPY.common.error, COPY.admin.copyCodeFailed);
+    }
+  };
+
+  const handleDelete = (game: Game) => {
+    // Confirm before deleting — matches the web games list.
+    Alert.alert(COPY.admin.deleteGameTitle, COPY.admin.deleteGameBody(game.topic), [
+      { text: COPY.common.cancel, style: 'cancel' },
+      {
+        text: COPY.admin.deleteGameConfirm,
+        style: 'destructive',
+        onPress: async () => {
+          setDeletingId(game.id);
+          try {
+            await deleteGame.mutateAsync({ gameId: game.id });
+            qc.invalidateQueries({ queryKey: getListGamesQueryKey() });
+          } catch {
+            Alert.alert(COPY.common.error, COPY.admin.deleteFailed);
+          } finally {
+            setDeletingId(null);
+          }
+        },
+      },
+    ]);
   };
 
   const s = styles(colors);
@@ -338,12 +375,16 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
                         <Pressable
                           style={[s.renameIconBtn, { backgroundColor: colors.primary + '20' }]}
                           onPress={(e) => { e.stopPropagation(); handleCodeSave(game); }}
+                          accessibilityRole="button"
+                          accessibilityLabel={COPY.admin.codeSaveLabel}
                         >
                           <Ionicons name="checkmark" size={18} color={colors.primary} />
                         </Pressable>
                         <Pressable
                           style={[s.renameIconBtn, { backgroundColor: colors.muted }]}
                           onPress={(e) => { e.stopPropagation(); cancelCodeEdit(); }}
+                          accessibilityRole="button"
+                          accessibilityLabel={COPY.admin.codeCancelLabel}
                         >
                           <Ionicons name="close" size={18} color={colors.mutedForeground} />
                         </Pressable>
@@ -351,16 +392,32 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
                     )}
                   </View>
                 ) : (
-                  <Pressable
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                    onPress={(e) => { e.stopPropagation(); startCodeEdit(game); }}
-                    hitSlop={8}
-                  >
-                    <Text style={[s.cardCode, { color: colors.mutedForeground }]}>
-                      {game.accessCode ?? '——'}
-                    </Text>
-                    <Ionicons name="pencil-outline" size={13} color={colors.mutedForeground} />
-                  </Pressable>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    {/* Tap the code to copy it (matches web); the pencil edits it. */}
+                    <Pressable
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                      onPress={(e) => { e.stopPropagation(); if (game.accessCode) void copyCode(game.accessCode, game.id); }}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={COPY.admin.codeCopyLabel}
+                      disabled={!game.accessCode}
+                    >
+                      <Text style={[s.cardCode, { color: colors.mutedForeground }]}>
+                        {game.accessCode ?? '——'}
+                      </Text>
+                      {game.accessCode && (
+                        <Ionicons name={copiedCodeId === game.id ? 'checkmark' : 'copy-outline'} size={13} color={copiedCodeId === game.id ? colors.secondary : colors.mutedForeground} />
+                      )}
+                    </Pressable>
+                    <Pressable
+                      onPress={(e) => { e.stopPropagation(); startCodeEdit(game); }}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={game.accessCode ? COPY.admin.codeEditLabel : COPY.admin.setCodeBtn}
+                    >
+                      <Ionicons name="pencil-outline" size={13} color={colors.mutedForeground} />
+                    </Pressable>
+                  </View>
                 )}
               </View>
               {codeEditId === game.id && codeError && (
@@ -385,12 +442,16 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
                         <Pressable
                           style={[s.renameIconBtn, { backgroundColor: colors.primary + '20' }]}
                           onPress={(e) => { e.stopPropagation(); handleRename(game.id); }}
+                          accessibilityRole="button"
+                          accessibilityLabel={COPY.admin.renameSaveLabel}
                         >
                           <Ionicons name="checkmark" size={18} color={colors.primary} />
                         </Pressable>
                         <Pressable
                           style={[s.renameIconBtn, { backgroundColor: colors.muted }]}
                           onPress={(e) => { e.stopPropagation(); cancelRename(); }}
+                          accessibilityRole="button"
+                          accessibilityLabel={COPY.admin.renameCancelLabel}
                         >
                           <Ionicons name="close" size={18} color={colors.mutedForeground} />
                         </Pressable>
@@ -434,8 +495,10 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
               <View style={s.cardActions}>
                 {game.status === 'waiting' && (
                   <Pressable
-                    style={[s.actionBtn, { backgroundColor: colors.secondary + '22', borderColor: colors.secondary + '44' }]}
+                    style={[s.actionBtn, { backgroundColor: colors.secondary + '22', borderColor: colors.secondary + '44', opacity: game.questionCount === 0 ? 0.4 : 1 }]}
                     onPress={() => { setPlayAlongPending(false); setStartTarget(game); }}
+                    disabled={game.questionCount === 0}
+                    accessibilityState={{ disabled: game.questionCount === 0 }}
                   >
                     <Ionicons name="play" size={14} color={colors.secondary} />
                     <Text style={[s.actionText, { color: colors.secondary }]}>{COPY.admin.startBtn}</Text>
@@ -452,7 +515,7 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
                     </Pressable>
                     <Pressable
                       style={[s.actionBtn, { backgroundColor: colors.muted + '22', borderColor: colors.muted + '44' }]}
-                      onPress={() => handleStatus(game, 'completed')}
+                      onPress={() => confirmEnd(game)}
                     >
                       <Ionicons name="flag" size={14} color={colors.mutedForeground} />
                       <Text style={[s.actionText, { color: colors.mutedForeground }]}>{COPY.admin.endBtn}</Text>
@@ -473,7 +536,8 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
                 ) : (
                   <Pressable
                     style={[s.actionBtn, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}
-                    onPress={() => handleDelete(game.id)}
+                    onPress={() => handleDelete(game)}
+                    accessibilityLabel={COPY.admin.deleteGameLabel}
                   >
                     <Ionicons name="trash-outline" size={14} color={colors.destructive} />
                   </Pressable>
@@ -495,7 +559,7 @@ export function GamesTab({ bottomPadding, onGoToBuild }: Props) {
               <Text style={[s.sheetTitle, { color: colors.foreground }]}>{COPY.admin.startGameTitle}</Text>
             </View>
             <Text style={{ fontSize: 14, color: colors.mutedForeground, lineHeight: 20, marginBottom: 16 }}>
-              {startTarget?.topic}
+              {startTarget ? COPY.admin.startGameBody(startTarget.topic) : ''}
             </Text>
             {/* Play-along toggle */}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.border, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, marginBottom: 16, backgroundColor: playAlongPending ? colors.primary + '10' : 'transparent' }}>

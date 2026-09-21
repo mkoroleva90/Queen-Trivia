@@ -18,7 +18,7 @@ import {
 } from 'react-native';
 import { Text } from '@/components/ThemedText';
 import { TextInput } from '@/components/ThemedTextInput';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
@@ -31,14 +31,17 @@ export default function AdminRegisterScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { loginAdmin } = useAdminAuth();
+  // The login screen opens this screen directly on the verify step (with a
+  // fresh code already sent) when an unverified account tries to sign in.
+  const params = useLocalSearchParams<{ email?: string; verify?: string }>();
 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(typeof params.email === 'string' ? params.email : '');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState(params.verify === '1' && typeof params.email === 'string' && params.email.length > 0);
   const [code, setCode] = useState('');
   const [verifyError, setVerifyError] = useState('');
   const [verifying, setVerifying] = useState(false);
@@ -267,7 +270,7 @@ export default function AdminRegisterScreen() {
               style={[s.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: error ? colors.destructive : colors.border }]}
               value={email}
               onChangeText={(t) => { setEmail(t); setError(''); }}
-              placeholder={COPY.hostLogin.mobileEmailPlaceholder}
+              placeholder={COPY.hostLogin.emailPlaceholder}
               placeholderTextColor={colors.mutedForeground}
               keyboardType="email-address"
               autoCapitalize="none"

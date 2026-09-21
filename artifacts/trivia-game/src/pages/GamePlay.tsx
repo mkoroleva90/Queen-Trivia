@@ -62,6 +62,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { COPY } from "@workspace/copy";
+import { QuizCompleteModal } from "@/components/game/QuizCompleteModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -282,7 +283,7 @@ export function MultipleChoiceQuestion({
                 bg="#ff0080"
                 color="#ffffff"
               >
-                Confirm: {selected}
+                {COPY.gameplay.confirmSelected(selected)}
               </ActionBtn>
             </motion.div>
           )}
@@ -395,7 +396,7 @@ export function MultiSelectQuestion({
                 bg="#ff0080"
                 color="#ffffff"
               >
-                Confirm {selected.length} selection{selected.length !== 1 ? "s" : ""}
+                {COPY.gameplay.confirmSelections(selected.length)}
               </ActionBtn>
             </motion.div>
           )}
@@ -633,7 +634,7 @@ export function TrueFalseQuestion({
               {val === "true" ? "T" : "F"}
             </span>
             <span className="flex-1 font-semibold text-[15px]">
-              {val === "true" ? "True" : "False"}
+              {val === "true" ? COPY.gameplay.tfTrue : COPY.gameplay.tfFalse}
             </span>
             {trailing}
           </motion.button>
@@ -652,7 +653,7 @@ export function TrueFalseQuestion({
                 bg="#ff0080"
                 color="#ffffff"
               >
-                Confirm: {selected === "true" ? "True" : "False"}
+                {COPY.gameplay.confirmSelected(selected === "true" ? COPY.gameplay.tfTrue : COPY.gameplay.tfFalse)}
               </ActionBtn>
             </motion.div>
           )}
@@ -723,7 +724,7 @@ export function ImageQuestion({
           animate={{ opacity: 1, scale: 1 }}
           className="overflow-hidden rounded-xl border border-border/50 bg-background/60"
         >
-          <img src={imageUrl} alt="Identify this"
+          <img src={imageUrl} alt={COPY.gameplay.imageAlt}
             className="w-full max-h-80 object-contain" />
           {imageAttribution && (
             <p className="px-3 pb-2 pt-1 text-[11px] leading-snug text-muted-foreground">
@@ -806,7 +807,7 @@ export function ImageHotspotQuestion({
       >
         <img
           src={imageUrl}
-          alt="Tap the correct location"
+          alt={COPY.gameplay.hotspotImageAlt}
           className="w-full block"
           style={{ maxHeight: 320, objectFit: "contain", display: "block" }}
           draggable={false}
@@ -908,7 +909,7 @@ export function ShortResponseQuestion({
           <textarea
             value={val}
             onChange={(e) => setVal(e.target.value)}
-            placeholder="Write your answer…"
+            placeholder={COPY.gameplay.answerPlaceholderMultiline}
             rows={3}
             disabled={disabled}
             autoFocus
@@ -1014,7 +1015,7 @@ export function SliderQuestion({
           bg="#ffe500"
           color="#0a0510"
         >
-          Lock in {fmtVal(value)} →
+          {COPY.gameplay.submitValue(fmtVal(value), "")}
         </ActionBtn>
       )}
     </div>
@@ -1022,12 +1023,30 @@ export function SliderQuestion({
 }
 
 // ─── Matching board (unchanged logic, refreshed style) ────────────────────────
+/** Deterministic Fisher–Yates shuffle so the order is stable across re-renders. */
+function seededShuffle<T>(items: T[], seed: number): T[] {
+  const out = [...items];
+  let x = (seed * 9301 + 49297) % 233280 || 1;
+  for (let i = out.length - 1; i > 0; i--) {
+    x = (x * 9301 + 49297) % 233280;
+    const j = Math.floor((x / 233280) * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
+}
+
 export function MatchingBoard({
-  question, onSubmit, disabled,
+  question, onSubmit, disabled, shuffleRight = false,
 }: {
   question: Question;
   onSubmit: (a: string) => void;
   disabled: boolean;
+  /**
+   * Shuffle the right-hand options. Players get server-shuffled columns; the
+   * host's play-along card receives the unredacted pairs in grading order and
+   * must shuffle them locally so the i-th option does not answer the i-th item.
+   */
+  shuffleRight?: boolean;
 }) {
   const { leftItems, rightItems } = useMemo(() => {
     const opts = question.options as {
@@ -1036,11 +1055,12 @@ export function MatchingBoard({
       rightItems?: string[];
     } | null;
     const pairs = opts?.pairs ?? [];
+    const rights = opts?.rightItems ?? pairs.map((pair) => pair.right);
     return {
       leftItems: opts?.leftItems ?? pairs.map((pair) => pair.left),
-      rightItems: opts?.rightItems ?? pairs.map((pair) => pair.right),
+      rightItems: shuffleRight ? seededShuffle(rights, question.id) : rights,
     };
-  }, [question.options]);
+  }, [question.options, question.id, shuffleRight]);
 
   const [choices, setChoices] = useState<Record<string, string>>({});
   const allChosen = leftItems.length > 0 && leftItems.every((left) => choices[left]);
@@ -1075,7 +1095,7 @@ export function MatchingBoard({
             <SelectTrigger
               className={`flex-1 ${choices[left] ? "border-secondary/50 bg-secondary/5" : ""}`}
             >
-              <SelectValue placeholder="Match with…" />
+              <SelectValue placeholder={COPY.gameplay.matchWithPlaceholder} />
             </SelectTrigger>
             <SelectContent>
               {rightItems.map((r) => (
@@ -1129,6 +1149,9 @@ export default function GamePlay() {
   const [skipConfirm, setSkipConfirm] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [kicked, setKicked] = useState(false);
+  // Shown once after the last question is answered (matches mobile).
+  const [completionModalVisible, setCompletionModalVisible] = useState(false);
+  const completionAlertShownRef = useRef(false);
 
   useGameSocket(gameId || null, {
     onAnswerSubmitted: ({ playerName }) => {
@@ -1147,20 +1170,40 @@ export default function GamePlay() {
     },
   });
 
+  // Web shares one cookie session between host and player. A host who joins
+  // their own game must still get the redacted PLAYER payload mid-game, so
+  // every request from this screen is marked as a player request (mobile
+  // achieves the same with a separate player token).
+  const playerRequest = useMemo(() => ({ headers: { "X-Trivia-Role": "player" } }), []);
+
+  // Poll the game status as a fallback for a missed game:ended socket event,
+  // matching the mobile player screen.
   const { data: game, isError: gameLoadError, error: gameError } = useGetGame(gameId, {
-    query: { enabled: !!gameId, queryKey: getGetGameQueryKey(gameId) },
+    query: { enabled: !!gameId, queryKey: getGetGameQueryKey(gameId), refetchInterval: 10000 },
+    request: playerRequest,
   });
   const { data: questions, isError: questionsLoadError, error: questionsError } = useListGameQuestions(gameId, {
     query: { enabled: !!gameId, queryKey: getListGameQuestionsQueryKey(gameId), refetchInterval: 10000 },
+    request: playerRequest,
   });
   const { data: myAnswers } = useListUserAnswers(gameId, userId, {
     query: { enabled: !!gameId && !!userId, queryKey: getListUserAnswersQueryKey(gameId, userId) },
+    request: playerRequest,
   });
   const { data: participants } = useListGameParticipants(gameId, {
     query: { enabled: !!gameId, queryKey: getListGameParticipantsQueryKey(gameId), refetchInterval: 5000 },
+    request: playerRequest,
   });
 
   const submitAnswer = useSubmitAnswer();
+
+  // Poll fallback: if the game finished while the socket was disconnected,
+  // the status poll above notices and moves the player on (matches mobile).
+  useEffect(() => {
+    if (game?.status === "completed") {
+      setLocation(`/results/${gameId}`);
+    }
+  }, [game?.status, gameId, setLocation]);
 
   // Parity with mobile B3: surface load errors so the player is never stranded.
   const hasLoadError = gameLoadError || questionsLoadError;
@@ -1262,6 +1305,10 @@ export default function GamePlay() {
             feedback: (res as typeof res & { feedback?: string }).feedback,
           };
           setFeedbackById((prev) => ({ ...prev, [question.id]: result }));
+          if (question.orderIndex === total - 1 && !completionAlertShownRef.current) {
+            completionAlertShownRef.current = true;
+            setCompletionModalVisible(true);
+          }
           setLockedAnswerById((prev) => ({ ...prev, [question.id]: userAnswer })); // store for inline reveal
           // Pin the view: the default view follows the first unanswered
           // question, so without this the refetched answer rows would move
@@ -1382,13 +1429,18 @@ export default function GamePlay() {
             {/* Back button + topic centre + report row */}
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setLocation("/")}
+                onClick={() => {
+                  // Confirm before leaving mid-game while questions are still open (matches mobile).
+                  const unanswered = game?.status === "active" && total > 0 && answeredCount < total;
+                  if (unanswered && !window.confirm(`${COPY.gameplay.leaveTitle}\n\n${COPY.gameplay.leaveBody}`)) return;
+                  setLocation("/");
+                }}
                 className="flex items-center justify-center shrink-0"
                 style={{
                   width: 36, height: 36, borderRadius: "50%",
                   background: "rgba(255,255,255,.08)", border: "none", cursor: "pointer",
                 }}
-                aria-label="Back to lobby"
+                aria-label={COPY.results.backToLobby}
               >
                 <ArrowLeft className="h-5 w-5 text-white" />
               </button>
@@ -1488,7 +1540,7 @@ export default function GamePlay() {
                     borderRadius: 8, padding: "5px 10px",
                   }}
                 >
-                  {current.points} PTS
+                  {COPY.gameplay.ptsLine(current.points)}
                 </span>
               </div>
             )}
@@ -1528,9 +1580,9 @@ export default function GamePlay() {
                     style={{ background: "rgba(255,255,255,.04)", border: "1px dashed rgba(255,255,255,.1)" }}
                   >
                     <Sparkles className="mx-auto h-12 w-12" style={{ color: "rgba(255,0,128,.5)" }} />
-                    <h3 className="text-2xl font-bold">Questions loading soon</h3>
+                    <h3 className="text-2xl font-bold">{COPY.gameplay.noQuestionsTitle}</h3>
                     <p className="text-muted-foreground max-w-md mx-auto text-sm">
-                      The host hasn't added questions yet — this page checks automatically.
+                      {COPY.gameplay.noQuestionsBody}
                     </p>
                   </div>
                 </motion.div>
@@ -1606,7 +1658,7 @@ export default function GamePlay() {
                             {lockedAnswer === ""
                               ? COPY.results.unanswered
                               : viewFeedback.isCorrect ? COPY.gameplay.feedbackCorrect : COPY.gameplay.feedbackWrong}{" "}
-                            {viewFeedback.pointsEarned > 0 ? `+${viewFeedback.pointsEarned}` : "0"} pts
+                            {COPY.gameplay.feedbackPointsLine(viewFeedback.pointsEarned)}
                           </span>
                           {viewFeedback.timeTaken !== undefined && (
                             <>
@@ -1629,7 +1681,7 @@ export default function GamePlay() {
                                 rel="noopener noreferrer"
                                 className="text-xs text-muted-foreground hover:text-secondary underline underline-offset-2"
                               >
-                                Source ↗
+                                {COPY.gameplay.sourceLink}
                               </a>
                             </>
                           )}
@@ -1702,10 +1754,9 @@ export default function GamePlay() {
                     <div>
                       <h2 className="text-3xl font-extrabold text-white">{COPY.gameplay.allDoneTitle}</h2>
                       <p className="text-lg mt-2">
-                        You finished with{" "}
-                        <span className="font-bold text-accent">{myScore} points</span>
+                        <span className="font-bold text-accent">{COPY.gameplay.allDoneScore(myScore)}</span>
                         {myRank > 0 && (
-                          <span className="text-muted-foreground"> · Rank #{myRank}</span>
+                          <span className="text-muted-foreground">{COPY.gameplay.allDoneRank(myRank)}</span>
                         )}
                       </p>
                       <p className="text-muted-foreground text-sm mt-2 max-w-xs mx-auto">
@@ -1806,12 +1857,12 @@ export default function GamePlay() {
             >
               <div className="px-5 py-4 border-b border-white/10">
                 <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                  <Trophy className="h-4 w-4 text-accent" /> Live Leaderboard
+                  <Trophy className="h-4 w-4 text-accent" /> {COPY.liveResults.standingsLabel}
                 </p>
               </div>
               <div className="px-4 py-3 space-y-1">
                 {sortedParticipants.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-4 text-center">No players yet.</p>
+                  <p className="text-sm text-muted-foreground py-4 text-center">{COPY.liveResults.noPlayers}</p>
                 ) : (
                   sortedParticipants.map((p, i) => {
                     const isMe = p.userId === userId;
@@ -1836,7 +1887,7 @@ export default function GamePlay() {
                         </span>
                         <span className="flex-1 min-w-0 truncate text-sm font-medium" style={{ color: isMe ? "#ffe500" : undefined }}>
                           {p.userName}
-                          {isMe && <span className="text-[10px] ml-1 opacity-70">(you)</span>}
+                          {isMe && <span className="text-[10px] ml-1 opacity-70">{COPY.results.youTag}</span>}
                         </span>
                         <span
                           className="font-bold tabular-nums text-sm shrink-0"
@@ -1854,6 +1905,7 @@ export default function GamePlay() {
 
         </div>
       </div>
+      <QuizCompleteModal open={completionModalVisible} onDismiss={() => setCompletionModalVisible(false)} />
       {reportOpen && (
         <ReportDialog
           gameId={gameId}

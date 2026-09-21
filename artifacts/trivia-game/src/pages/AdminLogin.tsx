@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Loader2, AlertCircle, ArrowLeft } from "lucide-react";
+import { Shield, Loader2, AlertCircle, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { COPY } from "@workspace/copy";
 
 /** Public Google OAuth web client ID, provided at build time. */
@@ -43,9 +43,13 @@ function loadScript(src: string): Promise<void> {
 export default function AdminLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [pending, setPending] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendMsg, setResendMsg] = useState("");
   const { loginAdmin } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -158,11 +162,12 @@ export default function AdminLogin() {
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !password) {
-      setEmailError(COPY.hostLogin.error.enterBoth);
-      return;
-    }
+    // Same checks, same order, same messages as mobile.
+    if (!email.trim()) { setEmailError(COPY.hostLogin.error.enterEmail); return; }
+    if (!password) { setEmailError(COPY.hostLogin.error.enterPassword); return; }
     setEmailError("");
+    setNeedsVerification(false);
+    setResendMsg("");
     setPending(true);
     try {
       const res = await fetch("/api/auth/email/login", {
@@ -174,6 +179,7 @@ export default function AdminLogin() {
 
       if (res.status === 403) {
         setEmailError(COPY.hostLogin.error.verifyEmail);
+        setNeedsVerification(true);
         return;
       }
       if (res.status === 401) {
@@ -194,6 +200,30 @@ export default function AdminLogin() {
     }
   };
 
+
+  // Re-sends the verification link for an unverified account (403 on login).
+  const handleResendVerification = async () => {
+    if (resending) return;
+    setResendMsg("");
+    setResending(true);
+    try {
+      const res = await fetch("/api/auth/email/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+      if (res.status === 503) {
+        setEmailError(COPY.hostForgotPassword.error.emailServiceDown);
+        return;
+      }
+      setResendMsg(COPY.hostLogin.verificationResent);
+    } catch {
+      setEmailError(COPY.hostLogin.error.connectionError);
+    } finally {
+      setResending(false);
+    }
+  };
 
   return (
     <div className="min-h-[100dvh] flex flex-col items-center justify-center p-4">
@@ -234,24 +264,47 @@ export default function AdminLogin() {
                     emailError ? "border-destructive focus-visible:ring-destructive" : ""
                   }`}
                 />
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    setEmailError("");
-                  }}
-                  placeholder={COPY.hostLogin.passwordPlaceholder}
-                  autoComplete="current-password"
-                  aria-invalid={!!emailError}
-                  className={`h-12 bg-background border-primary/30 focus-visible:ring-primary ${
-                    emailError ? "border-destructive focus-visible:ring-destructive" : ""
-                  }`}
-                />
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setEmailError("");
+                    }}
+                    placeholder={COPY.hostLogin.passwordPlaceholder}
+                    autoComplete="current-password"
+                    aria-invalid={!!emailError}
+                    className={`h-12 pr-11 bg-background border-primary/30 focus-visible:ring-primary ${
+                      emailError ? "border-destructive focus-visible:ring-destructive" : ""
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? COPY.hostLogin.hidePassword : COPY.hostLogin.showPassword}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
                 {emailError && (
                   <p className="flex items-center gap-1.5 text-sm text-destructive">
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     {emailError}
+                  </p>
+                )}
+                {needsVerification && (
+                  <p className="text-sm">
+                    <button
+                      type="button"
+                      className="text-primary hover:underline disabled:opacity-60"
+                      onClick={handleResendVerification}
+                      disabled={resending}
+                    >
+                      {resending ? COPY.hostRegister.verify.resending : COPY.hostLogin.resendVerification}
+                    </button>
+                    {resendMsg && <span className="ml-2 text-muted-foreground">{resendMsg}</span>}
                   </p>
                 )}
               </div>
@@ -346,6 +399,11 @@ export default function AdminLogin() {
             <ArrowLeft className="h-4 w-4" />
             {COPY.hostLogin.backToPlayer}
           </Link>
+          <p className="text-xs text-muted-foreground">
+            <Link href="/terms" className="hover:text-foreground underline underline-offset-2">{COPY.footer.termsOfService}</Link>
+            {" · "}
+            <Link href="/privacy" className="hover:text-foreground underline underline-offset-2">{COPY.footer.privacyPolicy}</Link>
+          </p>
           <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
             <Link href="/register" className="hover:text-foreground transition-colors">
               {COPY.hostLogin.createAccount}

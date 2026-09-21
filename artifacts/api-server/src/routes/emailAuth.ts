@@ -388,7 +388,18 @@ router.post(
       adminEmail: account.email,
     });
 
-    res.json({ ok: true, message: "Password updated. You can now log in." });
+    // Establish a fresh admin session so the host lands in their games signed
+    // in, matching the mobile reset flow (which returns a Bearer token).
+    req.session.regenerate((err) => {
+      if (err) {
+        res.status(500).json({ error: "Failed to establish session" });
+        return;
+      }
+      req.session.isAdmin = true;
+      req.session.adminEmail = account.email;
+      req.session.adminAccountId = account.id;
+      res.json({ ok: true, message: "Password updated. You are now logged in." });
+    });
   }
 );
 
@@ -723,6 +734,51 @@ router.post(
         await sendVerificationCodeEmail(normalised, code);
       } catch (err) {
         logger.error({ err }, "Verification code email delivery failed");
+      }
+    }
+
+    res.json(genericOk);
+  }
+);
+
+// POST /api/auth/email/resend-verification
+// Web variant of mobile-resend-code: re-issues a fresh verification LINK for an
+// unverified account and emails it. Always responds generically (no enumeration).
+router.post(
+  "/auth/email/resend-verification",
+  authRateLimit,
+  async (req, res): Promise<void> => {
+    // Same body shape as the mobile resend-code endpoint ({ email }).
+    const parsed = MobileResendCodeBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid request" });
+      return;
+    }
+
+    const normalised = parsed.data.email.toLowerCase().trim();
+    const genericOk = { ok: true, message: "If that address needs verifying, a new link is on its way." };
+
+    const [account] = await db
+      .select({ id: adminAccountsTable.id, emailVerified: adminAccountsTable.emailVerified })
+      .from(adminAccountsTable)
+      .where(eq(adminAccountsTable.email, normalised))
+      .limit(1);
+
+    if (account && !account.emailVerified) {
+      const token = generateToken();
+      const tokenHash = hashToken(token);
+      const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 h
+
+      await db
+        .update(adminAccountsTable)
+        .set({ verificationTokenHash: tokenHash, verificationTokenExpiry: expiry })
+        .where(eq(adminAccountsTable.id, account.id));
+
+      const verifyUrl = `${appBaseUrl(req)}/verify-email?token=${token}`;
+      try {
+        await sendVerificationEmail(normalised, verifyUrl);
+      } catch (err) {
+        logger.error({ err }, "Verification email delivery failed");
       }
     }
 

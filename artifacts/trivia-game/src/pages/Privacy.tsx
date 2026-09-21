@@ -10,7 +10,7 @@ export default function Privacy() {
           <Link href="/">
             <button className="flex items-center gap-2 text-[#9aa6bc] hover:text-white transition-colors text-sm">
               <ArrowLeft className="w-4 h-4" />
-              Back
+              {COPY.common.back}
             </button>
           </Link>
         </div>
