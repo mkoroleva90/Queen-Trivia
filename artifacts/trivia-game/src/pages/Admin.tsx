@@ -1395,12 +1395,20 @@ return (
 // ─── QuestionManager──────────────────────────────────────────────────────────
 
 
-function QuestionManager({ game }: { game: Game }) {
+function QuestionManager({ game, autoOpenAdd, onAutoOpened }: { game: Game; autoOpenAdd?: boolean; onAutoOpened?: () => void }) {
     const { toast } = useToast();
 const queryClient = useQueryClient();
 const [dialogOpen, setDialogOpen] = useState(false);
 const [editing, setEditing] = useState<Question | null>(null);
 const [localOrder, setLocalOrder] = useState<Question[]>([]);
+
+// A quiz the host chose to write from scratch opens straight on a blank question.
+useEffect(() => {
+ if (!autoOpenAdd) return;
+ setEditing(null);
+ setDialogOpen(true);
+ onAutoOpened?.();
+}, [autoOpenAdd, game.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
 const { data: questions } = useListGameQuestions(game.id, {
@@ -1682,7 +1690,7 @@ const createGameSuccessVariants = {
   visible: { opacity: 1, scale: 1 },
 };
 
-function CreateGameSection({ onCreated, onGoLive, onExit }: { onCreated: (game: Game) => void; onGoLive?: (game: Game) => void; onExit?: () => void }) {
+function CreateGameSection({ onCreated, onGoLive, onExit }: { onCreated: (game: Game, opts?: { addQuestion?: boolean }) => void; onGoLive?: (game: Game) => void; onExit?: () => void }) {
     const [categoryId, setCategoryId] = useState<string>("9");
     const [customTopic, setCustomTopic] = useState("");
     const [difficulty, setDifficulty] = useState<Game["difficulty"]>("medium");
@@ -1732,17 +1740,18 @@ const parseGeminiRateError = (err: unknown): { isDaily: boolean; isPerMinute: bo
  return { isDaily, isPerMinute, countdown };
 };
 const isCustom = categoryId === "custom";
+const isManual = categoryId === "manual";
 const selectedCategory = OPENTDB_CATEGORIES.find((c) => String(c.id) === categoryId);
-const topicName = isCustom ? customTopic.trim() : (selectedCategory?.name ?? "");
+const topicName = isCustom || isManual ? customTopic.trim() : (selectedCategory?.name ?? "");
  const canSubmit =
   topicName.length > 0
   && !createGame.isPending
   && !working
-  && openTdbMode !== null;
+  && (isManual || openTdbMode !== null);
 const handleSubmit = async (e: React.FormEvent) => {
  e.preventDefault();
  if (!canSubmit) return;
-  if (openTdbMode === null) return;
+  if (!isManual && openTdbMode === null) return;
 
 
  let game: Game;
@@ -1750,7 +1759,9 @@ const handleSubmit = async (e: React.FormEvent) => {
       setWorkingLabel(COPY.build.working.creating);
       setWorking(true);
       game = await createGame.mutateAsync({
-       data: { topic: topicName, difficulty, createdByAdmin: true, brief: brief.trim() || null },
+       data: isManual
+        ? { topic: topicName, difficulty: "medium", createdByAdmin: true }
+        : { topic: topicName, difficulty, createdByAdmin: true, brief: brief.trim() || null },
       });
       queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
@@ -1766,6 +1777,15 @@ const handleSubmit = async (e: React.FormEvent) => {
       setWorking(false);
       return;
   }
+
+  // Write-your-own quiz: no import or AI call — open the editor on a blank question.
+  if (isManual) {
+   setWorking(false);
+   onCreated(game, { addQuestion: true });
+   return;
+  }
+  if (openTdbMode === null) { setWorking(false); return; }
+
 
 
   if (!isCustom && selectedCategory && openTdbMode !== null) {
@@ -2135,6 +2155,7 @@ return (
             <SelectValue placeholder={COPY.build.selectCategory} />
            </SelectTrigger>
            <SelectContent>
+      <SelectItem value="manual">{COPY.build.writeOwnOption}</SelectItem>
       <SelectItem value="custom">{COPY.build.customTopicOption}</SelectItem>
      <Separator className="my-1" />
      {OPENTDB_CATEGORIES.map((cat) => (
@@ -2144,16 +2165,16 @@ return (
      ))}
      </SelectContent>
  </Select>
-<p className="text-xs text-muted-foreground mt-1">{isCustom ? COPY.sourceHelper.topic : COPY.sourceHelper.category}</p>
+<p className="text-xs text-muted-foreground mt-1">{isManual ? COPY.sourceHelper.manual : isCustom ? COPY.sourceHelper.topic : COPY.sourceHelper.category}</p>
 </div>
 
- <OpenTdbQuestionMixSelector value={openTdbMode} onSelect={setOpenTdbMode} />
+ {!isManual && <OpenTdbQuestionMixSelector value={openTdbMode} onSelect={setOpenTdbMode} />}
 
 
-{/* Custom topic text input */}
-{isCustom && (
+{/* Custom topic / quiz title text input */}
+{(isCustom || isManual) && (
  <div className="space-y-2">
-     <Label htmlFor="customTopic">{COPY.build.topicLabel}</Label>
+     <Label htmlFor="customTopic">{isManual ? COPY.build.quizTitleLabel : COPY.build.topicLabel}</Label>
      <Input
      id="customTopic"
      value={customTopic}
@@ -2180,7 +2201,7 @@ return (
 )}
 
 
-<div className="grid grid-cols-2 gap-4">
+{!isManual && <div className="grid grid-cols-2 gap-4">
     <div className="space-y-2">
      <Label>{COPY.build.difficultyLabel}</Label>
     <Select value={difficulty} onValueChange={(v) => setDifficulty(v as Game["difficulty"])}>
@@ -2204,7 +2225,7 @@ return (
       </SelectContent>
      </Select>
     </div>
-   </div>
+   </div>}
 
          <Button
           type="submit"
@@ -2213,6 +2234,8 @@ return (
          >
           {createGame.isPending || working ? (
      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {workingLabel || COPY.build.working.default}</>
+          ) : isManual ? (
+              <><Pencil className="mr-2 h-4 w-4" /> {COPY.btn.createGame}</>
           ) : isCustom ? (
               <><Lightbulb className="mr-2 h-4 w-4" /> {COPY.btn.createGame}</>
           ):(
@@ -2227,9 +2250,13 @@ return (
 function QuestionsSection({
  games,
  preferGameId,
+ autoAddGameId,
+ onAutoAddHandled,
 }: {
  games: Game[];
  preferGameId?: number;
+ autoAddGameId?: number | null;
+ onAutoAddHandled?: () => void;
 }) {
  // Show waiting AND active (live) games — completed games have locked question sets.
  const editableGames = games.filter((g) => g.status === "waiting" || g.status === "active");
@@ -2301,7 +2328,7 @@ function QuestionsSection({
 
 
               {selectedGame ? (
-               <QuestionManager game={selectedGame} />
+               <QuestionManager game={selectedGame} autoOpenAdd={autoAddGameId === selectedGame.id} onAutoOpened={onAutoAddHandled} />
               ):(
                <p className="text-sm text-muted-foreground">{COPY.build.selectGameHint}</p>
               )}
@@ -4376,6 +4403,8 @@ function BuildQuizView({
   onNavigate: (section: Section, gameId?: number) => void;
 }) {
   const [subTab, setSubTab] = useState<"setup"|"questions"|"review">("setup");
+  // Game just created through "Write my own questions" — its editor opens on a blank question.
+  const [autoAddGameId, setAutoAddGameId] = useState<number | null>(null);
 
   useEffect(() => {
     if (preferGameId) setSubTab("questions");
@@ -4406,13 +4435,13 @@ function BuildQuizView({
       <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl p-6">
         {subTab === "setup" && (
           <CreateGameSection
-            onCreated={(g) => { setSubTab("questions"); onNavigate("build", g.id); }}
+            onCreated={(g, opts) => { if (opts?.addQuestion) setAutoAddGameId(g.id); setSubTab("questions"); onNavigate("build", g.id); }}
             onGoLive={() => onNavigate("live")}
             onExit={() => onNavigate("games")}
           />
         )}
         {subTab === "questions" && (
-          <QuestionsSection games={games} preferGameId={preferGameId} />
+          <QuestionsSection games={games} preferGameId={preferGameId} autoAddGameId={autoAddGameId} onAutoAddHandled={() => setAutoAddGameId(null)} />
         )}
         {subTab === "review" && (
           <ReviewSection games={games} />

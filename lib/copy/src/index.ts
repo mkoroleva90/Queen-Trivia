@@ -98,6 +98,8 @@ export const COPY = {
     topic:    'Gemini AI generates questions based on this topic.',
     /** Shown under the "Category" field that feeds Open Trivia Database import. */
     category: 'Questions are pulled from Open Trivia Database.',
+    /** Shown under the "Category" field when the host writes every question by hand. */
+    manual:   'Start with a blank quiz and write every question yourself.',
   },
 
   /** Open Trivia Database question-mix selector labels. */
@@ -163,6 +165,9 @@ export const COPY = {
     enterTopic: 'Enter a topic',
     /** Category selector option that switches the source to Gemini AI. Both platforms. */
     customTopicOption: 'Custom topic — Gemini AI generates questions',
+    writeOwnOption: 'Write my own questions',
+    quizTitleLabel: 'Quiz title',
+    enterQuizTitle: 'Enter a quiz title',
     /** Category selector placeholder before a category is chosen. Both platforms. */
     selectCategory: 'Select a category',
     /** Accessibility labels for the Build tab back buttons (mobile). */

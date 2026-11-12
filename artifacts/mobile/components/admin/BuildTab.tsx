@@ -45,7 +45,7 @@ import { API_BASE_URL } from '@/lib/apiBase';
 type Step = 'setup' | 'review';
 type BuildStage = 'runMode' | 'form' | 'joinCode';
 type Difficulty = 'easy' | 'medium' | 'hard';
-type Source = 'ai' | 'opentdb';
+type Source = 'ai' | 'opentdb' | 'manual';
 
 type SetupResult =
   | { type: 'ai'; imported: number; game: Game }
@@ -446,6 +446,31 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
       } else {
         setSetupError(msg);
       }
+    }
+  };
+
+  // Write-your-own quiz: no import or AI call — open the editor on a blank question.
+  const handleCreateManual = async () => {
+    if (!topic.trim()) { setSetupError(COPY.build.enterQuizTitle); return; }
+    setSetupError('');
+    try {
+      const game = await createGame.mutateAsync({
+        data: { topic: topic.trim(), difficulty: 'medium', createdByAdmin: true },
+      });
+      invalidate(game.id);
+      resetSetup();
+      setSource('opentdb');
+      setWorkingGameId(game.id);
+      setShowQuestionReview(true);
+      setStep('review');
+      router.push(`/admin/${game.id}?add=1`);
+    } catch (err) {
+      const msg = extractApiError(err, COPY.build.error.createGame);
+      if (msg.toLowerCase().includes('free plan') || msg.toLowerCase().includes('upgrade')) {
+        setLimitMsg(msg);
+        return;
+      }
+      setSetupError(msg);
     }
   };
 
@@ -865,14 +890,27 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                       }}
                     >
                       <Text style={s.setupSelectText} numberOfLines={1}>
-                        {source === 'ai'
-                          ? COPY.build.customTopicOption
-                          : selectedCategory?.name ?? COPY.build.selectCategory}
+                        {source === 'manual'
+                          ? COPY.build.writeOwnOption
+                          : source === 'ai'
+                            ? COPY.build.customTopicOption
+                            : selectedCategory?.name ?? COPY.build.selectCategory}
                       </Text>
                       <Ionicons name={catOpen ? 'chevron-up' : 'chevron-down'} size={22} color="#8b93a4" />
                     </Pressable>
                     {catOpen && (
                       <View style={s.setupOptions}>
+                        <Pressable
+                          style={[s.setupOption, source === 'manual' && s.setupOptionActive]}
+                          onPress={() => {
+                            setSource('manual');
+                            setSetupError('');
+                            setCatOpen(false);
+                          }}
+                        >
+                          <Text style={s.setupOptionText}>{COPY.build.writeOwnOption}</Text>
+                          {source === 'manual' && <Ionicons name="checkmark" size={18} color="#f5138c" />}
+                        </Pressable>
                         <Pressable
                           style={[s.setupOption, source === 'ai' && s.setupOptionActive]}
                           onPress={() => {
@@ -907,12 +945,30 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                     )}
                   </View>
                   <Text style={s.setupHint}>
-                    {source === 'ai'
-                      ? COPY.sourceHelper.topic
-                      : COPY.sourceHelper.category}
+                    {source === 'manual'
+                      ? COPY.sourceHelper.manual
+                      : source === 'ai'
+                        ? COPY.sourceHelper.topic
+                        : COPY.sourceHelper.category}
                   </Text>
 
-                  <OpenTdbQuestionMixSelector value={openTdbMode} onSelect={setOpenTdbMode} />
+                  {source !== 'manual' && (
+                    <OpenTdbQuestionMixSelector value={openTdbMode} onSelect={setOpenTdbMode} />
+                  )}
+
+                  {/* ── Quiz title (write-your-own) ── */}
+                  {source === 'manual' && (
+                    <>
+                      <Text style={s.setupLabel}>{COPY.build.quizTitleLabel}</Text>
+                      <TextInput
+                        style={[s.setupInput, { borderColor: setupError ? colors.destructive : colors.border }]}
+                        value={topic}
+                        onChangeText={(t) => { setTopic(t); setSetupError(''); }}
+                        placeholder={COPY.build.titlePlaceholder}
+                        placeholderTextColor={colors.mutedForeground}
+                      />
+                    </>
+                  )}
 
                   {/* ── Custom topic fields ── */}
                   {source === 'ai' && (
@@ -941,7 +997,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                     </>
                   )}
 
-                  <View style={s.setupSplitRow}>
+                  {source !== 'manual' && <View style={s.setupSplitRow}>
                     <View style={s.setupHalfField}>
                       <Text style={s.setupLabel}>{COPY.build.difficultyLabel}</Text>
                       <Pressable
@@ -1001,7 +1057,7 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                         </View>
                       )}
                     </View>
-                  </View>
+                  </View>}
 
                   {!!setupError && (
                     <Text style={[s.errorText, { color: colors.destructive }]}>{setupError}</Text>
@@ -1011,12 +1067,12 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                     style={[s.setupSaveBtn, {
                       opacity: setupWorking
                         ? 0.75
-                        : openTdbMode === null
+                        : (source === 'manual' ? !topic.trim() : openTdbMode === null)
                           ? 0.4
                           : 1,
                     }]}
-                    onPress={source === 'ai' ? handleCreateAI : handleCreateOpenTdb}
-                    disabled={setupWorking || openTdbMode === null}
+                    onPress={source === 'manual' ? handleCreateManual : source === 'ai' ? handleCreateAI : handleCreateOpenTdb}
+                    disabled={setupWorking || (source === 'manual' ? !topic.trim() : openTdbMode === null)}
                   >
                     {setupWorking ? (
                       <View style={s.btnRow}>
@@ -1025,8 +1081,8 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                       </View>
                     ) : (
                       <View style={s.btnRow}>
-                        <Ionicons name={source === 'ai' ? 'sparkles' : 'cloud-download-outline'} size={19} color="#fff" />
-                        <Text style={s.setupSaveBtnText}>{source === 'ai' ? COPY.btn.createGame : COPY.btn.saveGame}</Text>
+                        <Ionicons name={source === 'manual' ? 'pencil' : source === 'ai' ? 'sparkles' : 'cloud-download-outline'} size={19} color="#fff" />
+                        <Text style={s.setupSaveBtnText}>{source === 'opentdb' ? COPY.btn.saveGame : COPY.btn.createGame}</Text>
                       </View>
                     )}
                   </Pressable>

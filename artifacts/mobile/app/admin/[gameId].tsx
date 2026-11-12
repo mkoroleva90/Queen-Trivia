@@ -1864,10 +1864,11 @@ export default function GameDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const qc = useQueryClient();
-  const { gameId: gameIdStr } = useLocalSearchParams<{ gameId: string }>();
+  const { gameId: gameIdStr, add: addParam } = useLocalSearchParams<{ gameId: string; add?: string }>();
   const gameId = parseInt(gameIdStr ?? '', 10);
 
-  const [formOpen, setFormOpen] = useState(false);
+  // `?add=1` (a quiz the host chose to write from scratch) opens straight on a blank question.
+  const [formOpen, setFormOpen] = useState(addParam === '1');
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [editingTopic, setEditingTopic] = useState(false);
   const [topicInput, setTopicInput] = useState('');
