@@ -178,6 +178,39 @@ export type AnswerRow = {
   isCorrect: boolean;
 };
 
+/** One player's submitted answer, as the host-only stats endpoint returns it. */
+export type PlayerAnswer = {
+  playerName: string;
+  answer: string;
+  isCorrect: boolean;
+};
+
+/**
+ * The answer distribution for one question. Built from the per-player answers
+ * when the snapshot carries them (complete, never truncated); otherwise the
+ * server's pre-aggregated `answerBreakdown` is used as is.
+ */
+export function breakdownFor(
+  stat: { answerBreakdown?: AnswerBreakdownEntry[]; playerAnswers?: PlayerAnswer[] } | undefined,
+): AnswerBreakdownEntry[] | undefined {
+  if (!stat?.playerAnswers) return stat?.answerBreakdown;
+  const byAnswer = new Map<string, AnswerBreakdownEntry>();
+  for (const p of stat.playerAnswers) {
+    const key = `${p.isCorrect ? 1 : 0}:${p.answer}`;
+    const entry = byAnswer.get(key);
+    if (entry) entry.count += 1;
+    else byAnswer.set(key, { answer: p.answer, count: 1, isCorrect: p.isCorrect });
+  }
+  return [...byAnswer.values()];
+}
+
+/** Multi-select answers are stored as the picked choices joined with "|". */
+function splitPicks(answer: string): string[] {
+  return answer.split("|").map((v) => v.trim()).filter(Boolean);
+}
+
+const sameChoice = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase();
+
 /** Question types whose answer is exactly one of a fixed list of choices. */
 const CHOICE_QUESTION_TYPES = new Set(["multiple_choice", "true_false", "image_recognition"]);
 
@@ -189,6 +222,9 @@ const CHOICE_QUESTION_TYPES = new Set(["multiple_choice", "true_false", "image_r
  *   `["true", "false"]`). For these types every choice is a row, the count
  *   coming from the breakdown, and the correct one is flagged by comparing
  *   with `correctAnswer`.
+ * - Multi-select questions also list every choice: each row counts the
+ *   players whose submission includes that choice, so one player adds to
+ *   several rows, and every choice in `correctAnswer` is flagged.
  * - For every other type the breakdown entries themselves are the rows,
  *   ordered by count, capped at `limit`.
  */
@@ -198,6 +234,27 @@ export function buildAnswerRows(
   limit = 6,
 ): AnswerRow[] {
   const entries = breakdown ?? [];
+  if (question.questionType === "multi_select") {
+    const choices = choicesFor(question);
+    if (choices.length > 0) {
+      const correctPicks = splitPicks(question.correctAnswer ?? "");
+      const rows: AnswerRow[] = choices.map((choice) => ({
+        answer: choice,
+        label: choice,
+        count: 0,
+        isCorrect: correctPicks.some((c) => sameChoice(c, choice)),
+      }));
+      for (const e of entries) {
+        for (const pick of splitPicks(e.answer)) {
+          const row = rows.find((r) => sameChoice(r.answer, pick));
+          if (row) row.count += e.count;
+          // A pick outside the choice list (legacy data) still deserves a row.
+          else rows.push({ answer: pick, label: pick, count: e.count, isCorrect: correctPicks.some((c) => sameChoice(c, pick)) });
+        }
+      }
+      return rows;
+    }
+  }
   if (CHOICE_QUESTION_TYPES.has(question.questionType)) {
     const choices = choicesFor(question);
     if (choices.length > 0) {
@@ -240,4 +297,66 @@ function choicesFor(question: { questionType: string; options?: unknown }): stri
     if (Array.isArray(choices)) return choices.filter((c): c is string => typeof c === "string");
   }
   return [];
+}
+
+// ─── Per-player answers ─────────────────────────────────────────────────────
+//
+// The host's live results also list, per question, what each player submitted.
+// Both platforms build the rows through these helpers so the content matches.
+
+export type PlayerAnswerRow = {
+  playerName: string;
+  /** Display form of the submitted answer; null while the player has not answered. */
+  label: string | null;
+  isCorrect: boolean;
+};
+
+/** A stored answer in the form the host reads it. */
+export function formatPlayerAnswer(questionType: string, answer: string): string {
+  if (questionType === "multi_select") {
+    const picks = splitPicks(answer);
+    if (picks.length > 0) return picks.join(" · ");
+  }
+  if (questionType === "ordering") {
+    const items = splitPicks(answer);
+    if (items.length > 1) return items.map((item, i) => `${i + 1}. ${item}`).join("  ");
+  }
+  if (questionType === "matching") {
+    const pairs = splitPicks(answer).map((pair) => {
+      const separator = pair.indexOf(":");
+      return separator > 0 ? `${pair.slice(0, separator).trim()} → ${pair.slice(separator + 1).trim()}` : pair;
+    });
+    if (pairs.length > 0) return pairs.join("  ·  ");
+  }
+  if (questionType === "image_hotspot") {
+    const parts = answer.split(",").map((v) => parseFloat(v));
+    if (parts.length === 2 && parts.every((n) => Number.isFinite(n))) {
+      return `X: ${parts[0]!.toFixed(1)}%, Y: ${parts[1]!.toFixed(1)}%`;
+    }
+  }
+  return labelFor(questionType, answer);
+}
+
+/**
+ * One row per player for a question: players who answered come first, in the
+ * order they answered, followed by everyone in `playerNames` still to answer.
+ */
+export function buildPlayerAnswerRows(
+  questionType: string,
+  playerAnswers: PlayerAnswer[] | undefined,
+  playerNames: string[],
+): PlayerAnswerRow[] {
+  const rows: PlayerAnswerRow[] = [];
+  const seen = new Set<string>();
+  for (const p of playerAnswers ?? []) {
+    if (seen.has(p.playerName)) continue;
+    seen.add(p.playerName);
+    rows.push({ playerName: p.playerName, label: formatPlayerAnswer(questionType, p.answer), isCorrect: p.isCorrect });
+  }
+  for (const name of playerNames) {
+    if (seen.has(name)) continue;
+    seen.add(name);
+    rows.push({ playerName: name, label: null, isCorrect: false });
+  }
+  return rows;
 }

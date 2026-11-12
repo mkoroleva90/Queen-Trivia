@@ -10,9 +10,13 @@ import {
   applySeed,
   resetTallyStore,
   buildAnswerRows,
+  breakdownFor,
+  buildPlayerAnswerRows,
   type TallyStore,
   type AnswerBreakdownEntry,
   type AnswerRow,
+  type PlayerAnswer,
+  type PlayerAnswerRow,
 } from "@workspace/live-tally";
 import { COPY } from "@workspace/copy";
 import { QuestionBreakdown } from "@/components/admin/QuestionBreakdown";
@@ -2927,6 +2931,7 @@ type LiveQuestionStat = {
   percentCorrect: number | null;
   answeredBy?: string[];
   answerBreakdown?: AnswerBreakdownEntry[];
+  playerAnswers?: PlayerAnswer[];
 };
 
 // ─── Live results (host-only live view; mirrors mobile app/admin/live) ────────
@@ -2977,6 +2982,52 @@ function LiveAnswerRows({ rows, totalAnswered, size, revealed }: { rows: AnswerR
   );
 }
 
+// What each player submitted for one question, behind a per-question toggle
+// (mirrors the mobile live screen). Rows come from buildPlayerAnswerRows:
+// players who answered first, then everyone still to answer. Right / wrong
+// marks appear only once the host has revealed the answer.
+function LivePlayerAnswers({ rows, revealed }: { rows: PlayerAnswerRow[]; revealed: boolean }) {
+  const [open, setOpen] = useState(false);
+  if (rows.length === 0) return null;
+  return (
+    <div className="pt-1">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex items-center gap-1.5 text-[11px] font-bold text-[#00ddff] hover:brightness-110 transition"
+      >
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+        {COPY.liveResults.playerAnswersLabel}
+      </button>
+      {open && (
+        <ul className="mt-2 divide-y divide-[#1b2740] rounded-xl border border-[#1b2740] bg-white/[.02]">
+          {rows.map((r) => {
+            const answered = r.label !== null;
+            const marked = revealed && answered;
+            return (
+              <li key={r.playerName} className="flex items-start gap-3 px-3 py-2">
+                <span className="w-[38%] shrink-0 truncate text-[13px] font-semibold text-[#eef2f8]">{r.playerName}</span>
+                <span className={`flex-1 min-w-0 break-words text-[13px] ${answered ? "text-[#c9d1e0]" : "italic text-[#66728a]"}`}>
+                  {r.label ?? COPY.liveResults.notAnsweredYet}
+                </span>
+                {marked && (
+                  <span
+                    className={`shrink-0 text-[13px] font-extrabold ${r.isCorrect ? "text-[#35d07f]" : "text-[#ff6b6b]"}`}
+                    aria-label={r.isCorrect ? COPY.liveResults.playerCorrectLabel : COPY.liveResults.playerIncorrectLabel}
+                  >
+                    {r.isCorrect ? "✓" : "✕"}
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // Per-question toggle that reveals or hides the correct answer in the live breakdown.
 function RevealAnswerButton({ revealed, onToggle, size }: { revealed: boolean; onToggle: () => void; size: "lg" | "sm" }) {
   return (
@@ -3001,12 +3052,14 @@ function LiveResultsBreakdown({
   questions,
   statById,
   totalPlayers,
+  playerNames,
   revealedIds,
   onToggleReveal,
 }: {
   questions: Question[];
   statById: Map<number, LiveQuestionStat>;
   totalPlayers: number;
+  playerNames: string[];
   revealedIds: Set<number>;
   onToggleReveal: (questionId: number) => void;
 }) {
@@ -3024,6 +3077,7 @@ function LiveResultsBreakdown({
           const correct = st?.correctCount ?? 0;
           const pct = st?.percentCorrect ?? (answered > 0 ? Math.round((correct / answered) * 100) : 0);
           const revealed = revealedIds.has(q.id);
+          const progress = totalPlayers > 0 ? Math.min(100, Math.round((answered / totalPlayers) * 100)) : 0;
           return (
             <div key={q.id} className="rounded-xl border border-[#1b2740] bg-white/[.02] px-4 py-3 space-y-2">
               <div className="flex items-center gap-3 flex-wrap">
@@ -3037,11 +3091,15 @@ function LiveResultsBreakdown({
                 </span>
               </div>
               <p className="text-[13px] font-semibold text-[#c9d1e0] leading-snug line-clamp-2">{q.questionText}</p>
+              <div className="h-[3px] rounded-full bg-white/10 overflow-hidden">
+                <div className="h-full rounded-full bg-[#00ddff]" style={{ width: `${progress}%` }} />
+              </div>
               {answered > 0 ? (
-                <LiveAnswerRows rows={buildAnswerRows(q, st?.answerBreakdown, 4)} totalAnswered={answered} size="sm" revealed={revealed} />
+                <LiveAnswerRows rows={buildAnswerRows(q, breakdownFor(st), 4)} totalAnswered={answered} size="sm" revealed={revealed} />
               ) : (
                 <p className="text-xs text-[#66728a]">{COPY.liveResults.noAnswersYet}</p>
               )}
+              <LivePlayerAnswers rows={buildPlayerAnswerRows(q.questionType, st?.playerAnswers, playerNames)} revealed={revealed} />
             </div>
           );
         })}
@@ -3794,7 +3852,7 @@ function LiveGameView({
             {!activeGame.hostPlaysAlong && currentQ && (
               <>
                 <LiveAnswerRows
-                  rows={buildAnswerRows(currentQ, liveStatById.get(currentQ.id)?.answerBreakdown)}
+                  rows={buildAnswerRows(currentQ, breakdownFor(liveStatById.get(currentQ.id)))}
                   totalAnswered={liveStatById.get(currentQ.id)?.totalAnswered ?? 0}
                   size="lg"
                   revealed={revealedIds.has(currentQ.id)}
@@ -3906,6 +3964,7 @@ function LiveGameView({
               questions={questions}
               statById={liveStatById}
               totalPlayers={parts.length}
+              playerNames={parts.map((p) => p.userName)}
               revealedIds={revealedIds}
               onToggleReveal={toggleReveal}
             />

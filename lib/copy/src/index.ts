@@ -1982,6 +1982,13 @@ export const COPY = {
     showAnswerBtn:      'Show answer',
     /** The same toggle once the answer is revealed — hides it again. */
     hideAnswerBtn:      'Hide answer',
+    /** Per-question toggle that expands the list of what each player answered. */
+    playerAnswersLabel: 'Player answers',
+    /** Shown next to a player who has not answered the question yet. */
+    notAnsweredYet:     'Not answered yet',
+    /** Screen-reader labels for a player's answer once the correct answer is revealed. */
+    playerCorrectLabel:   'Correct',
+    playerIncorrectLabel: 'Incorrect',
   },
 
   /**
