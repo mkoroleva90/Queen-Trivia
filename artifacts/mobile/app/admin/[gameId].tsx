@@ -1883,6 +1883,7 @@ export default function GameDetailScreen() {
   const { data: games } = useListGames();
   const game = useMemo(() => games?.find((g) => g.id === gameId), [games, gameId]);
   const { data: questions, isLoading } = useListGameQuestions(gameId);
+  const questionsLocked = game?.status === 'active' && !!game?.hostPlaysAlong;
   const createQuestion = useCreateQuestion();
   const updateQuestion = useUpdateQuestion();
   const deleteQuestion = useDeleteQuestion();
@@ -2235,6 +2236,13 @@ export default function GameDetailScreen() {
         </Pressable>
       )}
 
+      {/* A live game the host plays along in keeps its questions hidden and
+          locked until it ends — the host is a player there. */}
+      {questionsLocked ? (
+        <View style={{ padding: 20 }}>
+          <Text style={{ color: colors.mutedForeground, fontSize: 14, lineHeight: 20 }}>{COPY.gameEditor.playAlongLocked}</Text>
+        </View>
+      ) : (<>
       {/* AI Generate + Add row */}
       <View style={[s.toolbarRow, { borderBottomColor: colors.border }]}>
         <Text style={[s.listTitle, { color: colors.foreground }]}>
@@ -2335,6 +2343,7 @@ export default function GameDetailScreen() {
           ListFooterComponent={<View style={{ height: insets.bottom + 24 }} />}
         />
       )}
+      </>)}
 
       {/* Question form modal */}
       <QuestionFormModal

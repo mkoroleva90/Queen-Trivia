@@ -18,6 +18,7 @@ import {
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { requireAuth } from "../middleware/requireAuth.ts";
 import { assertGameOwnership } from "../lib/assertGameOwnership.ts";
+import { assertQuestionsEditable, isLivePlayAlong } from "../lib/playAlongLock.ts";
 import { decodeQuestionFields } from "../lib/decodeHtml.ts";
 import {
   anyContainsBannedContent,
@@ -320,6 +321,7 @@ router.get("/games/:gameId/questions", requireAuth, async (req, res): Promise<vo
     const [game, questions] = await Promise.all([
         db.select({
             status: gamesTable.status,
+            hostPlaysAlong: gamesTable.hostPlaysAlong,
         })
             .from(gamesTable)
             .where(eq(gamesTable.id, params.data.gameId))
@@ -340,7 +342,9 @@ router.get("/games/:gameId/questions", requireAuth, async (req, res): Promise<vo
     const decoded = questions.map(decodeQuestionFields);
     // A host's own player screen (web shares one cookie session) must be
     // treated as a player: see lib/playerContext.ts.
-    const isAdmin = isAdminRequest(req);
+    // A host who plays along in a live game is a player too, whichever screen
+    // asks: they get the redacted player payload until the game ends.
+    const isAdmin = isAdminRequest(req) && !isLivePlayAlong(game);
     // Never pass legacy or otherwise invalid image URLs to player clients.
     // Admins still receive the stored value so they can repair old questions.
     const playerSafeQuestions = decoded.map((question) => ({
@@ -396,6 +400,7 @@ if (!game) {
 }
 
 if (!await assertGameOwnership(req, res, params.data.gameId)) return;
+if (!await assertQuestionsEditable(res, params.data.gameId)) return;
 
  const specialistError = validateSpecialistQuestion(
      parsed.data.questionType,
@@ -473,6 +478,7 @@ router.patch("/questions/:questionId", requireAdmin, async (req, res): Promise<v
  }
 
  if (!await assertGameOwnership(req, res, existing.gameId)) return;
+ if (!await assertQuestionsEditable(res, existing.gameId)) return;
 
   const specialistError = validateSpecialistQuestion(
       parsed.data.questionType ?? existing.questionType,
@@ -533,6 +539,7 @@ router.delete("/questions/:questionId", requireAdmin, async (req, res): Promise<
  }
 
  if (!await assertGameOwnership(req, res, existing.gameId)) return;
+ if (!await assertQuestionsEditable(res, existing.gameId)) return;
 
  const [question] = await db
      .delete(questionsTable)

@@ -15,6 +15,7 @@ import {
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { opentdbRateLimit } from "../middleware/providerRateLimit.ts";
 import { assertGameOwnership } from "../lib/assertGameOwnership.ts";
+import { assertQuestionsEditable } from "../lib/playAlongLock.ts";
 import { reserveAiUsage } from "../lib/usageLimits.ts";
 
 
@@ -67,6 +68,7 @@ router.post(
  }
 
  if (!await assertGameOwnership(req, res, params.data.gameId)) return;
+ if (!await assertQuestionsEditable(res, params.data.gameId)) return;
 
   // Standard imports intentionally retain the original, OpenTDB-only behavior.
   // There are no AI calls, new limits, or insert-shape changes on this path.

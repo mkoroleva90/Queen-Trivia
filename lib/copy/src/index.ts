@@ -166,6 +166,8 @@ export const COPY = {
     /** Category selector option that switches the source to Gemini AI. Both platforms. */
     customTopicOption: 'Custom topic — Gemini AI generates questions',
     writeOwnOption: 'Write my own questions',
+    /** Shown on the Questions / Review steps while a live game the host plays along in is left out of the list. */
+    playAlongLockedNote: "A live game you're playing along in isn't listed here. Its questions are hidden and can't be changed until it ends.",
     quizTitleLabel: 'Quiz title',
     enterQuizTitle: 'Enter a quiz title',
     /** Category selector placeholder before a category is chosen. Both platforms. */
@@ -1871,6 +1873,8 @@ export const COPY = {
    * Game editor screen (mobile app/admin/[gameId].tsx).
    */
   gameEditor: {
+    /** Shown where a game's questions would be, and returned by the API, while the host plays along in that live game. */
+    playAlongLocked: "You're playing along in this game, so its questions are hidden and can't be changed until it ends.",
     /** Placeholder / aria-label of the inline quiz-title input. Both platforms. */
     quizNamePlaceholder: 'Quiz name',
     /** "{n} Question(s)" list title above the toolbar. */

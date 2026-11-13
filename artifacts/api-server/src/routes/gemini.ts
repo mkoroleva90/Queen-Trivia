@@ -22,6 +22,7 @@ import {
 } from "../services/geminiApi.ts";
 import { logger } from "../lib/logger.ts";
 import { assertGameOwnership } from "../lib/assertGameOwnership.ts";
+import { assertQuestionsEditable } from "../lib/playAlongLock.ts";
 import { reserveAiUsage } from "../lib/usageLimits.ts";
 import {
   anyContainsBannedContent,
@@ -102,6 +103,7 @@ router.post(
         }
 
         if (!await assertGameOwnership(req, res, params.data.gameId)) return;
+        if (!await assertQuestionsEditable(res, params.data.gameId)) return;
 
         const limitError = await reserveAiUsage(
             req.session.adminAccountId,
@@ -244,6 +246,7 @@ router.post(
         if (!game) { res.status(404).json({ error: "Game not found" }); return; }
 
         if (!await assertGameOwnership(req, res, gameId)) return;
+        if (!await assertQuestionsEditable(res, gameId)) return;
 
         const validTypes = ["multiple_choice", "true_false", "write_in"];
         const validDiffs = ["easy", "medium", "hard"];
@@ -346,6 +349,7 @@ router.post(
         }
 
         if (!await assertGameOwnership(req, res, params.data.gameId)) return;
+        if (!await assertQuestionsEditable(res, params.data.gameId)) return;
 
         const difficulty =
             body.data.difficulty ?? (game.difficulty as "easy" | "medium" | "hard") ?? "medium";
@@ -411,6 +415,7 @@ router.post(
         }
 
         if (!await assertGameOwnership(req, res, params.data.gameId)) return;
+        if (!await assertQuestionsEditable(res, params.data.gameId)) return;
 
         const [question] = await db
             .select()
