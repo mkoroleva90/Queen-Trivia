@@ -109,6 +109,16 @@ router.get("/games/:gameId/questions/stats", requireAdmin, async (req, res):Prom
 
  if (!await assertGameOwnership(req, res, gameId)) return;
 
+ // A host who plays along is a player until the game ends: mid-game they get
+ // only who has answered — never correctness, the answer distribution or
+ // what each player submitted, which would give the correct answers away.
+ const [game] = await db
+  .select({ status: gamesTable.status, hostPlaysAlong: gamesTable.hostPlaysAlong })
+  .from(gamesTable)
+  .where(eq(gamesTable.id, gameId));
+ if (!game) { res.status(404).json({ error: "Game not found" }); return; }
+ const withholdAnswers = game.status === "active" && game.hostPlaysAlong === true;
+
  const questions = await db
   .select({
       id: questionsTable.id,
@@ -201,6 +211,18 @@ const result = questions.map((q) => {
  const totalAnswered = s?.totalAnswered ?? 0;
  const correctCount = s?.correctCount ?? 0;
  const wrong = wrongMap.get(q.id);
+ if (withholdAnswers) {
+  return {
+   ...q,
+   totalAnswered,
+   correctCount: null,
+   answeredBy: answeredByMap.get(q.id) ?? [],
+   percentCorrect: null,
+   mostChosenWrong: null,
+   answerBreakdown: [],
+   playerAnswers: [],
+  };
+ }
  return {
   ...q,
       totalAnswered,

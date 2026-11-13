@@ -264,6 +264,35 @@ describe("GET /api/games/:gameId/questions/stats — live answer breakdown", () 
     assert.ok(playerAnswers.every((p) => p.playerName.startsWith("bd_")));
   });
 
+  it("withholds correctness and submitted answers from a host who plays along, until the game ends", async () => {
+    const agent = request.agent(app);
+    await agent.post("/api/test-set-stats-admin-session").send({ adminAccountId: adminId });
+    try {
+      await pool.query("UPDATE games SET host_plays_along = true WHERE id = $1", [gameId]);
+      const live = await agent.get(`/api/games/${gameId}/questions/stats`);
+      assert.equal(live.status, 200, JSON.stringify(live.body));
+      const stat = live.body[0];
+      // Who has answered stays available — the host's progress list needs it.
+      assert.equal(stat.totalAnswered, 4);
+      assert.equal(stat.answeredBy.length, 4);
+      // Nothing that reveals a correct answer.
+      assert.equal(stat.correctCount, null);
+      assert.equal(stat.percentCorrect, null);
+      assert.equal(stat.mostChosenWrong, null);
+      assert.deepEqual(stat.answerBreakdown, []);
+      assert.deepEqual(stat.playerAnswers, []);
+      assert.equal(JSON.stringify(live.body).includes("Paris"), false);
+      assert.equal(JSON.stringify(live.body).includes("isCorrect"), false);
+
+      await pool.query("UPDATE games SET status = 'completed' WHERE id = $1", [gameId]);
+      const ended = await agent.get(`/api/games/${gameId}/questions/stats`);
+      assert.equal(ended.body[0].correctCount, 2);
+      assert.equal(ended.body[0].playerAnswers.length, 3);
+    } finally {
+      await pool.query("UPDATE games SET host_plays_along = false, status = 'active' WHERE id = $1", [gameId]);
+    }
+  });
+
   it("is not reachable from a player session", async () => {
     const response = await request(app).get(`/api/games/${gameId}/questions/stats`);
     assert.notEqual(response.status, 200, JSON.stringify(response.body));
