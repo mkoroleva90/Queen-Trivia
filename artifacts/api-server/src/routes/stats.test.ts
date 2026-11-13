@@ -249,6 +249,27 @@ describe("GET /api/games/:gameId/questions/stats — live answer breakdown", () 
     assert.equal(stat.mostChosenWrong.count, 1);
   });
 
+  it("lists what each player submitted, in answer order, skips excluded", async () => {
+    const agent = request.agent(app);
+    await agent.post("/api/test-set-stats-admin-session").send({ adminAccountId: adminId });
+    const response = await agent.get(`/api/games/${gameId}/questions/stats`);
+
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    const playerAnswers = response.body[0].playerAnswers as { playerName: string; answer: string; isCorrect: boolean }[];
+    assert.equal(playerAnswers.length, 3);
+    assert.deepEqual(
+      playerAnswers.map((p) => [p.answer, p.isCorrect]).sort(),
+      [["Oslo", false], ["Paris", true], ["Paris", true]],
+    );
+    assert.ok(playerAnswers.every((p) => p.playerName.startsWith("bd_")));
+  });
+
+  it("is not reachable from a player session", async () => {
+    const response = await request(app).get(`/api/games/${gameId}/questions/stats`);
+    assert.notEqual(response.status, 200, JSON.stringify(response.body));
+    assert.equal(Array.isArray(response.body), false);
+  });
+
   it("is withheld from a host who does not own the game", async () => {
     const foreign = await pool.query<{ id: number }>(
       `INSERT INTO admin_accounts (email, email_verified) VALUES ($1, true) RETURNING id`,
@@ -260,6 +281,7 @@ describe("GET /api/games/:gameId/questions/stats — live answer breakdown", () 
       const response = await agent.get(`/api/games/${gameId}/questions/stats`);
       assert.notEqual(response.status, 200, JSON.stringify(response.body));
       assert.equal(response.body.answerBreakdown, undefined);
+      assert.equal(Array.isArray(response.body), false);
     } finally {
       await pool.query("DELETE FROM admin_accounts WHERE id = $1", [foreign.rows[0]!.id]);
     }

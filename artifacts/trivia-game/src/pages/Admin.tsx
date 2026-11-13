@@ -10,9 +10,13 @@ import {
   applySeed,
   resetTallyStore,
   buildAnswerRows,
+  breakdownFor,
+  buildPlayerAnswerRows,
   type TallyStore,
   type AnswerBreakdownEntry,
   type AnswerRow,
+  type PlayerAnswer,
+  type PlayerAnswerRow,
 } from "@workspace/live-tally";
 import { COPY } from "@workspace/copy";
 import { QuestionBreakdown } from "@/components/admin/QuestionBreakdown";
@@ -1395,12 +1399,20 @@ return (
 // ─── QuestionManager──────────────────────────────────────────────────────────
 
 
-function QuestionManager({ game }: { game: Game }) {
+function QuestionManager({ game, autoOpenAdd, onAutoOpened }: { game: Game; autoOpenAdd?: boolean; onAutoOpened?: () => void }) {
     const { toast } = useToast();
 const queryClient = useQueryClient();
 const [dialogOpen, setDialogOpen] = useState(false);
 const [editing, setEditing] = useState<Question | null>(null);
 const [localOrder, setLocalOrder] = useState<Question[]>([]);
+
+// A quiz the host chose to write from scratch opens straight on a blank question.
+useEffect(() => {
+ if (!autoOpenAdd) return;
+ setEditing(null);
+ setDialogOpen(true);
+ onAutoOpened?.();
+}, [autoOpenAdd, game.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
 const { data: questions } = useListGameQuestions(game.id, {
@@ -1682,7 +1694,7 @@ const createGameSuccessVariants = {
   visible: { opacity: 1, scale: 1 },
 };
 
-function CreateGameSection({ onCreated, onGoLive, onExit }: { onCreated: (game: Game) => void; onGoLive?: (game: Game) => void; onExit?: () => void }) {
+function CreateGameSection({ onCreated, onGoLive, onExit }: { onCreated: (game: Game, opts?: { addQuestion?: boolean }) => void; onGoLive?: (game: Game) => void; onExit?: () => void }) {
     const [categoryId, setCategoryId] = useState<string>("9");
     const [customTopic, setCustomTopic] = useState("");
     const [difficulty, setDifficulty] = useState<Game["difficulty"]>("medium");
@@ -1732,17 +1744,18 @@ const parseGeminiRateError = (err: unknown): { isDaily: boolean; isPerMinute: bo
  return { isDaily, isPerMinute, countdown };
 };
 const isCustom = categoryId === "custom";
+const isManual = categoryId === "manual";
 const selectedCategory = OPENTDB_CATEGORIES.find((c) => String(c.id) === categoryId);
-const topicName = isCustom ? customTopic.trim() : (selectedCategory?.name ?? "");
+const topicName = isCustom || isManual ? customTopic.trim() : (selectedCategory?.name ?? "");
  const canSubmit =
   topicName.length > 0
   && !createGame.isPending
   && !working
-  && openTdbMode !== null;
+  && (isManual || openTdbMode !== null);
 const handleSubmit = async (e: React.FormEvent) => {
  e.preventDefault();
  if (!canSubmit) return;
-  if (openTdbMode === null) return;
+  if (!isManual && openTdbMode === null) return;
 
 
  let game: Game;
@@ -1750,7 +1763,9 @@ const handleSubmit = async (e: React.FormEvent) => {
       setWorkingLabel(COPY.build.working.creating);
       setWorking(true);
       game = await createGame.mutateAsync({
-       data: { topic: topicName, difficulty, createdByAdmin: true, brief: brief.trim() || null },
+       data: isManual
+        ? { topic: topicName, difficulty: "medium", createdByAdmin: true }
+        : { topic: topicName, difficulty, createdByAdmin: true, brief: brief.trim() || null },
       });
       queryClient.invalidateQueries({ queryKey: getListGamesQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
@@ -1766,6 +1781,15 @@ const handleSubmit = async (e: React.FormEvent) => {
       setWorking(false);
       return;
   }
+
+  // Write-your-own quiz: no import or AI call — open the editor on a blank question.
+  if (isManual) {
+   setWorking(false);
+   onCreated(game, { addQuestion: true });
+   return;
+  }
+  if (openTdbMode === null) { setWorking(false); return; }
+
 
 
   if (!isCustom && selectedCategory && openTdbMode !== null) {
@@ -2135,6 +2159,7 @@ return (
             <SelectValue placeholder={COPY.build.selectCategory} />
            </SelectTrigger>
            <SelectContent>
+      <SelectItem value="manual">{COPY.build.writeOwnOption}</SelectItem>
       <SelectItem value="custom">{COPY.build.customTopicOption}</SelectItem>
      <Separator className="my-1" />
      {OPENTDB_CATEGORIES.map((cat) => (
@@ -2144,16 +2169,16 @@ return (
      ))}
      </SelectContent>
  </Select>
-<p className="text-xs text-muted-foreground mt-1">{isCustom ? COPY.sourceHelper.topic : COPY.sourceHelper.category}</p>
+<p className="text-xs text-muted-foreground mt-1">{isManual ? COPY.sourceHelper.manual : isCustom ? COPY.sourceHelper.topic : COPY.sourceHelper.category}</p>
 </div>
 
- <OpenTdbQuestionMixSelector value={openTdbMode} onSelect={setOpenTdbMode} />
+ {!isManual && <OpenTdbQuestionMixSelector value={openTdbMode} onSelect={setOpenTdbMode} />}
 
 
-{/* Custom topic text input */}
-{isCustom && (
+{/* Custom topic / quiz title text input */}
+{(isCustom || isManual) && (
  <div className="space-y-2">
-     <Label htmlFor="customTopic">{COPY.build.topicLabel}</Label>
+     <Label htmlFor="customTopic">{isManual ? COPY.build.quizTitleLabel : COPY.build.topicLabel}</Label>
      <Input
      id="customTopic"
      value={customTopic}
@@ -2180,7 +2205,7 @@ return (
 )}
 
 
-<div className="grid grid-cols-2 gap-4">
+{!isManual && <div className="grid grid-cols-2 gap-4">
     <div className="space-y-2">
      <Label>{COPY.build.difficultyLabel}</Label>
     <Select value={difficulty} onValueChange={(v) => setDifficulty(v as Game["difficulty"])}>
@@ -2204,7 +2229,7 @@ return (
       </SelectContent>
      </Select>
     </div>
-   </div>
+   </div>}
 
          <Button
           type="submit"
@@ -2213,6 +2238,8 @@ return (
          >
           {createGame.isPending || working ? (
      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {workingLabel || COPY.build.working.default}</>
+          ) : isManual ? (
+              <><Pencil className="mr-2 h-4 w-4" /> {COPY.btn.createGame}</>
           ) : isCustom ? (
               <><Lightbulb className="mr-2 h-4 w-4" /> {COPY.btn.createGame}</>
           ):(
@@ -2227,9 +2254,13 @@ return (
 function QuestionsSection({
  games,
  preferGameId,
+ autoAddGameId,
+ onAutoAddHandled,
 }: {
  games: Game[];
  preferGameId?: number;
+ autoAddGameId?: number | null;
+ onAutoAddHandled?: () => void;
 }) {
  // Show waiting AND active (live) games — completed games have locked question sets.
  const editableGames = games.filter((g) => g.status === "waiting" || g.status === "active");
@@ -2301,7 +2332,7 @@ function QuestionsSection({
 
 
               {selectedGame ? (
-               <QuestionManager game={selectedGame} />
+               <QuestionManager game={selectedGame} autoOpenAdd={autoAddGameId === selectedGame.id} onAutoOpened={onAutoAddHandled} />
               ):(
                <p className="text-sm text-muted-foreground">{COPY.build.selectGameHint}</p>
               )}
@@ -2900,6 +2931,7 @@ type LiveQuestionStat = {
   percentCorrect: number | null;
   answeredBy?: string[];
   answerBreakdown?: AnswerBreakdownEntry[];
+  playerAnswers?: PlayerAnswer[];
 };
 
 // ─── Live results (host-only live view; mirrors mobile app/admin/live) ────────
@@ -2950,6 +2982,52 @@ function LiveAnswerRows({ rows, totalAnswered, size, revealed }: { rows: AnswerR
   );
 }
 
+// What each player submitted for one question, behind a per-question toggle
+// (mirrors the mobile live screen). Rows come from buildPlayerAnswerRows:
+// players who answered first, then everyone still to answer. Right / wrong
+// marks appear only once the host has revealed the answer.
+function LivePlayerAnswers({ rows, revealed }: { rows: PlayerAnswerRow[]; revealed: boolean }) {
+  const [open, setOpen] = useState(false);
+  if (rows.length === 0) return null;
+  return (
+    <div className="pt-1">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex items-center gap-1.5 text-[11px] font-bold text-[#00ddff] hover:brightness-110 transition"
+      >
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+        {COPY.liveResults.playerAnswersLabel}
+      </button>
+      {open && (
+        <ul className="mt-2 divide-y divide-[#1b2740] rounded-xl border border-[#1b2740] bg-white/[.02]">
+          {rows.map((r) => {
+            const answered = r.label !== null;
+            const marked = revealed && answered;
+            return (
+              <li key={r.playerName} className="flex items-start gap-3 px-3 py-2">
+                <span className="w-[38%] shrink-0 truncate text-[13px] font-semibold text-[#eef2f8]">{r.playerName}</span>
+                <span className={`flex-1 min-w-0 break-words text-[13px] ${answered ? "text-[#c9d1e0]" : "italic text-[#66728a]"}`}>
+                  {r.label ?? COPY.liveResults.notAnsweredYet}
+                </span>
+                {marked && (
+                  <span
+                    className={`shrink-0 text-[13px] font-extrabold ${r.isCorrect ? "text-[#35d07f]" : "text-[#ff6b6b]"}`}
+                    aria-label={r.isCorrect ? COPY.liveResults.playerCorrectLabel : COPY.liveResults.playerIncorrectLabel}
+                  >
+                    {r.isCorrect ? "✓" : "✕"}
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // Per-question toggle that reveals or hides the correct answer in the live breakdown.
 function RevealAnswerButton({ revealed, onToggle, size }: { revealed: boolean; onToggle: () => void; size: "lg" | "sm" }) {
   return (
@@ -2974,12 +3052,14 @@ function LiveResultsBreakdown({
   questions,
   statById,
   totalPlayers,
+  playerNames,
   revealedIds,
   onToggleReveal,
 }: {
   questions: Question[];
   statById: Map<number, LiveQuestionStat>;
   totalPlayers: number;
+  playerNames: string[];
   revealedIds: Set<number>;
   onToggleReveal: (questionId: number) => void;
 }) {
@@ -2997,6 +3077,7 @@ function LiveResultsBreakdown({
           const correct = st?.correctCount ?? 0;
           const pct = st?.percentCorrect ?? (answered > 0 ? Math.round((correct / answered) * 100) : 0);
           const revealed = revealedIds.has(q.id);
+          const progress = totalPlayers > 0 ? Math.min(100, Math.round((answered / totalPlayers) * 100)) : 0;
           return (
             <div key={q.id} className="rounded-xl border border-[#1b2740] bg-white/[.02] px-4 py-3 space-y-2">
               <div className="flex items-center gap-3 flex-wrap">
@@ -3010,11 +3091,15 @@ function LiveResultsBreakdown({
                 </span>
               </div>
               <p className="text-[13px] font-semibold text-[#c9d1e0] leading-snug line-clamp-2">{q.questionText}</p>
+              <div className="h-[3px] rounded-full bg-white/10 overflow-hidden">
+                <div className="h-full rounded-full bg-[#00ddff]" style={{ width: `${progress}%` }} />
+              </div>
               {answered > 0 ? (
-                <LiveAnswerRows rows={buildAnswerRows(q, st?.answerBreakdown, 4)} totalAnswered={answered} size="sm" revealed={revealed} />
+                <LiveAnswerRows rows={buildAnswerRows(q, breakdownFor(st), 4)} totalAnswered={answered} size="sm" revealed={revealed} />
               ) : (
                 <p className="text-xs text-[#66728a]">{COPY.liveResults.noAnswersYet}</p>
               )}
+              <LivePlayerAnswers rows={buildPlayerAnswerRows(q.questionType, st?.playerAnswers, playerNames)} revealed={revealed} />
             </div>
           );
         })}
@@ -3767,7 +3852,7 @@ function LiveGameView({
             {!activeGame.hostPlaysAlong && currentQ && (
               <>
                 <LiveAnswerRows
-                  rows={buildAnswerRows(currentQ, liveStatById.get(currentQ.id)?.answerBreakdown)}
+                  rows={buildAnswerRows(currentQ, breakdownFor(liveStatById.get(currentQ.id)))}
                   totalAnswered={liveStatById.get(currentQ.id)?.totalAnswered ?? 0}
                   size="lg"
                   revealed={revealedIds.has(currentQ.id)}
@@ -3879,6 +3964,7 @@ function LiveGameView({
               questions={questions}
               statById={liveStatById}
               totalPlayers={parts.length}
+              playerNames={parts.map((p) => p.userName)}
               revealedIds={revealedIds}
               onToggleReveal={toggleReveal}
             />
@@ -4376,6 +4462,8 @@ function BuildQuizView({
   onNavigate: (section: Section, gameId?: number) => void;
 }) {
   const [subTab, setSubTab] = useState<"setup"|"questions"|"review">("setup");
+  // Game just created through "Write my own questions" — its editor opens on a blank question.
+  const [autoAddGameId, setAutoAddGameId] = useState<number | null>(null);
 
   useEffect(() => {
     if (preferGameId) setSubTab("questions");
@@ -4406,13 +4494,13 @@ function BuildQuizView({
       <div className="bg-[#0f1724] border border-[#1b2740] rounded-2xl p-6">
         {subTab === "setup" && (
           <CreateGameSection
-            onCreated={(g) => { setSubTab("questions"); onNavigate("build", g.id); }}
+            onCreated={(g, opts) => { if (opts?.addQuestion) setAutoAddGameId(g.id); setSubTab("questions"); onNavigate("build", g.id); }}
             onGoLive={() => onNavigate("live")}
             onExit={() => onNavigate("games")}
           />
         )}
         {subTab === "questions" && (
-          <QuestionsSection games={games} preferGameId={preferGameId} />
+          <QuestionsSection games={games} preferGameId={preferGameId} autoAddGameId={autoAddGameId} onAutoAddHandled={() => setAutoAddGameId(null)} />
         )}
         {subTab === "review" && (
           <ReviewSection games={games} />

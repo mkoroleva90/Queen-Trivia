@@ -8,6 +8,9 @@ import {
   recordAnswerEvent,
   applySeed,
   resetTallyStore,
+  breakdownFor,
+  buildPlayerAnswerRows,
+  formatPlayerAnswer,
 } from "./index.ts";
 
 test("seed only: baseline passes through unchanged", () => {
@@ -172,4 +175,61 @@ test("rows: an answer outside the choice list is still shown after the choices",
     [{ answer: "C", count: 1, isCorrect: false }],
   );
   assert.deepEqual(rows.map((r) => r.answer), ["A", "B", "C"]);
+});
+
+// ─── Live answer breakdown & per-player answers ─────────────────────────────
+
+const multiSelectQ = {
+  questionType: "multi_select",
+  correctAnswer: "Red|Blue",
+  options: { choices: ["Red", "Green", "Blue", "Pink"] },
+};
+
+test("multi-select: one row per choice, counting every player who picked it", () => {
+  const rows = buildAnswerRows(multiSelectQ, [
+    { answer: "Red|Blue", count: 2, isCorrect: true },
+    { answer: "Blue|Green", count: 1, isCorrect: false },
+    { answer: "red", count: 1, isCorrect: false },
+  ]);
+  assert.deepEqual(
+    rows.map((r) => [r.label, r.count, r.isCorrect]),
+    [["Red", 3, true], ["Green", 1, false], ["Blue", 3, true], ["Pink", 0, false]],
+  );
+});
+
+test("breakdownFor: aggregates per-player answers without truncation", () => {
+  const playerAnswers = Array.from({ length: 12 }, (_, i) => ({
+    playerName: `P${i}`,
+    answer: i < 2 ? "same" : `answer ${i}`,
+    isCorrect: i < 2,
+  }));
+  const breakdown = breakdownFor({ answerBreakdown: [], playerAnswers })!;
+  assert.equal(breakdown.length, 11);
+  assert.deepEqual(breakdown[0], { answer: "same", count: 2, isCorrect: true });
+  // Older snapshots without per-player answers fall back to the server breakdown.
+  const legacy = [{ answer: "x", count: 1, isCorrect: false }];
+  assert.equal(breakdownFor({ answerBreakdown: legacy }), legacy);
+});
+
+test("buildPlayerAnswerRows: answered players first, then everyone still to answer", () => {
+  const rows = buildPlayerAnswerRows(
+    "multi_select",
+    [
+      { playerName: "Bo", answer: "Blue|Green", isCorrect: false },
+      { playerName: "Ana", answer: "Red|Blue", isCorrect: true },
+    ],
+    ["Ana", "Bo", "Cy"],
+  );
+  assert.deepEqual(rows, [
+    { playerName: "Bo", label: "Blue · Green", isCorrect: false },
+    { playerName: "Ana", label: "Red · Blue", isCorrect: true },
+    { playerName: "Cy", label: null, isCorrect: false },
+  ]);
+});
+
+test("formatPlayerAnswer: readable form per question type", () => {
+  assert.equal(formatPlayerAnswer("true_false", "true"), "True");
+  assert.equal(formatPlayerAnswer("ordering", "a|b|c"), "1. a  2. b  3. c");
+  assert.equal(formatPlayerAnswer("matching", "a:1|b:2"), "a → 1  ·  b → 2");
+  assert.equal(formatPlayerAnswer("write_in", "a|b"), "a|b");
 });

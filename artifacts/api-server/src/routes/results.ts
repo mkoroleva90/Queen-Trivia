@@ -136,11 +136,14 @@ const answerStats = await db
 
 const statsMap = new Map(answerStats.map((s) => [s.questionId, s]));
 
-// Player names who answered each question (used to seed live host views)
+// Player names who answered each question (used to seed live host views),
+// with what each one submitted (the host's live "Player answers" list).
 const answeredRows = await db
  .select({
   questionId: answersTable.questionId,
   userName: usersTable.name,
+  userAnswer: answersTable.userAnswer,
+  isCorrect: answersTable.isCorrect,
  })
  .from(answersTable)
  .innerJoin(usersTable, eq(answersTable.userId, usersTable.id))
@@ -148,10 +151,16 @@ const answeredRows = await db
  .orderBy(asc(answersTable.answeredAt));
 
 const answeredByMap = new Map<number, string[]>();
+const playerAnswersMap = new Map<number, { playerName: string; answer: string; isCorrect: boolean }[]>();
 for (const row of answeredRows) {
  const list = answeredByMap.get(row.questionId) ?? [];
  if (!list.includes(row.userName)) list.push(row.userName);
  answeredByMap.set(row.questionId, list);
+ // Blank rows are skips, not answers — the player still shows as not answered.
+ if (row.userAnswer === "") continue;
+ const playerAnswers = playerAnswersMap.get(row.questionId) ?? [];
+ playerAnswers.push({ playerName: row.userName, answer: row.userAnswer, isCorrect: row.isCorrect });
+ playerAnswersMap.set(row.questionId, playerAnswers);
 }
 
 // Distribution of submitted answers per question. Feeds the most-chosen wrong
@@ -200,6 +209,7 @@ const result = questions.map((q) => {
   percentCorrect: totalAnswered > 0 ? Math.round((correctCount / totalAnswered) * 100) :null,
   mostChosenWrong: wrong ? { answer: wrong.answer, count: wrong.count } : null,
   answerBreakdown: breakdownMap.get(q.id) ?? [],
+  playerAnswers: playerAnswersMap.get(q.id) ?? [],
   };
  });
 

@@ -30,7 +30,15 @@ import { useColors } from '@/hooks/useColors';
 import { useAdminGameSocket } from '@/hooks/useSocket';
 import { API_BASE_URL } from '@/lib/apiBase';
 import { COPY } from '@workspace/copy';
-import { buildAnswerRows, type AnswerBreakdownEntry, type AnswerRow } from '@workspace/live-tally';
+import {
+  buildAnswerRows,
+  breakdownFor,
+  buildPlayerAnswerRows,
+  type AnswerBreakdownEntry,
+  type AnswerRow,
+  type PlayerAnswer,
+  type PlayerAnswerRow,
+} from '@workspace/live-tally';
 import {
   MultipleChoiceQ,
   MultiSelectQ,
@@ -52,6 +60,7 @@ type QuestionStat = {
   correctCount: number;
   percentCorrect: number | null;
   answerBreakdown?: AnswerBreakdownEntry[];
+  playerAnswers?: PlayerAnswer[];
 };
 
 // Ranked players from /results — the same ordering the results screen shows.
@@ -876,7 +885,7 @@ export default function AdminLiveScreen() {
                     </View>
                     {answered > 0 ? (
                       <LiveAnswerRows
-                        rows={buildAnswerRows(q, st?.answerBreakdown, 4)}
+                        rows={buildAnswerRows(q, breakdownFor(st), 4)}
                         totalAnswered={answered}
                         colors={colors}
                         revealed={revealed}
@@ -884,6 +893,11 @@ export default function AdminLiveScreen() {
                     ) : (
                       <Text style={[s.noAnswers, { color: colors.mutedForeground }]}>{COPY.liveResults.noAnswersYet}</Text>
                     )}
+                    <LivePlayerAnswers
+                      rows={buildPlayerAnswerRows(q.questionType, st?.playerAnswers, (participants ?? []).map((p) => p.userName))}
+                      colors={colors}
+                      revealed={revealed}
+                    />
                   </View>
                 );
               })
@@ -1147,6 +1161,79 @@ function LiveAnswerRows({
     </View>
   );
 }
+
+// What each player submitted for one question, behind a per-question toggle
+// (mirrors the web live view). Rows come from buildPlayerAnswerRows: players
+// who answered first, then everyone still to answer. Right / wrong marks
+// appear only once the host has revealed the answer.
+function LivePlayerAnswers({
+  rows,
+  colors,
+  revealed,
+}: {
+  rows: PlayerAnswerRow[];
+  colors: ReturnType<typeof useColors>;
+  revealed: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  if (rows.length === 0) return null;
+  return (
+    <View style={playerStyles.wrap}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen((o) => !o)}
+        hitSlop={6}
+        style={playerStyles.toggle}
+      >
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={14} color={colors.secondary} />
+        <Text style={[playerStyles.toggleText, { color: colors.secondary }]}>{COPY.liveResults.playerAnswersLabel}</Text>
+      </Pressable>
+      {open && (
+        <View style={[playerStyles.list, { borderColor: colors.border }]}>
+          {rows.map((r, i) => {
+            const answered = r.label !== null;
+            const marked = revealed && answered;
+            return (
+              <View
+                key={r.playerName}
+                style={[playerStyles.row, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
+              >
+                <Text style={[playerStyles.name, { color: colors.foreground }]} numberOfLines={1}>{r.playerName}</Text>
+                <Text
+                  style={[
+                    playerStyles.answer,
+                    answered ? { color: colors.cardForeground } : { color: colors.mutedForeground, fontStyle: 'italic' },
+                  ]}
+                >
+                  {r.label ?? COPY.liveResults.notAnsweredYet}
+                </Text>
+                {marked && (
+                  <Ionicons
+                    name={r.isCorrect ? 'checkmark' : 'close'}
+                    size={15}
+                    color={r.isCorrect ? colors.secondary : colors.destructive}
+                    accessibilityLabel={r.isCorrect ? COPY.liveResults.playerCorrectLabel : COPY.liveResults.playerIncorrectLabel}
+                  />
+                )}
+              </View>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const playerStyles = StyleSheet.create({
+  wrap: { marginTop: 2 },
+  toggle: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start' },
+  toggleText: { fontSize: 12, fontFamily: 'Manrope_700Bold' },
+  list: { marginTop: 8, borderWidth: 1, borderRadius: 10 },
+  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 8, paddingHorizontal: 10 },
+  name: { width: '38%', fontSize: 13, fontFamily: 'Manrope_600SemiBold' },
+  answer: { flex: 1, fontSize: 13, fontFamily: 'Manrope_500Medium' },
+});
 
 const rowStyles = StyleSheet.create({
   list: { gap: 6, marginTop: 2 },
