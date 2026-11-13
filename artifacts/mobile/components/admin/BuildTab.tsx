@@ -279,10 +279,13 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
   // ── Data & mutations
   const { data: games = [] } = useListGames();
   const editableGames = useMemo(
-    () => games.filter((g) => g.status === 'waiting' || g.status === 'active'),
+    // A live game the host plays along in keeps its questions hidden and locked
+    // until it ends — the host is a player there (mirrors the web Build view).
+    () => games.filter((g) => g.status === 'waiting' || (g.status === 'active' && !g.hostPlaysAlong)),
     [games],
   );
-  const selectedGame = games.find((g) => g.id === workingGameId) ?? null;
+  const hasLockedGame = games.some((g) => g.status === 'active' && g.hostPlaysAlong);
+  const selectedGame = editableGames.find((g) => g.id === workingGameId) ?? null;
 
   useEffect(() => {
     if (workingGameId === null && editableGames.length > 0) {
@@ -1141,6 +1144,9 @@ export function BuildTab({ bottomPadding, onExitBuild }: Props) {
                 </Pressable>
               )}
             </View>
+            {hasLockedGame && (
+              <Text style={[s.emptySub, { color: colors.mutedForeground, textAlign: 'left' }]}>{COPY.build.playAlongLockedNote}</Text>
+            )}
             {editableGames.length === 0 ? (
               <View style={[s.emptyCard, { borderColor: colors.border }]}>
                 <Ionicons name="checkmark-done-outline" size={36} color={colors.mutedForeground} />

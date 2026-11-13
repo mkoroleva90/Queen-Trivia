@@ -293,6 +293,43 @@ describe("GET /api/games/:gameId/questions/stats — live answer breakdown", () 
     }
   });
 
+  it("serves a playing host the redacted question list and refuses question edits, until the game ends", async () => {
+    const agent = request.agent(app);
+    await agent.post("/api/test-set-stats-admin-session").send({ adminAccountId: adminId });
+
+    const before = await agent.get(`/api/games/${gameId}/questions`);
+    assert.equal(before.body[0].correctAnswer, "Paris");
+    try {
+      await pool.query("UPDATE games SET host_plays_along = true WHERE id = $1", [gameId]);
+      const live = await agent.get(`/api/games/${gameId}/questions`);
+      assert.equal(live.status, 200, JSON.stringify(live.body));
+      assert.equal(live.body.length, 1);
+      assert.equal("correctAnswer" in live.body[0], false);
+      assert.deepEqual(live.body[0].options.choices, ["Rome", "Paris", "Oslo", "Bern"]);
+
+      const edit = await agent
+        .patch(`/api/questions/${questionId}`)
+        .set("Origin", "")
+        .send({ correctAnswer: "Rome" });
+      assert.equal(edit.status, 409, JSON.stringify(edit.body));
+      assert.equal(edit.body.code, "play_along_locked");
+      const add = await agent.post(`/api/games/${gameId}/questions`).send({
+        questionText: "New?", questionType: "true_false", correctAnswer: "true", points: 10, orderIndex: 1,
+      });
+      assert.equal(add.status, 409, JSON.stringify(add.body));
+      const remove = await agent.delete(`/api/questions/${questionId}`);
+      assert.equal(remove.status, 409, JSON.stringify(remove.body));
+
+      await pool.query("UPDATE games SET status = 'completed' WHERE id = $1", [gameId]);
+      const ended = await agent.get(`/api/games/${gameId}/questions`);
+      assert.equal(ended.body[0].correctAnswer, "Paris");
+    } finally {
+      await pool.query("UPDATE games SET host_plays_along = false, status = 'active' WHERE id = $1", [gameId]);
+    }
+    const stored = await pool.query("SELECT correct_answer FROM questions WHERE id = $1", [questionId]);
+    assert.equal(stored.rows[0].correct_answer, "Paris");
+  });
+
   it("is not reachable from a player session", async () => {
     const response = await request(app).get(`/api/games/${gameId}/questions/stats`);
     assert.notEqual(response.status, 200, JSON.stringify(response.body));

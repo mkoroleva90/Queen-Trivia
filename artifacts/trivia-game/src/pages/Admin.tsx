@@ -4464,6 +4464,10 @@ function BuildQuizView({
   const [subTab, setSubTab] = useState<"setup"|"questions"|"review">("setup");
   // Game just created through "Write my own questions" — its editor opens on a blank question.
   const [autoAddGameId, setAutoAddGameId] = useState<number | null>(null);
+  // A live game the host plays along in keeps its questions hidden and locked
+  // until it ends — the host is a player there (mirrors the mobile Build tab).
+  const editorGames = games.filter((g) => !(g.status === "active" && g.hostPlaysAlong));
+  const hasLockedGame = editorGames.length !== games.length;
 
   useEffect(() => {
     if (preferGameId) setSubTab("questions");
@@ -4500,10 +4504,13 @@ function BuildQuizView({
           />
         )}
         {subTab === "questions" && (
-          <QuestionsSection games={games} preferGameId={preferGameId} autoAddGameId={autoAddGameId} onAutoAddHandled={() => setAutoAddGameId(null)} />
+          <QuestionsSection games={editorGames} preferGameId={preferGameId} autoAddGameId={autoAddGameId} onAutoAddHandled={() => setAutoAddGameId(null)} />
         )}
         {subTab === "review" && (
-          <ReviewSection games={games} />
+          <ReviewSection games={editorGames} />
+        )}
+        {subTab !== "setup" && hasLockedGame && (
+          <p className="mt-4 text-sm text-[#9aa6bc]">{COPY.build.playAlongLockedNote}</p>
         )}
       </div>
     </div>
